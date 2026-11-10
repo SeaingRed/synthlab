@@ -4,10 +4,12 @@
 # dependency audit.
 name: ci
 
+# Run by hand for now (Actions → ci → Run workflow). To run it on every push
+# and pull request again, add back:
+#   push:
+#     branches: [main]
+#   pull_request:
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 concurrency:
