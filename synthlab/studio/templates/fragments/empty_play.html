@@ -1,0 +1,12 @@
+{# synthlab/studio/templates/fragments/empty_play.html — the next step
+   that makes sound where starting a song is not what the page is for (an
+   empty rack of saved sounds, the agent's drawer, an empty board): one
+   press plays the loop this view hears — the sound that would be saved,
+   edited, bred from or bounced (POST /fragment/preview with `play`: the
+   render comes back as `preview-ready` with `autoplay`, and audio.js
+   starts the transport). It changes nothing. Included inside an
+   `.empty-state`, beside empty_start.html's "Start a song" where a page
+   has that instead; the same command wherever it appears. #}
+<button type="button" class="btn btn-s empty-play" data-cmd="Play the loop" data-cmd-group="Transport"
+        hx-post="/fragment/preview" hx-vals='{"play": "1"}' hx-swap="none"
+        title="Play the loop as this page hears it — the sound you are working on. Space or ■ stops it">▶ Play the loop</button>

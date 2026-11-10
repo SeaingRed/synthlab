@@ -1,0 +1,384 @@
+{# synthlab/studio/templates/views/editor.html #}
+{% from "macros.html" import fill, fmt %}
+{# Laid out by job: the sound bar says which sound this
+   is and lets you hear/compare it; the chain bar and panels shape it in the
+   order the engine runs (Source -> Filter -> Vowel -> Amp -> Character ->
+   Motion), FX finish the chain, Perform controls fold away, and the keyboard
+   dock (every page's, after #view: fragments/keys_dock.html) stands under
+   them, stuck to the bottom of the screen, carrying the play tools and the
+   monitor controls that are not part of the sound. DOM order
+   follows that visual order so tab order doesn't jump. #}
+<main class="cockpit" id="view" hx-history-elt data-view="editor" data-ws-dock="synths">
+
+  <header class="view-head">
+    {#- the folded sound list's way back, at the top beside the title (the
+        dock's own head holds ‹ and the search while it is open) -#}
+    <button type="button" class="btn btn-s dock-toggle dock-expand" aria-label="show sounds"
+            title="show the sound list" data-cmd="Show the sound list" data-cmd-group="View">Sounds ›</button>
+    <h1>Synths</h1>
+    <p class="view-sub">Find the sound. The pattern lives in Perform.</p>
+    <div id="head-how" class="pop head-how" popover><p class="view-how">▶ plays a fixed reference phrase, so changing the sound never changes the notes. Layers stack sounds: the panels edit the ✎ one, ▶ plays every layer with a speaker, and Follow makes a layer play the main lane's notes. The panels follow the signal from Source to FX; the keyboard stays docked at the bottom.</p></div>
+    {% include "fragments/track_edit_banner.html" %}
+    <div class="head-tools">{% include "fragments/head_help.html" %}{% with ws_view = "editor" %}{% include "fragments/ws_menu.html" %}{% endwith %}{% include "fragments/reset_menu.html" %}</div>
+  </header>
+
+  {# A popover on small screens (a bottom sheet opened from the sound bar's
+     "Sounds"); an ordinary column on desktop, where CSS overrides the UA's
+     hidden-popover display (the Song page's pool does the same) — and a
+     member of the page's workspace there, moved anywhere in it. #}
+  <aside class="dock module" id="sound-dock" data-module="synths.sounds" popover>
+    {#- the head and the search stay at the top while the list scrolls under;
+        the title row is where the workspace takes the list from (a module
+        of the page like any other: it moves, tabs, folds, pops out) -#}
+    <div class="sounds-head">
+    <h2 class="dock-title caps module-head" data-ws-head>Sounds
+      {#- one line a sound (no tags), in either density: audio.js, per browser -#}
+      <button type="button" class="btn btn-ghost btn-icon btn-s sounds-compact" id="sounds-compact" aria-pressed="false"
+              aria-label="compact sound list" title="compact list: one line a sound, the tags hidden"
+              data-cmd="Sounds: compact list on / off" data-cmd-group="View">☰</button>
+      <button type="button" class="btn btn-ghost btn-icon btn-s dock-toggle" aria-label="hide sounds"
+              title="hide the sound list" data-cmd="Hide the sound list" data-cmd-group="View">‹</button>
+      <button type="button" class="btn btn-ghost btn-icon btn-s dock-close" popovertarget="sound-dock" popovertargetaction="hide"
+              aria-label="close the sound list">✕</button>
+    </h2>
+    {#- outside #preset-list, so a refresh of the list keeps what is typed -#}
+    <input type="search" class="field field-s" id="dock-filter" placeholder="Filter sounds…"
+           autocomplete="off" aria-label="filter sounds by name or tag">
+    </div>
+    {% include "fragments/presets.html" %}
+    <div class="project-io">
+      <a class="btn btn-s" href="/project.json" download data-cmd="Export the project" data-cmd-group="Export"
+         title="the session's state alone: samples and clips stay in this studio">Export project</a>
+      <a class="btn btn-s" href="/project.zip" download data-cmd="Export the project with its audio" data-cmd-group="Export"
+         title="the project with every sample and clip it uses, so it plays on another machine">Export project + audio</a>
+      <form hx-post="/project/import" hx-encoding="multipart/form-data" hx-swap="none"
+            hx-trigger="change" hx-sync="this:queue all">
+        <label class="btn btn-s filepick" title="import a project: a .json, or a .zip exported with its audio">Import… <input type="file" name="file" accept=".json,application/json,.zip,application/zip" hidden></label>
+      </form>
+    </div>
+  </aside>
+  {# the dock scrolls, so its resize handle sits beside it in the same grid
+     area (layout.js measures the pane `data-pane` names) #}
+  <div class="splitter dock-splitter" data-var="--dock-w" data-scope=".cockpit" data-pane="#sound-dock" data-min="200" data-max="560" role="separator" aria-orientation="vertical" aria-label="resize the sounds dock" title="drag to resize · double-click resets" tabindex="0"></div>
+
+  {#- the strip is a container (its width — the window, the sound list open
+      or folded — lays it out: style.css 7a2): the sound (the bar's
+      identity row, its rail of cells and the read-outs at the rail's end)
+      over the layers, or beside them once it is wide -#}
+  <div class="sound-strip">
+    <div class="ss-grid">
+    <div class="ss-sound">
+    {% include "fragments/sound_bar.html" %}
+    <div id="analysis" class="readouts" title="level, sub weight and brightness of the last render">
+      <span class="ro-empty">press ▶ to measure level, sub and brightness</span>
+    </div>
+    </div>
+    {% include "fragments/layer_strip.html" %}
+    </div>
+  </div>
+  {# one Save for the sound, opened from the sound bar (it used to be in the
+     dock AND the bar); a sibling, not inside #sound-bar, which is a form #}
+  {#- the name comes prefilled with the sound's and selected (audio.js, on
+      open): Enter keeps it, typing replaces it -#}
+  <div popover id="save-dialog" class="dialog pop">
+    <form hx-post="/fragment/preset/save" hx-target="#preset-list" hx-swap="outerHTML">
+      <label>Name <input class="field" name="name" required maxlength="40" autocomplete="off" autofocus></label>
+      {#- the whole sound by default (a saved sound is a recipe): every layer, their FX and
+          curves — a recipe's format; unticked, the edited layer's patch -#}
+      <label class="save-scope" title="Ticked: the whole sound, as the Recipes are — every layer, its FX and curves. Unticked: just the layer you are editing (what the panels show)."><input class="check" type="checkbox" name="include_layers" checked> include layers, FX &amp; curves</label>
+      <span class="dialog-acts"><button type="submit" class="btn btn-primary">Save</button></span>
+    </form>
+  </div>
+  {# the Sound agent: a manual popover (top layer, no grid area), opened from
+     the sound bar's "Agent" button #}
+  {% include "fragments/agent_drawer.html" %}
+
+  {% include "fragments/chain.html" %}
+
+  {# Shape-specific rows (FM, pluck, wavetable) are hidden unless an
+     oscillator uses that shape — pure CSS :has() on the osc radios, so it
+     tracks pill clicks instantly even though patch posts are
+     hx-swap="none". The rows stay in the DOM (morphs and preset loads keep
+     working); they just don't take half the Source panel. #}
+  <style>
+    {% for shape, deps in shape_deps.items() %}
+    #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked))
+      :is({% for d in deps %}#row-{{ d }}, #sub-{{ d }}, {% endfor %}.shape-{{ shape }}) { display: none; }
+    {% endfor %}
+    #view:not(:has([name="osc1"][value="sampler"]:checked)) #sampler-panel { display: none; }
+    {#- filter 2's rows while it plays; a drawn LFO's drawing while
+        its shape is "drawn"; a target jack while its module can be heard
+        (or a lead is plugged into it) -#}
+    #view:has([name="filter2_route"][value="off"]:checked) .f2-block > .param:not(#row-filter2_route) { display: none; }
+    {% for k in ("lfo", "lfo2", "lfo3") %}
+    #view:not(:has(#p-{{ k }}_shape option[value="drawn"]:checked)) #draw-{{ k }} { display: none; }
+    {% endfor %}
+    #view:has([name="filter2_route"][value="off"]:checked) .pb-jack[data-dst^="filter2_"]:not([data-on]),
+    #view:has([name="osc2"][value=""]:checked) .pb-jack[data-dst="fm_amount"]:not([data-on]),
+    #view:has([name="osc2_sync"][value="off"]:checked) .pb-jack[data-dst="sync_pitch"]:not([data-on]) { display: none; }
+    {% for shape, dsts in (("wavetable", ("wt_pos",)), ("fm", ("fm_index",)), ("fm4", ("fm4_level1", "fm4_level2", "fm4_level3", "fm4_level4"))) %}
+    #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked))
+      :is({% for d in dsts %}.pb-jack[data-dst="{{ d }}"]{{ ", " if not loop.last }}{% endfor %}):not([data-on]) { display: none; }
+    {% endfor %}
+    {#- the FM4 panel: the algorithm the select holds is the drawing lit, and
+        its carriers' lamps (oscfaces.FM4_CARRIERS) are on -#}
+    {% for algo, carriers in osc_faces.FM4_CARRIERS.items() %}
+    #fm4-panel:has(#p-fm4_algo option[value="{{ algo }}"]:checked)
+      :is(.fm4-algo[data-algo="{{ algo }}"], {% for k in carriers %}.fm4-head[data-op="{{ k }}"]{{ ", " if not loop.last }}{% endfor %}) { --on: 1; }
+    {% endfor %}
+  </style>
+  {#- the panels are one module of the page (`synths.panels`: it moves as a
+      whole) and a dock of their own. A panel moves among the panels or out
+      of this form to anywhere on the page: workspace.js gives
+      its controls `form="patch"`, so every patch post still carries them
+      (FormData, the `[form=patch]` the sound bar includes), and their input
+      reaches this form as `ws-input`; the rows' rules above read #view, and
+      a `.patch-panel` is styled wherever it stands (style.css 17) -#}
+  <form id="patch" class="panels" data-module="synths.panels" data-ws-dock="synths.panels" data-ws-name="Panels"
+        hx-post="/fragment/patch" hx-trigger="input delay:150ms, ws-input delay:150ms, submit" hx-sync="this:queue last"
+        hx-include="#patch, [form=patch], #sound-bar" hx-swap="none">
+    {# The panels stand in columns: `layout` says which stands in which
+       (a group it does not name joins the last column, so a new group is
+       never lost). The mod matrix is Motion's last twelve fields drawn as
+       their own module — same form, same names, same Motion tools. From
+       1200 to 1600 px the columns are three, Motion under Source; below
+       1200 px the .pcol wrappers are `display: contents` and the panels
+       flow down balanced columns instead. #}
+    {% set layout = [["Source"], ["Filter", "Vowel"], ["Amp envelope", "Character", "Mod matrix"], ["Motion", "Modulators"]] %}
+    {% set named = layout | sum(start=[]) %}
+    {% set by = dict(groups) %}
+    {% set notes = {"Source": "FM, FM4, pluck, wavetable and sampler settings appear here when an oscillator uses that shape.",
+                    "Vowel": "Shapes the sound like a sung vowel. Raise Vowel amount to hear it; automate the vowel for talking sounds.",
+                    "Motion": "The modulators: LFO 1, the filter LFO, vibrato, tremolo, pulse width, the pitch envelope and bend, the wheels. The mod matrix routes them.",
+                    "Modulators": "Envelopes 3 and 4 and LFOs 2 and 3: they move nothing until a route in the mod matrix reads them."} %}
+    {% for col in layout %}
+    <div class="pcol">
+    {% set rest = (groups | map(attribute=0) | reject("in", named) | list) if loop.last else [] %}
+    {% for group_name in col + rest %}
+    {% if group_name == "Mod matrix" %}
+    {# The mod matrix as a patch bay. The four route rows under it ARE the
+       matrix (a source select, a target select and an amount each: what
+       the form posts, what the keyboard and a screen reader use); the bay
+       is a view of them — bench.js draws one lead per active route from
+       its source jack to its target jack, and a pointer or pen drag from
+       jack to jack sets those same fields. So it is hidden from the
+       accessibility tree. #}
+    {% set specs = by["Motion"] %}
+    {% set src_spec = specs | selectattr("name", "equalto", "mod1_src") | first %}
+    {% set dst_spec = specs | selectattr("name", "equalto", "mod1_dst") | first %}
+    <fieldset class="panel patch-panel module" id="panel-mod-matrix" data-module="synths.mod-matrix">
+      <legend class="module-head"><span class="panel-name" title="Routes: a source moves a target, by an amount. Drag a lead from a source jack to a target jack, or set a route's row; right-click a row for more. ⚄ draws a random mix; ⋯ has the ready-made ones.">Mod matrix</span>
+        {#- mixes (modmixes.py, POST /fragment/mod/mix): the four routes and
+            the LFO set in one move, one undo step; ⚄ a random musical one -#}
+        <span class="panel-tools">
+        <button type="button" class="btn btn-ghost btn-s mix-dice" hx-post="/fragment/mod/mix"
+                hx-vals='{"name": "random"}' hx-target="body" hx-swap="innerMorph"
+                data-cmd="Mod matrix: a random mix" data-cmd-group="Panels"
+                title="a random mod mix: two to four musical routes and an LFO to drive them (Ctrl+Z undoes it)">⚄ mix</button>
+        <button type="button" class="btn btn-ghost btn-icon btn-s pp-open" popovertarget="pp-mod-matrix"
+                aria-label="Mod matrix: mixes" title="Mod matrix: ready-made mixes, clear">⋯</button>
+        <div popover id="pp-mod-matrix" class="panel-presets pop menu"
+             aria-label="Mod matrix mixes">
+          {% for id, label, what in mod_mixes %}
+          <button type="button" class="menu-item" hx-post="/fragment/mod/mix" popovertarget="pp-mod-matrix" popovertargetaction="hide"
+                  hx-vals='{{ {"name": id} | tojson }}' hx-target="body" hx-swap="innerMorph"
+                  data-cmd="Mod mix: {{ label }}" data-cmd-group="Panels" title="{{ what }}">{{ label }}</button>
+          {% endfor %}
+          <hr class="menu-sep">
+          <button type="button" class="menu-item" hx-post="/fragment/mod/mix" popovertarget="pp-mod-matrix" popovertargetaction="hide"
+                  hx-vals='{"name": "random"}' hx-target="body" hx-swap="innerMorph"
+                  data-cmd="Mod matrix: a random mix" data-cmd-group="Panels"
+                  title="two to four musical routes and an LFO to drive them">⚄ Random mix</button>
+          <button type="button" class="menu-item" hx-post="/fragment/mod/mix" popovertarget="pp-mod-matrix" popovertargetaction="hide"
+                  hx-vals='{"name": "clear"}' hx-target="body" hx-swap="innerMorph"
+                  data-cmd="Mod matrix: unplug every route" data-cmd-group="Panels"
+                  title="unplug all four routes (Ctrl+Z undoes it)">✕ Unplug all</button>
+        </div>
+        </span>
+      </legend>
+      <div class="patch-routes" id="mod-matrix">
+      <div class="patchbay module-well" id="patchbay" aria-hidden="true">
+        <ul class="pb-col pb-src">
+          {% for value, label in src_spec.options if value != "none" %}
+          <li class="pb-jack" data-src="{{ value }}" title="{{ label }}: drag to a target to patch it"><span>{{ label }}</span><i class="jack"></i></li>
+          {% endfor %}
+        </ul>
+        <svg class="pb-cables" focusable="false"></svg>
+        <ul class="pb-col pb-dst">
+          {% for value, label in dst_spec.options %}
+          <li class="pb-jack" data-dst="{{ value }}" title="{{ label }}"><i class="jack"></i><span>{{ label.split(" (")[0] }}</span></li>
+          {% endfor %}
+        </ul>
+      </div>
+      {#- twelve slots: the first four always stand; 5-12 only
+          while they route, or once "+ route" opens the next (bench.js) -#}
+      {% for spec in specs if spec.name in route_fields %}
+      {% set slot = spec.name.split("_")[0] %}{% set k = slot[3:] %}
+      {# each slot's source, target and amount sit in one line, read left to
+         right; an unused slot dims to its source #}
+      {% if spec.name.endswith("_src") %}<div class="route" data-slot="{{ slot }}" data-ctx="Route {{ k }}"{% if k | int > 4 %} data-extra{% endif %}><i class="led route-led" aria-hidden="true"></i>{% endif %}
+      {% include "fragments/param_row.html" %}
+      {% if spec.name.endswith("_amt") %}
+        <button type="button" class="btn btn-ghost btn-icon btn-s" data-route="flip" data-menu="Invert the amount"
+                aria-label="invert route {{ k }}" title="invert this route's amount">±</button>
+        <button type="button" class="btn btn-ghost btn-icon btn-s" data-route="off" data-menu="Unplug"
+                aria-label="unplug route {{ k }}" title="unplug this route (source off)">✕</button>
+      </div>{% endif %}
+      {% endfor %}
+      <button type="button" class="btn btn-ghost btn-s route-add" data-route-add
+              data-cmd="Mod matrix: add a route" data-cmd-group="Panels"
+              title="open the next free route (the matrix has twelve)">+ route</button>
+      </div>
+    </fieldset>
+    {% else %}
+    {% set specs = by[group_name] %}
+    {% set gid = group_name | lower | replace(" ", "-") %}
+    <fieldset class="panel patch-panel module" id="panel-{{ gid }}" data-module="synths.{{ gid }}">
+      <legend class="module-head"><span class="panel-name"{% if notes[group_name] %} title="{{ notes[group_name] }}"{% endif %}>{{ group_name }}</span>
+        {#- one ⋯ a panel (not "Defaults · Randomise · Presets" as three
+            buttons a row, on every panel). A popover, not a
+            <details>: .panel is overflow: clip, so an in-panel flyout was
+            cut off / drawn behind the next panel. Its rows stay commands
+            while it is shut. -#}
+        <span class="panel-tools">
+        <button type="button" class="btn btn-ghost btn-icon btn-s pp-open" popovertarget="pp-{{ gid }}"
+                aria-label="{{ group_name }}: defaults, randomise, presets" title="{{ group_name }}: defaults, randomise, presets">⋯</button>
+        <div popover id="pp-{{ gid }}" class="panel-presets pop menu"
+             aria-label="{{ group_name }} panel">
+          <button type="button" class="menu-item" hx-post="/fragment/panel/reset" popovertarget="pp-{{ gid }}" popovertargetaction="hide"
+                  hx-vals='{{ {"group": group_name} | tojson }}' hx-target="body" hx-swap="innerMorph"
+                  title="put {{ group_name }} back to its default settings (undo with Ctrl+Z)"
+                  data-cmd="Defaults for the {{ group_name }} panel" data-cmd-group="Panels"
+                  aria-label="reset {{ group_name }} to defaults">↺ Defaults</button>
+          <button type="button" class="menu-item" hx-post="/fragment/panel/dice" popovertarget="pp-{{ gid }}" popovertargetaction="hide"
+                  hx-vals='{{ {"group": group_name} | tojson }}' hx-target="body" hx-swap="innerMorph"
+                  title="randomise {{ group_name }} only (undo with Ctrl+Z)"
+                  data-cmd="Randomise the {{ group_name }} panel" data-cmd-group="Panels"
+                  aria-label="randomise {{ group_name }}">⚄ Randomise</button>
+          <hr class="menu-sep">
+          <button type="button" class="menu-item" hx-post="/fragment/panel/preset/save"
+                  hx-vals='{{ {"group": group_name} | tojson }}' hx-prompt="Preset name"
+                  hx-target="#panel-presets-{{ gid }}" hx-swap="outerHTML">Save these settings…</button>
+          {% with group = group_name, presets = panel_presets[group_name] %}
+          {% include "fragments/panel_presets.html" %}
+          {% endwith %}
+        </div>
+        </span>
+      </legend>
+      {% if group_name == "Filter" %}
+      {% with viz_id = "filter-response-wrap", svg = filter_response %}{% include "fragments/panel_viz.html" %}{% endwith %}
+      {% elif group_name == "Amp envelope" %}
+      {% with viz_id = "env-amp-wrap", svg = env_amp %}{% include "fragments/panel_viz.html" %}{% endwith %}
+      {% endif %}
+      {#- (the FM4 shape's other thirteen fields and sync pitch are drawn
+          inside their blocks: the FM4 panel, the sync block) -#}
+      {% for spec in specs if spec.name not in route_fields
+                              and not (spec.name[:4] == "fm4_" and spec.name != "fm4_algo") and spec.name != "sync_pitch"
+                              and spec.name not in ("osc1_warp_amt", "osc2_warp_amt")
+                              and not (spec.name[:8] == "filter2_" and spec.name != "filter2_route") %}
+      {% if spec.name == "fm4_algo" %}
+      {% include "fragments/fm4_panel.html" %}
+      {% elif spec.name == "filter2_route" %}
+      {#- filter 2 as one block — off / serial / parallel, then its
+          type and four knobs (hidden while it is off) -#}
+      <h4 class="subhead" id="sub-filter2_route">{{ subheads["filter2_route"] }}</h4>
+      <div class="f2-block module-well" role="group" aria-label="Filter 2">
+        {% with skip_subhead = true %}{% include "fragments/param_row.html" %}{% endwith %}
+        {% for name in ("filter2_type", "filter2_cutoff", "filter2_resonance", "filter2_key_track", "filter2_env") %}
+        {% with spec = spec_of(name) %}{% include "fragments/param_row.html" %}{% endwith %}
+        {% endfor %}
+      </div>
+      {% elif spec.name in ("lfo_shape", "lfo2_shape", "lfo3_shape") %}
+      {% include "fragments/param_row.html" %}
+      {% with lfo = spec.name[:-6] %}{% include "fragments/lfo_draw.html" %}{% endwith %}
+      {% elif spec.name == "osc2_sync" %}
+      {#- hard sync as one block in oscillator 2's area: the switch and the
+          pitch it sweeps (not a pill and a slider, two rows apart) -#}
+      <div class="sync-block module-well" role="group" aria-label="Hard sync">
+        {% include "fragments/param_row.html" %}
+        {% with spec = spec_of("sync_pitch") %}{% include "fragments/param_row.html" %}{% endwith %}
+      </div>
+      {% elif spec.name in ("osc1_warp", "osc2_warp") %}
+      {#- an oscillator's phase warp as one block in its area — the
+          mode's select (the deck and MIDI learn step it) and its amount's knob -#}
+      <div class="warp-block module-well" role="group" aria-label="Oscillator {{ spec.name[3] }} warp">
+        {% include "fragments/param_row.html" %}
+        {% with spec = spec_of(spec.name ~ "_amt") %}{% include "fragments/param_row.html" %}{% endwith %}
+      </div>
+      {% else %}
+      {% if spec.name == "filter_env" %}
+      {# the filter envelope draws under its heading, over its own rows #}
+      <h4 class="subhead" id="sub-{{ spec.name }}">{{ subheads[spec.name] }}</h4>
+      {% with viz_id = "env-filter-wrap", svg = env_filter %}{% include "fragments/panel_viz.html" %}{% endwith %}
+      {% endif %}
+      {% with skip_subhead = spec.name == "filter_env" %}{% include "fragments/param_row.html" %}{% endwith %}
+      {% if spec.name == "sampler_root" %}
+      {# the sampler block (a region): waveform, resample, chops #}
+      {% include "fragments/sampler_panel.html" %}
+      {% endif %}
+      {% endif %}
+      {% endfor %}
+    </fieldset>
+    {% endif %}
+    {% endfor %}
+    </div>
+    {% endfor %}
+  </form>
+
+  {#- your own wavetable: + from clip… and draw… (the picker's buttons open
+      them; outside #patch, whose every input is a patch post) -#}
+  {% include "fragments/wt_make.html" %}
+
+  {#- the two racks are two modules of the page (`fx.layer`, `fx.master`:
+      each moves on its own, anywhere in the page — `fx_split`); #fx-rack
+      is only their place in the server's grid (`data-ws-pass`) -#}
+  {% with fx_split = true %}{% include "fragments/fx_rack.html" %}{% endwith %}
+
+  {# Macros and the XY pad map one gesture onto several parameters: they
+     perform a sound rather than define it. A <details> so a narrow screen
+     can fold them away; from 1200 px the rack is always open (style.css
+     section 17 shows a closed one's content: nothing a user tweaks sits
+     behind a disclosure on a desktop window). Each is a module of the
+     page (`synths.macros`, `synths.xy`): the <details> is only
+     their place in the server's grid (`data-ws-pass`), its summary the
+     narrow screen's fold. #}
+  <details class="perform-tools rack" id="perform-tools" data-ws-pass>
+    <summary><span class="caps">Perform</span> <span class="summary-sub">macros · XY pad</span></summary>
+    <div class="perform-tools-body">
+      {% include "fragments/macros.html" %}
+      {% include "fragments/xypad.html" %}
+    </div>
+  </details>
+
+  {#- the Bass check and the sub spectrum: two modules (`synths.bass`,
+      `synths.sub`) in one fold. #bass-panels measures both: its answer
+      carries the sub spectrum out of band to #bass-sub, wherever that
+      stands (fragments/bass_panels.html, `split`) -#}
+  <details class="bass-check rack" data-ws-pass>
+    <summary title="sub weight, mono safety and phone survival of what ▶ plays"><span class="caps">Bass check</span> <span class="summary-sub">sub · mono · phone</span></summary>
+    <section class="bass-module panel module" id="bass-module" data-module="synths.bass" aria-label="Bass check">
+      <h3 class="caps module-head" title="mono safety and phone survival of what ▶ plays">Bass check <span class="summary-sub">mono · phone</span>
+        {#- the page with the low roots to audition at (/view/bass) -#}
+        <span class="module-tools"><a class="btn btn-s btn-ghost bass-page" {{ view_link("/view/bass") }}
+           data-cmd="Go to the Bass check page: audition at low roots" data-cmd-group="Go to"
+           title="The Bass check page: the sound at low roots (A0 to E3), the sub spectrum large">Low roots ▸</a></span></h3>
+      <section id="bass-panels" aria-label="Bass panels"
+               hx-get="/fragment/bass" hx-trigger="intersect once, preview-ready from:body" hx-swap="outerHTML"><p class="skel" aria-hidden="true">measuring</p></section>
+    </section>
+    {% include "fragments/bass_sub.html" %}
+  </details>
+
+  {#- the keyboard dock's place (grid area `keys`): the dock itself is the
+      page frame's, every page's (base.html, fragments/keys_dock.html), and
+      on Synths it stands where this slot is — the strip's column to the
+      cockpit's edge (keysbar.js measures it) -#}
+  <div class="keys-slot" id="keys-slot" aria-hidden="true"></div>
+
+  {# ● Record sample's count-in, "ready, 3, 2, 1" big over the page
+     (static/samplerec.js), outside the #patch form and every region so no
+     swap resets it; the take is posted from it (a connected element with no
+     field under it, multipart: docs/frontend.md, "htmx.ajax posts the whole
+     page") #}
+  <output id="smp-countdown" class="rec-countdown" aria-live="assertive" hx-encoding="multipart/form-data" hidden></output>
+
+</main>

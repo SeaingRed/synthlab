@@ -1,0 +1,43 @@
+{# synthlab/studio/templates/fragments/fm4_panel.html #}
+{# The FM4 shape's fourteen fields as one operator panel: the
+   algorithm (its select, and every algorithm's wiring drawn beside it — a
+   click picks one), then the operators as a matrix — a column an operator,
+   a row each for ratio, level and decay, op 4's feedback under its column.
+   Each control is still its own parameter row (param_row.html, the same
+   name, id and knob as any: a macro or an A/B morph re-sends `#row-<name>`
+   out of band and the grid keeps its place by id), so the form, undo, the
+   pen, the deck, MIDI learn and tweak.js reach them as before. A column's
+   lamp is lit while that operator is heard (a carrier in the algorithm the
+   select holds: editor.html's generated rule). The whole block hides with
+   the shape (`shape-fm4`). #}
+{% set fm4_ops = (1, 2, 3, 4) %}
+<h4 class="subhead" id="sub-fm4_algo">{{ subheads["fm4_algo"] }}</h4>
+<div class="fm4 shape-fm4" id="fm4-panel">
+  {% with spec = spec_of("fm4_algo"), skip_subhead = true %}{% include "fragments/param_row.html" %}{% endwith %}
+  <div class="fm4-ops module-well" role="group" aria-label="FM4 operators">
+    <span class="fm4-corner">
+      {#- operator ratio presets: four pitches at once, through tweak.js
+          (panelfaces.js) — the rest of the sound stays as it is -#}
+      <button type="button" class="btn btn-ghost btn-s fm4-ratios-open" popovertarget="fm4-ratios"
+              aria-label="FM4: operator ratio presets"
+              title="Ratio presets: the four operators' pitches in one move (Ctrl+Z undoes it)">ratios ▾</button>
+      <div popover id="fm4-ratios" class="panel-presets pop menu" aria-label="FM4 ratio presets">
+        {% for name, ratios in osc_faces.FM4_RATIOS %}
+        {% set said = ratios | map("string") | map("replace", ".0", "") | join(" : ") %}
+        <button type="button" class="menu-item" data-fm4-ratios="{{ ratios | join(' ') }}"
+                data-cmd="FM4 ratios: {{ name }}" data-cmd-group="Panels" popovertarget="fm4-ratios" popovertargetaction="hide"
+                title="operators 1-4 at {{ said }} times the note">{{ name }}<span class="menu-hint">{{ said }}</span></button>
+        {% endfor %}
+      </div>
+    </span>
+    {% for k in fm4_ops %}
+    <span class="fm4-head" data-op="{{ k }}" title="Operator {{ k }}: lit while it is heard (a carrier); dark, it modulates another"><i class="led" aria-hidden="true"></i>Op {{ k }}</span>
+    {% endfor %}
+    {% for row, word in (("ratio", "Ratio"), ("level", "Level"), ("decay", "Decay")) %}
+    <span class="fm4-rowhead" aria-hidden="true">{{ word }}</span>
+    {% for k in fm4_ops %}{% with spec = spec_of("fm4_" ~ row ~ k) %}{% include "fragments/param_row.html" %}{% endwith %}{% endfor %}
+    {% endfor %}
+    <span class="fm4-rowhead fm4-fb-head" aria-hidden="true">Op 4 feedback</span>
+    {% with spec = spec_of("fm4_feedback") %}{% include "fragments/param_row.html" %}{% endwith %}
+  </div>
+</div>

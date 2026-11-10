@@ -1,0 +1,128 @@
+{# synthlab/studio/templates/fragments/sampler_panel.html #}
+{# The Source panel's sampler block (region `sampler-panel`,
+   `samplerview.context`): the sample's waveform with its start/end, loop
+   and slice markers (server-drawn SVG), Resample, and the chops — each
+   slice sits on a key from the root up (wrapping), with its own pitch,
+   reverse and a start nudge. Present only while an oscillator is
+   "sampler" (hidden otherwise, so a pill click that turns the sampler on
+   brings it back out of band). Buttons only, no inputs: the #patch form
+   posts on every `input` inside it. Each slice's start is also a marker
+   over the waveform (`.slice-mark`, role=slider): layout.js drags it or
+   nudges it with the arrows and posts `action=move` with its position.
+   The detected pitch (`samplerview.pitch_context`) has a "use" that makes
+   it the root. ● Record sample (static/samplerec.js) counts a bar in at
+   the session's bpm and records 1, 2 or 4 bars from the mic into the
+   sampler (`/fragment/sampler/record`); its length and click are buttons
+   too, remembered per browser and set again after every redraw. With a
+   zone map (a multi-sample instrument) the map and its rows
+   (fragments/sampler_zones.html) stand in for the waveform, the pitch
+   and the chops; "＋ zone" opens the clip library, whose rows add one. #}
+<div id="sampler-panel" class="sampler-panel"{% if not sampler %} hidden{% endif %}
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  {% if sampler %}
+  {% if sampler.zones %}
+  {#- a multi-sample instrument: its zone map stands where the one
+      sample's waveform, pitch and chops would (they do not play) -#}
+  {% include "fragments/sampler_zones.html" %}
+  {% elif sampler.id %}
+  <div class="sampler-wave" data-step="{{ sampler.step }}" data-secs="{{ sampler.secs }}">
+    {{- sampler.svg | safe -}}
+    {% for sl in sampler.slices %}
+    <span class="slice-mark{% if sl.rev %} rev{% endif %}" role="slider" tabindex="0"
+          aria-orientation="horizontal" aria-label="slice {{ sl.i + 1 }} start"
+          aria-valuemin="{{ sl.lo }}" aria-valuemax="{{ sl.hi }}" aria-valuenow="{{ sl.a }}"
+          aria-valuetext="{{ sl.start }} s" data-index="{{ sl.i }}" data-at="{{ sl.a }}"
+          data-lo="{{ sl.lo }}" data-hi="{{ sl.hi }}" style="left: {{ sl.pct }}%"
+          title="slice {{ sl.i + 1 }} ({{ sl.key }}): drag, or ← → to nudge 5 ms (shift: 50 ms)"></span>
+    {% endfor %}
+  </div>
+  <p class="sampler-meta">{{ sampler.seconds }} s · sample {{ sampler.short }}{% if sampler.missing %} · <strong>missing from this studio's samples</strong>{% endif %}</p>
+  {% if sampler.pitch %}
+  <div class="sampler-tools" role="group" aria-label="the sample's pitch">
+    <span class="sampler-label caps">Pitch</span>
+    {% if sampler.pitch.found %}
+    <span class="sampler-pitch" title="{{ '%+d' | format(sampler.pitch.cents) }} cents from {{ sampler.pitch.name }}">detected {{ sampler.pitch.name }} · {{ sampler.pitch.percent }}%</span>
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/root" hx-swap="none" data-cmd="Sampler: use the detected pitch as the root"
+            {% if sampler.pitch.is_root %}disabled{% endif %}
+            title="{% if sampler.pitch.is_root %}the root is already {{ sampler.pitch.name }}{% else %}make {{ sampler.pitch.name }} the root (now {{ sampler.root }}): the key that plays the sample at its own pitch{% endif %}">use</button>
+    {% else %}
+    <span class="sampler-pitch">no clear pitch</span>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="empty-state">No sample yet: ● Record one from the mic, press “Use as sampler” on a clip or a Song take, or resample below. {% include "fragments/empty_start.html" %}</p>
+  {% endif %}
+  <div class="sampler-tools" role="group" aria-label="resample">
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/resample"
+            hx-vals='{"source": "loop"}' hx-target="body" hx-swap="innerMorph"
+            data-cmd="Sampler: resample the loop"
+            title="the working loop (the Loops page's) as it plays there (synths, drums, clips, FX) becomes the sample">Resample loop</button>
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/resample"
+            hx-vals='{"source": "phrase"}' hx-target="body" hx-swap="innerMorph"
+            data-cmd="Sampler: resample the phrase"
+            title="what ▶ plays here becomes the sample">Resample phrase</button>
+  </div>
+  <div class="sampler-tools" role="group" aria-label="record a sample from the microphone">
+    <button type="button" id="smp-rec" class="btn btn-s btn-rec" aria-pressed="false"
+            data-cmd="Sampler: record a sample from the mic"
+            title="a bar of count-in at the session's bpm, then the bars chosen here from the microphone, cut on the beat: it becomes the sample. Press again to cancel">● Record sample</button>
+    <span class="seg" role="group" aria-label="how many bars to record">
+      {% for n in (1, 2, 4) %}
+      <button type="button" data-smp-bars="{{ n }}" aria-pressed="{{ 'true' if n == 1 else 'false' }}"
+              title="record {{ n }} bar{{ 's' if n > 1 }} after the count-in">{{ n }} bar{{ 's' if n > 1 }}</button>
+      {% endfor %}
+    </span>
+    <button type="button" id="smp-click" class="btn btn-s" aria-pressed="true"
+            title="a click on every beat while it records (the count-in always clicks)">click</button>
+    <output id="smp-rec-status" class="smp-rec-status" aria-live="polite"></output>
+  </div>
+  {% if sampler.id and not sampler.zones %}
+  <div class="sampler-tools" role="group" aria-label="more samples: a multi-sample instrument">
+    <span class="sampler-label caps">Zones</span>
+    <button type="button" class="btn btn-s" popovertarget="clip-drawer" data-cmd="Sampler: add a zone from the clip library"
+            title="more recordings on other keys, velocities or takes: open the clip library and press ＋ zone on a clip (it lands at its detected pitch; this sample stays the first zone)">＋ zone</button>
+    {% if sampler.slices %}
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/zones" hx-vals='{"action": "chops"}' hx-swap="none"
+            data-cmd="Sampler: the chops as zones"
+            title="each slice a zone of its own on its key: then move them, layer them by velocity or give a key round-robin takes">Chops → zones</button>
+    {% endif %}
+  </div>
+  <div class="sampler-tools" role="group" aria-label="chop the sample onto the keys">
+    <span class="sampler-label caps">Chop</span>
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/chop" hx-vals='{"mode": "8"}' hx-swap="none" data-cmd="Sampler: chop into 8 slices"
+            title="8 equal slices of start..end, one per key from the root">8</button>
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/chop" hx-vals='{"mode": "16"}' hx-swap="none" data-cmd="Sampler: chop into 16 slices"
+            title="16 equal slices of start..end">16</button>
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/chop" hx-vals='{"mode": "transients"}' hx-swap="none" data-cmd="Sampler: chop at its transients"
+            title="a slice at each hit (up to 16)">Transients</button>
+    {% if sampler.slices %}
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/chop" hx-vals='{"mode": "clear"}' hx-swap="none" data-cmd="Sampler: unchop"
+            title="play the whole sample again">Unchop</button>
+    {% endif %}
+  </div>
+  {% if sampler.slices %}
+  <ol class="slice-list" aria-label="slices, one per key from {{ sampler.root }}">
+    {% for sl in sampler.slices %}
+    <li class="slice{% if sl.rev %} rev{% endif %}" data-ctx="Slice {{ sl.i + 1 }} · {{ sl.key }}">
+      <span class="slice-key" title="the key that plays it (repeats every {{ sampler.slices | length }} keys)">{{ sl.key }}</span>
+      <span class="slice-span">{{ sl.start }}–{{ sl.end }} s</span>
+      <button type="button" class="btn btn-s" hx-post="/fragment/sampler/slice" hx-vals='{"index": "{{ sl.i }}", "action": "nudge_left"}' hx-swap="none" data-menu="Start 5 ms earlier"
+              aria-label="slice {{ sl.i + 1 }}: start 5 ms earlier">◀</button>
+      <button type="button" class="btn btn-s" hx-post="/fragment/sampler/slice" hx-vals='{"index": "{{ sl.i }}", "action": "nudge_right"}' hx-swap="none" data-menu="Start 5 ms later"
+              aria-label="slice {{ sl.i + 1 }}: start 5 ms later">▶</button>
+      <button type="button" class="btn btn-s" hx-post="/fragment/sampler/slice" hx-vals='{"index": "{{ sl.i }}", "action": "pitch_down"}' hx-swap="none" data-menu="Down a semitone"
+              aria-label="slice {{ sl.i + 1 }}: down a semitone">−</button>
+      <span class="slice-pitch">{{ "%+d" | format(sl.pitch) }} st</span>
+      <button type="button" class="btn btn-s" hx-post="/fragment/sampler/slice" hx-vals='{"index": "{{ sl.i }}", "action": "pitch_up"}' hx-swap="none" data-menu="Up a semitone"
+              aria-label="slice {{ sl.i + 1 }}: up a semitone">+</button>
+      <button type="button" class="btn btn-s" hx-post="/fragment/sampler/slice" hx-vals='{"index": "{{ sl.i }}", "action": "reverse"}' hx-swap="none" data-menu="Reverse"
+              aria-pressed="{{ 'true' if sl.rev else 'false' }}"
+              aria-label="slice {{ sl.i + 1 }}: reverse">rev</button>
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+  {% endif %}
+  {% endif %}
+</div>

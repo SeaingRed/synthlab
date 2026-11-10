@@ -1,0 +1,990 @@
+{
+ "module": {
+  "ALL": null,
+  "ALL_VIEWS": null,
+  "AgentService": null,
+  "Arrangement": null,
+  "BAND_CHOICES": null,
+  "BANK_NEEDS": null,
+  "BAR_NEEDS": null,
+  "BENCH_VIEWS": null,
+  "Browse": null,
+  "CHAIN_PRESETS": null,
+  "CLIPLIB_NEEDS": null,
+  "CONTINUOUS_CHOICES": null,
+  "CURVABLE": null,
+  "Callable": null,
+  "Contexts": null,
+  "DRUM_KITS": null,
+  "DRUM_PANELS_NEEDS": null,
+  "DRUM_PARAMS": null,
+  "DRUM_ROWS": null,
+  "DRUM_VOICES": null,
+  "DXY_AXES": null,
+  "EventBus": null,
+  "FACTORY": null,
+  "FX_UNITS": null,
+  "GAIN": null,
+  "HTMLResponse": null,
+  "Hashable": null,
+  "HubPage": null,
+  "HubSession": null,
+  "Jinja2Templates": null,
+  "LANE_TARGETS": null,
+  "LRU": null,
+  "LabJobs": null,
+  "LoopRender": null,
+  "MAX_TAKE_SECONDS": null,
+  "MixPage": null,
+  "NOTE_MEMO": null,
+  "NoteCache": null,
+  "ORIGIN_HEADER": null,
+  "OWNERS": null,
+  "PAD_VOICES": null,
+  "PAGE_REGIONS": null,
+  "PARAMS": null,
+  "PARAM_GROUPS": null,
+  "PHRASES": null,
+  "Page": null,
+  "Patch": null,
+  "Path": null,
+  "PerfStats": null,
+  "QUIET": null,
+  "REGIONS": null,
+  "RESET_SCOPES": null,
+  "RESET_VIEWS": null,
+  "ROOTS": null,
+  "Refresh": null,
+  "Region": null,
+  "RenderCache": null,
+  "RenderError": null,
+  "RenderInputs": null,
+  "RenderResult": null,
+  "Request": null,
+  "Respond": null,
+  "Response": null,
+  "SCALE_CHOICES": null,
+  "SECTIONS": null,
+  "SHAPE_DEPS": null,
+  "SONG_NEEDS": null,
+  "SR": null,
+  "SectionAudio": null,
+  "SectionJob": null,
+  "SongPage": null,
+  "SongRender": null,
+  "SpaceStore": null,
+  "StemCache": null,
+  "StudioService": null,
+  "StudioState": null,
+  "TYPE_CHECKING": null,
+  "Task": null,
+  "VIEW_PARTS": null,
+  "VOICE_PRESETS": null,
+  "_EDITOR": null,
+  "_clips_sig": "(svc: 'StudioService') -> 'tuple'",
+  "_ctx_breed": "(svc: 'StudioService', request: 'Request', view: 'str') -> 'dict'",
+  "_ctx_chords": "(svc: 'StudioService', request: 'Request', view: 'str') -> 'dict'",
+  "_ctx_clip_library": "(svc: 'StudioService', request: 'Request', view: 'str') -> 'dict'",
+  "_ctx_layers": "(svc: 'StudioService', request: 'Request', view: 'str') -> 'dict'",
+  "_ctx_mixer": "(svc: 'StudioService', request: 'Request', view: 'str') -> 'dict'",
+  "_ctx_reset": "(svc: 'StudioService', request: 'Request', view: 'str') -> 'dict'",
+  "_ctx_sampler": "(svc: 'StudioService', request: 'Request', view: 'str') -> 'dict'",
+  "_ctx_sound": "(svc: 'StudioService', request: 'Request', view: 'str') -> 'dict'",
+  "_ctx_viz": "(viz_id: 'str', draw: 'Callable[[StudioService], str]')",
+  "_lane_row": "(lane: 'dict') -> 'dict'",
+  "_lane_text": "(target: 'str', v: 'float') -> 'str'",
+  "_layer_name": "(lay: 'dict') -> 'str | None'",
+  "_median": "(x) -> 'float'",
+  "_octave": "(octave: 'int') -> 'str'",
+  "_sig": "(*values) -> 'str'",
+  "_song_bars": "(song: 'dict') -> 'int'",
+  "_thumb": "(p: 'dict') -> 'dict'",
+  "_w_amp_viz": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_breed_parent": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_chain": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_chord_bar": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_clip_library": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_clips": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_drum_bank": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_drum_transport": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_filter_env_viz": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_filter_viz": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_gen_strip": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_launcher": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_layer_strip": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_mixer": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_perform_drums": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_reset": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_sampler": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_slots": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_song_arranger": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_song_drawer": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_song_pool": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_song_thumbs": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_song_topbar": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_sound_bar": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_sound_id": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_track_edit": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "_w_transport": "(svc: 'StudioService', view: 'str') -> 'str'",
+  "annotations": null,
+  "audible_layers": null,
+  "beatgen": null,
+  "browse": null,
+  "chain_summary": null,
+  "chords": null,
+  "clean_chain": null,
+  "clip_hash": null,
+  "contexts": null,
+  "copy": null,
+  "dataclass": null,
+  "defaults_of": null,
+  "denorm": null,
+  "density_of": "(request: 'Request') -> 'str'",
+  "dxy_spec": "(voice: 'str', param: 'str') -> 'dict'",
+  "envelope_svg": null,
+  "filter_response_svg": null,
+  "fold_tail": null,
+  "group_specs": "(group: 'str') -> 'list | None'",
+  "hashlib": null,
+  "hubpage": null,
+  "json": null,
+  "lab": null,
+  "labmake": null,
+  "lane_label": "(target: 'str') -> 'str'",
+  "lane_range": null,
+  "library_by_family": null,
+  "library_tags": null,
+  "limits": null,
+  "list_clips": null,
+  "load_take": null,
+  "log": null,
+  "logging": null,
+  "loop": null,
+  "math": null,
+  "midi": null,
+  "mixpage": null,
+  "motion_lines": null,
+  "name_of": null,
+  "norm": null,
+  "notation": null,
+  "np": null,
+  "os": null,
+  "page": null,
+  "phone_speaker": null,
+  "phrase_arrangement": null,
+  "pitch_rows": null,
+  "re": null,
+  "recipe_cards": null,
+  "recipe_tags": null,
+  "refresh": null,
+  "regions": null,
+  "render_loop": null,
+  "replace": null,
+  "respond": null,
+  "result_of": null,
+  "samplerview": null,
+  "schema": null,
+  "section_key": null,
+  "section_master_audio": null,
+  "sm": null,
+  "song": null,
+  "song_play": null,
+  "songpage": null,
+  "sources": null,
+  "spec_of": null,
+  "specs_of": null,
+  "theme_of": "(request: 'Request') -> 'str'",
+  "time": null,
+  "xy_norm": "(name: 'str', value: 'float') -> 'float'",
+  "xy_value": "(name: 'str', n: 'float') -> 'float'"
+ },
+ "class": {
+  "AUDITION_VIEW": "str",
+  "HEAD_PASSES": "int",
+  "POSTS": "dict",
+  "_drawer_of": "(self, p: 'dict | None', sec, track) -> 'dict'",
+  "_drawer_roll": "(self, p: 'dict', sec, track, rows: 'list[str]') -> 'dict'",
+  "_ensure": "(self, inp: 'RenderInputs | SectionJob') -> 'RenderResult'",
+  "_keep_levels": "(self, own_key: 'str', parts, audio: 'SectionAudio') -> 'None'",
+  "_master_audio": "(self, own_key: 'str', parts, master_fx) -> 'SectionAudio'",
+  "_pass_levels": "(self, ident: 'dict', parts, prev, master_fx) -> 'tuple'",
+  "_plan_clock": "(song: 'dict', sec: 'dict', clock, cycle: 'int') -> 'dict'",
+  "_section_cache_key": "(ident: 'dict', gain: 'float') -> 'str'",
+  "_section_mix": "(self, ident: 'dict', parts, prev, master_fx, task: 'Task' = QUIET) -> 'np.ndarray'",
+  "_song_content_key": "(self, song: 'dict', master_fx) -> 'str'",
+  "_song_drawer": "(self) -> 'dict | None'",
+  "_song_idents": "(self, song: 'dict', master_fx) -> 'dict'",
+  "_song_raw": "(self, song: 'dict', master_fx=(), task: 'Task' = QUIET) -> 'np.ndarray'",
+  "_through": "(self, p: 'dict') -> 'str | None'",
+  "_warm": "(self, entry: 'dict', master_fx) -> 'None'",
+  "adopt": "(self, request: 'Request', sound: 'Sound', how: 'str' = '') -> 'Response'",
+  "announce": "(self, request: 'Request', view: 'str', moved: 'list[str]', mark: 'int', response=None) -> 'None'",
+  "asked": "(self, request: 'Request', name: 'str') -> 'str'",
+  "audition": "(self, sound: 'Sound', *, mix: 'bool' = False) -> 'Response'",
+  "bank_response": "(self, request: 'Request', extra: 'dict | None' = None, *, need=frozenset(['clips', 'drums'])) -> 'Response'",
+  "beat_key": "(self) -> 'str | None'",
+  "calibration": "(self) -> 'dict'",
+  "chain_context": "(self) -> 'dict'",
+  "chords_context": "(self) -> 'dict'",
+  "clip_library_context": "(self, request: 'Request', view: 'str', clips: 'list[dict] | None' = None) -> 'dict'",
+  "clip_library_html": "(self, request: 'Request', view: 'str | None' = None, *, part: 'str' = 'fragments/clip_library.html', oob: 'bool' = False) -> 'str'",
+  "clips_fragment": "(self, request: 'Request') -> 'HTMLResponse'",
+  "do_render": "(self, request: 'Request', extra_html: 'str' = '', view: 'str | None' = None) -> 'Response'",
+  "drawer_octave": "(self, p: 'dict', span: 'int') -> 'int'",
+  "drum_panels_fragment": "(self, request: 'Request', *, need=frozenset(['drums'])) -> 'str'",
+  "drum_voice_hash": "(self, voice: 'str') -> 'str'",
+  "drum_voice_identity": "(self, voice: 'str') -> 'dict'",
+  "drum_voice_values": "(self, voice: 'str') -> 'dict'",
+  "drums_context": "(self) -> 'dict'",
+  "dxy_context": "(self) -> 'dict'",
+  "env_amp_svg": "(self, p: 'Patch') -> 'str'",
+  "env_filter_svg": "(self, p: 'Patch') -> 'str'",
+  "full_page_with_preview": "(self, request: 'Request', view: 'str | None' = None, push_url: 'str | None' = None) -> 'Response'",
+  "full_view_page": "(self, request: 'Request', extra_headers: 'dict | None' = None, view: 'str | None' = None) -> 'Response'",
+  "fx_scopes_for": "(self, view: 'str') -> 'list[tuple[str, str, list]]'",
+  "grid_context": "(self) -> 'dict'",
+  "heard": "(self, view: 'str') -> 'RenderResult'",
+  "hub_bench_context": "(self, request: 'Request', item: 'cliphub.Item', ref: 'Ref', params: 'dict') -> 'dict'",
+  "hub_context": "(self, request: 'Request', *, bench: 'bool' = True) -> 'dict'",
+  "hub_params": "(self, request: 'Request') -> 'dict'",
+  "hub_undo_label": "(self) -> 'str'",
+  "hub_url": "(params: 'dict') -> 'str'",
+  "lab_context": "(self, selected: 'str' = '') -> 'dict'",
+  "land_on": "(self, request: 'Request', view: 'str', say: 'str' = '', *, kind: 'str' = '') -> 'Response'",
+  "lane_context": "(self) -> 'dict'",
+  "lane_follow": "(self) -> 'dict | None'",
+  "lane_heads": "(self) -> 'list[dict]'",
+  "layer_context": "(self) -> 'dict'",
+  "loop_chord_lane": "(self) -> 'dict'",
+  "loop_editing": "(self) -> 'dict | None'",
+  "loop_track": "(self, key3: 'str') -> 'dict | None'",
+  "loops_context": "(self, view: 'str', *, session: 'bool' = False, q: 'str' = '', bank: 'bool' = False) -> 'dict'",
+  "macro_context": "(self) -> 'dict'",
+  "mixer_context": "(self) -> 'dict'",
+  "moved": "(self, view: 'str', before: 'dict[str, Hashable]') -> 'list[str]'",
+  "oob_regions": "(self, request: 'Request', *names: 'str', view: 'str | None' = None, oob: 'bool' = True) -> 'str'",
+  "page_context": "(self, request: 'Request', view: 'str' = 'editor', *, need: 'frozenset[str]' = frozenset(['chords', 'cliplib', 'clips', 'drums', 'library', 'presets', 'resets', 'song', 'sounds', 'takes', 'voice'])) -> 'dict'",
+  "pattern_heard": "(self, song: 'dict', master_fx, pattern_id: 'str', track_id: 'str') -> 'RenderResult'",
+  "pool_beats": "(self) -> 'dict'",
+  "preview_inputs": "(self, view: 'str', *, patch: 'Patch | None' = None, chain: 'dict | None' = None, mix: 'bool | None' = None, arr: 'dict | None' = None, **fields) -> 'RenderInputs'",
+  "preview_trigger": "(self, request: 'Request | None' = None, view: 'str | None' = None) -> 'dict'",
+  "refresh": "(self, request: 'Request', view: 'str', before: 'dict[str, Hashable]', response, suppressed: 'frozenset[str]' = frozenset([]), moved: 'list[str] | None' = None)",
+  "render": "(self, view: 'str', *, patch: 'Patch | None' = None, chain: 'dict | None' = None, mix: 'bool | None' = None, post: 'str | None' = None, register: 'str | None' = None, arrangement: 'Arrangement | None' = None, parts: 'tuple[str, ...] | None' = None) -> 'RenderResult'",
+  "render_inputs": "(self, view: 'str', *, patch: 'Patch | None' = None, chain: 'dict | None' = None, mix: 'bool | None' = None, register: 'str | None' = None, arrangement: 'Arrangement | None' = None, parts: 'tuple[str, ...] | None' = None) -> 'RenderInputs'",
+  "render_preview": "(self, inp: 'RenderInputs') -> 'RenderResult'",
+  "reset_caches": "(self) -> 'None'",
+  "reset_context": "(self, view: 'str') -> 'dict'",
+  "reset_rows": "(self, view: 'str') -> 'tuple[list, bool]'",
+  "section_result": "(self, song: 'dict', index: 'int', *, loop: 'bool' = False, gain: 'float' = 1.0, master_fx=(), at: 'int | None' = None, after: 'int | None' = None) -> 'RenderResult'",
+  "slots_context": "(self) -> 'dict'",
+  "song_context": "(self) -> 'dict'",
+  "song_gain": "(self, song: 'dict', master_fx=(), task: 'Task' = QUIET) -> 'float'",
+  "song_head_gain": "(self, song: 'dict', master_fx=(), task: 'Task' = QUIET) -> 'float'",
+  "song_mixdown": "(self, song: 'dict', master_fx=(), task: 'Task' = QUIET) -> 'np.ndarray'",
+  "song_plan": "(self, song: 'dict', master_fx=(), task: 'Task' = QUIET, head: 'bool' = False) -> 'dict'",
+  "song_snapshot": "(self) -> 'tuple[dict, list]'",
+  "song_stem_levels": "(self, song: 'dict', master_fx=()) -> 'dict'",
+  "song_stems": "(self, song: 'dict', master_fx=(), task: 'Task' = QUIET) -> 'list[tuple[str, np.ndarray]]'",
+  "sound_context": "(self) -> 'dict'",
+  "space_store": "(self) -> 'SpaceStore'",
+  "status_context": "(self, view: 'str' = '') -> 'dict'",
+  "suppress": "(self, *names: 'str') -> 'None'",
+  "take_suppressed": "(self) -> 'frozenset[str]'",
+  "toast": "(self, message: 'str', status: 'int' = 422, **ctx) -> 'HTMLResponse'",
+  "track_hear": "(self) -> 'dict | None'",
+  "track_heard": "(self) -> 'RenderResult | None'",
+  "view_of": "(self, request: 'Request') -> 'str'",
+  "view_parts": "(self, view: 'str') -> 'tuple[str, ...]'",
+  "voice_context": "(self) -> 'dict'",
+  "watch_page": "(self, view: 'str') -> 'dict[str, Hashable]'",
+  "xy_context": "(self) -> 'dict'",
+  "xy_fragment": "(self, oob: 'bool' = False) -> 'str'"
+ },
+ "instance": [
+  "_space",
+  "_suppressed",
+  "agent",
+  "cache",
+  "data_dir",
+  "events",
+  "hub",
+  "lab",
+  "notes",
+  "perf",
+  "song_levels",
+  "song_memo",
+  "state",
+  "stem_levels",
+  "stems",
+  "templates"
+ ],
+ "init": "(data_dir: 'Path', templates: 'Jinja2Templates')",
+ "regions": [
+  [
+   "reset-menu",
+   "fragments/reset_menu.html",
+   [
+    "resets"
+   ],
+   [
+    "bass",
+    "breed",
+    "clips",
+    "drums",
+    "editor",
+    "lab",
+    "library",
+    "map",
+    "mixer",
+    "perform",
+    "song",
+    "visuals",
+    "voice"
+   ],
+   "_w_reset",
+   "_ctx_reset",
+   null
+  ],
+  [
+   "track-edit-banner",
+   "fragments/track_edit_banner.html",
+   [
+    "song"
+   ],
+   [
+    "drums",
+    "editor"
+   ],
+   "_w_track_edit",
+   null,
+   null
+  ],
+  [
+   "song-dock",
+   "fragments/song_dock.html",
+   [
+    "song"
+   ],
+   [
+    "song"
+   ],
+   "_w_track_edit",
+   null,
+   null
+  ],
+  [
+   "sound-bar",
+   "fragments/sound_bar.html",
+   [],
+   [
+    "editor"
+   ],
+   "_w_sound_bar",
+   null,
+   null
+  ],
+  [
+   "sound-id",
+   "fragments/sound_id.html",
+   [],
+   [
+    "editor"
+   ],
+   "_w_sound_id",
+   "_ctx_sound",
+   "sound-bar"
+  ],
+  [
+   "layer-strip",
+   "fragments/layer_strip.html",
+   [],
+   [
+    "editor"
+   ],
+   "_w_layer_strip",
+   "_ctx_layers",
+   null
+  ],
+  [
+   "signal-chain",
+   "fragments/chain.html",
+   [],
+   [
+    "editor"
+   ],
+   "_w_chain",
+   "_ctx_sound",
+   null
+  ],
+  [
+   "filter-response-wrap",
+   "fragments/panel_viz.html",
+   [],
+   [
+    "editor"
+   ],
+   "_w_filter_viz",
+   "ctx",
+   null
+  ],
+  [
+   "env-amp-wrap",
+   "fragments/panel_viz.html",
+   [],
+   [
+    "editor"
+   ],
+   "_w_amp_viz",
+   "ctx",
+   null
+  ],
+  [
+   "env-filter-wrap",
+   "fragments/panel_viz.html",
+   [],
+   [
+    "editor"
+   ],
+   "_w_filter_env_viz",
+   "ctx",
+   null
+  ],
+  [
+   "sampler-panel",
+   "fragments/sampler_panel.html",
+   [],
+   [
+    "editor"
+   ],
+   "_w_sampler",
+   "_ctx_sampler",
+   null
+  ],
+  [
+   "chord-bar",
+   "fragments/chord_bar.html",
+   [
+    "chords"
+   ],
+   [
+    "bass",
+    "breed",
+    "clips",
+    "drums",
+    "editor",
+    "lab",
+    "library",
+    "map",
+    "mixer",
+    "perform",
+    "song",
+    "visuals",
+    "voice"
+   ],
+   "_w_chord_bar",
+   "_ctx_chords",
+   null
+  ],
+  [
+   "clip-library",
+   "fragments/clip_library.html",
+   [
+    "cliplib"
+   ],
+   [
+    "bass",
+    "breed",
+    "clips",
+    "drums",
+    "editor",
+    "lab",
+    "library",
+    "map",
+    "mixer",
+    "perform",
+    "song",
+    "visuals",
+    "voice"
+   ],
+   "_w_clip_library",
+   "_ctx_clip_library",
+   null
+  ],
+  [
+   "status-bar",
+   "fragments/status_bar.html",
+   [],
+   [
+    "bass",
+    "breed",
+    "clips",
+    "drums",
+    "editor",
+    "lab",
+    "library",
+    "map",
+    "mixer",
+    "perform",
+    "song",
+    "visuals",
+    "voice"
+   ],
+   "_w_status",
+   "_ctx_status",
+   null
+  ],
+  [
+   "drum-transport",
+   "fragments/drum_transport.html",
+   [],
+   [
+    "drums"
+   ],
+   "_w_drum_transport",
+   null,
+   null
+  ],
+  [
+   "drum-bank",
+   "fragments/drum_bank.html",
+   [
+    "clips",
+    "drums"
+   ],
+   [
+    "drums"
+   ],
+   "_w_drum_bank",
+   null,
+   null
+  ],
+  [
+   "perform-drums",
+   "fragments/perform_drums.html",
+   [
+    "clips",
+    "drums"
+   ],
+   [
+    "perform"
+   ],
+   "_w_perform_drums",
+   null,
+   null
+  ],
+  [
+   "transport",
+   "fragments/transport.html",
+   [],
+   [
+    "perform"
+   ],
+   "_w_transport",
+   null,
+   null
+  ],
+  [
+   "meter-pick",
+   "fragments/meter_pick.html",
+   [],
+   [
+    "perform"
+   ],
+   "_w_meter",
+   "_ctx_meter",
+   null
+  ],
+  [
+   "launcher",
+   "fragments/beat_launcher.html",
+   [],
+   [
+    "perform"
+   ],
+   "_w_launcher",
+   null,
+   null
+  ],
+  [
+   "slots",
+   "fragments/slots.html",
+   [],
+   [
+    "perform"
+   ],
+   "_w_slots",
+   "_ctx_slots",
+   null
+  ],
+  [
+   "lane-inspector",
+   "fragments/lane_inspector.html",
+   [],
+   [
+    "perform"
+   ],
+   "_w_lane",
+   "_ctx_lane",
+   null
+  ],
+  [
+   "song-arranger",
+   "fragments/song_arranger.html",
+   [
+    "song"
+   ],
+   [
+    "song"
+   ],
+   "_w_song_arranger",
+   null,
+   null
+  ],
+  [
+   "song-pool",
+   "fragments/song_pool.html",
+   [
+    "song"
+   ],
+   [
+    "song"
+   ],
+   "_w_song_pool",
+   null,
+   null
+  ],
+  [
+   "song-topbar",
+   "fragments/song_topbar.html",
+   [
+    "song"
+   ],
+   [
+    "song"
+   ],
+   "_w_song_topbar",
+   null,
+   null
+  ],
+  [
+   "song-thumbs",
+   "fragments/song_thumbs.html",
+   [
+    "song"
+   ],
+   [
+    "song"
+   ],
+   "_w_song_thumbs",
+   null,
+   null
+  ],
+  [
+   "song-drawer",
+   "fragments/song_drawer.html",
+   [
+    "song"
+   ],
+   [
+    "song"
+   ],
+   "_w_song_drawer",
+   null,
+   null
+  ],
+  [
+   "mixer-strips",
+   "fragments/mixer_strips.html",
+   [],
+   [
+    "mixer"
+   ],
+   "_w_mixer",
+   "_ctx_mixer",
+   null
+  ],
+  [
+   "breed-parent",
+   "fragments/breed_parent.html",
+   [],
+   [
+    "breed"
+   ],
+   "_w_breed_parent",
+   "_ctx_breed",
+   null
+  ],
+  [
+   "gen-strip",
+   "fragments/gen_strip.html",
+   [],
+   [
+    "breed"
+   ],
+   "_w_gen_strip",
+   "_ctx_breed",
+   null
+  ],
+  [
+   "key-takes",
+   "fragments/key_takes.html",
+   [
+    "takes"
+   ],
+   [
+    "bass",
+    "breed",
+    "clips",
+    "drums",
+    "editor",
+    "lab",
+    "library",
+    "map",
+    "mixer",
+    "perform",
+    "song",
+    "visuals",
+    "voice"
+   ],
+   "_w_key_takes",
+   "_ctx_key_takes",
+   null
+  ],
+  [
+   "loops-panel",
+   "fragments/loops_panel.html",
+   [
+    "takes"
+   ],
+   [
+    "perform"
+   ],
+   "_w_loops_panel",
+   "_ctx_loops_panel",
+   null
+  ],
+  [
+   "coach-panel",
+   "fragments/coach_panel.html",
+   [],
+   [
+    "perform"
+   ],
+   "_w_coach",
+   "_ctx_coach",
+   null
+  ],
+  [
+   "hub-list",
+   "fragments/hub_list.html",
+   [],
+   [
+    "clips"
+   ],
+   "_w_hub",
+   "_ctx_hub",
+   null
+  ]
+ ],
+ "page_regions": {
+  "editor": [
+   "reset-menu",
+   "track-edit-banner",
+   "sound-bar",
+   "sound-id",
+   "layer-strip",
+   "signal-chain",
+   "filter-response-wrap",
+   "env-amp-wrap",
+   "env-filter-wrap",
+   "sampler-panel",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "key-takes"
+  ],
+  "breed": [
+   "reset-menu",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "breed-parent",
+   "gen-strip",
+   "key-takes"
+  ],
+  "drums": [
+   "reset-menu",
+   "track-edit-banner",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "drum-transport",
+   "drum-bank",
+   "key-takes"
+  ],
+  "perform": [
+   "reset-menu",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "perform-drums",
+   "transport",
+   "meter-pick",
+   "launcher",
+   "slots",
+   "lane-inspector",
+   "key-takes",
+   "loops-panel",
+   "coach-panel"
+  ],
+  "map": [
+   "reset-menu",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "key-takes"
+  ],
+  "bass": [
+   "reset-menu",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "key-takes"
+  ],
+  "library": [
+   "reset-menu",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "key-takes"
+  ],
+  "voice": [
+   "reset-menu",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "key-takes"
+  ],
+  "lab": [
+   "reset-menu",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "key-takes"
+  ],
+  "clips": [
+   "reset-menu",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "key-takes",
+   "hub-list"
+  ],
+  "song": [
+   "reset-menu",
+   "song-dock",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "song-arranger",
+   "song-pool",
+   "song-topbar",
+   "song-thumbs",
+   "song-drawer",
+   "key-takes"
+  ],
+  "mixer": [
+   "reset-menu",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "mixer-strips",
+   "key-takes"
+  ],
+  "visuals": [
+   "reset-menu",
+   "chord-bar",
+   "clip-library",
+   "status-bar",
+   "key-takes"
+  ]
+ },
+ "constants": {
+  "SECTIONS": [
+   "chords",
+   "cliplib",
+   "clips",
+   "drums",
+   "library",
+   "presets",
+   "resets",
+   "song",
+   "sounds",
+   "takes",
+   "voice"
+  ],
+  "SONG_NEEDS": [
+   "song"
+  ],
+  "ALL": [
+   "chords",
+   "cliplib",
+   "clips",
+   "drums",
+   "library",
+   "presets",
+   "resets",
+   "song",
+   "sounds",
+   "takes",
+   "voice"
+  ],
+  "BANK_NEEDS": [
+   "clips",
+   "drums"
+  ],
+  "DRUM_PANELS_NEEDS": [
+   "drums"
+  ],
+  "BAR_NEEDS": [],
+  "ALL_VIEWS": [
+   "bass",
+   "breed",
+   "clips",
+   "drums",
+   "editor",
+   "lab",
+   "library",
+   "map",
+   "mixer",
+   "perform",
+   "song",
+   "visuals",
+   "voice"
+  ],
+  "PAD_VOICES": [
+   "kick",
+   "snare",
+   "hat",
+   "ohat",
+   "clap",
+   "tom",
+   "rim",
+   "crash"
+  ],
+  "DXY_AXES": [
+   [
+    "hat",
+    "decay"
+   ],
+   [
+    "kick",
+    "punch"
+   ]
+  ],
+  "POSTS": [
+   "phone"
+  ],
+  "AUDITION_VIEW": "editor"
+ }
+}

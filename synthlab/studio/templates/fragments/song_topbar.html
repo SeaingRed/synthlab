@@ -1,0 +1,178 @@
+{# synthlab/studio/templates/fragments/song_topbar.html #}
+{# The Song page's transport: play the song, loop the selected
+   section, stop, record; then the song's tempo, key, length and the live
+   position. song.js (Task 7) wires the transport buttons through their
+   data-song-action and writes #song-position; songrec.js owns the record
+   group (● arms the armed track or the selected cell's, quantize,
+   overdub/replace) and writes #song-rec-status. The export group is plain
+   download links (routes/export.py): the mixdown as WAV / FLAC / MP3, the
+   stems zip, and the notes as a MIDI file — no script. #}
+{% set first = song.sections[0] if song.sections else none %}
+<header id="song-topbar" class="song-topbar module" data-module="song.transport" aria-label="Song transport"
+        data-song-bars="{{ song_bars }}" data-song-seconds="{{ song_seconds | round(3) }}"
+        {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  {#- the transport, first in the bar as on every page (frontend.md,
+      "Design system"): green ▶, orange ⏸, red ■, then loop and jam -#}
+  <div class="song-transport" role="group" aria-label="Playback">
+    {#- data-player: transport.js writes what ▶ / Space will start into the
+        cue (after ■) and the ▶'s aria-label and title: the song from the
+        marker's bar, and what it would stop -#}
+    <button data-cmd="Play the song" data-cmd-group="Transport" data-keys="Space" type="button" id="song-play" class="btn btn-primary btn-play stbtn stbtn-play" data-song-action="play"
+            data-player="song" aria-pressed="false" {% if not song.sections %}disabled{% endif %}
+            title="Play the song from the marker (Space)">▶ Song</button>
+    <button data-cmd="Pause the song" data-cmd-group="Transport" type="button" id="song-pause" class="btn btn-icon btn-pause stbtn" data-song-action="pause"
+            {% if not song.sections %}disabled{% endif %}
+            aria-label="Pause" title="Pause: stop here — ▶ carries on from this bar (the marker moves to it)">⏸</button>
+    <button data-cmd="Stop the song" data-cmd-group="Transport" type="button" id="song-stop" class="btn btn-icon btn-stop stbtn stbtn-stop" data-song-action="stop"
+            aria-label="Stop" title="Stop: back to the bar ▶ started from">■</button>
+    <output class="play-cue" data-cue-for="song-play">the song from bar 1</output>
+    <button data-cmd="Loop the selected section" data-cmd-group="Transport" data-keys="L" type="button" id="song-loop" class="btn stbtn" data-song-action="loop"
+            aria-pressed="false" {% if not song.sections %}disabled{% endif %}
+            title="Loop the selected section (L)">⟳ Loop</button>
+    {#- the jam (jam.js): the playlist becomes a launcher -#}
+    <button data-cmd="Jam: on / off" data-cmd-group="Jam" data-keys="Alt+J" type="button" id="jam-toggle" class="btn stbtn" data-jam="toggle"
+            aria-pressed="false" {% if not song.sections %}disabled{% endif %}
+            title="Jam (Alt+J): the playlist becomes a launcher — press a pad and its block plays on the next bar, a section's head launches the whole column, Capture writes what you played to the song">◉ Jam</button>
+  </div>
+  {#- Undo / redo of the song's own ring (routes/song.py `_commit`; Ctrl+Z,
+      Ctrl+Shift+Z / Ctrl+Y through songedit.js, which clicks these). Each
+      says what it would move. The topbar comes back as a morph, so the
+      button pressed keeps keyboard focus across its own redraw — and for
+      the same reason one with nothing to move is `aria-disabled`, not
+      `disabled`: a button that disables itself under the keyboard drops
+      focus to <body> (songedit.js swallows its click). -#}
+  <div class="song-undo" role="group" aria-label="Undo and redo">
+    <button data-cmd="Undo the last song edit" data-keys="Ctrl+Z" type="button" id="song-undo" class="btn btn-icon stbtn" hx-post="/song/undo" hx-swap="none"
+            aria-disabled="{{ 'false' if song_undo.undo else 'true' }}" aria-label="Undo{% if song_undo.undo %}: {{ song_undo.undo }}{% endif %}"
+            title="{% if song_undo.undo %}Undo: {{ song_undo.undo }} (Ctrl+Z){% else %}Nothing to undo{% endif %}">↶</button>
+    <button data-cmd="Redo the song edit" data-keys="Ctrl+Shift+Z" type="button" id="song-redo" class="btn btn-icon stbtn" hx-post="/song/redo" hx-swap="none"
+            aria-disabled="{{ 'false' if song_undo.redo else 'true' }}" aria-label="Redo{% if song_undo.redo %}: {{ song_undo.redo }}{% endif %}"
+            title="{% if song_undo.redo %}Redo: {{ song_undo.redo }} (Ctrl+Shift+Z){% else %}Nothing to redo{% endif %}">↷</button>
+  </div>
+  {#- song creation: the song's own name, tempo and key at last (POST
+      /song/meta), Start… (the starter sheet, a popover once the song has
+      sections), the song rolled again, and the checklist's badge -#}
+  <form class="song-meta" role="group" aria-label="The song" hx-post="/song/meta" hx-trigger="change, submit" hx-sync="this:queue last" hx-swap="none">
+    <label class="song-field" title="The song's name: the export is named for it"><span class="visually-hidden">title</span>
+      <input class="field field-s song-title" name="title" value="{{ song.get("title", "") }}" maxlength="{{ limits.MAX_TITLE_CHARS }}"
+             placeholder="Untitled" autocomplete="off" aria-label="song title"></label>
+    <label class="song-field" title="The song's tempo: every pattern is retimed">bpm
+      <input class="field field-s num-s" type="number" name="bpm" min="{{ limits.BPM_RANGE[0] | int }}" max="{{ limits.BPM_RANGE[1] | int }}"
+             step="1" value="{{ song.bpm | round(2) | replace('.0', '') }}" aria-label="song tempo"></label>
+    <label class="song-field" title="The song's bar (meter.py): every section without one of its own plays in it, its patterns fitted bar by bar. A section's own is in its ⋯ menu">bar
+      <select class="field field-s" name="meter" aria-label="song meter">
+        {%- for m in meter.METERS %}<option value="{{ m }}"{% if (song.get('meter') or '4/4') == m %} selected{% endif %}>{{ meter.parse(m).label }}</option>{% endfor %}
+      </select></label>
+    <label class="song-field" title="The song's key. The chord track is in degrees and follows; notes already written stay unless “move notes” is ticked">key
+      <select class="field field-s" name="root" aria-label="song key">
+        {% for r, name in song_keys %}<option value="{{ r }}" {% if r == song.root %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select></label>
+    <label class="song-field"><span class="visually-hidden">scale</span>
+      <select class="field field-s" name="scale_name" aria-label="song scale">
+        {% for sc in song_scales %}<option value="{{ sc }}" {% if sc == song.scale_name %}selected{% endif %}>{{ sc | replace("_", " ") }}</option>{% endfor %}
+      </select></label>
+    <label class="song-field" title="With a key change: carry every note pattern to the new key (each note to the same step of the new scale)">
+      <input type="checkbox" class="check" name="move" value="1"> move notes</label>
+  </form>
+  <div class="song-make" role="group" aria-label="Start and check">
+    {% if song.sections %}
+    <button type="button" class="btn stbtn" popovertarget="song-start-pop" data-cmd="Open the starter sheet" data-cmd-group="Song"
+            title="Start another song: a style's whole arrangement, or the working loop arranged">Start…</button>
+    <div id="song-start-pop" class="pop song-start-pop" popover>
+      {% with sheet = "pop" %}{% include "fragments/song_start.html" %}{% endwith %}
+    </div>
+    {% endif %}
+    {% if song_started %}
+    <button type="button" class="btn stbtn" hx-post="/song/start" hx-vals='{"again": "1"}' hx-swap="none"
+            data-cmd="Roll the song again" data-cmd-group="Song"
+            title="Another {{ (song_styles | selectattr('key', 'equalto', song_style) | first).label | lower }} song from a new seed (this one was {{ song_seed }}) · rolls are one undo step">⚄ Roll again</button>
+    {% endif %}
+    <button type="button" class="btn stbtn song-check-btn" popovertarget="song-check" data-cmd="Check the song" data-cmd-group="Song"
+            data-open="{{ song_check.open }}"
+            title="What is missing: {{ song_check.open }} open{% if song_check.signature %} · the style's signature{% endif %}">✓ {{ song_check.open }}</button>
+    {% include "fragments/song_check.html" %}
+  </div>
+  <div class="song-record" role="group" aria-label="Recording">
+    <button data-cmd="Record onto the song" data-cmd-group="Transport" type="button" id="song-rec" class="btn btn-rec stbtn stbtn-rec" data-song-action="record"
+            data-max-clip-seconds="{{ limits.MAX_CLIP_SECONDS | int }}"
+            aria-pressed="false" {% if not song.sections %}disabled{% endif %}
+            title="Record onto the armed track (or the selected cell's): a 1-bar count-in (ready, 3, 2, 1), then the section loops — keep playing over the top until ■">● Rec</button>
+    <label class="song-field">quantize
+      <select id="song-quantize" name="quantize" class="field field-s" data-cmd="Quantize recording to" data-cmd-group="Transport">
+        {% for q in ["1/8", "1/16", "1/32", "off"] %}<option {% if q == "1/16" %}selected{% endif %}>{{ q }}</option>{% endfor %}
+      </select>
+    </label>
+    <div class="seg song-mode" role="radiogroup" aria-label="Recording mode">
+      <label><input type="radio" name="rec_mode" value="overdub" checked><span>overdub</span></label>
+      <label><input type="radio" name="rec_mode" value="replace"><span>replace</span></label>
+    </div>
+    <button type="button" class="btn stbtn" data-cmd="Undo the last note take" data-cmd-group="Transport" hx-post="/song/record/undo" hx-swap="none"
+            {% if not song_takes %}disabled{% endif %} title="Undo the last note take">↶ take</button>
+    {#- songtake.js draws these: the metronome while a take runs, the clean-up when it
+        ends, and ✦ Clean up on the last take. The toggles are remembered
+        per browser and set again after every morph of this bar. -#}
+    <label class="song-field" title="A tick on every beat while a take runs">
+      <input type="checkbox" class="check" id="rec-click" checked> click</label>
+    <label class="song-field is-ai" title="When a take ends, clean it up: timing, double hits, velocities, wrong notes — and Gemini's feedback and edits when a key is set">
+      <input type="checkbox" class="check" id="rec-clean" checked> ✦ after</label>
+    <button type="button" class="btn btn-ai stbtn" data-song-action="clean" data-cmd="Clean up the last take" data-cmd-group="AI"
+            {% if not song_takes %}disabled{% endif %}
+            title="Clean up the last take: snap its timing (a steady lean and latency taken out first), merge double hits, even the velocities, move wrong notes into the key — then Gemini's feedback and a few edits. One undo step">✦ Clean up</button>
+    <label class="song-field" title="Mic latency for this machine, used when the browser reports none">latency
+      <input type="number" id="song-latency" name="latency_ms" min="0" max="{{ limits.MAX_LATENCY_MS | int }}" step="1"
+             value="{{ song_latency_ms | round | int }}" hx-post="/song/calibration" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+             class="field field-s num-s" aria-label="mic latency in milliseconds"> ms
+    </label>
+    <output id="song-rec-status" class="song-rec-status" aria-live="off"></output>
+  </div>
+  {# Export: ⤓ Export downloads at once (the form's defaults: as played,
+     WAV); ▾ opens what it is made of — the loudness target
+     (`song_play.LOUDNESS_TARGETS`, checked again by the route), the format
+     (`audio.EXPORT_FORMATS`), "measure" (renders the same export and writes
+     what it reads into #song-loudness), the stems and the MIDI file. A
+     plain GET form, so the browser downloads the file itself (no script);
+     its controls stay commands while the panel is shut (the palette runs a
+     closed popover's controls as it runs any other). #}
+  <div class="song-export" role="group" aria-label="Export the song">
+    <button data-cmd="Export the song" data-cmd-group="Export" type="submit" form="song-export-form" class="btn stbtn" {% if not song.sections %}disabled{% endif %}
+            title="Download the whole song at the loudness and in the format set under ▾">⤓ Export</button>
+    <button type="button" class="btn btn-icon stbtn" popovertarget="song-export-pop" aria-label="export options"
+            title="Export options: loudness, format, measure, stems, MIDI">▾</button>
+    <div id="song-export-pop" class="pop song-export-pop" popover>
+    <form id="song-export-form" class="song-export-form" method="get" action="/export/song.wav">
+    <label class="song-field" title="As played: the song exactly as it plays here. A LUFS target masters the export to that loudness, limited to -1 dB true peak"><span class="caps">loudness</span>
+      <select id="song-loudness-target" name="loudness" class="field field-s">
+        {% for key, target in loudness_targets.items() %}<option value="{{ key }}" {% if loop.first %}selected{% endif %}>{{ target.label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="song-field" title="WAV: 16-bit. FLAC: the same samples, lossless, about half the size. MP3: for sharing"><span class="caps">format</span>
+      <select name="format" class="field field-s">
+        <option value="wav" selected>WAV</option>
+        <option value="flac">FLAC</option>
+        <option value="mp3">MP3</option>
+      </select>
+    </label>
+    <span class="song-export-acts">
+    <button data-cmd="Measure the export's loudness" data-cmd-group="Export" type="button" class="btn btn-s" hx-get="/export/song/loudness" hx-include="#song-loudness-target"
+            hx-target="#song-loudness" hx-swap="outerHTML" {% if not song.sections %}disabled{% endif %}
+            title="Measure the export at this loudness: integrated LUFS and true peak">measure</button>
+    {% if song.sections %}
+    <a data-cmd="Export the song's stems" data-cmd-group="Export" class="btn btn-s" href="/export/stems.zip" download
+       title="One WAV per track, each the whole song with only that track playing, without master FX (never loudness-mastered)">⤓ Stems</a>
+    <a data-cmd="Export the song as MIDI" data-cmd-group="Export" class="btn btn-s" href="/export/song.mid" download
+       title="The song's notes as a MIDI file: one track per drums / synth track, no audio">⤓ MIDI</a>
+    {% endif %}
+    </span>
+    <output id="song-loudness" class="song-loudness" aria-live="polite"></output>
+    </form>
+    </div>
+  </div>
+  <dl class="song-facts">
+    <div><dt class="caps">tempo</dt><dd class="song-tempo">{{ song.bpm | round(1) | replace(".0", "") }} bpm</dd></div>
+    <div><dt class="caps">key</dt><dd class="song-key">{{ song.root[:-1] }} {{ song.scale_name | replace("_", " ") }}</dd></div>
+    <div><dt class="caps">length</dt><dd class="song-length">{{ song_bars }} bar{{ "" if song_bars == 1 else "s" }} · {{ (song_seconds // 60) | int }}:{{ "%02d" | format((song_seconds % 60) | int) }}</dd></div>
+  </dl>
+  <output id="song-position" class="song-position" aria-live="off">
+    {%- if first %}bar 1 / {{ song_bars }} · {{ first.name }}{% else %}no sections yet{% endif -%}
+  </output>
+</header>

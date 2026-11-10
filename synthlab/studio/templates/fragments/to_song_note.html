@@ -1,0 +1,13 @@
+{# synthlab/studio/templates/fragments/to_song_note.html #}
+{# → Song's answer on Perform and Synths (routes/song.py song_from_loop,
+   song_drums_loop_kit), swapped into the note beside the button: where the
+   loop went, the way to the Song page and — when the song's drums track
+   plays another kit than the loop — the offer to put the loop's kit on it.
+   Never a region: it is the button's own answer. #}
+<span class="tsn-said">{{ said }}</span>
+<a class="btn btn-s btn-ghost tsn-go" {{ view_link("/view/song") }}>Open Song ▸</a>
+{% if offer %}
+<button type="button" class="btn btn-s tsn-kit" hx-post="/song/drums/loop-kit" hx-target="closest .to-song-note" hx-swap="innerHTML"
+        data-cmd="Put the loop's kit on the song's drums" data-cmd-group="Song"
+        title="The song's {{ offer.track }} track plays its own kit; this puts the loop's ({{ offer.kit }}) on it — every section's beat then goes through it (Ctrl+Z on Song takes it back)">Use {{ offer.kit }} on {{ offer.track }}</button>
+{% endif %}

@@ -1,0 +1,111 @@
+{# synthlab/studio/templates/fragments/lane_inspector.html #}
+{#- The lane inspector's body on the Loops page (region
+    `lane-inspector`, context
+    `StudioService.lane_context` as `insp`): the selected lane — the layer
+    slot the note grid, the keys and Synths edit.
+
+    - The lane heads (here, not in the note grid's controls row, which
+      they wrapped at 1920): one a layer slot that holds a sound — N name
+      selects it (the Synths strip's own route, a body morph: the page
+      stays), ▾ its sound (the one sound menu, soundmenu.js; Alt+S the
+      edited lane's), M / S the strip's mute and solo — and the next empty
+      slot's ＋ (a new lane with its own empty grid) and ▾ (one with a
+      sound picked). `data-stack`: how many sounds a load could replace.
+    - The selected lane: what plays it from the launcher (its slot's scene
+      and loop: ✎ edits save to it) and the drums' slot; its level, Follow
+      and octave (the layer strip's routes); its FX by name and "FX rack ＋"
+      (the workspace's added module, `fx_rack_fragment`); "Open on Synths ▸"
+      (a nav link: the browser's Back, Alt+←, comes back).
+    Morphed out of band, so a pressed button keeps the keyboard. Hidden
+    while ✦ Coach, its other tab, is open (style.css 42). -#}
+{% set i = insp %}
+<div id="lane-inspector" class="insp-lane" role="tabpanel" aria-label="the selected lane"
+     {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  <fieldset class="tcluster lane-heads" data-stack="{{ i.lanes | length }}"><legend>lanes</legend>
+    <div class="lane-seg">
+      {% for ln in i.lanes %}{% set n = ln.index + 1 %}
+      <div class="lane-head seg{% if ln.editing %} on{% endif %}{% if not ln.heard %} unheard{% endif %}" data-lane-index="{{ ln.index }}">
+        <button type="button" id="lh{{ n }}-name" class="lh-name" aria-pressed="{{ 'true' if ln.editing else 'false' }}"
+                hx-post="/fragment/layer/select" hx-vals='{"index": "{{ ln.index }}"}' hx-target="body" hx-swap="innerMorph"
+                title="{{ 'The grid and the keys edit' if ln.editing else 'Edit' }} lane {{ n }}: {{ ln.name }}{% if ln.follows %} (it follows the main lane){% elif ln.main %} (the main lane){% endif %}{% if not ln.heard %} — not heard: {{ 'muted' if ln.muted else 'another lane is soloed' }}{% endif %}"
+                data-cmd="Edit lane {{ n }}: {{ ln.name }}" data-cmd-group="Pattern"><b class="lh-n">{{ n }}</b> {{ ln.name }}{% if ln.follows %} ↳{% endif %}</button>
+        <button type="button" id="lh{{ n }}-sound" class="lh-sound" data-sound-menu="{{ ln.index }}" data-lane-name="{{ ln.name }}" aria-haspopup="dialog"
+                aria-label="the sound of lane {{ n }}: {{ ln.name }}, pick another"
+                title="Lane {{ n }}'s sound: {{ ln.name }} — pick another: every sound, searchable{% if ln.editing %} (Alt+S){% endif %}"
+                data-cmd="Pick the sound of lane {{ n }}" data-cmd-group="Pattern"{% if ln.editing %} data-keys="Alt+S"{% endif %}>▾</button>
+        <button type="button" id="lh{{ n }}-m" class="lh-tog lh-m" hx-post="/fragment/layer/mute" hx-vals='{"index": "{{ ln.index }}"}' hx-swap="none"
+                aria-pressed="{{ 'true' if ln.muted else 'false' }}" aria-label="mute lane {{ n }}" title="Mute lane {{ n }}"
+                data-cmd="Mute lane {{ n }}" data-cmd-group="Pattern">M</button>
+        <button type="button" id="lh{{ n }}-s" class="lh-tog lh-s" hx-post="/fragment/layer/solo" hx-vals='{"index": "{{ ln.index }}"}' hx-swap="none"
+                aria-pressed="{{ 'true' if ln.solo else 'false' }}" aria-label="solo lane {{ n }}" title="Solo lane {{ n }}: hear only soloed lanes"
+                data-cmd="Solo lane {{ n }}" data-cmd-group="Pattern">S</button>
+      </div>
+      {% endfor %}
+      {% if i.lane_next is not none %}
+      <div class="lane-head seg lane-new" data-lane-index="{{ i.lane_next }}">
+        <button type="button" class="lane-add" hx-post="/fragment/layer/add" hx-vals='{"own": "1"}' hx-target="body" hx-swap="innerMorph"
+                title="Lane {{ i.lane_next + 1 }}: this sound, with its own empty grid — draw on it and it plays"
+                aria-label="add a lane with its own notes" data-cmd="Add a lane with its own notes" data-cmd-group="Pattern">＋ lane {{ i.lane_next + 1 }}</button>
+        <button type="button" id="lh-new-sound" class="lh-sound" data-sound-menu="{{ i.lane_next }}" data-lane-name="" aria-haspopup="dialog"
+                aria-label="a new lane {{ i.lane_next + 1 }} with a sound you pick"
+                title="Lane {{ i.lane_next + 1 }}: a new lane with a sound you pick, its own empty grid"
+                data-cmd="New lane with a sound…" data-cmd-group="Pattern">▾</button>
+      </div>
+      {% endif %}
+    </div>
+  </fieldset>
+
+  {#- the selected lane: what plays it, and its mix -#}
+  <section class="insp-sel" aria-label="lane {{ i.n }}">
+    <h3 class="caps insp-title">Lane {{ i.n }} <small>{{ i.name }}</small>
+      {%- if i.main %} <i class="badge badge-accent" title="The main lane: following lanes play its notes">MAIN</i>{% endif %}
+      {%- if not i.heard %} <i class="badge" title="▶ does not hear it: muted, or another lane is soloed">silent</i>{% endif %}</h3>
+    <dl class="insp-facts">
+      <div><dt>plays</dt><dd>
+        {%- if i.octave is not none %}lane {{ i.main_n }}'s notes {{ i.octave | octave_label }} (it follows)
+        {%- elif i.plays %}<span class="insp-slot" title="the launcher's slot that plays on this lane: every edit on the grid saves to its loop">▶ {{ i.plays.row + 1 }}{% if i.plays.scene %} {{ i.plays.scene }}{% endif %} · “{{ i.plays.title }}” <span class="lp-on">✎</span></span>
+        {%- elif i.notes %}the grid's own notes ({{ i.notes }}), no slot
+        {%- else %}nothing yet: draw on the grid, or drag a loop onto a slot{% endif %}</dd></div>
+      <div><dt>drums</dt><dd>
+        {%- if i.drums_stopped %}stopped
+        {%- elif i.drums %}<span class="insp-slot">▶ {{ i.drums.row + 1 }}{% if i.drums.scene %} {{ i.drums.scene }}{% endif %} · “{{ i.drums.title }}”</span>
+        {%- else %}the drum grid, no slot{% endif %}</dd></div>
+    </dl>
+    <div class="insp-mix">
+      <label class="insp-gain" title="Level of lane {{ i.n }} (double-click: 1)">level
+        <input type="range" class="knob knob-s" id="li-gain" name="gain" min="0" max="1.5" step="0.05"
+               data-default="1" value="{{ i.gain }}" style="--fill: {{ (i.gain / 1.5 * 100) | round(1) }}%"
+               hx-post="/fragment/layer/gain" hx-include="this" hx-trigger="change" hx-sync="this:queue last"
+               hx-vals='{"index": "{{ i.n - 1 }}"}' hx-swap="none" aria-label="level of lane {{ i.n }}">
+        <output for="li-gain">{{ "%g" | format(i.gain | round(2)) }}</output>
+      </label>
+      {% if not i.main %}
+      <button type="button" id="li-follow" class="btn btn-s l-tog" data-cmd="Lane {{ i.n }}: follow the main lane, on / off" data-cmd-group="Pattern"
+              hx-post="/fragment/layer/follow" hx-swap="none"
+              hx-vals='{"index": "{{ i.n - 1 }}", "on": "{{ '0' if i.octave is not none else '1' }}", "octave": "0"}'
+              aria-pressed="{{ 'true' if i.octave is not none else 'false' }}"
+              title="Follow: play lane {{ i.main_n }}'s notes (the main lane) instead of this grid's">Follow</button>
+      <label class="insp-oct"><span class="visually-hidden">lane {{ i.n }} follows at octave</span>
+        <select class="field field-s" id="li-oct" name="octave" hx-post="/fragment/layer/follow"
+                hx-include="this" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+                hx-vals='{"index": "{{ i.n - 1 }}", "on": "1"}' title="Octave from the main lane">
+          {% for o in (-2, -1, 0, 1) %}
+          <option value="{{ o }}" {% if (i.octave if i.octave is not none else 0) == o %}selected{% endif %}>{{ ("+" if o > 0 else "−" if o < 0 else "±") ~ (o | abs) }} oct</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+    </div>
+    <div class="insp-fx">
+      <span class="caps insp-say">FX</span>
+      <span class="insp-chain" title="lane {{ i.n }}'s own FX, in order (then the master's)">{{ i.fx | join(" → ") if i.fx else "none" }}</span>
+      <button type="button" class="btn btn-s btn-ghost" data-ws="add" data-ws-add="fx.rack" data-ws-name="FX rack"
+              data-ws-url="/fragment/module/fx-rack" data-ws-el="fx-rack"
+              data-cmd="Lane FX: the FX rack beside the page" data-cmd-group="View"
+              title="the FX rack as a module of this page: this lane's FX and the master's (it goes where it is put; its menu removes it)">FX rack ＋</button>
+    </div>
+    <a class="btn btn-s insp-synths" {{ view_link("/view/editor") }}
+       data-cmd="Open the lane's sound on Synths" data-cmd-group="Pattern"
+       title="Synths, on lane {{ i.n }}'s sound ({{ i.name }}): the panels edit it — the browser's Back (Alt+←) comes back here">Open on Synths ▸</a>
+  </section>
+</div>

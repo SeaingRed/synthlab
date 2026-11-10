@@ -1,0 +1,280 @@
+{# synthlab/studio/templates/fragments/voice_panel.html
+   Re-rendered after every take change and every render, so the take, the
+   vocoder's settings and the last result are always the server's truth
+   (voice_lab.json beside the take: `voice.panel_context` -> `vl`) rather
+   than the browser's memory of what it just sent. No script: the carrier's
+   own rows are shown by style.css from the kind the select holds.
+   Four parts — the take, the vocoder's form, the result, the booth — which
+   the Voice page lays out as cells of its own grid (this root is `display: contents`
+   there). The take plays in a `.player` (bench.js: a button, a bar and a
+   time over a control-less <audio>), not the browser's own slab. #}
+{% from "macros.html" import fill %}
+{% set st = vl.settings %}
+{% from "fragments/fx_units.html" import lead, units %}
+<section id="voice-panel" aria-label="Voice take and vocoder">
+  <div class="voice-take" data-has-take="{{ 'true' if has_take else 'false' }}">
+    {% if has_take %}
+    <p class="voice-status" role="status">Take ready — {{ take_seconds }}s
+      · {% if vl.take_name %}clip “{{ vl.take_name }}”{% else %}a recording{% endif %}</p>
+    <div class="player">
+      <button type="button" class="btn btn-icon btn-s player-play" aria-pressed="false"
+              aria-label="play your take" title="play / pause the take"
+              data-cmd="Play the take" data-cmd-group="Voice">▶</button>
+      <span class="player-bar" role="slider" tabindex="0" aria-label="position in the take" aria-valuemin="0"
+            aria-valuemax="{{ take_seconds }}" aria-valuenow="0" title="click to seek · ← → step"><i></i></span>
+      <output class="player-time">0:00 / {{ "%d:%02d" | format((take_seconds // 60) | int, (take_seconds % 60) | int) }}</output>
+      <audio preload="none" src="/voice/take.wav" aria-label="your take"></audio>
+    </div>
+    {#- the take itself, filling its well: what the words look
+        like (voice.take_wave, the clip hub's path) -#}
+    {% if take_wave %}<svg class="vx-wave" viewBox="0 0 240 2" preserveAspectRatio="none" aria-hidden="true"><path d="{{ take_wave }}"/></svg>{% endif %}
+    <button type="button" class="btn btn-s" hx-post="/voice/keep" hx-prompt="Clip name"
+            hx-swap="none" title="copy the take itself (not the vocoded result) into the clip library"
+            data-cmd="Keep the take as a clip" data-cmd-group="Voice"
+            aria-label="keep this take as a clip">Keep take…</button>
+    {% else %}
+    <p class="voice-status empty-state" role="status">
+      No take yet. Record one, drop an audio file, or pick a clip from the library.
+    </p>
+    {% endif %}
+  </div>
+
+  <form id="voice-render" class="vx-form"
+        hx-post="/voice/render" hx-target="#voice-panel" hx-swap="outerHTML">
+    <h2 class="caps voice-step">{{ lead(not has_take) }}2 · Vocoder <small>the tone</small></h2>
+    {#- named starting points (voice.PRESETS): the settings, and the carrier
+        Sound made for them, in one press — no take needed -#}
+    <p class="vc-presets" role="group" aria-label="Vocoder presets"><span class="caps">Preset</span>
+      {% for key, label, sound in vl.presets %}
+      <button type="button" class="btn btn-s" hx-post="/voice/preset" hx-vals='{{ {"name": key} | tojson }}'
+              hx-include="#voice-render" hx-target="#voice-panel" hx-swap="outerHTML"
+              data-cmd="Voice preset: {{ label }}" data-cmd-group="Voice"
+              title="{{ label }}: sets the carrier, bands, formant shift and smoothing{% if sound %}, and loads “{{ sound }}” on Synths as the carrier (Ctrl+Z there brings your sound back){% endif %}">{{ label }}</button>
+      {% endfor %}
+    </p>
+    <fieldset class="vc-carrier">
+      <legend class="caps" title="what the voice shapes">Carrier</legend>
+      <label>plays
+        <select class="field field-s" name="carrier" id="vc-kind">
+          {% for key, label in vl.carriers %}
+          <option value="{{ key }}" {% if key == st.carrier %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="vc-row vc-sound">notes or chords
+        <input type="text" class="field field-s" name="notes" value="{{ st.notes }}"
+               maxlength="{{ limits.MAX_VOICE_NOTES_CHARS }}" size="26"
+               placeholder="A2 · Am F C G · i VI III VII" autocomplete="off" spellcheck="false"
+               title="one note (A2), several (A2 E3 A3), chords (Am7 F C G) or numerals in {{ vl.key }} (i VI III VII); ~ is a rest">
+      </label>
+      <label class="vc-row vc-sound">each chord lasts
+        <select class="field field-s" name="step" title="with more than one chord: bars at {{ vl.bpm | round | int }} bpm, repeating until the take ends">
+          {% for key, label in vl.steps %}
+          <option value="{{ key }}" {% if key == st.step %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="vc-row vc-follow">pitch
+        <select class="field field-s" name="snap">
+          <option value="off" {% if st.snap == 'off' %}selected{% endif %}>as sung</option>
+          <option value="scale" {% if st.snap == 'scale' %}selected{% endif %}>snapped to {{ vl.key }}</option>
+        </select>
+      </label>
+      <label class="vc-row vc-follow">octave
+        <select class="field field-s" name="octave">
+          {% for o in range(limits.VOICE_OCTAVE_RANGE[0], limits.VOICE_OCTAVE_RANGE[1] + 1) %}
+          <option value="{{ o }}" {% if o == st.octave %}selected{% endif %}>{{ '%+d' % o if o else 'as sung' }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <input type="hidden" name="clip" value="{{ st.clip }}">
+      <p class="vc-row vc-sound vc-follow vc-note">“{{ vl.sound }}”, held{% if vl.pluck %} — a pluck keeps one pitch per note, so it will not follow{% endif %}.</p>
+      <p class="vc-row vc-loop vc-note">What ▶ plays on Synths, repeated under the take.</p>
+      <p class="vc-row vc-clip vc-note">
+        {% if st.clip and vl.clip_there %}“{{ st.clip }}”, repeated or cut to the take’s length.
+        {% elif st.clip %}“{{ st.clip }}” is gone — pick another.
+        {% else %}No clip picked yet.{% endif %}
+        <button type="button" class="btn btn-s" popovertarget="clip-drawer"
+                hx-get="/fragment/clips?whole=1" hx-target="#clip-library" hx-swap="outerMorph"
+                hx-include="#clip-q"
+                data-cmd="Pick the carrier clip in the library" data-cmd-group="Voice"
+                title="open the clip library: “as carrier” on a clip picks it">pick in the library…</button>
+      </p>
+    </fieldset>
+    <fieldset class="vc-bands">
+      <legend class="caps">Bands</legend>
+      <label title="how finely the voice's spectrum is followed">bands
+        <select class="field field-s" name="bands">
+          {% for b in vl.bands %}
+          <option value="{{ b }}" {% if b == st.bands %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label title="semitones: a smaller (+) or larger (−) mouth; the pitch stays the carrier's">formant, st
+        <input type="number" class="field field-s" name="shift" value="{{ '%g' % st.shift }}" step="1"
+               min="{{ limits.VOICE_SHIFT_RANGE[0] | int }}" max="{{ limits.VOICE_SHIFT_RANGE[1] | int }}">
+      </label>
+      <label title="how slowly each band lets go: low is crisp, high is smeared">smooth, ms
+        <input type="number" class="field field-s" name="smooth" value="{{ '%g' % st.smooth }}" step="5"
+               min="{{ limits.VOICE_SMOOTH_MS_RANGE[0] | int }}" max="{{ limits.VOICE_SMOOTH_MS_RANGE[1] | int }}">
+      </label>
+      <label title="noise for the consonants (s, t, f) a carrier has nothing to say them with; 0 is off">sibilance
+        <input type="number" class="field field-s" name="sibilance" value="{{ '%g' % st.sibilance }}" step="0.05" min="0" max="1">
+      </label>
+    </fieldset>
+    {#- the bands as a meter: each band where it sits from
+        low to high, as loud as the take is in it, and a tick where
+        its carrier band lands after the formant shift (voice.band_meter).
+        A picture of the settings: nothing reads it -#}
+    <figure class="vc-meter" aria-label="the {{ st.bands }} bands{% if has_take %}, as loud as the take is in each{% endif %}">
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+        {%- for b in vl.meter %}<path class="vc-bell" d="{{ b.bell }}"/>{% endfor %}
+        {%- for b in vl.meter %}
+        <rect class="vc-band{{ ' lit' if b.level > 0 }}" x="{{ b.x + 0.15 }}" y="{{ 40 - [b.level * 38, 0.6] | max }}" width="{{ [b.w - 0.3, 0.2] | max }}" height="{{ [b.level * 38, 0.6] | max }}"/>
+        {%- if b.cx is not none %}<rect class="vc-cband" x="{{ b.cx - 0.15 }}" y="0" width="0.3" height="3"/>{% endif %}
+        {%- endfor %}
+      </svg>
+      <figcaption class="caps"><span>{{ st.bands }} bands</span><span>{{ "formant %+g st" | format(st.shift) if st.shift else "carrier on its bands" }}</span></figcaption>
+    </figure>
+    <button type="submit" class="btn btn-primary vc-go" {% if not has_take %}disabled title="record or pick a take first"{% endif %}
+            data-cmd="Vocode the take" data-cmd-group="Voice">
+      Vocode it
+    </button>
+    <p class="vc-busy skel" aria-hidden="true">vocoding…</p>
+  </form>
+
+  {% if vl.result %}
+  <div class="voice-result" data-key="{{ vl.result.key }}">
+    <h2 class="caps voice-step">{{ lead() }}3 · Result</h2>
+    <button type="button" class="btn btn-icon btn-s audition sc-play" data-note="/preview/{{ vl.result.key | urlencode }}.wav"
+            title="hear the result again" data-cmd="Hear the vocoded result" data-cmd-group="Voice"
+            aria-label="hear the result again">▶</button>
+    <p class="voice-status" role="status">Result — {{ vl.result.seconds }}s · {{ vl.result.label }}</p>
+    {% if vl.result.wave %}<svg class="vx-wave vx-result-wave" viewBox="0 0 240 2" preserveAspectRatio="none" aria-hidden="true"><path d="{{ vl.result.wave }}"/></svg>{% endif %}
+    <button type="button" class="btn btn-s vc-keep" hx-post="/voice/result/keep" hx-prompt="Clip name"
+            hx-vals='{{ {"key": vl.result.key} | tojson }}' hx-swap="none"
+            title="save this result to the clip library (group “Vocoder”): place it on the Song or play it as a sampler from there"
+            data-cmd="Keep the vocoded result as a clip" data-cmd-group="Voice"
+            aria-label="keep the vocoded result as a clip">Keep result…</button>
+  </div>
+  {% else %}
+  <div class="voice-none">
+    <h2 class="caps voice-step">{{ lead(true) }}3 · Result</h2>
+    <p class="empty-state">Nothing vocoded yet: take your words, then Vocode it. The result plays here, through the Master FX below.</p>
+  </div>
+  {% endif %}
+
+  {#- 4 · Treat — the vocal booth (booth.py, routes/booth.py): a treatment
+      is a chain of ordinary FX units plus offline moves; one press loads it
+      and plays it (`/voice/booth/render`). The rack is THE rack
+      (fragments/fx_units.html, as the Song audio track's and Synths':
+      fxrack.rack_rows, edited by fxrack.edit_chain); every answer is this
+      panel, morphed, so a knob keeps its focus. -#}
+  {% set b = bo %}{% set rack = "/voice/booth/fx" %}
+  <div class="voice-booth" data-has-take="{{ 'true' if has_take else 'false' }}">
+    <h2 class="caps voice-step">{{ lead(not has_take) }}4 · Treat <small>the studio tricks</small></h2>
+    <p class="vb-treats" role="group" aria-label="Treatments">
+      {% for key, label, title in b.treatments %}
+      <button type="button" class="btn btn-s" hx-post="/voice/booth/render" hx-vals='{{ {"treatment": key} | tojson }}'
+              hx-include="#booth-moves" hx-target="#voice-panel" hx-swap="outerMorph"
+              aria-pressed="{{ 'true' if key == b.treatment else 'false' }}"
+              data-cmd="Treat the take: {{ label }}" data-cmd-group="Voice"
+              title="{{ title }}"{{ ' disabled' if not has_take }}>{{ label }}</button>
+      {% endfor %}
+    </p>
+    <form id="booth-moves" class="vb-moves" aria-label="What is treated, and the tape moves"
+          hx-post="/voice/booth/moves" hx-trigger="change" hx-sync="this:queue last"
+          hx-target="#voice-panel" hx-swap="outerMorph">
+      <label title="what goes through the booth: the take itself, or the vocoder's last result">treat
+        <select class="field field-s" name="source">
+          {% for key, label in b.sources %}
+          <option value="{{ key }}" {% if key == b.source %}selected{% endif %}{% if key == 'result' and not b.result_there %} disabled{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label title="the tape turned over: the take played backwards (before the swell and the chain)">tape runs
+        <select class="field field-s" name="reverse">
+          <option value="forwards" {% if not b.moves.reverse %}selected{% endif %}>forwards</option>
+          <option value="backwards" {% if b.moves.reverse %}selected{% endif %}>backwards</option>
+        </select>
+      </label>
+      <label class="fx-param" title="a backwards reverb swell: the take's own reverb reversed, rising into each phrase (it starts {{ '%g' % b.swell_lead }} s before the voice); 0 is off">swell
+        <input type="range" class="knob" name="swell" min="0" max="1" step="0.05" value="{{ b.moves.swell }}"
+               data-default="0" style="--fill: {{ fill(b.moves.swell, 0, 1) }}" aria-label="backwards swell">
+        <output>{{ '%g' % b.moves.swell }}</output>
+      </label>
+      <label class="fx-param" title="varispeed: the tape run faster (higher and quicker) or slower (lower and longer); 1 is as recorded">tape speed
+        <input type="range" class="knob" name="rate" min="{{ b.rate_range[0] }}" max="{{ b.rate_range[1] }}" step="0.01"
+               value="{{ b.moves.rate }}" data-default="1" style="--fill: {{ fill(b.moves.rate, b.rate_range[0], b.rate_range[1]) }}"
+               aria-label="tape speed">
+        <output>×{{ '%g' % b.moves.rate }}</output>
+      </label>
+      <label title="whose tempo a synced unit reads (a tape echo on the beat, a gate, a pump): auto is the song's for a take the song plays, or while a song track's sound is edited — else the loop's">synced to
+        <select class="field field-s" name="tempo" aria-label="whose tempo the synced effects follow">
+          {% for key, label in b.tempos %}
+          <option value="{{ key }}" {% if key == b.tempo %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </form>
+    <fieldset class="fx-scope vb-rack" aria-label="The booth's effects">
+      <legend><span class="panel-name" title="the take runs through these, in order, after the tape moves">{{ b.label }}</span>
+        <select data-cmd="Add effect to the booth" data-cmd-group="Voice" class="field field-s fx-adder" name="kind"
+                aria-label="add effect to the booth" hx-post="/voice/booth/fx" hx-vals='{"op": "add"}' hx-include="this"
+                hx-trigger="change" hx-sync="this:queue all" hx-target="#voice-panel" hx-swap="outerMorph"{{ ' disabled title="The rack is full"' if b.rack_full }}>
+          <option value="" selected disabled>+ add…</option>
+          {% for kind, label in b.units %}<option value="{{ kind }}">{{ label }}</option>{% endfor %}
+        </select>
+      </legend>
+      {% set r = {"url": rack, "vals": {}, "id": "booth", "title": "the booth", "group": "Voice",
+                  "value": 'hx-target="#voice-panel" hx-swap="outerMorph"',
+                  "shape": 'hx-target="#voice-panel" hx-swap="outerMorph"', "out": "master", "edges": true} %}
+      {% call units(b.rack, r) %}<p class="empty-state fx-none">No effects: the take plays as it is.
+        <button type="button" class="btn btn-s empty-fx" hx-post="/voice/booth/render" hx-vals='{"treatment": "dreamy"}'
+                hx-include="#booth-moves" hx-target="#voice-panel" hx-swap="outerMorph"
+                data-cmd="Treat the take with a plate and hear it" data-cmd-group="Voice"
+                title="Dreamy plate on the booth, and hear the take through it"{{ ' disabled' if not has_take }}>＋ Plate ▶</button></p>{% endcall %}
+    </fieldset>
+    <div class="vb-out" role="group" aria-label="Hear and keep the treated take">
+      <button type="button" class="btn vb-go" hx-post="/voice/booth/render" hx-include="#booth-moves"
+              hx-target="#voice-panel" hx-swap="outerMorph" data-cmd="Hear the treated take" data-cmd-group="Voice"
+              title="run {{ 'the vocoded result' if b.source == 'result' else 'the take' }} through the tape moves and the rack, and play it"{{ ' disabled' if not has_take }}>▶ Hear it</button>
+      {% if b.audition %}
+      <button type="button" class="btn btn-icon btn-s audition sc-play" data-note="/preview/{{ b.audition.key | urlencode }}.wav"
+              title="hear the treated take again" aria-label="hear the treated take again"
+              data-cmd="Hear the treated take again" data-cmd-group="Voice">▶</button>
+      <p class="voice-status" role="status">{{ b.audition.label }} — {{ b.audition.seconds }}s</p>
+      <button type="button" class="btn btn-s" hx-post="/voice/booth/keep" hx-prompt="Clip name"
+              hx-vals='{{ {"key": b.audition.key} | tojson }}' hx-swap="none"
+              data-cmd="Keep the treated take as a clip" data-cmd-group="Voice"
+              title="save what you heard to the clip library (group “Voice takes”)">Keep as clip…</button>
+      {% if b.place %}
+      <span class="vb-place">
+        {#- captioned: a bare select of section names read as anything -#}
+        <label class="song-field" title="the section it is placed in, at its first bar, on the song's first audio track">in section
+        <select class="field field-s" name="section_id" id="vb-section" aria-label="the song section it lands in">
+          {% for sec in b.place.sections %}<option value="{{ sec.id }}">{{ sec.name }}</option>{% endfor %}
+        </select></label>
+        <button type="button" class="btn btn-s" hx-post="/voice/booth/song" hx-prompt="Clip name"
+                hx-vals='{{ {"key": b.audition.key} | tojson }}' hx-include="#vb-section" hx-swap="none"
+                data-cmd="Put the treated take on the song" data-cmd-group="Voice"
+                title="keep it as a clip and place it as a take on the song's first audio track (Ctrl+Z on Song undoes the placing)">→ Song</button>
+      </span>
+      {% else %}
+      <span class="voice-status" title="add a section on Song to place takes into it">no song section yet</span>
+      {% endif %}
+      {% else %}
+      <p class="voice-status">{% if has_take %}Pick a treatment, or ▶ Hear it with the rack as it is.{% else %}Take your words first (1).{% endif %}</p>
+      {% endif %}
+    </div>
+    {% if b.talk %}
+    <p class="vb-talk" role="group" aria-label="Talkbox takes"><span class="caps" title="what the live talkbox's ⏺ recorded (newest first): one press makes it the take, to treat or vocode">talkbox takes</span>
+      {% for c in b.talk %}
+      <button type="button" class="btn btn-s btn-ghost" hx-post="/voice/take/clip" hx-vals='{{ {"name": c.name} | tojson }}'
+              hx-include="#voice-render" hx-target="#voice-panel" hx-swap="outerHTML"
+              title="make “{{ c.name }}” ({{ c.seconds }}s) the take" aria-label="use talkbox take {{ c.name }} as the take">{{ c.name }}</button>
+      {% endfor %}
+    </p>
+    {% endif %}
+  </div>
+</section>

@@ -1,0 +1,10 @@
+{# synthlab/studio/templates/fragments/wt_sources.html #}
+{# "+ from clip…"'s source menu (routes/wavetable.py `sources`): the clip
+   store's clips, then the sampler's samples. #}
+{% if sources %}
+<select class="field" name="source" required>
+  {% for ref, label in sources %}<option value="{{ ref }}">{{ label }}</option>{% endfor %}
+</select>
+{% else %}
+<select class="field" name="source" disabled><option>no clips or samples yet</option></select>
+{% endif %}

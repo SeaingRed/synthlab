@@ -1,0 +1,194 @@
+{# synthlab/studio/templates/grids.html — the note grid, shared: the piano roll.
+   Perform (transport.html) and the Song page's drawer
+   (fragments/drawer_notes.html) draw the same grid from this macro, so the
+   drawer posts exactly the field names the grid routes parse.
+   tests/studio/test_grid_macros.py pins Perform byte for byte; keep the
+   whitespace control as it is. The drum grid is `drumgrid.html` (the
+   piano roll and the beat workflow each own a file).
+
+   note_grid: the grid body inside a form that carries the shape controls
+   (Perform's transport, the drawer's pattern form). It is still a form of
+   checkboxes, one a (row, step) — the roll (static/roll.js) moves cells,
+   it adds no input. `roll` (studio/rollview.py) is what the server paints
+   behind the notes: rows out of the key, the other lanes as ghosts, the
+   chord track's tones. `zoom` names the grid's step width (zoom.js keeps
+   `--zoom-<zoom>` on the root, per browser).
+
+   roll_tools: the roll's own controls — the tool switch, the stamp's
+   chord and length, the length ops, the selection's, the rows and the
+   octave window, ghosts, zoom — for a `.pattern-tools` toolbar. `tool` is
+   the pattern tool route's prefix. Every one is a command (`data-cmd`). #}
+
+{% macro note_grid(pitch_rows, total_steps, cells, slides, velocities, root_rows=(), steps_per_bar=0, cuts=(), roll=none, zoom="perform", span=0, oct=0, bar_meter="4/4", chords=none, chance=none, nudge=none) -%}
+{#- another meter's bar (meter.py): its beats and its groups' heads, from
+    `meter.accents`; 4/4 marks every fourth step, as it always did -#}
+{%- set acc = meter.grid_accents(bar_meter, steps_per_bar) if steps_per_bar else none -%}
+<div class="grid roll" aria-label="Note grid" data-zoom="{{ zoom }}"{% if steps_per_bar %} data-bars="{{ total_steps // steps_per_bar }}" data-spb="{{ steps_per_bar }}"{% endif %}{% if span %} data-span="{{ span }}" data-oct="{{ oct }}"{% endif %} style="--steps: {{ total_steps }}; --rows: {{ pitch_rows | length }}; --step-w: var(--zoom-{{ zoom }})">
+    <i class="playhead" aria-hidden="true" style="grid-row: 1 / span {{ (pitch_rows | length) + (3 if steps_per_bar else 2) + (1 if chords is not none else 0) }}"></i>
+    {% if steps_per_bar %}
+    <div class="ruler" aria-hidden="true">
+      <span class="rowlabel"></span>
+      {% for bar in range(total_steps // steps_per_bar) %}<b style="grid-column: span {{ steps_per_bar }}">{{ bar + 1 }}</b>{% endfor %}
+    </div>
+    {% endif %}
+    {% if chords is not none %}{{ chord_lane(chords, total_steps) }}{% endif %}
+    {% set marks = roll.marks if roll else {} %}
+    {% for pitch in pitch_rows %}
+    <div class="gridrow{% if roll and pitch in roll.off %} off-key{% endif %}" role="group" aria-label="{{ pitch }} row">
+      <span class="rowlabel{% if pitch in root_rows %} root{% endif %}" data-pitch="{{ pitch }}" aria-hidden="true">{{ pitch }}</span>
+      {#- a cut cell (value "cut") starts a new note although the step
+          before is on: Shift/Alt-click, grid.js. One line a row, no space
+          between the steps: at 128 x 24 the indentation alone was 180 KB -#}
+      {% for step in range(total_steps) -%}
+      {#- timing inside a step (`note_nudge`, free record's loops): a note's
+          start cell drawn off its step line, by that share of a step -#}
+      {%- set nd = nudge.get(step | string) if nudge and [pitch, step] in cells and ([pitch, step - 1] not in cells or [pitch, step] in cuts) else none -%}
+      <input type="checkbox" name="cell.{{ pitch }}.{{ step }}" class="cell{% if acc is none %}{% if step % 4 == 0 %} beat{% endif %}{% else %}{{ meter.mark(acc, step, ' ') }}{% endif %}{% if steps_per_bar and step and step % steps_per_bar == 0 %} bar{% endif %}{% if (pitch, step) in marks %} {{ marks[(pitch, step)] }}{% endif %}{% if nd %} nudged{% endif %}"{% if nd %} style="--nudge: {{ nd }}" title="{{ '%+d' | format((nd * 100) | round | int) }}% of a step {{ 'late' if nd > 0 else 'early' }}: played off the grid"{% endif %}{% if [pitch, step] in cuts %} value="cut"{% endif %}{% if [pitch, step] in cells %} checked{% endif %} aria-label="{{ pitch }} step {{ step + 1 }}">
+      {%- endfor %}
+    </div>
+    {% endfor %}
+    <div class="gridrow sliderow" role="group" aria-label="slide row" title="Slide: this step glides in from the previous note (303-style)">
+      <span class="rowlabel" aria-hidden="true">slide</span>
+      {% for step in range(total_steps) -%}
+      <input type="checkbox" name="slide.{{ step }}" class="cell slide{% if acc is none %}{% if step % 4 == 0 %} beat{% endif %}{% else %}{{ meter.mark(acc, step, ' ') }}{% endif %}"{% if step in slides %} checked{% endif %} aria-label="slide into step {{ step + 1 }}">
+      {%- endfor %}
+    </div>
+    <div class="velrow" role="group" aria-label="velocity row">
+      {% if chance is not none -%}
+      <button type="button" class="rowlabel lane-flip" data-roll-lane="chance" tabindex="-1" aria-label="show the chance lane"
+              data-cmd="Note grid: the chance lane / the velocities" data-cmd-group="Pattern"
+              title="velocity — press (or PageDown in the lane) for the chance lane{% if chance %}: {{ chance | length }} step{{ 's' if chance | length != 1 }} may rest{% endif %}">vel{% if chance %}<small>%</small>{% endif %}</button>
+      {%- else -%}
+      <span class="rowlabel" aria-hidden="true">vel</span>
+      {%- endif %}
+      {% for step in range(total_steps) %}
+      {# same as the drum lane: velocity means nothing on a step with no note #}
+      {% set hit = cells | selectattr(1, "equalto", step) | list | length > 0 %}
+      <div class="vel-lane{% if not hit %} idle{% endif %}" data-step="{{ step }}" role="slider" tabindex="0"
+           aria-label="velocity step {{ step + 1 }}"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="{{ velocities.get(step|string, 0.9) }}">
+        <div class="vel-bar" style="--v: {{ velocities.get(step|string, 0.9)|round(3) }}"></div>
+        <input type="hidden" name="vel.{{ step }}" value="{{ velocities.get(step|string, 0.9) }}">
+      </div>
+      {% endfor %}
+    </div>
+    {% if chance is not none %}
+    {#- the chance lane (Perform's working loop): a step's odds
+        that the notes starting on it play, rolled on a hash seeded by
+        the step and the pass, so each pass rolls afresh and a re-render is
+        the same (arrange.note_plays). The
+        same `.vel-lane`s as the velocities (audio.js paints and steps
+        them), drawn as the drum lane's chance: hatched under 100 %. It
+        takes the velocity lane's PLACE, as the drum grid's lane switch
+        does (`html[data-roll-lane="chance"]`, roll.js — the row label, or
+        PageDown / PageUp in a lane), so the roll's rows lose no height.
+        Its fields always post. A step at 100 % is not stored. -#}
+    <div class="velrow chancerow" data-lane="p" role="group" aria-label="chance row" title="Chance: the odds that the notes starting on a step play. Each pass of the loop rolls afresh; a re-render, the Song and the MIDI file play the same rolls. 100 % always plays">
+      <button type="button" class="rowlabel lane-flip" data-roll-lane="" tabindex="-1" aria-label="show the velocity lane" title="chance — press (or PageUp in the lane) for the velocities">chance</button>
+      {%- set starts = cells | map(attribute=1) | list %}
+      {% for step in range(total_steps) -%}
+      {%- set p = chance.get(step|string, 1) -%}
+      <div class="vel-lane{% if step not in starts %} idle{% endif %}" data-step="{{ step }}" role="slider" tabindex="-1" aria-label="chance step {{ step + 1 }}" aria-valuemin="0" aria-valuemax="1" aria-valuenow="{{ p }}"><div class="vel-bar" style="--v: {{ p|round(3) }}"></div><input type="hidden" name="nchance.{{ step }}" value="{{ p }}"></div>
+      {%- endfor %}
+    </div>
+    {% endif %}
+    {# drum rows live in the Drums view (fragments/drum_bank.html) #}
+  </div>
+{%- endmacro %}
+
+{% macro roll_tools(tool, span, oct, zoom="perform", steps_per_bar=16, roll=none, oct_range=(-1, 3)) -%}
+    <div class="pt-group seg roll-tools" role="group" aria-label="tool">
+      {% for name, glyph, hint in (
+        ("draw", "✎", "Draw: click a step, drag across to paint, drag a note's right end to make it longer or shorter"),
+        ("select", "▭", "Select: drag a box round notes, then drag them (Ctrl-drag copies), or use the arrows and Delete"),
+        ("stamp", "♫", "Stamp: a click writes the chord on that row"),
+        ("erase", "⌫", "Erase: a click or a drag clears steps")) %}
+      <button type="button" data-roll-tool="{{ name }}" aria-pressed="{{ 'true' if name == 'draw' else 'false' }}"
+              title="{{ hint }}" data-cmd="Tool: {{ name }}" data-cmd-group="Pattern" data-menu="Tool: {{ name }}">{{ glyph }} {{ name }}</button>
+      {% endfor %}
+    </div>
+    <div class="pt-group roll-stamp" role="group" aria-label="the stamp">
+      <select class="field field-s" data-roll-opt="q" aria-label="chord the stamp writes" title="The chord a stamp writes, in the key, from the row you click" data-cmd="Stamp chord" data-cmd-group="Pattern">
+        {% if roll and roll.chord_track %}<option value="track">chord track</option>{% endif %}
+        {% for q in ("triad", "7th", "9th", "sus2", "sus4", "power") %}<option value="{{ q }}">{{ q }}</option>{% endfor %}
+      </select>
+      <select class="field field-s" data-roll-opt="len" aria-label="length of a stamped chord" title="How long a stamped chord is" data-cmd="Stamp length" data-cmd-group="Pattern">
+        {% for label, n in (("1 step", 1), ("1 beat", steps_per_bar // 4), ("½ bar", steps_per_bar // 2), ("1 bar", steps_per_bar)) %}
+        {% if loop.first or n > 1 %}<option value="{{ n }}"{% if label == "½ bar" %} selected{% endif %}>{{ label }}</option>{% endif %}
+        {% endfor %}
+      </select>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="{{ tool }}stamp" hx-swap="none" data-roll-op="stamp" data-menu
+              title="Stamp the chord at the cursor's step and row (in the stamp tool: a click, or Enter)" aria-label="stamp a chord at the cursor" data-cmd="Stamp a chord at the cursor" data-cmd-group="Pattern">♫</button>
+    </div>
+    <div class="pt-group" role="group" aria-label="note lengths">
+      <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}legato" hx-swap="none"
+              title="Legato: each note (each selected note) runs to where the next begins" aria-label="legato" data-cmd="Legato" data-cmd-group="Pattern">legato</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}half" hx-swap="none"
+              title="Halve the length of every note (every selected note)" aria-label="halve the note lengths" data-cmd="Halve the lengths" data-cmd-group="Pattern">½×</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}double" hx-swap="none"
+              title="Double the length of every note (every selected note)" aria-label="double the note lengths" data-cmd="Double the lengths" data-cmd-group="Pattern">2×</button>
+    </div>
+    <div class="pt-group roll-sel" role="group" aria-label="the selection">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="{{ tool }}resize" hx-vals='{"by": "-1"}' hx-swap="none" data-menu
+              title="Shorten the selected notes a step (Ctrl+←)" aria-label="shorten the selected notes" data-cmd="Shorten the selected notes" data-cmd-group="Pattern">⇤</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="{{ tool }}resize" hx-vals='{"by": "1"}' hx-swap="none" data-roll-op="len" data-menu
+              title="Lengthen the selected notes a step (Ctrl+→)" aria-label="lengthen the selected notes" data-cmd="Lengthen the selected notes" data-cmd-group="Pattern">⇥</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}copy" hx-swap="none" data-roll-op="dup" data-menu
+              title="Duplicate the selection to its right (Ctrl+D)" aria-label="duplicate the selection" data-cmd="Duplicate the selection" data-cmd-group="Pattern">dup</button>
+      <button type="button" class="btn btn-s pt wide" data-roll-op="mark" data-menu
+              title="Copy: remember the selection (Ctrl+C)" aria-label="copy the selection" data-cmd="Copy the selection" data-cmd-group="Pattern">copy</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}copy" hx-swap="none" data-roll-op="paste" data-menu
+              title="Paste what was copied at the cursor's step and row (Ctrl+V)" aria-label="paste at the cursor" data-cmd="Paste at the cursor" data-cmd-group="Pattern">paste</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}move" hx-swap="none" data-roll-op="move" data-menu
+              title="Move the selection to the cursor's step and row (a drag in the select tool does the same)" aria-label="move the selection to the cursor" data-cmd="Move the selection to the cursor" data-cmd-group="Pattern">move</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="{{ tool }}remove" hx-swap="none" data-menu
+              title="Delete the selected notes (Delete)" aria-label="delete the selected notes" data-cmd="Delete the selected notes" data-cmd-group="Pattern">⌦</button>
+    </div>
+    <div class="pt-group pt-range seg" role="group" aria-label="grid rows">
+      {% for sp, label, hint in ((1, "6", "Six tones of the key from the root"), (2, "key", "Two octaves of the key, root to root: every row is in key"), (3, "all", "Chromatic: 24 semitones, the off-key rows dimmed")) %}
+      <button type="button" aria-pressed="{{ 'true' if span == sp else 'false' }}"
+              hx-post="/fragment/grid/span" hx-vals='{"span": "{{ sp }}"}' hx-swap="none"
+              title="{{ hint }}" data-cmd="Rows: {{ label if sp > 1 else 'six notes' }}" data-cmd-group="Pattern">{{ label }}</button>
+      {% endfor %}
+    </div>
+    <div class="pt-group roll-oct" role="group" aria-label="octave window">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/grid/span" hx-vals='{"oct_by": "1"}' hx-swap="none" data-roll-oct="1"
+              {% if oct >= oct_range[1] %}disabled{% endif %}
+              title="Show the rows an octave higher (PageUp at the top row)" aria-label="octave window up" data-cmd="Octave window up" data-cmd-group="Pattern">▲</button>
+      <span class="roll-oct-now" title="The octave window: octaves above the key's root">{{ "%+d" | format(oct) if oct else "±0" }}</span>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/grid/span" hx-vals='{"oct_by": "-1"}' hx-swap="none" data-roll-oct="-1"
+              {% if oct <= oct_range[0] %}disabled{% endif %}
+              title="Show the rows an octave lower (PageDown at the bottom row)" aria-label="octave window down" data-cmd="Octave window down" data-cmd-group="Pattern">▼</button>
+    </div>
+    <div class="pt-group" role="group" aria-label="view">
+      <button type="button" class="btn btn-s pt wide" data-roll-ghosts aria-pressed="true"
+              title="{% if roll and roll.ghost_names %}Ghost notes: {{ roll.ghost_names | join(', ') }}, drawn dimly behind this lane's{% else %}Ghost notes: the other lanes' notes, drawn dimly behind this one's (there are none yet){% endif %}"
+              aria-label="ghost notes" data-cmd="Show / hide ghost notes" data-cmd-group="Pattern">ghosts</button>
+      <button type="button" class="btn btn-s btn-icon pt" data-zoom-by="-1" data-zoom-for="{{ zoom }}"
+              title="Narrower steps (Ctrl+wheel, Ctrl+−)" aria-label="zoom the grid out" data-cmd="Zoom the grid out" data-cmd-group="Pattern">−</button>
+      <button type="button" class="btn btn-s pt wide" data-zoom-by="0" data-zoom-for="{{ zoom }}"
+              title="Fit every step in the pane (Ctrl+0)" aria-label="fit the grid" data-cmd="Fit the grid" data-cmd-group="Pattern">fit</button>
+      <button type="button" class="btn btn-s btn-icon pt" data-zoom-by="1" data-zoom-for="{{ zoom }}"
+              title="Wider steps (Ctrl+wheel, Ctrl+=)" aria-label="zoom the grid in" data-cmd="Zoom the grid in" data-cmd-group="Pattern">+</button>
+    </div>
+{%- endmacro %}
+
+{#- chord_lane: the working loop's chord track over Perform's roll
+    (`Arrangement.chords`, service/contexts.py `loop_chord_lane`): a tile a
+    chord at its steps, as the Song page's chord tiles are — a click (Enter)
+    opens its menu (#loop-chord-menu: songline.js sends the `contextmenu`
+    menu.js opens it on), ← → between them (one tab stop), 1-7 its degree,
+    Delete removes it, each posting the tile's `data-post`. Its label opens
+    the progression's tools (#loop-chord-tools). With none, one button rolls
+    a progression in. Buttons only: nothing here posts with the grid's form. -#}
+{% macro chord_lane(cl, total_steps) -%}
+    <div class="chordrow" role="group" aria-label="the loop's chords">
+      <span class="rowlabel"><button type="button" class="chordrow-tools" popovertarget="loop-chord-tools" aria-label="the loop's chords" data-cmd="The loop's chords: progression, length, roll" data-cmd-group="Pattern"
+              title="The loop's chords — what the generators (⚄ write) follow and the roll's dots show; they make no sound. Click a chord for its menu, 1–7 its degree, Delete removes it">chords</button></span>
+      {% for t in cl.tiles %}<button type="button" class="ctile lctile{% if not t.first %} ctile-again{% endif %}" style="grid-column: span {{ t.span }}"
+              data-ctx-pop="loop-chord-menu" data-scope="loop" data-slot="{{ t.index }}" data-post="/fragment/chords/track" data-ctx-state="deg-{{ t.deg }} q-{{ t.q }} inv-{{ t.inv }}"
+              tabindex="{{ 0 if loop.first else -1 }}" aria-label="chord {{ t.roman }}, {{ t.name }}, from step {{ t.lo + 1 }}">{{ t.roman }}<small>{{ t.name }}</small></button>{% else %}<button type="button" class="lchord-empty" style="grid-column: span {{ total_steps }}" aria-label="give the loop chords"
+              hx-post="/fragment/chords/track" hx-vals='{"op": "roll"}' hx-swap="none" data-cmd="Give the loop chords" data-cmd-group="Pattern"
+              title="A progression in this key for the loop — the generators (⚄ write) follow it and the roll shows its tones; it makes no sound">⚄ chords: a progression in this key</button>{% endfor %}
+    </div>
+{%- endmacro %}

@@ -1,0 +1,36 @@
+{# synthlab/studio/templates/fragments/song_dock.html #}
+{# The Song page's sound dock (a region, service.REGIONS "song-dock"): while
+   a track's sound is being edited (state.song_edit_track, set by a lane's
+   name or ✎: POST /song/track/{id}/edit-sound, dock=1) a bar across the
+   bottom of the view holds the page that edits it, in a frame — Synths for
+   a synth track (every panel, the layer FX, the curves, the keys, ▶ on the
+   track's own part), the Drum Lab for the drums track's kit. Each change
+   there is the track's (routing mirrors it) and songdock.js tells the
+   player, which swaps the playing pass for the edited one where it stands.
+   While it is open it follows what is reached for: a cell or a pattern
+   opened in the drawer moves it to that lane (routes/song.py
+   `_dock_follows`). Always rendered, hidden when no edit runs, so the
+   region can be swapped out of band; its watch is the track alone, so
+   nothing else redraws the frame. The framed page knows it is one
+   (`?embed=1` -> <html data-embed>) and drops the rail and the top dock.
+   "↗" is the other choice: the same edit on the whole page. #}
+{% set kit = song_edit and song_edit.kind == "drums" %}
+{% set page = "drums" if kit else "editor" %}
+<section id="song-dock" class="song-dock module" data-module="song.dock" aria-label="sound of the track"
+         {% if not song_edit %}hidden{% endif %}
+         {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  {% if song_edit %}
+  {# its height (layout.js): half the view until dragged, kept per browser #}
+  <div class="splitter sdock-splitter" data-var="--sdock-h" data-scope=".song-view" data-pane="#song-dock" data-axis="y" data-edge="top" data-min="200" data-max="1400" role="separator" aria-orientation="horizontal" aria-label="resize the sound dock" title="drag to resize · double-click resets" tabindex="0"></div>
+  <header class="dock-head">
+    <i class="led" data-on aria-hidden="true"></i>
+    <strong class="dock-name">{{ song_edit.name }}</strong>
+    <span class="dock-sub">{{ "its kit" if kit else "its sound" }} · the song follows as it plays · click a block or a pattern and this follows</span>
+    <a class="btn btn-s btn-ghost" {{ view_link("/view/" ~ page) }}
+       data-cmd="Open this edit on its own page" title="The same edit, on the whole {{ 'Drum Lab' if kit else 'Synths' }} page">{{ "Drum Lab" if kit else "Synths" }} ↗</a>
+    <button type="button" class="btn btn-icon btn-s btn-ghost sdock-close" hx-post="/song/dock/close" hx-swap="none"
+            data-cmd="Close the sound dock" aria-label="close the sound dock" title="Close: the track keeps this sound">✕</button>
+  </header>
+  <iframe class="dock-frame" src="/view/{{ page }}?embed=1" title="{{ 'Drum Lab: the kit' if kit else 'Synths: the sound' }} of {{ song_edit.name }}"></iframe>
+  {% endif %}
+</section>

@@ -1,0 +1,70 @@
+{# synthlab/studio/templates/fragments/drum_panels.html #}
+{% from "macros.html" import fill, fmt %}
+<section id="drum-panels" class="module" data-module="drums.kit" aria-label="Drum kit">
+  <form id="drumkit" class="panels"
+        hx-post="/fragment/drums" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last" hx-swap="none">
+    {% for voice, specs in drum_params %}
+    <fieldset class="panel drum-panel module">
+      <legend><span class="led" data-on></span>{{ voice }}
+        {#- the strip's lead: this voice, through the kit, to the master FX below -#}
+        <svg class="cable live" viewBox="0 0 24 14" width="24" height="14" aria-hidden="true" focusable="false"><title>{{ voice }} → kit → master</title><path d="M2 4C7 15 17 15 22 4"/><circle cx="2" cy="4" r="2"/><circle cx="22" cy="4" r="2"/></svg>
+        <button type="button" class="btn btn-icon btn-s btn-ghost mini" title="Reset {{ voice }} to its default" data-cmd="Reset the {{ voice }} to its default" data-cmd-group="Kit" hx-post="/fragment/drums/preset"
+                hx-vals='{{ {"voice": voice, "preset": "Default"} | tojson }}'
+                hx-target="#drum-panels" hx-swap="outerHTML"
+                aria-label="reset {{ voice }}">↺</button>
+      </legend>
+      <div class="drum-pad-row">
+        <button type="button" class="hit-pad" id="hitpad-{{ voice }}" data-voice="{{ voice }}"
+                data-hit-url="/drum/{{ voice }}/hit.wav?k={{ drum_hash[voice] }}">
+          {#- where the pad is big (dense, from 2200 px), its one-shot drawn on
+              it and its numbers in a corner (kitpads.js) -#}
+          <svg class="pad-wave" preserveAspectRatio="none" aria-hidden="true" focusable="false"></svg><span class="pad-name">{{ voice }}</span><span class="pad-read" aria-hidden="true"></span></button>
+        <div class="pills" role="group" aria-label="{{ voice }} presets">
+          {% for p in voice_presets.get(voice, []) %}
+          <button type="button" class="btn btn-s pill-btn" title="{{ voice }} preset: {{ p.name }}" hx-post="/fragment/drums/preset"
+                  hx-vals='{{ {"voice": voice, "preset": p.name} | tojson }}'
+                  hx-target="#drum-panels" hx-swap="outerHTML">{{ p.name }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      {% for spec in specs %}
+      <div class="param" data-kind="{{ 'pills' if spec.kind == 'bool' else 'range' }}">
+        {# bool renders a radiogroup, not a single control — see editor.html #}
+        <label {% if spec.kind == "bool" %}id="lbl-d-{{ voice }}-{{ spec.name }}"{% else %}for="d-{{ voice }}-{{ spec.name }}"{% endif %}>{{ spec.label }}</label>
+        {% if spec.kind == "bool" %}
+        <div class="pills seg" id="d-{{ voice }}-{{ spec.name }}" role="radiogroup" aria-labelledby="lbl-d-{{ voice }}-{{ spec.name }}">
+          {% for value, label in [("0", "Off"), ("1", "On")] %}
+          <label>
+            <input type="radio" name="{{ voice }}.{{ spec.name }}" value="{{ value }}"
+                   {% if (drum_values[voice][spec.name] and value == "1") or (not drum_values[voice][spec.name] and value == "0") %}checked{% endif %}>
+            <span>{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <input type="range" class="knob" id="d-{{ voice }}-{{ spec.name }}" name="{{ voice }}.{{ spec.name }}"
+               min="{{ spec.min }}" max="{{ spec.max }}" step="{{ spec.step }}"{% if spec.default is defined %} data-default="{{ spec.default }}"{% endif %}
+               value="{{ drum_values[voice][spec.name] }}"
+               style="--fill: {{ fill(drum_values[voice][spec.name], spec.min, spec.max) }}">
+        <output for="d-{{ voice }}-{{ spec.name }}">{{ fmt(drum_values[voice][spec.name]) }}</output>
+        <span class="curve-spacer" aria-hidden="true"></span>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {# mixer: level + hit probability live in the kit, not the engine #}
+      {% set m = arrangement.drum_mix.get(voice, {}) %}
+      {% for key, label, lo, hi, dflt in [("level", "Level", 0, 1.5, 1.0), ("prob", "Chance", 0, 1, 1.0)] %}
+      {% set val = m.get(key, dflt) %}
+      <div class="param" data-kind="range">
+        <label for="d-{{ voice }}-{{ key }}">{{ label }}</label>
+        <input type="range" class="knob" id="d-{{ voice }}-{{ key }}" name="{{ voice }}.{{ key }}"
+               min="{{ lo }}" max="{{ hi }}" step="0.01" value="{{ val }}" data-default="{{ dflt }}"
+               style="--fill: {{ fill(val, lo, hi) }}">
+        <output for="d-{{ voice }}-{{ key }}">{{ fmt(val) }}</output>
+        <span class="curve-spacer" aria-hidden="true"></span>
+      </div>
+      {% endfor %}
+    </fieldset>
+    {% endfor %}
+  </form>
+</section>

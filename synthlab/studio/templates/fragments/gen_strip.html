@@ -1,0 +1,20 @@
+{# synthlab/studio/templates/fragments/gen_strip.html #}
+{# The generation history. Always rendered (hidden while empty) so a
+   generation, star or restore can refresh it OOB (a region, service.REGIONS) — the
+   first generation used to have no strip to land in. #}
+<nav class="gen-strip" id="gen-strip" aria-label="Generation history"
+     {% if not history %}hidden{% endif %} {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  {% if history %}
+  {# "now" marks the generation the board shows — after a restore that is
+     the restored one, not the newest (compared by the first card's id) #}
+  {% set cur = tiles[0].id if tiles is defined and tiles else none %}
+  <span class="caps" title="Click one to bring its 8 back">Earlier generations</span>
+  {% for gen in history %}
+  {% set is_now = (gen and gen[0].id == cur) if cur else loop.last %}
+  <button class="dot gen {% if is_now %}now{% endif %}" data-cmd="Restore generation {{ loop.index }}" data-cmd-group="Breed" hx-post="/fragment/breed/restore" hx-vals='{"index": "{{ loop.index0 }}"}'
+          hx-target="#breed-board" hx-swap="outerHTML"
+          title="Generation {{ loop.index }}{{ ' — on the board' if is_now }}: {{ gen[:3] | map(attribute='name', default='?') | join(', ') }}{{ '…' if gen | length > 3 }} · click to bring its {{ gen | length }} back"
+          aria-label="restore generation {{ loop.index0 + 1 }}"{% if is_now %} aria-current="true"{% endif %}>{{ loop.index }}</button>
+  {% endfor %}
+  {% endif %}
+</nav>

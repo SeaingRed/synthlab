@@ -1,0 +1,57 @@
+{# synthlab/studio/templates/fragments/macros.html #}
+{# Four knobs, each driving up to three existing params. A macro is a control
+   mapping, not part of the sound — it writes onto the patch and the normal
+   preview path re-renders, exactly like the XY pad. Moving one moves its
+   target sliders too, so the post swaps the page rather than nothing.
+   Each is a large `.knob` over its name and value; what it drives is one
+   disclosure away ("assign": three targets and how far each moves), and
+   an assigned macro shows its targets under the dial. A module of the
+   Synths page (`synths.macros`): it moves anywhere there,
+   and its assign form still finds it by id. #}
+<section id="macros" class="macro-rack panel module" data-module="synths.macros" aria-label="Macros">
+  <h2 class="rack-title caps module-head" title="One knob moves up to three parameters — e.g. “Open” = cutoff + resonance + drive. Open “assign” under a macro to pick them.">Macros</h2>
+  <div class="macro-row">
+    {% for m in macros %}
+    {% set i = loop.index0 %}
+    <div class="macro {% if m.targets %}assigned{% endif %}">
+      <input type="range" class="knob knob-l" id="macro-{{ i }}" min="0" max="1" step="0.01"
+             value="{{ m.value }}" data-default="0"
+             style="--fill: {{ (m.value * 100) | round(1) }}%"
+             aria-label="{{ m.name }}"
+             {% if not m.targets %}disabled title="assign a target first"{% endif %}
+             hx-post="/fragment/macro/{{ i }}" hx-trigger="input delay:120ms" hx-sync="this:queue last"
+             hx-swap="none" name="value">
+      <label class="macro-name" for="macro-{{ i }}">{{ m.name }}</label>
+      <output for="macro-{{ i }}" data-pct>{{ (m.value * 100) | round | int }}%</output>
+      <span class="macro-what">{% for t in m.targets %}{{ macro_choices | selectattr(0, "equalto", t.param) | map(attribute=1) | first | default(t.param) }}{{ " · " if not loop.last }}{% else %}unassigned{% endfor %}</span>
+      <span class="macro-assign">
+        <button type="button" class="btn btn-ghost btn-s" popovertarget="macro-assign-{{ i }}" aria-label="assign {{ m.name }}"
+                data-cmd="Assign macro {{ i + 1 }} ({{ m.name }})" data-cmd-group="Panels">assign</button>
+        <form popover id="macro-assign-{{ i }}" class="pop" hx-post="/fragment/macro/{{ i }}/assign"
+              hx-target="#macros" hx-swap="outerHTML">
+          <label class="macro-rename">name
+            <input class="field field-s" name="name" value="{{ m.name }}" maxlength="20" autocomplete="off">
+          </label>
+          {% for slot in range(3) %}
+          {% set t = m.targets[slot] if slot < m.targets|length else none %}
+          <div class="macro-target">
+            <select name="param" class="field field-s" aria-label="{{ m.name }} target {{ slot + 1 }}">
+              <option value="">—</option>
+              {% for value, label in macro_choices %}
+              <option value="{{ value }}" {% if t and t.param == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <input type="range" name="amt" min="-1" max="1" step="0.05"
+                   value="{{ t.amt if t else 1 }}" data-default="1"
+                   style="--fill: {{ (((t.amt if t else 1) + 1) * 50) | round(2) }}%"
+                   title="how far, and which way, this target moves"
+                   aria-label="{{ m.name }} amount {{ slot + 1 }}">
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn btn-s">Apply</button>
+        </form>
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</section>

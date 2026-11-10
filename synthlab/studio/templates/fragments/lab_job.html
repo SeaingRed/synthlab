@@ -1,0 +1,20 @@
+{# synthlab/studio/templates/fragments/lab_job.html
+   The separation job's status line. While a job runs it polls itself once a
+   second; the answer that finds the job ended also carries the panel
+   (routes/lab.py lab_job), so the stem lanes appear on their own. The
+   <progress> is drawn as the segmented meter (style.css section 19). #}
+<div id="lab-job" class="lab-job" role="status" aria-live="polite"
+     {% if lab.job %}hx-get="/fragment/lab/job?watch=1&amp;source={{ lab.selected }}"
+     hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
+  {% if lab.job %}
+  <span class="led" data-on="armed" aria-hidden="true"></span>
+  <progress value="{{ lab.job.done }}" max="{{ lab.job.total }}"
+            aria-label="separation progress"></progress>
+  <span>{{ lab.job.label }} — {{ lab.job.done }}/{{ lab.job.total }}</span>
+  <button type="button" class="btn btn-s" hx-post="/lab/cancel" hx-vals='{"source": "{{ lab.selected }}"}'
+          data-cmd="Cancel the separation"
+          hx-target="#lab-body" hx-swap="outerHTML">cancel</button>
+  {% elif lab.last_error %}
+  <span class="lab-error">{{ lab.last_error }}</span>
+  {% endif %}
+</div>

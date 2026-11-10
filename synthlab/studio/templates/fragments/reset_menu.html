@@ -1,0 +1,99 @@
+{# synthlab/studio/templates/fragments/reset_menu.html #}
+{# Per-view undo net: Revert = back to the snapshot taken when that thing
+   was last loaded or saved; Defaults = the factory setting. The scopes a
+   view offers come from state.RESET_VIEWS; a dot marks what has moved. #}
+{# A region (service.REGIONS) on every page: re-sent out-of-band whenever
+   an edit moves a "changed" dot or a label, so they stay honest even though
+   edits post with hx-swap="none". #}
+{#- a popover (a <details> never closed, a panel's overflow
+    clipped it, and every redraw of the region shut it): Esc and a click
+    away close it, it floats in the top layer, and the region is MORPHED,
+    so an open menu stays open while an edit elsewhere redraws it -#}
+<span class="reset-menu" id="reset-menu" {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  <button type="button" class="btn btn-s" popovertarget="reset-panel" aria-label="revert or reset this page" data-cmd="Reset menu: revert or defaults">↺ Reset{% if reset_dirty %} <b class="dirty-dot" aria-hidden="true"></b>{% endif %}</button>
+  <div popover id="reset-panel" class="pop reset-panel">
+    <p class="reset-hint">Revert puts things back to how they were when you last loaded or saved them. Defaults is the factory setting.</p>
+    <table class="reset-table">
+      <tbody>
+        <tr>
+          <th scope="row">Last tweak</th>
+          <td colspan="2">
+            <button type="button" class="btn btn-s reset-btn" popovertarget="reset-panel" popovertargetaction="hide" id="undo-btn"
+                    data-cmd="Undo the last tweak" data-keys="Ctrl+Z"
+                    hx-post="/fragment/undo"
+                    hx-target="body" hx-swap="innerMorph"
+                    aria-label="undo the last tweak (Ctrl+Z)">↶ Undo</button>
+          </td>
+        </tr>
+        {% if slot_prev_name is not none %}
+        <tr>
+          <th scope="row">Before last load</th>
+          <td colspan="2">
+            <button type="button" class="btn btn-s reset-btn" popovertarget="reset-panel" popovertargetaction="hide"
+                    hx-post="/fragment/restore_prev"
+                    hx-target="body" hx-swap="innerMorph"
+                    aria-label="swap back to the sound you had before loading"
+                    data-cmd="Swap back to the sound before the last load" data-cmd-group="Reset">
+              ↩ Swap back{% if slot_prev_name %} <small>“{{ slot_prev_name }}”</small>{% endif %}
+            </button>
+          </td>
+        </tr>
+        {% endif %}
+        {% for scope, label, base, dirty in reset_scopes %}
+        <tr>
+          <th scope="row">{{ label }}{% if dirty %} <b class="dirty-dot" title="changed since it was loaded"></b>{% endif %}</th>
+          <td>
+            <button type="button" class="btn btn-s reset-btn" popovertarget="reset-panel" popovertargetaction="hide" {% if not base %}disabled{% endif %}
+                    hx-post="/fragment/reset" hx-vals='{"scope": "{{ scope }}", "mode": "revert"}'
+                    hx-target="body" hx-swap="innerMorph"
+                    aria-label="revert {{ label | lower }}{% if base %} to {{ base }}{% endif %}"
+                    data-cmd="Revert {{ label | lower }}{% if base %} to “{{ base }}”{% endif %}" data-cmd-group="Reset">
+              Revert{% if base %} <small>“{{ base }}”</small>{% endif %}
+            </button>
+          </td>
+          <td>
+            <button type="button" class="btn btn-s reset-btn" popovertarget="reset-panel" popovertargetaction="hide"
+                    hx-post="/fragment/reset" hx-vals='{"scope": "{{ scope }}", "mode": "defaults"}'
+                    hx-target="body" hx-swap="innerMorph"
+                    aria-label="reset {{ label | lower }} to defaults"
+                    data-cmd="Defaults for {{ label | lower }}" data-cmd-group="Reset">Defaults</button>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if bank_factory %}
+        <tr>
+          <th scope="row">Bank beats</th>
+          <td colspan="2">
+            {# the factory beats come back into their slots — listed as
+               "bank" beats in the Loops panel, as the Kit page draws no
+               bank #}
+            <button type="button" class="btn btn-s reset-btn" popovertarget="reset-panel" popovertargetaction="hide"
+                    hx-post="/fragment/drums/bank/factory"
+                    hx-confirm="Put the 8 factory beats back in the bank (the Loops panel's “bank” beats)? Patterns saved over them are replaced."
+                    hx-target="body" hx-swap="innerMorph"
+                    aria-label="restore the factory patterns to the bank"
+                    data-cmd="Restore the factory patterns to the bank" data-cmd-group="Reset">Restore factory slots</button>
+          </td>
+        </tr>
+        {% endif %}
+        <tr class="reset-all">
+          <th scope="row">Everything here</th>
+          <td>
+            <button type="button" class="btn btn-s reset-btn" popovertarget="reset-panel" popovertargetaction="hide"
+                    hx-post="/fragment/reset" hx-vals='{"scope": "all", "mode": "revert"}'
+                    hx-target="body" hx-swap="innerMorph"
+                    aria-label="revert everything on this page"
+                    data-cmd="Revert everything on this page" data-cmd-group="Reset">Revert all</button>
+          </td>
+          <td>
+            <button type="button" class="btn btn-s reset-btn" popovertarget="reset-panel" popovertargetaction="hide"
+                    hx-post="/fragment/reset" hx-vals='{"scope": "all", "mode": "defaults"}'
+                    hx-target="body" hx-swap="innerMorph"
+                    aria-label="reset everything on this page to defaults"
+                    data-cmd="Defaults for everything on this page" data-cmd-group="Reset">Defaults</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</span>

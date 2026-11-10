@@ -1,0 +1,84 @@
+{# synthlab/studio/templates/fragments/sampler_zones.html #}
+{# The sampler block's zone map (a multi-sample instrument, `samplerview.
+   zone_context`), included from sampler_panel.html while the sound has
+   zones. A plane of keys (x, 0..127 over the keyboard strip) by velocity
+   (y, 0..127 up): each zone a box over its keys and velocities, a later
+   round-robin take dashed, its tag lower down. zonemap.js drags a box's
+   edges (its keys, its velocities) or the box itself and posts
+   /fragment/sampler/zone once per gesture; the arrows move a focused box
+   (Shift: its high edge, Alt: its low edge; up / down by 8 velocities).
+   A key played through the live voice lights the zones it sounded
+   (`synthlab:zone`, the voice's own pick). Each zone's row steps its
+   root (or takes its sample's detected pitch), take, gain and tune.
+   Buttons only, no inputs: the #patch form posts on every `input`
+   inside it. #}
+{% set zm = sampler.zones %}
+{#- a row's − value + for one field: each press a step from where the
+    zone stands (action=step), so two quick presses are two steps -#}
+{% macro step(z, field, by, what, value, title, down, up) -%}
+<span class="zone-step" role="group" aria-label="zone {{ z.i + 1 }}: {{ what }}">
+  <button type="button" class="btn btn-icon btn-s" hx-post="/fragment/sampler/zone" hx-vals='{{ {"index": z.i, "action": "step", "field": field, "by": -by} | tojson }}' hx-swap="none"
+          data-menu="{{ down }}" aria-label="zone {{ z.i + 1 }}: {{ down | lower }}"{% if field == "rr" and not z.rr %} disabled{% endif %}>−</button>
+  <span class="zone-val" title="{{ title }}">{{ value }}</span>
+  <button type="button" class="btn btn-icon btn-s" hx-post="/fragment/sampler/zone" hx-vals='{{ {"index": z.i, "action": "step", "field": field, "by": by} | tojson }}' hx-swap="none"
+          data-menu="{{ up }}" aria-label="zone {{ z.i + 1 }}: {{ up | lower }}">+</button>
+  {%- if field == "root" %}
+  <button type="button" class="btn btn-ghost btn-icon btn-s" hx-post="/fragment/sampler/zone" hx-vals='{{ {"index": z.i, "action": "detect"} | tojson }}' hx-swap="none"
+          data-menu="Root from its pitch" title="its sample's detected pitch as its root" aria-label="zone {{ z.i + 1 }}: root from its pitch">⌖</button>
+  {%- endif %}
+</span>
+{%- endmacro %}
+<div class="zone-editor" role="group" aria-label="zone map: a multi-sample instrument">
+  <div class="sampler-tools">
+    <span class="sampler-label caps">Zones</span>
+    <span class="zone-sum">{{ zm.zones | length }} zone{{ 's' if zm.zones | length != 1 }} · {{ zm.takes }} take{{ 's' if zm.takes != 1 }}</span>
+    <button type="button" class="btn btn-s" popovertarget="clip-drawer" data-cmd="Sampler: add a zone from the clip library"
+            {% if zm.full %}disabled{% endif %}
+            title="open the clip library: ＋ zone on a clip adds it at its detected pitch (a group's ⤷ zones maps them all)">＋ zone</button>
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/zones" hx-vals='{"action": "spread"}' hx-swap="none"
+            data-cmd="Sampler: spread the zones by their roots"
+            title="each layer's zones over the whole keyboard, split half way between their roots">Spread</button>
+    <button type="button" class="btn btn-ghost btn-s" hx-post="/fragment/sampler/zones" hx-vals='{"action": "clear"}' hx-swap="none"
+            data-cmd="Sampler: clear the zones (one sample again)"
+            title="drop the zone map: the first sample plays alone again (Ctrl+Z brings the map back)">Clear</button>
+  </div>
+  <div class="zone-map" id="zone-map" data-zone-map>
+    <div class="zone-plane" aria-label="zones by key and velocity">
+      {% for z in zm.zones %}
+      <div class="zone{% if z.rr %} zone-take{% endif %}{% if z.missing %} zone-missing{% endif %}" data-i="{{ z.i }}"
+           data-lo="{{ z.lo }}" data-hi="{{ z.hi }}" data-vlo="{{ z.vlo }}" data-vhi="{{ z.vhi }}" data-rr="{{ z.rr }}"
+           tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="127" aria-valuenow="{{ z.lo }}" aria-label="zone {{ z.i + 1 }}: keys {{ z.span }}, velocity {{ z.vlo }}–{{ z.vhi }}, take {{ z.rr + 1 }}, root {{ z.root_name }}"
+           style="left: {{ z.x }}%; width: {{ z.w }}%; bottom: {{ z.y }}%; height: {{ z.h }}%; --take: {{ z.rr }}"
+           title="zone {{ z.i + 1 }} · {{ z.span }} · velocity {{ z.vlo }}–{{ z.vhi }} · take {{ z.rr + 1 }} · root {{ z.root_name }}: drag it or its edges; ← → move it, Shift / Alt + ← → its high / low key, ↑ ↓ its velocities">
+        <span class="zone-edge" data-edge="lo"></span><span class="zone-edge" data-edge="hi"></span>
+        <span class="zone-edge" data-edge="vlo"></span><span class="zone-edge" data-edge="vhi"></span>
+        <span class="zone-tag">{{ z.i + 1 }}{% if z.rr %}·{{ z.rr + 1 }}{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="zone-strip">
+      {{ zm.keyboard | safe }}
+      {% for z in zm.zones %}<i class="zone-root" data-i="{{ z.i }}" style="left: {{ z.rx }}%" title="zone {{ z.i + 1 }}'s root, {{ z.root_name }}"></i>{% endfor %}
+    </div>
+    <div class="zone-oct" aria-hidden="true">{% for o in zm.octaves %}<span style="left: {{ o.x }}%">{{ o.name }}</span>{% endfor %}</div>
+  </div>
+  <ol class="zone-list" aria-label="zones">
+    {% for z in zm.zones %}
+    <li class="zone-row{% if z.missing %} zone-missing{% endif %}" data-i="{{ z.i }}" data-ctx="Zone {{ z.i + 1 }} · {{ z.span }}">
+      <span class="zone-n">{{ z.i + 1 }}</span>
+      <span class="zone-smp" title="{% if z.missing %}this sample is missing from this studio's samples{% else %}{{ z.seconds }} s, sample {{ z.short }}{% endif %}">{{ z.short }}</span>
+      <span class="zone-ro" title="the keys it plays">{{ z.span }}</span>
+      <span class="zone-ro" title="the velocities it plays (0–127)">v{{ z.vlo }}–{{ z.vhi }}</span>
+      {% if z.own %}<span class="zone-ro" title="it plays its own span or loop of its sample, not the sound's">own span</span>{% endif %}
+      <button type="button" class="btn btn-ghost btn-icon btn-s btn-danger zone-x" hx-post="/fragment/sampler/zone" hx-vals='{{ {"index": z.i, "action": "remove"} | tojson }}' hx-swap="none"
+              data-menu="Remove the zone" aria-label="remove zone {{ z.i + 1 }}">✕</button>
+      <span class="zone-steps">
+        {{ step(z, "root", 1, "the root", z.root_name, "the key that plays it as recorded", "Root down a semitone", "Root up a semitone") }}
+        {{ step(z, "rr", 1, "the round-robin take", "take " ~ (z.rr + 1), "its round-robin take: a repeated key plays take 1, 2, … in turn", "Earlier take", "Later take") }}
+        {{ step(z, "gain", 1, "the gain", "%+g dB" | format(z.gain), "its level, against the others", "1 dB quieter", "1 dB louder") }}
+        {{ step(z, "tune", 5, "the fine tune", "%+g ct" | format(z.tune), "its fine tune, in cents", "5 cents flatter", "5 cents sharper") }}
+      </span>
+    </li>
+    {% endfor %}
+  </ol>
+</div>

@@ -1,0 +1,101 @@
+{# synthlab/studio/templates/fragments/fx_rack.html #}
+{# One rack per scope the current view owns (server: fx_scopes_for):
+   layer + master in the editor, the drum bus in Drums.
+   A parameter change morphs the rack (outerMorph) rather than replacing
+   it: the slider under the keyboard keeps its node and so its focus —
+   replaced, an arrow-key nudge worked once and the next went to <body>
+   (tests/browser/test_live_keys.py). Add / move / remove change the
+   rack's shape and replace it: the route names the control that gets the
+   keyboard next (`fx_focus` = (scope, index, which), routes/fx.py) and it
+   is drawn with `autofocus`, which htmx's settle focuses — the new unit's
+   first control, the moved unit's same button at its new place, the unit
+   after a removed one (or the adder). No script restores focus.
+
+   The units are THE rack's (fragments/fx_units.html, `units`: the Song
+   drawer's and the booth's racks draw theirs with it too); here each post
+   goes to its op's own route (routes/fx.py), with the scope.
+
+   Each rack answers for itself: its posts target the scope's
+   own fieldset (#fx-scope-<scope>) and take only it from the answer
+   (`hx-select`), so a rack moved anywhere on the page is redrawn where it
+   stands. On Synths (`fx_split`) the two racks are two modules of the page
+   (`fx.layer`, `fx.master`) and #fx-rack is only their place in the
+   server's grid (`data-ws-pass`, no module of its own); elsewhere the
+   section is the module `fx.rack`, its racks moving with it. #}
+{% from "fragments/fx_units.html" import units %}
+{% set focus = fx_focus if fx_focus is defined else none %}
+<section id="fx-rack" class="fx-rack" data-menu-section="Effects"{% if fx_split %} data-ws-pass{% else %} data-module="fx.rack"{% endif %}>
+  {% for scope, title, chain in fx_scopes %}
+  {% set fx_notes = {"layer": "Part of this layer's sound: bounced, exported and saved with “include layers, FX & curves”.",
+                     "master": "Applies to every layer (and the drums on the Loops page) after they are mixed.",
+                     "drums": "Applies to the whole drum kit."} %}
+  {% set tgt = 'hx-target="#fx-scope-' ~ scope ~ '" hx-select="#fx-scope-' ~ scope ~ '"' %}
+  <fieldset class="panel fx-scope module" id="fx-scope-{{ scope }}" data-module="fx.{{ scope }}">
+    <legend class="module-head"><span class="panel-name"{% if fx_notes[scope] %} title="{{ fx_notes[scope] }}"{% endif %}>{{ title }}</span>
+      <select data-cmd="Add effect to {{ title }}" data-cmd-group="Effects" class="field field-s fx-adder" aria-label="add effect to {{ title }}"
+              {% if focus == (scope, 0, "adder") %}autofocus{% endif %}
+              hx-post="/fragment/fx/add" hx-vals='{"scope": "{{ scope }}"}'
+              hx-include="this" name="kind"
+              {{ tgt | safe }} hx-swap="outerHTML" hx-trigger="change" hx-sync="this:queue all">
+        <option value="" selected disabled>+ add…</option>
+        {% for kind, spec in fx_units.items() %}
+        <option value="{{ kind }}">{{ spec.label }}</option>
+        {% endfor %}
+      </select>
+      {#- the chain browser: every chain (fxrack.CHAIN_PRESETS)
+          by what it is for or by its genre pack, each with a line on what
+          it does and its units in order, searchable; a row posts the same
+          `/fragment/fx/chain` the select did. panelfaces.js filters it,
+          regroups it and gives it the arrow keys; without it the rows are
+          plain buttons, by purpose -#}
+      <button type="button" class="btn btn-s fx-chain-open" popovertarget="fx-chains-{{ scope }}"
+              aria-haspopup="dialog"
+              data-cmd="Add effect chain to {{ title }}" data-cmd-group="Effects"
+              aria-label="add a whole effects chain to {{ title }}"
+              title="Browse the {{ chain_browser.count }} effect chains: by purpose or genre, searchable — one click adds one">+ add chain…</button>
+      <div popover id="fx-chains-{{ scope }}" class="pop fx-chains" role="dialog" data-ctx="Effect chains for {{ title }}"
+           aria-label="Effect chains for {{ title }}">
+        <div class="fxc-head">
+          <input type="search" class="field field-s fxc-q" placeholder="search chains…" aria-label="search the effect chains" autocomplete="off">
+          <span class="seg fxc-by" role="group" aria-label="list the chains by">
+            <button type="button" class="fxc-mode" data-by="group" aria-pressed="true" title="by what each is for: space, drive, dynamics…">purpose</button>
+            <button type="button" class="fxc-mode" data-by="pack" aria-pressed="false" title="by the genre pack each came with">genre</button>
+          </span>
+        </div>
+        <div class="fxc-list">
+          {% for by, heads in (("group", chain_browser.groups), ("pack", chain_browser.packs)) %}
+          {% for key, head in heads.items() %}
+          <div class="fxc-sec" data-by="{{ by }}" data-key="{{ key }}">
+            <h5 class="caps fxc-h">{{ head }}</h5>
+            {% if by == "group" %}{% for row in chain_browser.by_group[key] %}
+            <button type="button" class="fxc-row" data-i="{{ row.i }}" data-group="{{ row.group }}" data-pack="{{ row.pack }}" data-menu="{{ row.label }}"
+                    hx-post="/fragment/fx/chain" hx-vals='{"scope": "{{ scope }}", "chain": "{{ row.key }}"}'
+                    {{ tgt | safe }} hx-swap="outerHTML" title="add {{ row.label }} to {{ title }}">
+              <b class="fxc-name">{{ row.label }}</b><span class="fxc-pack">{{ row.pack_label }}</span>
+              <span class="fxc-blurb">{{ row.blurb }}</span>
+              <span class="fxc-path">{{ row.path }}</span>
+            </button>
+            {% endfor %}{% endif %}
+          </div>
+          {% endfor %}
+          {% endfor %}
+          <p class="fxc-none">No chain matches.</p>
+        </div>
+      </div>
+    </legend>
+    {% set r = {"url": {"set": "/fragment/fx/set", "move": "/fragment/fx/move", "remove": "/fragment/fx/remove"},
+                "vals": {"scope": scope}, "scope": scope, "id": scope, "title": title, "focus": focus,
+                "value": tgt ~ ' hx-swap="outerMorph"',
+                "shape": tgt ~ ' hx-swap="outerHTML"',
+                "out": "out" if scope != "layer" else "master"} %}
+    {% call units(chain, r) %}<p class="empty-state fx-none">No effects
+      {#- one press that is heard — a reverb on this rack, and the loop
+          starts (on the Mix view, where the rack is the song's master, the
+          song's first section does: routes/fx.py) -#}
+      <button type="button" class="btn btn-s empty-fx" data-cmd="Add a reverb to {{ title }} and play" data-cmd-group="Effects"
+              hx-post="/fragment/fx/add" hx-vals='{"scope": "{{ scope }}", "kind": "reverb", "play": "1"}'
+              {{ tgt | safe }} hx-swap="outerHTML"
+              title="Put a reverb on this rack and play the loop through it">＋ Reverb ▶</button></p>{% endcall %}
+  </fieldset>
+  {% endfor %}
+</section>

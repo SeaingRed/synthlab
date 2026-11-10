@@ -1,0 +1,136 @@
+{# The studio is keyboard-first but nothing in the UI ever said so. Opened
+   with ? or the ⌨ button; <dialog> gives focus trapping and Esc for free.
+   Two halves, one list: the sections written here are the keys and
+   gestures that belong to no single control (the piano row, a drag across
+   steps); "Commands" is filled by palette.js from the same declarations
+   the command palette reads — every control on this page that carries
+   `data-keys` — so a shortcut is documented where it is bound, once
+   (docs/frontend.md, "Commands and shortcuts"). The search box narrows
+   both. #}
+<dialog id="shortcuts" class="shortcuts" closedby="any" aria-labelledby="shortcuts-title">
+  <div class="sc-head">
+    <h2 id="shortcuts-title">Keyboard</h2>
+    <input type="text" role="searchbox" id="sc-q" class="field field-s sc-search" placeholder="search keys and gestures"
+           autocomplete="off" spellcheck="false" aria-label="search the shortcuts">
+    <form method="dialog"><button class="btn btn-ghost btn-s" aria-label="close">esc</button></form>
+  </div>
+  <div class="sc-cols">
+    <section>
+      <h3>Transport</h3>
+      <dl>
+        <dt><kbd>Space</kbd></dt><dd>this page's ▶ (the cue beside it says what it starts); ⏸ while it plays where the page has one, ▶ again resumes</dd>
+        <dt><kbd>Shift</kbd> + <kbd>Space</kbd></dt><dd>stop everything (the ■ in the top dock)</dd>
+        <dt>▶ / ⏸ / ■</dt><dd>start (stops whatever else plays) / hold the place / stop, back to where ▶ started</dd>
+      </dl>
+    </section>
+    <section>
+      <h3>Playing</h3>
+      <dl>
+        <dt><kbd>A</kbd>–<kbd>J</kbd> <kbd>W</kbd>–<kbd>U</kbd></dt><dd>piano keys (one octave)</dd>
+        <dt><kbd>Z</kbd> / <kbd>X</kbd></dt><dd>octave down / up</dd>
+        <dt>hold left <kbd>Shift</kbd></dt><dd>sustain pedal: the notes you let go keep sounding until <kbd>Shift</kbd> comes up</dd>
+        <dt>tap right <kbd>Shift</kbd></dt><dd>latch: the next note or chord you play holds (play over it); tap again to let it go</dd>
+        <dt><kbd>1</kbd>–<kbd>7</kbd></dt><dd>chord pads I–VII (Synths)</dd>
+        <dt><kbd>Enter</kbd> / <kbd>Space</kbd></dt><dd>play a focused key or pad</dd>
+        <dt><kbd>Q W E R</kbd> <kbd>A S D F</kbd></dt><dd>drum pads (Loops page)</dd>
+        <dt>hold <kbd>C</kbd> <kbd>V</kbd> <kbd>B</kbd> <kbd>N</kbd> <kbd>I</kbd> <kbd>O</kbd> <kbd>P</kbd></dt><dd>performance FX (Loops page)</dd>
+        <dt>hold <kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>pitch bend up / down (it springs back)</dd>
+      </dl>
+    </section>
+    <section>
+      <h3>Editing</h3>
+      <dl>
+        <dt><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>nudge a slider, the XY pad, or a velocity bar</dd>
+        <dt><kbd>Shift</kbd> + arrows</dt><dd>nudge in bigger steps</dd>
+        <dt><kbd>Shift</kbd> + drag a slider or knob</dt><dd>fine: a tenth of the travel</dd>
+        <dt>mouse wheel on a focused slider</dt><dd>step it (<kbd>Shift</kbd> = one step)</dd>
+        <dt>double-click or middle-click a slider or knob</dt><dd>back to that control's default (right-click: its menu, Reset to default too)</dd>
+        <dt>★ on an effect, or right-click it</dt><dd>that effect's presets, and ↺ its defaults</dd>
+        <dt><kbd>Ctrl</kbd> + <kbd>Z</kbd></dt><dd>undo: the last tweak (Synths), pattern edit (Loops / Kit), song edit (Song)</dd>
+        <dt><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Y</kbd></dt><dd>redo (Song)</dd>
+        <dt><kbd>Tab</kbd></dt><dd>move between controls; everything is reachable</dd>
+        <dt><kbd>?</kbd></dt><dd>this list</dd>
+      </dl>
+    </section>
+    <section>
+      <h3>Song</h3>
+      <dl>
+        <dt><kbd>Space</kbd></dt><dd>play the song from the marker / pause it there</dd>
+        <dt><kbd>L</kbd></dt><dd>loop the selected section (starts it if stopped)</dd>
+        <dt>arrows on the playlist</dt><dd>move the cursor between cells</dd>
+        <dt><kbd>Enter</kbd> / <kbd>Esc</kbd></dt><dd>open a cell's pattern / close the drawer</dd>
+        <dt><kbd>Ctrl</kbd> + <kbd>C</kbd> / <kbd>V</kbd> / <kbd>N</kbd></dt><dd>copy / paste a cell, a new pattern in it</dd>
+        <dt><kbd>Delete</kbd></dt><dd>clear the cell</dd>
+        <dt><kbd>Alt</kbd> + <kbd>←</kbd> <kbd>→</kbd></dt><dd>move a block inside its section</dd>
+        <dt><kbd>Ctrl</kbd> + wheel on the playlist</dt><dd>zoom the time axis</dd>
+      </dl>
+    </section>
+    <section>
+      <h3>Gestures</h3>
+      <dl>
+        <dt>hold a sound card</dt><dd>audition it without loading (tap loads)</dd>
+        <dt><strong>rec</strong> then drag the XY pad</dt><dd>record a loop-synced gesture — takes under ¼ of a loop cancel</dd>
+        <dt>drag across steps</dt><dd>paint notes or hits; a run of steps is one held note</dd>
+        <dt>right-click / right-drag</dt><dd>erase steps</dd>
+        <dt><kbd>Shift</kbd> + click a step</dt><dd>start a new note there (split a held note)</dd>
+        <dt><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd> on a step</dt><dd>shift the pattern a step</dd>
+        <dt><kbd>Shift</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> on a note step</dt><dd>transpose the notes a key tone</dd>
+        <dt>press a row's name</dt><dd>hear that pitch, or hit that drum</dd>
+        <dt>drag a block (<kbd>Ctrl</kbd> / <kbd>Alt</kbd> copies)</dt><dd>move it on the Song's playlist</dd>
+        <dt>drag a pane's edge</dt><dd>resize it (double-click resets)</dd>
+        <dt>drag a module by its head or frame</dt><dd>move it: beside another one, or onto its middle to share a place as tabs (<kbd>Esc</kbd> cancels; ⊞ Layout resets)</dd>
+        <dt><kbd>F6</kbd> / <kbd>Shift</kbd> + <kbd>F6</kbd>, then <kbd>Alt</kbd> + <kbd>Shift</kbd> + arrows</dt><dd>the next / previous module; move the focused one that way</dd>
+        <dt>right-click a module</dt><dd>collapse it to its head, pop it out, focus it (<kbd>Esc</kbd> returns)</dd>
+      </dl>
+    </section>
+    <section>
+      <h3>Pen</h3>
+      <dl>
+        <dt>pen pressure</dt><dd>velocity: on the piano keys and pads, and of each step it draws</dd>
+        <dt>drag with the pen</dt><dd>moves the control under it — never scrolls the page or selects text</dd>
+        <dt>barrel button + drag on a slider or knob</dt><dd>fine: a tenth of the travel (as <kbd>Shift</kbd>)</dd>
+        <dt>barrel button tapped on a slider, knob or menu</dt><dd>its own menu: Learn MIDI, reset, put on a dial (as right-click)</dd>
+        <dt>eraser on a slider or knob</dt><dd>back to its default (as double-click)</dd>
+        <dt>eraser on steps</dt><dd>erase: a tap, or a drag across them</dd>
+        <dt>barrel button on steps</dt><dd>as <kbd>Shift</kbd>: a tap cuts a held note there</dd>
+        <dt>hover</dt><dd>tooltips and hover states work as with a mouse; a slider shows its value</dd>
+      </dl>
+      <p class="sc-note">Once a pen has touched the page the dense layout stays, even where
+      the device calls its pointer coarse.
+      <button type="button" id="pen-off" class="btn btn-s" hidden
+              data-cmd="Pen: forget it (finger-size controls)" data-cmd-group="View">forget the pen</button></p>
+    </section>
+    <section id="sc-commands" hidden>
+      <h3>Commands on this page</h3>
+      <dl></dl>
+      <p class="sc-note"><kbd>Ctrl</kbd> + <kbd>K</kbd> runs any of them by name.</p>
+    </section>
+    <section>
+      <h3>Typing rows</h3>
+      <p class="sc-note">The number, <kbd>Q</kbd>, <kbd>A</kbd> and <kbd>Z</kbd> rows are each
+      mapped to a surface — piano, notes, chords, a chord family, harmonics, or off.
+      The keyboard dock's toolbar on Synths shows them (its <strong>QWERTY</strong> group:
+      <kbd>1</kbd> chords · <kbd>Q</kbd> piano …); click that strip to change them. The
+      choice is remembered.</p>
+      <p class="sc-note">Turn QWERTY playing off entirely with its <strong>typing</strong>
+      switch, beside the strip (also in the Loops page's head).</p>
+      <p class="sc-note">Each key plays a note, or the chord in key built on it — one click in the
+      dock's <strong>Play</strong> group: <kbd>`</kbd> switches note / chord, <kbd>Alt</kbd> + <kbd>`</kbd>
+      the next chord (triad, 7th, 9th, power, octave).</p>
+    </section>
+    <section>
+      <h3>Letters layout</h3>
+      {#- letters.js: the rows' panel's layout, or Alt+L -#}
+      <dl>
+        <dt><kbd>Alt</kbd> + <kbd>L</kbd></dt><dd>typing layout: rows / letters (also in the typing rows' panel)</dd>
+        <dt><kbd>A</kbd>–<kbd>G</kbd></dt><dd>letters: that note, in the dock's octave (none held: what Play says)</dd>
+        <dt>hold left <kbd>Shift</kbd> / <kbd>Space</kbd> / <kbd>Ctrl</kbd></dt><dd>… and press a letter: its major / minor / 7th chord (Shift + Ctrl maj7, Space + Ctrl m7, Shift + Space sus4)</dd>
+        <dt>hold <kbd>Tab</kbd></dt><dd>… the letter's sharp</dd>
+        <dt><kbd>1</kbd>–<kbd>7</kbd></dt><dd>letters: the octave (C1–C7); <kbd>-</kbd> / <kbd>=</kbd> still step it</dd>
+      </dl>
+      <p class="sc-note">In letters, left <kbd>Shift</kbd> is "major", not the sustain pedal; a tap of
+      <kbd>Space</kbd> still plays / stops.</p>
+    </section>
+  </div>
+  <p class="sc-none" id="sc-none" hidden>Nothing matches.</p>
+</dialog>

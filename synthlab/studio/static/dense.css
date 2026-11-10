@@ -1,0 +1,1047 @@
+/* synthlab studio — the dense tier (the desktop density).
+   Small type, hairline seams, square corners and tight gaps: more of the
+   instrument on one screen, and the view nav as a slim rail down the left
+   edge. It is its own file so that WHO gets it is the page's decision, not
+   a media query's alone: base.html links it with media="(pointer: fine)",
+   or media="all" once a pen has been seen (tweak.js remembers it in the
+   `pen` cookie) — on a Surface the primary pointer can report coarse while
+   the hand holds a pen, and a pen user gets this tier, not the touch one.
+   `data-density="comfy"` on <html> (the density toggle, a cookie) keeps
+   the roomier layout of style.css untouched: every rule here is inside
+   ONE `html:not([data-density="comfy"])` block (CSS nesting: the scope is
+   spelt once, not on five hundred selectors; a nested selector weighs
+   what the long spelling did, and a test refuses a rule outside the
+   block). Write a rule as it would read after that prefix — `.x { }`,
+   `&[data-deck] .x { }` for a state of <html> itself, `& { }` for tokens
+   — and do not indent the file under it. Loaded after style.css, so the
+   cascade is what it was when this was that file's last section; the
+   `:is(.transport)` spelling keeps the edge-light rule the last plain
+   transport rule, a cascade test_style pins.
+   Sections: D1 tokens and the rail · D2 the shared workbench · D17 / D18 /
+   D19 phase B's packages (same numbers as style.css's 17 / 18 / 19). */
+
+html:not([data-density="comfy"]) {
+/* ---------- D1 + D2. Tokens, the rail, the shared workbench ---------- */
+& {
+  /* small and tight: 10 px labels, 11 px values, 12 px body */
+  --fs-xs: 10px; --fs-s: 11px; --fs-m: 12px; --fs-l: 13px; --fs-xl: 15px;
+  --fs-val: 11.5px; /* values: tabular semibold, over 10 px labels (style.css 33) */
+  --r-s: 3px; --r-m: 4px; --r-l: 6px; --radius: 3px;
+  --s3: 8px; --s4: 10px; --s5: 12px; --s6: 16px;
+  --r-xs: 2px; --r-pill: 3px;
+  --h-s: 22px; --h-m: 24px; --h-l: 30px;
+  --e1: none;
+  --nav-w: 50px;
+  --top-h: 59px; /* the visualisers (36) over the status row (22) */
+}
+body { line-height: 1.35; }
+/* THE dense dial: 24 px on every view (.knob-s 22 and .knob-l 40 stay) */
+.knob:not(.knob-s, .knob-l) { --knob: 24px; }
+/* the side activity bar (desktop): icons over tiny labels, a lit edge on
+   the current view, the tools at its foot */
+@media (min-width: 901px) {
+  body { padding-left: var(--nav-w); }
+  .topbar { position: fixed; inset: 0 auto 0 0; width: var(--nav-w);
+    flex-direction: column; flex-wrap: nowrap; align-items: center; gap: 4px; padding: 8px 0;
+    background: var(--brushed), var(--bg-raised); border-right: 1px solid var(--line); z-index: 40; overflow-y: auto;
+    scrollbar-width: none; box-shadow: inset -1px 0 0 oklch(from var(--white) l c h / var(--a-bevel-hi)); }
+  /* the brand: "sl" engraved on a machined badge, lit in the accent */
+  .wordmark { font-size: 0; margin-bottom: 2px; }
+  .wordmark b { filter: none; }
+  .wordmark::before { content: "sl"; display: grid; place-items: center; width: 30px; height: 20px;
+    font-size: 13px; font-weight: 700; color: var(--accent-text); letter-spacing: -0.02em;
+    border: 1px solid var(--line-ctl); border-radius: var(--r-s); background: var(--cap), var(--knob-face);
+    box-shadow: var(--bevel), var(--cap-lip);
+    text-shadow: 0 0 calc(4px * var(--a-halo)) oklch(from var(--accent) l c h / 0.75); }
+  .views { flex-direction: column; margin: 6px 0 auto; padding: 0;
+    gap: 0; background: none; border: 0; border-radius: 0; box-shadow: none; }
+  .views .view { width: var(--nav-w); flex-direction: column; gap: 2px;
+    padding: 7px 0 6px; border-radius: 0; font-size: 10px; letter-spacing: 0.02em;
+    border-left: 2px solid transparent; }
+  .views .view:hover { background: color-mix(in oklab, var(--bg-raised), var(--text) 5%); }
+  /* the page you are on: its lamp the left edge, lit amber, its light
+     washing into the item and round the icon */
+  .views .view.active { background: linear-gradient(90deg, oklch(from var(--accent) l c h / calc(0.16 * var(--a-halo) + 0.04)), transparent 85%);
+    box-shadow: inset 5px 0 9px -5px oklch(from var(--accent) l c h / calc(0.7 * var(--a-halo)));
+    border-left-color: var(--accent); color: var(--text); }
+  .views .view.active .vi { stroke: var(--accent);
+    filter: drop-shadow(0 0 calc(var(--glow-r) * 0.7) oklch(from var(--accent) l c h / calc(0.6 * var(--a-halo)))); }
+  .vi { width: 20px; height: 20px; }
+  .vizbar { padding: 4px 8px; }
+  .vizbar :is(#scope, #spectrum) { height: 28px; }
+  &[data-viz-size="2"] .vizbar :is(#scope, #spectrum) { height: 56px; } /* &: this file nests in html:not(comfy) */
+  .dock[popover] { top: calc(var(--top-h) + 7px); max-height: calc(100dvh - var(--top-h) - 15px); }
+  .song-view { --arr-head-w: 212px; } /* 176 + the lane's sound menu */
+}
+@media (max-width: 900px) {
+  .topbar { padding: 4px 8px; gap: 8px; }
+  .views .view { padding: 4px 8px; }
+}
+/* sections: tight gaps, hairline boxes, small heads */
+.cockpit { gap: 6px; padding: 6px 8px; min-height: calc(100dvh - 40px - var(--keys-h)); }
+/* the page head is ONE line: the title, what the page is for, the tools.
+   The how-to is behind the head's (i) (fragments/head_help.html). */
+.view-head { display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: 0 var(--s3); min-height: var(--h-m); }
+.view-head > div:not(.head-tools, [popover]) { display: contents; }
+.view-head h1 { font-size: var(--fs-l); margin: 0; }
+.view-sub { margin: 0; flex: 1 1 20ch; min-width: 0; font-size: var(--fs-xs);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.view-head > .head-tools { margin-left: auto; align-self: center; }
+.view-how { margin: 0; }
+:is(.panel, .dock, .transport, .fx-scope, .perform-tools,
+  .drum-transport, .drum-bank, .pool-sheet, .perform-transport, .song-arranger, .song-drawer) {
+  border-radius: var(--radius); box-shadow: var(--bevel); } /* (the machined edge, no drop: style.css 15, "module") */
+:is(.panel, .dock) { padding: 6px 8px; }
+.panels { gap: 6px; }
+#patch.panels { column-gap: 6px; }
+#patch.panels > .panel { margin-bottom: 6px; }
+:is(.transport) { padding: 6px 8px; gap: 6px; margin-bottom: 0 !important; }
+.transport-controls { gap: 8px 12px; }
+.tcluster { gap: 6px; padding-top: 4px; }
+.perform-drums { margin-bottom: 0; }
+/* the step grids: shorter cells, thinner lines — two grids on one screen */
+.grid { gap: 2px; --step-min: 16px; }
+:is(.gridrow, .velrow) { gap: 2px; }
+.cell { height: 17px; border-radius: 2px; }
+.sliderow .cell { height: 10px; }
+.vel-lane { height: 26px; border-radius: 2px; }
+.rowbtn { width: 20px; height: 18px; border-radius: 2px; font-size: 10px; }
+.drum-grid-8 :is(.gridrow, .velrow) {
+  grid-template-columns: 112px repeat(var(--steps, 16), minmax(var(--step-min), var(--step-max, 1fr))); }
+.drum-grid-8 .playhead { left: 114px; }
+.grid:not(.drum-grid-8) .gridrow:not(.sliderow) .cell:checked + .cell:checked {
+  box-shadow: -3px 0 0 var(--accent); }
+:is(.pt, .barchip) { height: 22px; min-width: 24px; border-radius: 3px; font-size: 11px; }
+.pt.wide { min-width: 32px; }
+/* Perform: pads and the XY pad at working size, not poster size */
+.perform-pads { gap: 6px; }
+.perform-pads .hit-pad { aspect-ratio: 5 / 3; border-radius: var(--r-m); }
+#drumxy { width: min(100%, 300px); }
+.perf-fx-row { gap: 4px; }
+.pfx { padding: 3px 8px; border-radius: 3px; font-size: var(--fs-s); }
+.launch-title { margin: 2px 0 4px; }
+.launcher { gap: 4px; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+.launch { border-radius: 3px; padding: 6px 8px; min-height: 0; }
+/* controls: square corners, one small size everywhere */
+:is(select, input[type="number"]) { padding-block: 2px; border-radius: 3px; }
+.pt-hidden { border-radius: 3px; padding: 2px 8px; }
+.perform-transport { padding: 4px 8px; margin-bottom: 0; gap: 10px; }
+.perform-transport .ptempo input { padding: 1px 4px; border-radius: 3px; }
+.launch .launch-state { top: 7px; right: 7px; width: 8px; height: 8px; }
+/* Synths: the dock's cards, the layer strip and the keys dock, tighter */
+.sound-card .spark { height: 12px; }
+.ls-seg { padding: 2px 8px; }
+.keys-dock { padding: 4px 8px; gap: 4px; border-radius: 0; }
+.keys-dock .pkey { height: 56px; border-radius: 0 0 3px 3px; }
+.keys-dock .pkey.black { height: 34px; }
+#view:not([data-view="editor"]) ~ .keys-dock .pkey { height: 44px; } /* off Synths (style.css 7b) */
+#view:not([data-view="editor"]) ~ .keys-dock .pkey.black { height: 27px; }
+.keys-dock { --kbd-head-w: 26px; --kbd-row-h: 26px; }
+/* Song: a denser transport and arranger */
+.song-topbar { padding: 4px 8px; gap: 6px 12px; }
+.stbtn { height: 24px; padding: 0 10px; border-radius: 3px; }
+.song-view { --arr-gap: 2px; }
+.arr-cell { height: 44px; }
+.sec-block { height: 34px; border-radius: 3px; }
+.pool-sheet { gap: 8px; padding: 6px 8px; }
+/* Drums: the bank, its tools and the kit's pads */
+.drum-bank { gap: 6px; padding: 6px 8px; }
+.bank-slot { padding: 4px 6px; border-radius: 3px; gap: 2px; }
+.bank-glyph { gap: 1px; }
+.bank-tools { gap: 8px; }
+:is(.bank-tools, .bank-notation) :is(button, input) {
+  padding: 2px 8px; border-radius: 3px; font-size: var(--fs-s); }
+.hit-pad { width: 52px; height: 52px; border-radius: 3px; }
+.perform-pads .hit-pad { width: auto; height: auto; }
+
+/* the compact side rail: the button is an icon over its count, like a view */
+@media (min-width: 901px) {
+  .topbar .clips-btn { width: var(--nav-w); height: auto;
+    flex-direction: column; gap: 2px; padding: 7px 0 6px; border: 0; border-radius: 0; background: none;
+    font-size: var(--fs-2xs); letter-spacing: 0.02em; color: var(--text-dim); }
+  .topbar .clips-btn:hover { color: var(--text);
+    background: color-mix(in oklab, var(--bg-raised), var(--text) 5%); }
+  .topbar .clips-btn .vi { display: block; }
+  .topbar .clips-btn .cb-more { display: none; }  /* "Loops" alone: the rail is narrow */
+  .clip-drawer { inset: 8px 8px 8px auto; max-height: calc(100dvh - 16px); }
+}
+@media (min-width: 901px) {
+  .rail-tools { flex-direction: column; gap: var(--s0);
+    padding-bottom: var(--s1); }
+  .rail-tools .btn { width: 36px; min-width: 36px; height: 28px;
+    min-height: 28px; padding: 0; }
+  .rail-tools .btn-label { display: none; }
+  .rail-tools .vi { width: 17px; height: 17px; }
+}
+/* a short window (a laptop's 768): the rail was 823 px tall and its last
+   tools — density, theme — sat below the window in a rail that scrolls
+   unmarked. Its rows close up so the whole rail stands in 768 */
+@media (min-width: 901px) and (max-height: 820px) {
+  .topbar { gap: 2px; padding: 4px 0; }
+  .views { margin-top: 2px; }
+  .views .view, .topbar .clips-btn { padding: 4px 0 3px; gap: 1px; }
+  :is(.views, .topbar .clips-btn) .vi { width: 18px; height: 18px; }
+  .rail-tools .btn { height: 24px; min-height: 24px; }
+}
+/* a 720 px window (twelve nav links and the tools, Visuals and Colours in):
+   the links' captions go — the icon and its tooltip name each */
+@media (min-width: 901px) and (max-height: 760px) {
+  .views .view .vl, .topbar .clips-btn .vl { display: none; }
+  .views .view, .topbar .clips-btn { padding: 5px 0; }
+}
+
+/* ---- the seamed grid (the shell's rule; the tiled views opt in) ----
+   A tiled view is a grid whose tiles meet at 1 px seams: the grid's
+   background is the seam (--line), every tile is a surface, there is no
+   outer margin and no border or radius on a tile, the page head is a tile.
+   D18's three views tile from 901 px, D19's four from 1100 px (their stacked
+   layouts below that are style.css's). The bench (style.css 17.3) draws
+   the same seams as borders inside one surface, in both densities — its
+   panels flow in CSS columns, which a grid gap cannot seam. */
+@media (min-width: 901px) {
+  #view:is(.song-view, .perform-view, .drums-view) { padding: 0; gap: 1px; background: var(--line); }
+  #view:is(.song-view, .perform-view, .drums-view) > :not([popover], dialog) { border: 0; border-radius: 0; }
+  #view:is(.song-view, .perform-view, .drums-view) > .view-head { padding: 0 var(--s2); background: var(--bg-raised); }
+  /* a laid-out page's sashes are its seams (workspace.js, style.css 38) */
+  #view:is(.song-view, .perform-view, .drums-view) { --ws-gap: 1px; }
+  #view:is(.song-view, .perform-view, .drums-view) ws-group { gap: 1px; }
+}
+@media (min-width: 1100px) {
+  #view:is(.library-view, .breed-view, .map-view, .lab-view) { padding: 0; gap: 1px; background: var(--line); }
+  #view:is(.library-view, .breed-view, .map-view, .lab-view) > .view-head { padding: 0 var(--s2); background: var(--bg-raised); }
+}
+
+/* ---------- D17. The bench pages: Synths, Bass, Voice ----------
+   The bench in the dense tier: its layout is style.css section 17's (it
+   holds in both densities); this only restates sizes — the top dock's
+   height the tiles hang from, the knob, the rows. */
+:where(#patch, .patch-panel) .param > input[type="range"]:not(.knob) { height: 20px; }
+:where(#patch, .patch-panel) .seg > label { min-height: 18px; padding: 0 var(--s15); }
+:where(#patch, .patch-panel) .param > select { min-height: 20px; padding-block: 0; }
+.route { min-height: var(--h-m); }
+.sound-card { padding: 1px 0 1px var(--s1); border-radius: 0; }
+.sound-card .spark { height: 10px; }
+.sound-card .load { grid-column: 1; }
+.sound-card .load + .btn { grid-column: auto; }
+.sound-card .tagchips i { border-radius: 0; padding: 0; }
+.sound-card .btn-icon { width: 18px; min-width: 18px; min-height: 18px; }
+.lrow { padding: 0 0 0 var(--s1); gap: var(--s15); border-radius: 0;
+  min-height: var(--h-m); }
+.layer-strip { gap: var(--s1) 0; padding-top: 0; }
+.ls-rows { gap: 1px; }
+.sb-save { padding: 0 var(--s2); }
+@media (min-width: 901px) {
+  #view[data-view="editor"] > .dock[popover] { top: var(--top-h);
+    max-height: calc(100dvh - var(--top-h)); }
+}
+
+/* ---------- D18. The loop pages: Perform, Drums, Song ----------
+   Rule 1: each of the three views is a grid that tiles the window — panels
+   meet at 1 px seams (D2's seamed grid), the page head is a tile, and a wide
+   window shows more at once (columns at 1600 and 2200 px), never bigger
+   gaps. From 901 px a view is exactly as tall as the window under the top
+   dock (--top-h) and its panes scroll inside themselves. */
+@media (min-width: 901px) {
+
+  /* --- Song: pool | playlist + master strip, the editor docked under them
+     (beside them from 2200 px). The lanes share the playlist's height. --- */
+  .song-view { height: calc(100dvh - var(--top-h) - var(--keys-h)); min-height: 0;
+    grid-template-columns: var(--pool-w, var(--rack-w)) minmax(0, 1fr);
+    /* the playlist keeps room for its tool bar and four tracks under the ruler, the heads, the
+       energy and the chords (a track's head is 52 px at its lowest): a tall
+       editor scrolls in its own pane before it takes that. The editor
+       is as tall as it holds, at most 55 %, so the playlist keeps 45 % at
+       least (a 1-bar riff would otherwise take ~70 %) */
+    grid-template-rows: auto auto minmax(min(396px, 45%), 1fr) fit-content(55%); }
+  /* no cell open: the editor's pane is one idle line and the lanes take the height */
+  .song-view :is(.song-pool, .song-arranger, .song-drawer) {
+    align-self: stretch; min-height: 0; }
+  .song-pool { position: relative; top: auto; }
+  .pool-sheet { box-sizing: border-box; height: 100%; max-height: none; border: 0; border-radius: 0; }
+  .song-drawer { overflow: auto; scrollbar-width: thin; gap: var(--s15);
+    padding: var(--s15) var(--s2); scroll-margin-top: 0; }
+  .drawer-idle { display: grid; grid-area: drawer; margin: 0;
+    padding: var(--s15) var(--s3); background: var(--bg-raised); align-content: center; }
+  .song-drawer:not([hidden]) + .drawer-idle { display: none; }
+  /* the editor pane's handle (layout.js): on the seam above it while a cell
+     is open, on the seam at its left from 2200 px */
+  .drawer-splitter { display: block; grid-area: drawer; position: relative; inset: auto; }
+  .drawer-splitter-y { align-self: start; width: auto; height: 8px; margin-top: -4px; cursor: row-resize; }
+  .drawer-splitter-y::after { inset: 3px 0; }
+  /* a grip in the seam's middle, always drawn: the handle was there but
+     showed only under the pointer, so nobody found it */
+  .drawer-splitter-y::before { content: ""; position: absolute; left: 50%; top: 2px; width: 48px; height: 4px;
+    translate: -50% 0; border-radius: var(--r-pill); background: var(--line-strong); z-index: 1; }
+  .drawer-splitter-y:hover::before, .drawer-splitter-y:focus-visible::before { background: var(--accent); }
+  .drawer-splitter-x, .song-view:has(> .song-drawer[hidden]) .drawer-splitter-y { display: none; }
+  /* the playlist's pane: the lanes scroll in it both ways, the master strip
+     stands beside them, the whole stems and the foot sit under them */
+  .song-arranger { grid-template-columns: minmax(0, 1fr) 132px;
+    grid-template-rows: minmax(0, 1fr); grid-auto-rows: auto; gap: var(--s1) 3px; padding: var(--s1);
+    overflow: hidden; }
+  .song-arranger > * { grid-column: 1; }
+  .song-arranger:not(:has(> .song-master)) { grid-template-columns: minmax(0, 1fr); }
+  .arr-scroll { container: arr / size; overflow: auto; }
+  /* a lane is its share of the pane (ruler 22 + heads 34 + the row gaps),
+     between a working minimum and a thumbnail you can read from a chair */
+  .arr-cell {
+    height: clamp(40px, calc((100cqh - 66px) / var(--tracks, 4) - var(--arr-gap)), 96px); }
+  /* the time axis runs on to the pane's edge: an empty timeline, not a void */
+  .arranger-grid {
+    width: max(100%, calc(var(--arr-head-w) + var(--song-bars, 0) * var(--bar-w) + 112px)); }
+  .col-add { width: auto; }
+  .arr-track > .arr-add-col { border-block: 1px dashed var(--line);
+    background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px calc(4 * var(--bar-w))); }
+  .arr-add-section { height: 34px; }
+  .track-head { padding: 3px 6px 3px 4px; }
+  .track-mix { margin-top: 2px; gap: var(--s0); }
+  .long-list { margin: 0; gap: var(--s0); max-height: 104px; overflow: auto; }
+  .long-row { padding: 2px var(--s15); gap: 2px var(--s2); }
+  .arr-foot { padding-top: var(--s1); }
+
+  /* the master strip: one input a track, its lead into the bus, the meter */
+  .song-master { display: grid; grid-column: 2; grid-row: 1 / span 4;
+    grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--s15); min-width: 0; margin: 0;
+    padding: var(--s1) var(--s15); background: var(--bg-inset);
+    /* motion.js writes --live on every .panel; unregistered, --out inherits */
+    --out: var(--live); }
+  .song-master h3 { margin: 0; }
+  .master-bus { display: grid; grid-template-columns: minmax(0, 1fr) 28px 12px;
+    column-gap: var(--s0); min-height: 0; }
+  .master-ins { list-style: none; margin: 0; padding: 0; display: grid;
+    grid-auto-rows: 18px; align-content: start; }
+  .master-in { position: relative; display: grid; align-items: center;
+    grid-template-columns: 7px minmax(0, 1fr); column-gap: var(--s1); font-size: var(--fs-2xs); }
+  .master-in.muted { color: var(--text-dim); }
+  .master-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .master-gain { position: absolute; left: 11px; right: 0; bottom: 1px; height: 2px;
+    background: linear-gradient(90deg, var(--signal) var(--fill), var(--line-ctl) 0); }
+  .master-leads { width: 28px; height: calc(var(--n) * 18px); }
+  .master-leads path.off { stroke: var(--line-ctl); stroke-dasharray: 2 3; }
+  .master-leads path.side { stroke: var(--signal); stroke-dasharray: 5 2; }
+  .master-meter { align-self: stretch; width: 12px; height: auto;
+    min-height: calc(var(--n) * 18px); --level: calc(var(--out, 0) * 100%); }
+  .master-facts { display: flex; gap: var(--s3); margin: 0;
+    font-size: var(--fs-2xs); }
+  .master-facts div { display: flex; align-items: baseline; gap: var(--s1); }
+  .master-facts dd { margin: 0; }
+}
+@media (min-width: 1200px) {
+  /* --- the step grids, tiled: a grid takes the height its pane has and its
+     rows share it (--rows, grids.html), between the dense 17 px and a step
+     a pen cannot miss (30 px);
+     past that the pane scrolls --- */
+  :is(.perform-view, .drums-view) :is(.transport, .drum-bank) {
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  :is(.perform-view, .drums-view) :is(.transport, .drum-bank) > * { flex: none; }
+  :is(.perform-view, .drums-view) .drum-grid { display: flex;
+    flex-direction: column; flex: 1 1 0; min-height: 0; }
+  :is(.perform-view, .drums-view) :is(.transport, .drum-grid) > .grid {
+    flex: 1 1 0; min-height: 0; container: steps / size; overflow: auto; align-content: start; }
+  :is(.perform-view, .drums-view) .drum-grid-8 .cell {
+    height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 30px); }
+  :is(.perform-view, .drums-view) .grid:not(.drum-grid-8) .gridrow:not(.sliderow) > .cell {
+    height: clamp(17px, calc((100cqh - 46px) / var(--rows, 6) - 2px), 30px); }
+
+  /* --- Perform (the Loops page): the Loops panel
+     | the live strip, the launcher, the editor | the right column. The
+     tiling itself is style.css 42's, in both densities; here, the dense
+     sizes: the right column 300 px, the panel 320, the tiles' seams --- */
+  .perform-view { --lane-w-d: 300px; --loops-w: 320px;
+    grid-template-columns: var(--loops-col) minmax(0, 1fr) var(--lane-w, var(--lane-w-d)); }
+  .perform-side { gap: 1px; background: var(--line); }
+  .perform-side > .module { border: 0; border-radius: 0; }
+  .perform-view .inspector, .perform-view .play-module { background: var(--ah-tile); }
+  .perform-view .perform-transport { border-radius: var(--radius); }
+  .perform-view .perf-fx { display: flex; align-items: center; gap: var(--s2); }
+  .perform-view .perf-fx .launch-title { margin: 0; }
+  .perform-view #drumxy { min-height: 120px; }
+  .perform-view :is(.perform-pads, #perform-arrange) { padding: var(--s1); }
+  .perform-side > #perform-arrange { background: var(--ah-tile); padding: var(--s1) var(--s2); }
+  .perform-view .perform-pads { gap: var(--s1); }
+
+  /* --- Drums: the clock, the bank with its grid taking the height, the kit
+     as eight channel strips across, the master FX. The page is AT LEAST
+     the window, and the grid never less than every row at the dense 17 px
+     plus its lane (the floor): on a laptop window (1366 x 768, 1280 x 800)
+     the page scrolls rather than the steps folding to the kick row, which
+     the kit strips and the bus FX, at their full height, had left them --- */
+  .drums-view { height: auto; min-height: calc(100dvh - var(--top-h) - var(--keys-h));
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+  .drums-view .drum-grid > .grid { min-height: calc(var(--rows, 8) * 19px + var(--lanes-h, 32px)); }
+  .drums-view .drum-grid { min-height: min-content; } /* the floor reaches the bank */
+  /* the grid as tall as its rows at their
+     30 px top, and what edits a hit (the lane, notation, generate, save)
+     right under it: the bank's slack is at its foot, not between the
+     steps and their tools (the grid would take it, its rows growing to
+     64 px) */
+  .drums-view .drum-grid { max-height: calc(var(--rows, 8) * 32px + var(--lanes-h, 32px) + var(--h-l)); } /* + its lane bar */
+  #drumkit.panels { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; }
+  #drumkit > .drum-panel { padding: var(--s1) var(--s15) var(--s15);
+    grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); }
+  /* the strips' legends ride their top edge: the row they sit in is the kit's own surface */
+  .drums-view > #drum-panels { background: var(--bg-raised); padding: 0 2px 2px; }
+  .drum-panel .hit-pad { width: 34px; height: 34px; font-size: var(--fs-2xs);
+    letter-spacing: 0; }
+  .drum-panel .pill-btn { padding: 0 var(--s1); }
+  .drums-view > #fx-rack { max-height: 22dvh; overflow: auto; scrollbar-width: thin;
+    padding: var(--s1) var(--s2); background: var(--bg-raised); border: 1px solid var(--line);
+    border-radius: var(--radius); }
+  .bank-lib { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+  .bank-lib .sound-cards { flex: 1; }
+  .bank-lib .empty-state { flex: 1; padding: var(--s1) var(--s3); }
+}
+/* a tall window: the steps may grow further before the pane has slack —
+   to 30 px (64 would draw 65 px squares in a 2560 x 1400 window, the
+   grid sized for a giant screen) */
+@media (min-width: 1200px) and (min-height: 1200px) {
+  :is(.perform-view, .drums-view) .drum-grid-8 .cell {
+    height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 30px); }
+  :is(.perform-view, .drums-view) .grid:not(.drum-grid-8) .gridrow:not(.sliderow) > .cell {
+    height: clamp(17px, calc((100cqh - 46px) / var(--rows, 6) - 2px), 30px); }
+}
+/* a dragged height for the open editor: the playlist keeps 45 % of the
+   view (not about 260 px, which would let the editor take ~70 %) */
+@media (min-width: 901px) and (max-width: 2199.98px) {
+  .song-view[style*="--drawer-h"]:not(:has(> .song-drawer[hidden])) {
+    grid-template-rows: auto auto minmax(0, 1fr) min(var(--drawer-h), 55%); }
+}
+/* the sound dock: a bar across the bottom, half the view until its handle
+   is dragged (--sdock-h); what is above keeps 300 px */
+@media (min-width: 901px) {
+  .song-view .song-dock { height: auto; align-self: stretch; }
+  .song-view:has(> .song-dock:not([hidden])) {
+    grid-auto-rows: min(var(--sdock-h, 50%), calc(100% - 300px)); }
+}
+/* ...and under 2200 px, where the pattern editor sits under the playlist,
+   the two give way to it: the playlist down to 140 px, the editor a quarter */
+@media (min-width: 901px) and (max-width: 2199.98px) {
+  .song-view:has(> .song-dock:not([hidden])),
+  .song-view[style*="--drawer-h"]:has(> .song-dock:not([hidden])) {
+    grid-template-rows: auto auto minmax(140px, 1fr) fit-content(26%); }
+}
+@media (min-width: 2200px) {
+  /* room for both: the editor stands beside the playlist, full height, as
+     wide as its handle was dragged (the playlist keeps 480 px) */
+  .song-view, .song-view:has(> .song-drawer[hidden]) {
+    grid-template-columns: var(--pool-w, var(--rack-w)) minmax(0, 1fr) minmax(520px, 0.5fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "head head head" "top top top" "pool arr drawer"; }
+  /* idle, the pane is one line of text: a narrow column, and the
+     playlist the rest (not 880 px at 2560) */
+  .song-view:has(> .song-drawer[hidden]):not([style*="--drawer-w"]) {
+    grid-template-columns: var(--pool-w, var(--rack-w)) minmax(0, 1fr) clamp(220px, 12vw, 320px); }
+  .song-view[style*="--drawer-w"], .song-view[style*="--drawer-w"]:has(> .song-drawer[hidden]) {
+    grid-template-columns: var(--pool-w, var(--rack-w)) minmax(0, 1fr)
+      min(var(--drawer-w), calc(100% - var(--pool-w, var(--rack-w)) - 480px)); }
+  .drawer-splitter-x { display: block; justify-self: start; align-self: stretch; width: 8px; margin-left: -4px; z-index: 5; }
+  .song-view .drawer-splitter-y { display: none; }
+  /* an OPEN editor sits under the playlist here too, as at 1920: beside
+     it, its rows would end at a third of the height and leave the foot
+     empty. The editor's ◨ puts it beside again (layout.js's tabs:
+     `data-tab="beside"` on #view, kept per browser); closed, the pane is
+     the narrow idle column above, as it was */
+  .song-view:not([data-tab="beside"]):has(> .song-drawer:not([hidden])) {
+    grid-template-columns: var(--pool-w, var(--rack-w)) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(min(396px, 45%), 1fr) fit-content(55%);
+    grid-template-areas: "head head" "top top" "pool arr" "pool drawer"; }
+  .song-view[style*="--drawer-h"]:not([data-tab="beside"]):has(> .song-drawer:not([hidden])) {
+    grid-template-rows: auto auto minmax(0, 1fr) min(var(--drawer-h), 55%); }
+  .song-view:not([data-tab="beside"]):has(> .song-drawer:not([hidden])):has(> .song-dock:not([hidden])) {
+    grid-template-rows: auto auto minmax(140px, 1fr) fit-content(26%); }
+  .song-view:not([data-tab="beside"]):has(> .song-drawer:not([hidden])) .drawer-splitter-x { display: none; }
+  .song-view:not([data-tab="beside"]):has(> .song-drawer:not([hidden])) .drawer-splitter-y { display: block; }
+  /* Kit at 2560 x 1400 fills all the space:
+     the page tiles across its width and to its foot — the beat (its steps
+     taking the height, its five hit lanes stacked under them) beside the
+     kit's eight strips (four across, two rows sharing the height: each
+     voice's pad takes what its knobs leave), the bus FX a pedalboard
+     across both at the bottom. Small type stays small: only the step
+     cells and the pads grow */
+  .drums-view { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .drums-view > :is(.view-head, #drum-transport) { grid-column: 1 / -1; }
+  .drums-view > #drum-bank { grid-column: 1; grid-row: 3; }
+  .drums-view .drum-grid { max-height: none; }
+  .drums-view .drum-grid-8 .cell {
+    height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 96px); }
+  .drums-view > #drum-panels { grid-column: 2; grid-row: 3; overflow: auto;
+    display: flex; flex-direction: column; }
+  #drumkit.panels { flex: 1 1 auto; }
+  .drums-view > #fx-rack { grid-column: 1 / -1; grid-row: 4; }
+  #view.drums-view > #fx-rack { max-height: none; } /* (#view: it outranks the 1200 px strip's 92 px, later in the file) */
+  /* the strips four across in two rows that share the column's height;
+     in each the pad (with its presets under it) takes what the knobs
+     leave — the eight pads a block to play, as a drum machine's */
+  #drumkit.panels { grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: minmax(min-content, 1fr); align-content: stretch; }
+  #drumkit > .drum-panel { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+    grid-template-rows: minmax(min-content, 1fr) repeat(2, minmax(66px, auto)); align-content: stretch; gap: var(--s2) var(--s1); }
+  .drum-panel .knob { --knob: 30px; }
+  #drumkit .drum-pad-row { flex-direction: column; align-items: stretch; gap: var(--s1); }
+  #drumkit .drum-pad-row .pills { flex-wrap: wrap; }
+  .drum-panel .hit-pad { width: auto; height: auto; flex: 1 1 auto; min-height: 40px; }
+  /* each pad shows its voice (kitpads.js): its one-shot across it, the
+     envelope faint behind, its name top-left, its numbers bottom-right */
+  #drumkit .hit-pad { position: relative; overflow: hidden; }
+  #drumkit .hit-pad .pad-wave { display: block; position: absolute; left: var(--s15); top: var(--s5);
+    width: calc(100% - 2 * var(--s15)); height: calc(100% - 2 * var(--s5)); pointer-events: none; }
+  #drumkit .hit-pad .pad-name { position: absolute; left: var(--s15); top: var(--s1); }
+  #drumkit .hit-pad .pad-read { display: block; position: absolute; right: var(--s15); bottom: var(--s1);
+    font-size: var(--fs-2xs); color: var(--text-dim); text-transform: none; letter-spacing: 0;
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* (the five lanes a little taller here: 36 px, finer to draw in) */
+  @media (min-height: 1000px) {
+    #view.drums-view { --lanes-h: 202px; }
+    #view.drums-view .drum-grid-8 > :is(.velrow, .hitrow) .vel-lane { height: 36px; }
+  }
+}
+
+/* ---------- D19. The browsing pages: Library, Breed, Map, Lab ---------- */
+/* Rule 1: each of the four is ONE window-high grid of tiles meeting at
+   1 px seams (the grid's background is the seam, every tile a surface):
+   no outer margin, no page scroll, a tile scrolls inside itself if it
+   must. A wider window gets more columns, never wider gutters.
+   `#view.x > …`: the dockless views' placement
+   rule (style.css 9b2) carries an id's weight. Under 1100 px the views
+   keep style.css's stacked layouts. */
+@media (min-width: 1100px) {
+& {
+  #view:is(.library-view, .breed-view, .map-view, .lab-view) { height: calc(100dvh - var(--top-h) - var(--keys-h));
+    min-height: 0; overflow: hidden;
+    > .view-head { grid-area: head; }
+  }
+
+  /* Library: its window-high layout is style.css 9b1's (both densities);
+     here it only meets the page at the seams */
+  #view.library-view > .lib-filter { padding: var(--s1) var(--s2); }
+  #view.library-view > :is(.lib-filter, .lib-browser, .lib-dock) { border: 0; border-radius: 0; }
+
+  /* Breed: the rack | the board, 4 x 2 */
+  #view.breed-view { grid-template: "head head" auto "rack board" minmax(0, 1fr)
+      / var(--rack-w) minmax(0, 1fr);
+    > .breed-rack { grid-area: rack; border: 0; border-radius: 0; overflow-y: auto; }
+    /* the eight cards tile the board 4 x 2 and share its height (one row
+       of eight at 2560 would leave 900 px of nothing under it); each card's spectrum is at most ~40 % of it and the rest is
+       what changed from its parent (D47). Their seams are each card's own */
+    > #breed-board { grid-area: board; gap: 1px; background: var(--bg-raised); min-height: 0;
+      grid-template: repeat(2, minmax(0, 1fr)) / repeat(4, minmax(0, 1fr)); align-content: stretch;
+      overflow-y: auto; scrollbar-width: thin; }
+    > #breed-board:has(> .empty-state) { grid-template-rows: minmax(0, 1fr);
+      background: var(--bg-raised); padding: var(--s3); }
+    .tile { border: 0; border-radius: 0; min-height: 0; outline: 1px solid var(--line); }
+    .tile.starred { box-shadow: inset 0 0 0 1px var(--accent); }
+    .gen-strip > span { display: none; }
+  }
+
+  /* Map: the plot | its rack */
+  #view.map-view { grid-template: "head" auto "map" minmax(0, 1fr) / minmax(0, 1fr);
+    > #map-svg { grid-area: map; gap: 1px; background: var(--line); min-height: 0;
+      grid-template-columns: minmax(0, 1fr) var(--side-w); }
+    > #map-svg:has(> :is(.map-empty, .map-skel)) { grid-template-columns: minmax(0, 1fr);
+      background: var(--bg-raised); padding: var(--s3); }
+    .map-skel { min-height: 0; height: 100%; }
+    .map-empty { place-self: center; }
+    .map-plot { border: 0; border-radius: 0; min-height: 0; container-type: size; }
+    /* the SVG's own captions scale with the window (25 px type at 1920):
+       the rack and two HTML captions say them at 10 px instead. `--u` is
+       one px in the SVG's user units (100 x 54 of them, fitted in the
+       box): a dot's hover name is held to 11 px, its ring to 1.5, and the
+       dots drawn at half size — the plot is three times its old width */
+    .map-plot svg { height: 100%; max-height: none;
+      --u: tan(atan2(1px, min(1cqw, calc(100cqh / 54)))); }
+    :is(.axis-label, .map-legend) { display: none; }
+    .point-name { font-size: calc(11px * var(--u)) !important; }
+    :is(.point, .you-are-here) { transform-box: fill-box; transform-origin: center; scale: 0.5; }
+    .you-are-here { stroke-width: calc(3px * var(--u)); }
+    .map-ax { display: block; position: absolute; pointer-events: none; white-space: nowrap; }
+    .map-ax-x { bottom: var(--s15); left: 50%; translate: -50% 0; }
+    .map-ax-y { left: var(--s15); top: 50%; transform-origin: 0 0; rotate: -90deg; translate: 0 50%; }
+    .map-rack { border: 0; border-radius: 0; min-height: 0; align-content: stretch;
+      grid-template-rows: auto auto minmax(0, 1fr); }
+    .map-list { grid-row: -2; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+    .map-list ul { max-height: none; min-height: 0; }
+  }
+
+  /* Lab: the songs | the song: its bar; the selection over its lanes,
+     which take the height | the chops over what else it becomes */
+  #view.lab-view { gap: 0 1px; grid-template: "head head" auto "import panel" auto "job panel" auto
+      "notice panel" auto "songs panel" minmax(0, 1fr) / var(--rack-w) minmax(0, 1fr);
+    > .view-head { border-bottom: 1px solid var(--line); }
+    > .lab-import { grid-area: import; }
+    #lab-body { display: contents; }
+    :is(.lab-import, .lab-job, #lab-notice, .lab-sources, .lab-panel) { border: 0; border-radius: 0;
+      background: var(--bg-raised); min-height: 0; }
+    :is(.lab-job, #lab-notice, .lab-sources) { padding: var(--s15) var(--s3);
+      border-top: 1px solid var(--line); }
+    .lab-job { grid-area: job; }
+    #lab-notice { grid-area: notice; }
+    .lab-sources { grid-area: songs; overflow-y: auto; padding-inline: var(--s15); }
+    .lab-panel { grid-area: panel; padding: 0; gap: 1px; background: var(--line);
+      grid-template: "bar bar" auto "lanes chops" minmax(0, 1fr) "lanes make" minmax(0, 1.2fr)
+        / minmax(0, 1fr) clamp(300px, 23vw, 380px); }
+    .lab-panel:has(> .empty-state) { grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+      background: var(--bg-raised); padding: var(--s3); }
+    .lab-panel > .empty-state { place-self: center; }
+    :is(.lab-bar, .lab-region, .lab-chops, .lab-make) { border: 0; border-radius: 0; min-height: 0;
+      background: var(--bg-raised); padding: var(--s15) var(--s2); }
+    .lab-bar { grid-area: bar; }
+    /* the lanes take the height: the mix a share and a half, a stem one
+       each (a grip or Ctrl + Shift + wheel sets them in px instead) */
+    .lab-region { grid-area: lanes; }
+    .lab-lanes { flex: 1 1 0; --mix-h: minmax(48px, 1.5fr); --lane-h: minmax(30px, 1fr); }
+    .lab-chops { grid-area: chops; align-content: stretch; grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden; }
+    .lab-chops:has(> .empty-state) { grid-template-rows: auto auto minmax(0, 1fr); }
+    .chop-list { max-height: none; min-height: 0; }
+    .lab-make { grid-area: make; overflow-y: auto; scrollbar-width: thin; }
+    .lab-cards { grid-template-columns: minmax(0, 1fr); }
+  }
+}
+}
+/* 1900 px and up: the chops and what else a selection becomes side by side */
+@media (min-width: 1900px) {
+#view.lab-view {
+  .lab-panel { grid-template: "bar bar bar" auto "lanes chops make" minmax(0, 1fr)
+      / minmax(0, 1fr) clamp(300px, 17vw, 380px) clamp(300px, 17vw, 380px); }
+}
+}
+
+/* ---------- D23. Control surface: the docked virtual deck ----------
+   (style.css section 23.) Dense is shorter, and its nav is a rail down the
+   left edge: the bottom strip starts beside it, and a page that only
+   fills the window still does. */
+& { --deck-h: 128px; }
+@media (max-width: 900px) {
+  & { --deck-h: 220px; }
+}
+@media (min-width: 901px) {
+  &[data-deck] #deck-panel { left: var(--nav-w); }
+  &[data-deck] .cockpit { min-height: calc(100dvh - 40px - var(--deck-h) - var(--keys-h)); }
+}
+@media (min-width: 1200px) {
+  &[data-deck="side"] #deck-panel { left: auto; }
+  &[data-deck="side"] .cockpit { min-height: calc(100dvh - 40px - var(--keys-h)); }
+}
+
+/* ---------- D24. Song creation: starters, the chord strip, the checklist ----------
+   The starter sheet, the chord strip over the lanes, the checklist's rows, a track's role badge. (style.css section 24.)
+   Song creation's areas each write in a section of their own, so no two meet.
+   Sections 1-23 are frozen but for promotions to section 15. */
+.chord-strip { padding: 0 var(--s1); }
+.start-card { padding: var(--s15) var(--s2); }
+@media (min-width: 901px) {
+  /* the strip is a line over the lanes, which keep the pane's height */
+  .song-arranger:has(> .chord-strip) { grid-template-rows: auto minmax(0, 1fr); }
+  /* an empty song: the sheet is the pane */
+  .song-arranger:has(> .arr-start) { grid-template-rows: minmax(0, 1fr) auto; }
+  .song-arranger:has(> .arr-start) > .arr-scroll { display: none; }
+  .empty-state.arr-start { align-self: stretch; margin: 0; overflow: auto; scrollbar-width: thin;
+    grid-template-rows: minmax(min-content, 1fr) auto; }
+  /* the cards take the pane: each one's shape grows with it — never under
+     a card's own content (the keyboard dock on every page takes 186 px
+     of the pane at 1400 x 900, and rows floored at 0 would stack the
+     cards over each other); short of room, the pane scrolls */
+  .arr-start .start-sheet { min-height: 100%; grid-template-rows: auto minmax(min-content, 1fr) auto auto; }
+  .arr-start .start-cards { grid-auto-rows: minmax(min-content, 1fr); }
+  .arr-start .start-card:not(.start-loop) { grid-template-rows: auto auto minmax(40px, 1fr) auto auto; }
+  .arr-start .start-shape { height: 100%; }
+}
+
+/* ---------- D25. Song creation: the piano roll ----------
+   Tools, the marquee, note ends, ghost notes, chord tones, the octave window (roll.js, zoom.js). (style.css section 25.)
+   Song creation's areas each write in a section of their own, so no two meet.
+   Sections 1-23 are frozen but for promotions to section 15. */
+.roll > :is(.gridrow, .velrow, .ruler, .chordrow) { gap: 2px; grid-template-columns: 40px repeat(var(--steps, 16), var(--step-w, minmax(var(--step-min), var(--step-max, 1fr)))); }
+.roll > .ruler b { line-height: 10px; }
+.roll > .playhead { left: 42px; }
+.lane-seg button { max-width: 11em; }
+@media (min-width: 1200px) {
+  /* the roll's rows share the pane's height less the ruler, the slide row and the lane */
+  .perform-view .grid.roll .gridrow:not(.sliderow) > .cell {
+    height: clamp(17px, calc((100cqh - 58px) / var(--rows, 6) - 2px), 30px); }
+}
+@media (min-width: 1200px) and (min-height: 1200px) {
+  .perform-view .grid.roll .gridrow:not(.sliderow) > .cell {
+    height: clamp(17px, calc((100cqh - 58px) / var(--rows, 6) - 2px), 30px); }
+}
+@media (min-width: 1200px) {
+  /* ... and less the chord lane's row (20 px and its gap): without it
+     the rows overflow the pane by that much, and the velocity lane,
+     stuck to the pane's foot, hides the bottom row or two until the
+     pane is scrolled. The lane's
+     height is the pane's own: rows that can fit (17 px and up) end above
+     it, and rows that cannot scroll, the last one clear of it */
+  .perform-view .grid.roll:has(> .chordrow) .gridrow:not(.sliderow) > .cell {
+    height: clamp(17px, calc((100cqh - 80px) / var(--rows, 6) - 2px), 30px); }
+}
+
+/* ---------- D26. Song creation: beats ----------
+   The selected row, the per-hit lanes, variations A-D and the fill (steps.js). (style.css section 26.)
+   Song creation's areas each write in a section of their own, so no two meet.
+   Sections 1-23 are frozen but for promotions to section 15. */
+
+/* the step sequencer, dense: a row's own level and swing ride in its head
+   once the window is wide enough to spare the steps the room (every knob in the grid form is unnamed and its value
+   travels in the form's hidden fields: drumgrid.html) */
+.lane-bar { gap: 2px var(--s3); padding-top: 2px; }
+.beat-bar { gap: 2px var(--s2); }
+.hit-insp .knob { --knob: 22px; }
+/* one line at 1440: the read-outs are as wide as their longest value */
+.hit-insp { gap: 2px var(--s2); }
+.hit-insp output { min-width: 2.2em; }
+.hit-insp .hit-at { min-width: 5.2em; padding-left: var(--s2); }
+.lane-of { min-width: 4.4em; }
+/* the Song drawer's rows stay the dense 17 px whatever sits in their heads
+   (a .btn-s is 22 px: eight rows of it cost the lanes above 40 px), and its
+   lane is a little lower: the drawer has no height to spare at 1440 x 900 */
+.song-drawer .drum-grid-8 .rowhead :is(.rowbtn, .rowlabel) { min-height: 0; height: 17px; }
+.song-drawer .vel-lane { height: 20px; }
+.song-drawer .lane-bar { padding-top: 0; }
+@media (min-width: 1900px) {
+  .row-knobs { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; padding-right: 3px; }
+  .drum-grid-8 :is(.gridrow, .velrow) {
+    grid-template-columns: 168px repeat(var(--steps, 16), minmax(var(--step-min), var(--step-max, 1fr))); }
+  .drum-grid-8 .playhead { left: 170px; }
+  .row-knobs .knob-s, .row-knob-caps > span { --knob: clamp(15px, calc((100cqh - 32px) / var(--rows, 8) - 4px), 22px); }
+  .row-knob-caps > span { width: var(--knob); font-size: var(--fs-2xs); line-height: 1; text-align: center;
+    color: var(--text-dim); }
+  .song-drawer .row-knobs .knob-s { --knob: 15px; } /* (its rows are 17 px: above) */
+}
+@media (min-width: 1200px) {
+  /* the lane bar is the grid form's own last row: the steps keep the height */
+  :is(.perform-view, .drums-view) .drum-grid > .lane-bar { flex: none; }
+  /* ... and the lane stays in sight while the rows scroll under it: in a
+     short window the eight rows do not all fit, and a hit's value is edited
+     in the lane */
+  :is(.perform-view, .drums-view) .drum-grid-8 .velrow { position: sticky; bottom: 0; z-index: 3;
+    margin-block: 0; padding-block: 2px; background: var(--bg-raised); }
+  /* the note grid's lane the same: Perform in Both gives the roll half
+     the column, its rows floor at 17 px, and with two octaves or the
+     chromatic 24 the lane would fall below the pane — clipped at 2560,
+     gone at 1920 */
+  .perform-view .grid.roll > .velrow { position: sticky; bottom: 0; z-index: 3;
+    margin-block: 0; padding-block: 2px; background: var(--bg-raised); }
+  /* ... and a step scrolled to ("nearest": the keys' cursor, a pen's
+     stroke) stops above it, not under it: the lane (26 px) and its padding */
+  .perform-view .grid.roll { scroll-padding-bottom: 32px; }
+  /* the drum grid's the same: its lane is 30 px */
+  :is(.perform-view, .drums-view) .drum-grid-8 { scroll-padding-bottom: 32px; }
+}
+/* Kit's stacked lanes (filling all the space):
+   where the window has the height, the four other hit lanes stand under
+   the velocity's at once — chance, ratchet, nudge, tune, the lit one the
+   lane keys' — and the lane switch goes (it is the fallback below this:
+   a laptop's window keeps every row on screen instead). They come out of
+   the steps' share (`--lanes-h`: the velocity's 32 px and 28 a lane) */
+@media (min-width: 1200px) and (min-height: 1000px) {
+  .drums-view { --lanes-h: 144px; }
+  .drums-view .drum-grid-8 > .hitrow { display: grid; position: static; margin-block: 0; padding-block: 1px;
+    background: none; }
+  .drums-view .drum-grid-8 > .hitrow .vel-lane { height: 22px; }
+  .drums-view .drum-grid-8:has(> .hitrow) > .velrow { position: relative; }
+  .drums-view .drum-grid:has(.hitrow) .lane-bar > :is(.caps:first-child, .lane-pick) { display: none; }
+}
+
+/* ---------- D27. Song creation: playlist tools ----------
+   The range selection, the boundary +, the energy lane, the chord strip's gestures (songsel.js). (style.css section 27.)
+   Song creation's areas each write in a section of their own, so no two meet.
+   Sections 1-23 are frozen but for promotions to section 15. */
+.arr-tools { padding: 0 var(--s1); gap: var(--s0) var(--s2); }
+.arr-tool-group { padding-left: var(--s2); }
+/* a laptop window (the playlist ~930 px beside the pool and the master
+   strip): the tool bar is ONE line — the words of its glyph buttons go
+   (still their names: visually hidden, never display: none), the glyphs
+   and the titles stay — so the lanes keep the row a second line took */
+@media (min-width: 901px) and (max-width: 1599.98px) {
+  .arr-tools .tool-word { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap; }
+}
+@media (min-width: 901px) {
+  /* the tool bar is a line over the lanes, which keep the pane's height */
+  .song-arranger:has(> .arr-tools) { grid-template-rows: auto minmax(0, 1fr); }
+  /* a lane's share of the pane, less the two rows the playlist gained (energy 22 + chords 22 + their gaps) */
+  .song-arranger:has(.arr-energy) .arr-cell {
+    height: clamp(40px, calc((100cqh - 114px) / var(--tracks, 4) - var(--arr-gap)), 96px); }
+}
+
+/* ---------- D28. Song creation: the mixer ----------
+   The Mix view's strips, the fader, returns and their leads. (style.css section 28.)
+   Song creation's areas each write in a section of their own, so no two meet.
+   Sections 1-23 are frozen but for promotions to section 15. */
+.mixer-view { --strip-w: 92px; }
+.mix-bar { padding: 3px var(--s2); gap: 3px var(--s2); }
+.mix-strip { gap: 3px 2px; padding: var(--s1) var(--s1) var(--s2); }
+@media (min-width: 901px) {
+  /* tiled to the window, like the Song page: seams, no margins; the strips
+     share the height, the master takes what the strips leave */
+  #view.mixer-view { padding: 0; gap: 1px; background: var(--line);
+    height: calc(100dvh - var(--top-h) - var(--keys-h)); min-height: 0; }
+  #view.mixer-view > .view-head { padding: 0 var(--s2); background: var(--bg-raised); }
+  .mixer-view :is(.mix-bar, .mix-strip, .mix-master, .mix-empty) { border: 0; border-radius: 0; }
+  .mixer-view :is(.mix-strips, .mix-returns) { gap: 1px; background: var(--line); min-height: 0; }
+  .mixer-view .mix-returns { background: var(--bg-raised); }
+  .mixer-view .mix-returns > .mix-strip { box-shadow: inset 1px 0 0 var(--line); }
+  .mixer-view .mix-strip[data-focus] { box-shadow: inset 0 2px 0 var(--accent); }
+  .mixer-view .mix-master { min-height: 0; }
+  .mixer-view .mix-empty { background: var(--bg-raised); }
+}
+
+/* ---------- D29. Song creation: the jam ----------
+   The launch grid, queued and sounding blocks, the jam's bar (jam.js). (style.css section 29.)
+   Song creation's areas each write in a section of their own, so no two meet.
+   Sections 1-23 are frozen but for promotions to section 15. */
+.jam-grid { --pad-h: 40px; --jam-head-w: 148px; --jam-end-w: 44px; border-spacing: 3px; }
+.jam-bar { gap: var(--s1) var(--s2); }
+.song-view.jam-on .song-arranger > .jam { gap: var(--s1); }
+@media (min-width: 901px) {
+  /* the launcher takes the playlist's whole pane and scrolls inside it */
+  .song-view.jam-on .song-arranger:has(> .jam) { grid-template-rows: minmax(0, 1fr); }
+  /* few tracks: the pads grow into the pane (a pad is a target, not a line) */
+  .jam-scroll { container: jam / size; }
+  .jam-grid { --pad-h: clamp(40px, calc((100cqh - 56px) / var(--rows, 4) - 3px), 72px); }
+}
+
+/* ---------- D30. Song creation: reserved ----------
+   Spare. (style.css section 30.)
+   Song creation's areas each write in a section of their own, so no two meet.
+   Sections 1-23 are frozen but for promotions to section 15. */
+
+/* ---------- D31. The clip hub ----------
+   The dense tier tiles it like the other dockless views: one window-high
+   grid of tiles at 1 px seams (the grid's background is the seam), the
+   list and the bench each scrolling inside itself. (style.css section 31.) */
+@media (min-width: 901px) {
+  #view.hub-view { padding: 0; gap: 1px; background: var(--line);
+    > .view-head { padding: 0 var(--s2); background: var(--bg-raised); }
+    > :is(.hub-filter, .hub-list, .hub-bench) { border: 0; border-radius: 0; background: var(--bg-raised); }
+    > .hub-filter { padding: var(--s1) var(--s2); }
+  }
+}
+.hub-row { min-height: 24px; padding-block: 1px; } /* a row is one line from 901 px */
+.hub-open > .hub-wave { height: 20px; }
+.hub-bench { gap: var(--s15); padding: var(--s15) var(--s2); }
+.hub-player .hub-wavebar { height: 56px; }
+
+/* ---------- D32. Surfaces ----------
+   (style.css section 32.) Every tile of a seamed view is glass over the
+   nebula, lit on its top edge: --ah-tile, the plain --bg-raised by day.
+   The seams stay the grid's own background. A tile's state (a breed
+   card that plays) is a layer over the glass. */
+@media (min-width: 901px) {
+  #view:is(.song-view, .perform-view, .drums-view, .hub-view) > .view-head,
+  #view.mixer-view > .view-head,
+  .song-view > :is(.song-topbar, .song-arranger, .drawer-idle, .song-drawer),
+  .pool-sheet,
+  .perform-view > :is(.perform-transport, .perf-fx, .slots-module, .transport, .perform-drums, .perform-launch),
+  .perform-view :is(.perform-pads, #perform-arrange),
+  .drums-view > :is(#drum-transport, #drum-bank, #drum-panels, #fx-rack),
+  .mixer-view :is(.mix-returns, .mix-empty),
+  #view.hub-view > :is(.hub-filter, .hub-list, .hub-bench) { background: var(--ah-tile); }
+  :is(.perform-view, .drums-view) .drum-grid-8 .velrow,
+  .perform-view .grid.roll > .velrow { background: var(--ah-solid); }
+}
+@media (min-width: 1100px) {
+  #view:is(.library-view, .breed-view, .map-view) > .view-head,
+  #view.library-view > :is(.lib-filter, .lib-browser, .lib-dock),
+  #view.library-view .lib-card.active > .lib-detail,
+  #view.breed-view > .breed-rack,
+  #view.breed-view .tile,
+  #view.breed-view > #breed-board:has(> .empty-state),
+  #view.map-view .map-rack,
+  #view.map-view > #map-svg:has(> :is(.map-empty, .map-skel)) { background: var(--ah-tile); }
+  #view.breed-view .tile.active { background: linear-gradient(color-mix(in oklch, var(--signal), transparent 92%),
+    color-mix(in oklch, var(--signal), transparent 92%)), var(--ah-tile); }
+  #view.map-view .map-plot { background: var(--ah-well); }
+}
+
+/* ---------- D33. Pages ----------
+   (style.css section 33.) The window-filling placements of those
+   fixes. (The Library's: style.css 9b1, in both densities.) */
+@media (min-width: 1200px) {
+  /* Drums: every row of the step grid in sight at 900 px — the bank's rows
+     closer, its slots one line and a glyph, the saved-beats shelf only once
+     it holds one, the bus FX held to a strip (it scrolls) */
+  .drums-view .drum-bank { gap: var(--s15); }
+  .drums-view .bank-slot { grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s1); align-items: baseline; }
+  .drums-view .bank-glyph { grid-column: 1 / -1; }
+  .drums-view .glyph-row { height: 3px; }
+  .drums-view .bank-lib:has(> .empty-state) { display: none; }
+  .drums-view > #fx-rack { max-height: 92px; }
+  /* a window up to 960 px tall gives the top dock's status row its 22 px
+     back here (at 1440 x 900 the page would go 21 px past the window):
+     the bus FX strip a little shorter (it scrolls), the slots'
+     glyphs a hair thinner */
+  @media (max-height: 960px) {
+    .drums-view > #fx-rack { max-height: 70px; }
+    .drums-view .glyph-row { height: 2px; }
+  }
+  /* a row's head buttons ride the row's height (they held every row at 22 px) */
+  :is(.perform-view, .drums-view) .drum-grid-8 .rowhead :is(.rowbtn, .rowlabel) { min-height: 0; height: 100%; max-height: var(--h-s); }
+}
+@media (min-width: 901px) {
+  /* an empty song's starter cards: the energy line held to a readable
+     height in the middle of the card's slack, never a slab the card's height */
+  .arr-start .start-shape { max-height: 180px; align-self: center; }
+  .view-head h1 { font-size: var(--fs-xl); }
+  /* the rail's deck button (deckui.js writes "deck"): an icon like its
+     neighbours — a dial and keys — the word stays its name */
+  .rail-tools #deck-btn { font-size: 0; }
+  .rail-tools #deck-btn::before { content: ""; width: 17px; height: 17px; background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='2'/%3E%3Ccircle cx='8' cy='9.5' r='2.2'/%3E%3Ccircle cx='16' cy='9.5' r='2.2'/%3E%3Cpath d='M6 16h3M10.5 16h3M15 16h3'/%3E%3C/svg%3E") center / contain no-repeat; }
+  /* Mix: the strips share the width the master leaves (at a fixed 92 px
+     the right 40 % of the window would be empty), the master a column of
+     its own, the returns beside the last strip. The strips share the
+     width (1fr each, 116 px at least: more tracks than fit scroll
+     sideways; strips of a fixed width would stop at 1100 px and leave
+     1380 px of nothing at 2560) and the
+     master is a fifth of the window, filled top to bottom: its meter and
+     fader beside the read-outs, the spectrum, the stereo field and the
+     loudness history, the target, the master FX (D47) */
+  #view.mixer-view { grid-template-columns: minmax(0, 1fr) auto minmax(380px, 20%); }
+  .mixer-view .mix-strips { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(116px, 1fr); }
+  .mixer-view .mix-strips > .mix-strip { width: auto; }
+}
+}
+
+/* ---------- D35. The beat flow: the rack's focus ----------
+   The editor (style.css 42: the note grid over the drum grid, under the
+   launcher) gives one grid the rows the two shared when one is in focus
+   (grid.js, html[data-rack]); here the drum grid's steps grow past 30 px
+   to fill it. */
+@media (min-width: 1200px) {
+  html:not([data-density="comfy"])[data-rack="drums"] .perform-view .drum-grid-8 .cell {
+    height: max(17px, calc((100cqh - 32px) / var(--rows, 8) - 2px)); }
+}
+
+/* ---------- D41. Perform's launcher (style.css 41) ----------
+   A tile like the others in the tiled layout (style.css 42: the top of the
+   centre column, the editor under it), its slots one dense line each, so
+   four scenes cost the editor about 150 px; past them it scrolls inside
+   itself. */
+html:not([data-density="comfy"]) {
+  .slots-module { padding: var(--s1) var(--s2); gap: var(--s0); }
+  .sl-grid { --sl-h: 20px; }
+  .sl-stops .sl-stop { min-height: 16px; }
+}
+@media (min-width: 1200px) {
+  html:not([data-density="comfy"]) .perform-view .slots-module { border-radius: var(--radius); }
+}
+/* ---------- D42. The Loops page, laid out (style.css 42) ----------
+   The inspector and Play in dense type: their heads one 22 px line, the
+   lane heads 20 px rows, the facts at 10 px. */
+html:not([data-density="comfy"]) {
+  .insp-head, .play-head { padding: 2px var(--s2); min-height: 24px; }
+  .insp-lane { gap: var(--s15); padding: var(--s15) var(--s2); }
+  .insp-lane .lane-seg button { min-height: 20px; }
+  .insp-tabs button, .play-tabs button { font-size: var(--fs-xs); padding-inline: var(--s1); }
+}
+/* the tiling of style.css 42 for a pen too (this file is linked for a fine
+   pointer or once a pen has been seen; style.css tiles for any but a coarse pointer
+   only, so the touch tier flows): the page is the window, the editor's
+   rows as its focus says */
+@media (min-width: 1200px) {
+  html:not([data-density="comfy"]) {
+    #view.perform-view { height: calc(100dvh - var(--top-h) - var(--keys-h)); min-height: 0;
+      grid-template-rows: auto auto auto minmax(0, 1.5fr) minmax(0, 1fr); }
+    &[data-rack="notes"] #view.perform-view { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
+    &[data-rack="drums"] #view.perform-view { grid-template-rows: auto auto auto auto minmax(0, 1fr); }
+    .perform-view > * { min-height: 0; }
+    .perform-view .perform-transport { margin-bottom: 0; }
+    .perform-view .transport-controls { position: static; background: none; row-gap: var(--s1); }
+    .perform-view .transport-controls > .tcluster { border-top: 0; padding-top: 0; }
+    .perform-view .transport-controls > .tcluster > legend { float: left; margin-right: var(--s1); }
+    .perform-view .loops-panel { position: relative; top: auto; align-self: stretch; max-height: none; }
+    .perform-side { align-self: stretch; }
+    .perform-view .slots-module { max-height: 34vh; }
+  }
+}
+/* ---------- D47. Filled pages (style.css 47) ----------
+   Breed: a card is the board's cell (4 x 2, D19) and a size container —
+   its spectrum 40 % of it, then the facts and what changed, which takes
+   the rest (rows past its height are cut, never a scroll per card). */
+@media (min-width: 1100px) {
+  html:not([data-density="comfy"]) {
+    #view.breed-view .tile { grid-template-rows: minmax(0, 1fr) auto; container-type: size; }
+    #view.breed-view #breed-board .tile > .audition { overflow: hidden; gap: var(--s1); }
+    #view.breed-view .tile .audition > svg.t-spec { flex: none; height: clamp(48px, 40cqh, 460px); }
+    #view.breed-view .t-diff { flex: 1 1 0; min-height: 0; overflow: hidden; grid-auto-rows: min-content; }
+  }
+}
+/* Mix: the master column (a fifth of the window, D33) filled to its foot —
+   the meter and fader beside the read-outs, the spectrum, the stereo field
+   and the loudness history across, then the target and the master FX
+   (one line while empty). It scrolls inside itself once a rack is tall. */
+@media (min-width: 901px) {
+  html:not([data-density="comfy"]) {
+    .mixer-view .mix-master { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-rows: auto minmax(170px, 0.9fr) minmax(110px, 1.1fr) minmax(90px, 0.75fr) minmax(64px, 0.5fr) auto auto;
+      grid-template-areas: "h h h" "lvl read read" "spec spec spec" "gonio gonio gonio" "hist hist hist" "loud loud loud" "fx fx fx";
+      align-content: stretch; gap: var(--s2); padding: var(--s2); }
+    .mix-master > h2 { grid-area: h; }
+    .mix-master > .mix-master-level { grid-area: lvl; min-height: 0; grid-template-rows: minmax(0, 1fr) auto auto; }
+    .mix-master > .mm-read { grid-area: read; grid-auto-rows: minmax(0, 1fr); }
+    .mix-master > .mm-spec { grid-area: spec; }
+    .mix-master > .mm-gonio { grid-area: gonio; }
+    .mix-master > .mm-hist { grid-area: hist; }
+    .mix-master > .mix-loud { grid-area: loud; }
+    .mix-master > #fx-rack { grid-area: fx; }
+    .mix-master .mm-scope > canvas { min-height: 0; }
+    /* a cell: its name on top, the number in the middle, its bar or its max at the foot */
+    .mix-master .mm-cell { grid-template-rows: auto minmax(0, 1fr) auto; }
+    .mix-master .mm-cell > :is(output, small) { grid-row: 2; align-self: center; }
+    .mix-master .mm-cell > :is(.mm-bar, .mm-corr-bar, .mm-sub) { grid-row: 3; }
+    /* the empty master rack: one line where the column has the room (2560),
+       its jacks and "No effects" under its head where it has not (1920) */
+    .mix-master fieldset:has(> .fx-units > .fx-none) > .fx-units { flex-basis: auto; }
+    /* a strip, now as wide as its share: the fader's travel printed beside
+       it, a tick every tenth, as on a desk's faceplate (the meter and the
+       fader stand in the gap the mask leaves) */
+    .mixer-view .mix-strip > .mix-level { position: relative; }
+    .mixer-view .mix-strip > .mix-level::before { content: ""; position: absolute; inset: 8px 12% 26px; pointer-events: none;
+      background: repeating-linear-gradient(to bottom, color-mix(in oklab, var(--line-strong), transparent 35%) 0 1px, transparent 1px 10%);
+      mask: linear-gradient(to right, var(--bg) 0 calc(50% - 34px), transparent 0 calc(50% + 34px), var(--bg) 0); }
+  }
+}
+/* Song: the open editor's grid. A step is at most 48 px wide (a 1-bar riff
+   drew 98-135 px steps); what is left of the width shows the pattern
+   again, as ghosts (pagefill.js's canvas, in the rows' empty right). The
+   roll's rows share the editor's room — between 14 and 26 px, the height
+   pagefill.js works out from what the pane may take (--roll-row) — so the
+   editor is as tall as the pattern needs, never more than its 55 %. */
+@media (min-width: 901px) {
+  html:not([data-density="comfy"]) {
+    /* the step's width is the pane's share and at most 48 px: a fixed length,
+       not 48 px against 1fr — a row is max-content wide (its labels stick),
+       so a 48 px cap drew an 8-bar pattern 48 px a step and scrolled it */
+    .song-drawer .drawer-grid-wrap { container-type: inline-size; }
+    .song-drawer .grid { --row-head: 46px;
+      --step-max: max(var(--step-min), min(48px, calc((100cqi - var(--row-head)) / var(--steps, 16) - 2px))); }
+    .song-drawer .grid.drum-grid-8 { --row-head: 116px; }
+    /* its tools in as few rows as the width allows (two at most): the
+       cell's line beside the pattern's rack, the roll's
+       own bar beside the arp — each wraps under the other when it must */
+    .song-drawer:not([hidden]) { display: flex; flex-wrap: wrap; align-content: flex-start; column-gap: var(--s4); }
+    .song-drawer > * { flex: 1 1 100%; min-width: 0; }
+    .song-drawer > .drawer-tools { flex: 0 1 auto; }
+    .song-drawer > .drawer-rack { flex: 1 1 auto; width: auto; }
+    .song-drawer .roll-box { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s15) var(--s4); }
+    .song-drawer .roll-box > .drawer-notes { display: contents; }
+    .song-drawer .roll-box > .roll-bar, .song-drawer .roll-box .drawer-arp { flex: 0 1 auto; }
+    .song-drawer .roll-box .grid { flex: 1 1 100%; min-width: 0; }
+    .song-drawer .grid.roll .gridrow:not(.sliderow) > .cell { height: var(--roll-row, 17px); }
+    .drawer-place { display: none; }
+  }
+}
+@media (min-width: 1900px) {
+  html:not([data-density="comfy"]) {
+    .song-drawer .grid.drum-grid-8 { --row-head: 172px; } /* (its head holds the row's knobs from 1900 px: D26) */
+  }
+}
+@media (min-width: 2200px) {
+  html:not([data-density="comfy"]) {
+    /* under | beside: the editor's place, from 2200 px where both fit */
+    .drawer-place { display: inline-flex; }
+  }
+}

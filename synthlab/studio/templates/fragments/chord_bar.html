@@ -1,0 +1,100 @@
+{# synthlab/studio/templates/fragments/chord_bar.html #}
+{# Play tools, the last item of the keyboard dock's toolbar (piano.html
+   includes it): the note pads (every tone of the key over two octaves —
+   the big-thumb surface), the I–VII chord pads for the transport's
+   root+scale, the harmonics, the chord library and the code line.
+   chords.js owns the behaviour; data-chords carries every voicing's chord
+   set. What a key plays (a note or a chord: the toolbar's Play group),
+   its strum and the typing rows (its QWERTY group) are the toolbar's,
+   outside this region.
+
+   A region (service.REGIONS "chord-bar", watching root + scale): a key
+   change re-sends it OOB as a morph, not a replacement, so the typed
+   code line keeps its value and the pad blocks keep their ids for
+   chords.js to re-open. #}
+<section id="chord-bar" class="chord-bar fold-body" aria-label="Notes and chords"
+         data-chords='{{ chord_sets | tojson }}' data-bar-beats="{{ bar_beats }}"{% if loop_track %} data-track='{{ loop_track | tojson }}'{% endif %}
+         {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  {# Play tools: pads, chords and the code line are for playing and writing
+     parts, not for shaping the sound, so they fold into one drawer on the
+     keyboard dock instead of sitting between the keyboard and the panels.
+     A manual popover over the page, above the dock at
+     its right end (as a <details> it opened as a line of its own, the
+     button jumping to the left of it): the button stays put, a key played
+     on the dock leaves it open, and only the button shuts
+     it. chords.js remembers it open like the pad blocks. #}
+  <button data-cmd="Play tools: pads and chords" data-cmd-group="Keys" type="button" class="btn btn-s play-tools-btn" popovertarget="play-tools"
+          title="Pads and chords to play by hand: notes in key · chords in key · harmonics · all chords · type a progression">Play tools</button>
+  <div popover="manual" class="play-tools pop" id="play-tools" aria-label="Play tools">
+  <div class="play-tools-body">
+  {# every pad block collapses — the keyboard is the surface you reach for
+     first, and 500-odd pads between it and the panels pushed the sound
+     controls off the screen entirely — but for the chords in key, the
+     one you came for (`data-open`: its default). chords.js remembers what
+     you last opened. #}
+  <details class="pad-block" id="pads-notes">
+  <summary class="pads-label" id="note-pads-label">notes in key</summary>
+  <div class="note-pads" role="group" aria-labelledby="note-pads-label">
+    {% for n in note_pads %}
+    <button type="button" class="note-pad {% if n.degree == 1 %}root{% endif %}"
+            data-midi="{{ n.midi }}" aria-label="play {{ n.name }}">
+      {{ n.name }}<span class="np-deg" aria-hidden="true">{{ n.degree }}</span>
+      <span class="khint" aria-hidden="true"></span>
+    </button>
+    {% endfor %}
+  </div>
+  </details>
+  <details class="pad-block" id="pads-chords" data-open>
+  <summary class="pads-label">chords in key</summary>
+  <div class="chord-pads" role="group" aria-label="Chord pads (keys 1–7)">
+    {% for c in chord_sets["triad"] %}
+    <button type="button" class="chord-pad" data-degree="{{ c.degree }}"
+            data-notes='{{ c.notes | tojson }}' title="{{ c.roman }} · key {{ c.degree }}"
+            aria-label="play {{ c.name }} ({{ c.roman }})">
+      <span class="chord-roman">{{ c.roman }}</span>{{ c.name }}
+      <span class="khint" aria-hidden="true"></span>
+    </button>
+    {% endfor %}
+  </div>
+  {#- chords.js: with the loop playing over a chord track of its
+      own (Perform's chord lane: data-track), a key in chord mode plays the
+      chord under the playhead and its pad lights. Off by default, per
+      browser (synthlab.chordsFollow) -#}
+  <button type="button" id="chords-follow" class="btn btn-s chords-follow" aria-pressed="false"
+          data-cmd="Chords in key: follow the loop's chords, on / off" data-cmd-group="Keys"
+          title="Follow the loop's chords (lit): while the loop plays, a key in chord mode plays the chord the loop's chord lane (on the Loops page) holds under the playhead — any key, that chord near it — and its pad lights. {{ 'The loop has no chords yet: give it some on the Loops page.' if not loop_track else '' }}"><i class="led" aria-hidden="true"></i>follow the loop's chords</button>
+  </details>
+  <details class="pad-block" id="pads-harmonics">
+  <summary class="pads-label" id="harm-pads-label">harmonics of {{ arrangement.root.rstrip("-0123456789") }}</summary>
+  <div class="note-pads" role="group" aria-labelledby="harm-pads-label">
+    {% for h in harmonic_pads %}
+    <button type="button" class="note-pad harm {% if h.partial == 1 %}root{% endif %}"
+            data-midi="{{ h.midi }}" aria-label="play harmonic {{ h.partial }}, {{ h.name }}">
+      {{ h.name }}<span class="np-deg" aria-hidden="true">{{ h.partial }}</span>
+      <span class="khint" aria-hidden="true"></span>
+    </button>
+    {% endfor %}
+  </div>
+  </details>
+  {# The chord-chart poster: every root x quality. ~500 buttons and 68KB of
+     attributes, which is most of the page — so it is fetched on first open
+     rather than rendered into every page load. The key rides in its URL
+     (the route ignores it): a key change morphs a new hx-get in, and htmx
+     re-arms the "once", so the next open fetches the new key's chart. #}
+  <details class="chord-lib" id="chord-lib"
+           hx-get="/fragment/chordlib?key={{ arrangement.root | urlencode }}-{{ arrangement.scale_name | urlencode }}" hx-trigger="toggle once"
+           hx-target="find .lib-body" hx-swap="innerHTML">
+    <summary class="pads-label">all chords · major, minor, seventh, extended, sus, dim, aug, add, altered</summary>
+    <div class="lib-body"><p class="skel">loading…</p></div>
+  </details>
+  <form class="code-line">
+    <label>code <input class="field field-s" name="code" autocomplete="off" spellcheck="false"
+                       placeholder="C4 E4 G4  ·  Am7 F C G  ·  I V vi IV"
+                       title="notes (C4), chord symbols (Am7, Fmaj7, G5), roman numerals (I, vi) — one per beat, ~ = rest"></label>
+    <button type="submit" class="btn btn-s" title="play this progression">Play</button>
+    <button type="button" class="btn btn-s" hx-post="/fragment/chords/grid" hx-include="closest form" hx-swap="none"
+            title="write this progression into the Loops page's note grid" data-cmd="Write the typed progression to the grid">→ grid</button>
+  </form>
+  </div>
+  </div>
+</section>

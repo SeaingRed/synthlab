@@ -1,0 +1,72 @@
+{# synthlab/studio/templates/fragments/hub_bench.html
+   The clip hub's bench: the selected item (`hub.bench`, service/hubpage.py
+   `hub_bench_context`). Facts, the player, Tune, Send to, Make from it and
+   the make's result. A GET (`/fragment/hub/bench`) answers with this whole
+   section, morphed; its parts answer alone (`#hub-player` on a tune,
+   `#hub-send` on a Place section, `#hub-result` on a make). #}
+{% set b = hub.bench %}{% set it = hub.item %}
+<section class="hub-bench module" id="hub-bench" data-module="clips.bench" aria-label="the selected clip" data-ref="{{ b.ref if b else '' }}">
+  {% if b %}
+  <header class="hub-bench-head">
+    <h2 class="hub-title">{{ it.name }}</h2>
+    <span class="badge badge-signal">{{ it.kind_label }}</span>
+    <p class="hub-facts">
+      {{ it.source }}{% if it.seconds %} · {{ "%g" | format(it.seconds) }} s{% endif %}
+      {%- set f = b.facts %}
+      {% if it.bpm %} · {{ it.bpm }} bpm{% elif f and f.bpm %} · ~{{ "%.0f" | format(f.bpm) }} bpm <small>(measured, {{ "%.0f" | format(f.bpm_conf * 100) }}% sure)</small>{% elif b.playable %} · no tempo found{% endif %}
+      {% if it.key %} · {{ it.key }}{% elif f and f.key %} · ~{{ f.key }} <small>(measured)</small>{% endif %}
+      · {% if b.used %}in use: {{ b.used }}{% else %}not used yet{% endif %}
+    </p>
+  </header>
+
+  {% include "fragments/hub_player.html" %}
+
+  {% if b.playable %}
+  <details class="hub-sec hub-tune-sec" open>
+    <summary class="caps">Tune</summary>
+    {# every change re-asks for the player: the audio URL carries the tune
+       (nothing is written until Keep or Update) #}
+    <form id="hub-tune" class="hub-tune" hx-get="/fragment/hub/player" hx-target="#hub-player"
+          hx-swap="outerMorph" hx-trigger="change" hx-sync="this:queue last">
+      <input type="hidden" name="item" value="{{ b.ref }}">
+      {% set t = b.tune %}{% set r = b.tune_ranges %}
+      <label class="param param-knob"><input type="range" class="knob" name="semis" min="{{ r.semis[0] }}" max="{{ r.semis[1] }}" step="1" value="{{ t.semis }}" data-default="0"><span>semitones</span><output>{{ t.semis }}</output></label>
+      <label class="param param-knob"><input type="range" class="knob" name="cents" min="{{ r.cents[0] }}" max="{{ r.cents[1] }}" step="1" value="{{ t.cents }}" data-default="0"><span>cents</span><output>{{ t.cents }}</output></label>
+      <label class="param param-knob"><input type="range" class="knob" name="rate" min="{{ r.rate[0] }}" max="{{ r.rate[1] }}" step="0.01" value="{{ t.rate }}" data-default="1"><span>rate (tape)</span><output>{{ t.rate }}</output></label>
+      <label class="param param-knob"><input type="range" class="knob" name="gain_db" min="{{ r.gain_db[0] }}" max="{{ r.gain_db[1] }}" step="0.5" value="{{ t.gain_db }}" data-default="0"><span>gain dB</span><output>{{ t.gain_db }}</output></label>
+      <label class="hub-num">start s <input type="number" class="field field-s" name="start" min="0" max="{{ r.start[1] }}" step="0.01" value="{{ t.start }}"></label>
+      {#- an end of 0 is "to the end": empty with the clip's length as its
+          placeholder, never a "0.0" that reads as no length -#}
+      {% set to_end = ("%g" | format(it.seconds)) if it.seconds else "end" %}
+      <label class="hub-num" title="where the clip stops · empty: at its end{{ ' (' ~ to_end ~ ' s)' if it.seconds }}">end s <input type="number" class="field field-s" name="end" min="0" max="{{ r.end[1] }}" step="0.01"
+             value="{{ t.end if t.end else '' }}" placeholder="{{ to_end }}" aria-label="end, in seconds (empty: the clip's end)"></label>
+      <label class="hub-check"><input type="checkbox" class="check" name="reverse" {% if t.reverse %}checked{% endif %}> reverse</label>
+      <span class="hub-tune-acts">
+        <button type="button" class="btn btn-s" hx-post="/hub/tune/keep" hx-target="body" hx-swap="innerMorph"
+                hx-include="#hub-tune" data-cmd="Keep the tuned clip as a new clip" data-cmd-group="Clip hub"
+                title="keep the tuned audio as a new clip (this one stays as it is)">Keep as new clip</button>
+        {% if b.kind == "clip" %}
+        <button type="button" class="btn btn-s btn-ghost" hx-post="/hub/tune/update" hx-target="body" hx-swap="innerMorph"
+                hx-include="#hub-tune" hx-confirm="{{ b.update_confirm }}"
+                data-cmd="Write the tuned audio over this clip" data-cmd-group="Clip hub"
+                title="write the tuned audio over this clip (↶ Undo puts it back)">Update this clip…</button>
+        {% endif %}
+        <a class="btn btn-s btn-ghost" href="/view/clips?item={{ b.ref | urlencode }}"
+           hx-get="/fragment/hub/bench?item={{ b.ref | urlencode }}" hx-target="#hub-bench" hx-swap="outerMorph"
+           title="put every tune control back">Reset</a>
+      </span>
+    </form>
+  </details>
+  {% endif %}
+
+  {% include "fragments/hub_send.html" %}
+
+  {% if b.playable %}
+  {% include "fragments/hub_make.html" %}
+  {% set r = None %}{% include "fragments/hub_result.html" %}
+  {% endif %}
+  {% else %}
+  <p class="hub-hint hub-pick">Pick a clip on the left to hear it, tune it, send it, or make a beat
+    or a part from it.</p>
+  {% endif %}
+</section>

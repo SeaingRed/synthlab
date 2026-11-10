@@ -1,0 +1,99 @@
+{# synthlab/studio/templates/fragments/presets.html #}
+{# A read-only shelf of the dock: `source` is the name `sounds.find` and
+   /fragment/layer/add know it by, `route` its load and audition path.
+   A card's name loads it into the layer being edited; with more than one
+   sound in the stack, or a card with layers of its own (`data-layered`),
+   it first asks what it replaces — this layer / the whole sound / add as
+   a layer (soundmenu.js; the default focused is what it always did). #}
+{% macro shelf(title, sounds, source, route, family="") %}
+  {% if sounds %}
+  <section class="dock-shelf">
+  <h3 class="lib-section caps">{{ title }} <small>{{ sounds | length }}</small></h3>
+  <ul class="sound-cards">
+    {% for p in sounds %}
+    <li>
+      <article class="sound-card factory" data-ctx="{{ p.name }}" data-name="{{ p.name }}"{% if p.layered %} data-layered{% endif %}
+                data-tags="{{ ((p.tags | list) + ([family] if family and family not in p.tags else [])) | join(' ') }}"
+                data-audition-url="/{{ route }}/{{ p.name | urlencode }}/audition.wav">
+        <button type="button" class="load" data-menu="Load into the layer you are editing" title="load “{{ p.name }}” into the layer you are editing" hx-post="/fragment/{{ route }}/load"
+                hx-vals='{{ {"name": p.name} | tojson }}' hx-target="body" hx-swap="innerMorph">
+          <span class="sc-name">{{ p.name }}</span>
+          <svg class="spark sig" viewBox="{{ p.spectrum | sig_box }}" preserveAspectRatio="none" aria-hidden="true">
+            <path d="{{ p.spectrum | default([]) | sig_path }}"/>
+          </svg>
+          <span class="tagchips">{% for t in p.tags %}<i>{{ t }}</i>{% endfor %}</span>
+        </button>
+        <button type="button" class="btn btn-ghost btn-icon btn-s audition sc-play" data-menu="Hear" title="hear it: this sound alone, playing the phrase" data-note="/{{ route }}/{{ p.name | urlencode }}/audition.wav"
+                aria-label="hear {{ p.name }}: the phrase, on its own">▶</button>
+        <button type="button" class="btn btn-ghost btn-icon btn-s sc-layer" data-menu="Add as a new layer" hx-post="/fragment/layer/add"
+                hx-vals='{{ {"source": source, "name": p.name} | tojson }}' hx-target="body" hx-swap="innerMorph"
+                title="Add as a new layer — with every layer full, or on a song track, it replaces the sound you are editing" aria-label="add {{ p.name }} as a new layer">＋</button>
+      </article>
+    </li>
+    {% endfor %}
+  </ul>
+  </section>
+  {% endif %}
+{% endmacro %}
+<div class="sound-library" id="preset-list">
+  {# client-side narrowing over user + factory cards, same machinery as the
+     Library view's search: its box, #dock-filter, is in the
+     dock's sticky head (views/editor.html), outside this refreshed list #}
+  {#- a filter that matches nothing says so (audio.js fills the query in);
+      each shelf's count reads "n of N" while one is typed, and an empty
+      shelf goes with its heading -#}
+  <p class="empty-state" id="dock-none" role="status" hidden><span>No sound matches <q></q>: clear it (Esc), or
+    <a {{ view_link("/view/library") }}>search the Library →</a></span></p>
+  <section class="dock-shelf">
+  <h3 class="lib-section caps">Yours <small>{{ presets | length }}</small></h3>
+  {% if not presets %}<p class="empty-state">Sounds you save land here: “Save sound…” in the bar. {% include "fragments/empty_play.html" %}</p>{% endif %}
+  <ul class="sound-cards">
+    {% for p in presets %}
+    <li>
+      <article class="sound-card {{ 'starred' if p.starred }}{{ ' just-saved' if just_saved and p.name == just_saved }}" data-ctx="{{ p.name }}" data-name="{{ p.name }}"{% if p.layered %} data-layered{% endif %}
+                data-tags="{{ p.tags | join(' ') }}"
+                data-audition-url="/preset/{{ p.name | urlencode }}/audition.wav">
+        <button type="button" class="load" data-menu="Load into the layer you are editing" title="load “{{ p.name }}” into the layer you are editing" hx-post="/fragment/preset/load"
+                hx-vals='{{ {"name": p.name} | tojson }}' hx-target="body" hx-swap="innerMorph">
+          <span class="sc-name">{{ p.name }}</span>
+          <svg class="spark sig" viewBox="{{ p.spectrum | sig_box }}" preserveAspectRatio="none" aria-hidden="true">
+            <path d="{{ p.spectrum | default([]) | sig_path }}"/>
+          </svg>
+          <span class="tagchips">{% for t in p.tags %}<i>{{ t }}</i>{% endfor %}</span>
+        </button>
+        <button type="button" class="btn btn-ghost btn-icon btn-s audition sc-play" data-menu="Hear" title="hear it: this sound alone, playing the phrase" data-note="/preset/{{ p.name | urlencode }}/audition.wav"
+                aria-label="hear {{ p.name }}: the phrase, on its own">▶</button>
+        <button type="button" class="btn btn-ghost btn-icon btn-s sc-layer" data-menu="Add as a new layer" hx-post="/fragment/layer/add"
+                hx-vals='{{ {"source": "preset", "name": p.name} | tojson }}' hx-target="body" hx-swap="innerMorph"
+                title="Add as a new layer — with every layer full, or on a song track, it replaces the sound you are editing" aria-label="add {{ p.name }} as a new layer">＋</button>
+        <button type="button" class="btn btn-ghost btn-icon btn-s star" data-menu="Favourite" title="favourite" hx-post="/fragment/preset/star"
+                hx-vals='{{ {"name": p.name} | tojson }}' hx-target="#preset-list" hx-swap="outerHTML"
+                aria-pressed="{{ 'true' if p.starred else 'false' }}"
+                aria-label="star {{ p.name }}">★</button>
+        <button type="button" class="btn btn-ghost btn-icon btn-s rename" data-menu="Rename…" title="rename" hx-post="/fragment/preset/rename"
+                hx-vals='{{ {"name": p.name} | tojson }}' hx-prompt="Rename" data-name="{{ p.name }}"
+                hx-target="#preset-list" hx-swap="outerHTML"
+                aria-label="rename {{ p.name }}">✎</button>
+        <details class="del">
+          <summary class="btn btn-ghost btn-icon btn-s" data-menu="Delete…" title="delete" aria-label="delete {{ p.name }}">✕</summary>
+          <button type="button" class="btn btn-s btn-danger" hx-post="/fragment/preset/delete"
+                  hx-vals='{{ {"name": p.name} | tojson }}'
+                  hx-target="#preset-list" hx-swap="outerHTML">sure?</button>
+        </details>
+      </article>
+    </li>
+    {% endfor %}
+  </ul>
+  </section>
+  {# Every sound there is, without leaving Synths: the factory set, the
+     genre recipes (whole Sounds: their FX, curves and layers come too) and
+     the Library's families, dark to bright. While a song track's sound is
+     being edited a load here lands in that track — going to the Library
+     page ends the edit and loads into the loop instead. #}
+  {{ shelf("Factory", factory, "factory", "factory") }}
+  {{ shelf("Recipes", recipes | default([]), "recipes", "recipe") }}
+  {% for family, members in library | default([]) %}
+  {{ shelf(family, members, "library", "library", family) }}
+  {% endfor %}
+  <a class="dock-more" {{ view_link("/view/library") }}>The Library page: compare and filter →</a>
+</div>

@@ -1,0 +1,26 @@
+[project]
+name = "synthlab-dsp"
+version = "0.1.0"
+description = "synthlab's native DSP kernels (Rust, via PyO3)"
+requires-python = ">=3.13"
+dependencies = ["numpy>=2.1"]
+
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+module-name = "synthlab_dsp"
+features = ["pyo3/extension-module"]
+
+[tool.uv]
+# uv caches the built wheel; rebuild it whenever the Rust changes
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "src/**/*.rs" },
+    { file = "../dsp/Cargo.toml" },
+    { file = "../dsp/src/**/*.rs" },
+    { file = "../Cargo.toml" },
+    { file = "../Cargo.lock" },
+]

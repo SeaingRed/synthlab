@@ -1,0 +1,82 @@
+{# synthlab/studio/templates/views/mixer.html #}
+{# The Mix view (song creation): the song's tracks as channel strips,
+   the returns they send to, and the master strip — tiled to the window.
+   Grid areas at both breakpoints (style.css section 28, `.mixer-view`):
+   head / bar / strips / returns / master; at <= 900px they stack and the
+   strips scroll sideways.
+
+   The board (bar, strips, returns) is the `mixer-strips` region; the
+   master strip is outside it: its rack is the session's master chain
+   (`#fx-rack`, the same fragment and routes as on Synths — the song plays
+   through it) and its meter is the live output. The page plays the song
+   through song.js's player (data-song-action), so a mute, a pan or a send
+   is heard from the next pass; mixer.js lights the strips' meters from
+   the plan and keeps the keyboard inside a strip. #}
+{#- data-own-keys: L loops the section here (song.js), so the keyboard dock's
+    typing never plays it on this page (piano.js `typing`) -#}
+<main class="cockpit mixer-view" id="view" hx-history-elt data-view="mixer" data-own-keys="KeyL">
+  <header class="view-head">
+    <h1>Mix</h1>
+    <p class="view-sub">One strip a track: level, pan, two sends, a duck under the kick, a three-band EQ. Returns and the master on the right.</p>
+    <div id="head-how" class="pop head-how" popover><p class="view-how">Drag a fader or a knob (Shift, or a pen’s barrel button: fine), or focus it and use the wheel or the arrow keys; double-click or the eraser is its default; click the value to type one. Tab moves control to control; a knob’s or a fader’s own arrows change it (← → pan a pan knob). A and B send a track to the shared reverb and delay — the first send turned up adds them. Balance sets each track that has a role to its level under the drums. Every change is one Ctrl+Z, and is heard from the next pass.</p></div>
+    <div class="head-tools">{% include "fragments/head_help.html" %}{% include "fragments/reset_menu.html" %}</div>
+  </header>
+  {% with oob = false %}{% include "fragments/mixer_strips.html" %}{% endwith %}
+  <aside class="panel mix-master module" id="mix-master" data-module="mix.master" aria-label="Master">
+    <h2 class="caps">Master</h2>
+    {#- the output, live: its two sides (mixer.js reads them off the master
+        bus), and the listening level — the fader IS #volume, the same one
+        as the keyboard dock's: how loud you hear it, never what is exported
+        (that is the target below) -#}
+    <div class="mix-level mix-master-level">
+      <span class="meter meter-v mix-out" id="mix-out-l" role="img" aria-label="output level, left" title="Left, live"><i></i><b></b></span>
+      <span class="meter meter-v mix-out" id="mix-out-r" role="img" aria-label="output level, right" title="Right, live"><i></i><b></b></span>
+      {#- the listening level: the keyboard dock's Monitor Volume (#volume) is
+          the same one, and every [data-volume] moves with it (audio.js) -#}
+      <input type="range" class="knob fader" id="mix-volume" data-volume min="0" max="1" step="0.01" value="0.8" data-default="0.8"
+             style="--fill: 80%" aria-label="master listening level"
+             title="Listening level: how loud you hear the song here — not saved, not exported (the target sets the export) · double-click: 80%">
+      <output class="mix-val" for="mix-volume" data-pct>80%</output>
+      <span class="caps mix-lr" aria-hidden="true"><span>L</span><span>R</span><span>out</span></span>
+    </div>
+    {#- what a mastering desk reads off the bus, live while this view shows
+        (pagefill.js, off the master bus: a K-weighted tap for the loudness —
+        BS.1770's two filters as Web Audio biquads, so near, not certified:
+        the export's own number is "measure" below — and the plain two
+        sides for the peak and the correlation). Integrated counts from the
+        last ▶ (a click on it starts it again). The spectrum and the stereo
+        field are the Visuals page's 1/3-octave and goniometer, drawn from
+        the one frame motion.js reads; the history is the short-term over
+        the last 30 s, the target's line on it -#}
+    <div class="mm-read" id="mm-read" role="group" aria-label="Master read-outs">
+      <div class="mm-cell mm-big" title="Short-term loudness: the last 3 s, K-weighted (live; near BS.1770 — the export's own number is measure, below)">
+        <span class="caps">short-term</span><output id="mm-st">—</output><small>LUFS</small>
+        <span class="mm-bar" aria-hidden="true"><i id="mm-st-bar"></i></span></div>
+      <button type="button" class="mm-cell mm-big mm-int" id="mm-int-reset" data-cmd="Mix: count the integrated loudness from now" data-cmd-group="Mix"
+              title="Integrated loudness since the last ▶ (gated as BS.1770 gates it: what is under −70 LUFS, then 10 LU under the average, is left out) — click to count from now">
+        <span class="caps">integrated</span><output id="mm-int">—</output><small>LUFS</small></button>
+      <div class="mm-cell" title="Momentary loudness: the last 400 ms"><span class="caps">momentary</span><output id="mm-mom">—</output><small>LUFS</small></div>
+      <div class="mm-cell" title="Sample peak, held 1.5 s, and the highest since ▶ (the export's true peak is measure's)">
+        <span class="caps">peak</span><output id="mm-pk">—</output><small>dB</small><span class="mm-sub">max <output id="mm-pk-max">—</output></span></div>
+      <div class="mm-cell mm-corr" title="Correlation of the two sides: +1 is mono, 0 is wide, under 0 the sides cancel (red)">
+        <span class="caps">correlation</span><output id="mm-corr">—</output>
+        <span class="mm-corr-bar" aria-hidden="true"><i id="mm-corr-at"></i></span></div>
+      <div class="mm-cell" title="The loudness range of the short-term over the last 30 s: how far the quiet and the loud parts are apart (10th to 95th percentile)">
+        <span class="caps">range</span><output id="mm-lra">—</output><small>LU</small></div>
+    </div>
+    <figure class="mm-scope mm-spec"><figcaption class="caps">spectrum · 1/3 oct</figcaption><canvas id="mm-spec" aria-hidden="true"></canvas></figure>
+    <figure class="mm-scope mm-gonio"><figcaption class="caps">stereo</figcaption><canvas id="mm-gonio" aria-hidden="true"></canvas></figure>
+    <figure class="mm-scope mm-hist"><figcaption class="caps">short-term · 30 s</figcaption><canvas id="mm-hist" aria-hidden="true"></canvas></figure>
+    <div class="mix-loud" role="group" aria-label="Loudness">
+      <label title="As played: the song exactly as it plays here. A LUFS target masters the export to that loudness, limited to -1 dB true peak"><span class="caps">target</span>
+        <select id="song-loudness-target" name="loudness" class="field field-s">
+          {% for key, target in loudness_targets.items() %}<option value="{{ key }}" {% if target.lufs is not none %}data-lufs="{{ target.lufs }}" {% endif %}{% if loop.first %}selected{% endif %}>{{ target.label }}</option>{% endfor %}
+        </select></label>
+      <button type="button" class="btn btn-s" hx-get="/export/song/loudness" hx-include="#song-loudness-target"
+              hx-target="#song-loudness" hx-swap="outerHTML" data-cmd="Measure the export's loudness" data-cmd-group="Export"
+              {% if mix.empty %}disabled{% endif %} title="Measure the export at this loudness: integrated LUFS and true peak">measure</button>
+      <output id="song-loudness" class="song-loudness" aria-live="polite"></output>
+    </div>
+    {% include "fragments/fx_rack.html" %}
+  </aside>
+</main>

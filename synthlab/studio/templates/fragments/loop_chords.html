@@ -1,0 +1,53 @@
+{# synthlab/studio/templates/fragments/loop_chords.html — the menus of
+   Perform's chord lane (grids.html `chord_lane`): the working
+   loop's chord track, `Arrangement.chords`, edited by POST
+   /fragment/chords/track (routes/pattern.py: the Song page's chord edits,
+   `songops.edit_chords`, on the loop's track). Drawn for `chord_lane`
+   (service/contexts.py `loop_chord_lane`), inside the transport region,
+   so a key change re-sends them with the roll.
+
+   Buttons only, and the menu's two fields are not the grid form's
+   (`form` names no form): nothing here posts with the grid's own post.
+   It renders nothing — the generators follow it from their next roll. #}
+{#- a tile's menu (menu.js fills the fields from the tile, presses its
+    degree, quality and inversion: data-ctx-state) -#}
+<div id="loop-chord-menu" class="pop menu ctx-menu" popover role="group" aria-label="This chord of the loop">
+  <input type="hidden" name="scope" data-from="scope" form="loop-chord-menu">
+  <input type="hidden" name="slot" data-from="slot" form="loop-chord-menu">
+  <p class="menu-label menu-now"></p>
+  <div class="menu-row chord-degs" role="group" aria-label="degree">
+    {% for d in chord_lane.degrees %}<button type="button" class="btn btn-s menu-btn" data-is="deg-{{ d.deg }}" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "deg": "{{ d.deg }}"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide"
+            aria-label="{{ d.roman }}, {{ d.name }}" title="{{ d.name }} ({{ d.deg }} on the keys)">{{ d.roman }}</button>{% endfor %}
+  </div>
+  <div class="menu-row" role="group" aria-label="quality">
+    {% for q in chord_lane.qualities %}<button type="button" class="btn btn-s menu-btn" data-is="q-{{ q }}" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "q": "{{ q }}"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">{{ q }}</button>{% endfor %}
+  </div>
+  <div class="menu-row" role="group" aria-label="inversion">
+    <span class="menu-label">inversion</span>
+    {% for name in ("root", "1st", "2nd") %}<button type="button" class="btn btn-s menu-btn" data-is="inv-{{ loop.index0 }}" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "inv": "{{ loop.index0 }}"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">{{ name }}</button>{% endfor %}
+  </div>
+  <hr class="menu-sep">
+  <button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "split"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">Split in two</button>
+  <button type="button" class="menu-item danger" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "remove"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">Remove <kbd>Del</kbd></button>
+</div>
+{#- the progression's tools: one from the menu (the key's own list), ⚄ another,
+    one chord more or fewer, the length that repeats, none -#}
+<div id="loop-chord-tools" class="pop menu loop-chord-tools" popover role="group" aria-label="The loop's chords">
+  <p class="menu-label">{{ chord_lane.label or "no chords yet" }}</p>
+  <button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "roll"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide"
+          data-cmd="Roll the loop's chords again" data-cmd-group="Pattern" title="Another progression from this key's list">⚄ Another progression</button>
+  <hr class="menu-sep">
+  {% for m in chord_lane.menu %}<button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "preset", "prog": "{{ loop.index0 }}"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide">{{ m.label }}<span class="menu-hint">{{ m.bars }} bar{{ "" if m.bars == 1 else "s" }}</span></button>{% endfor %}
+  <hr class="menu-sep">
+  <div class="menu-row" role="group" aria-label="chords and length">
+    <button type="button" class="btn btn-s menu-btn" hx-post="/fragment/chords/track" hx-vals='{"op": "add"}' hx-swap="none"
+            data-cmd="Add a chord to the loop's" data-cmd-group="Pattern" title="One more chord (the bars are shared out again)">+ chord</button>
+    <button type="button" class="btn btn-s menu-btn" hx-post="/fragment/chords/track" hx-vals='{"op": "remove", "slot": "{{ chord_lane.slots - 1 }}"}' hx-swap="none"
+            {% if chord_lane.slots <= 1 %}disabled{% endif %} data-cmd="Remove the loop's last chord" data-cmd-group="Pattern" title="One chord fewer">− chord</button>
+    <span class="menu-label">over</span>
+    {% for b in limits.CHORD_BAR_CHOICES %}<button type="button" class="btn btn-s menu-btn" data-is="bars-{{ b }}" aria-pressed="{{ 'true' if b == chord_lane.bars and chord_lane.label else 'false' }}" hx-post="/fragment/chords/track" hx-vals='{"op": "bars", "bars": "{{ b }}"}' hx-swap="none" title="the progression repeats every {{ b }} bar{{ '' if b == 1 else 's' }}">{{ b }}</button>{% endfor %}
+  </div>
+  <hr class="menu-sep">
+  <button type="button" class="menu-item danger" hx-post="/fragment/chords/track" hx-vals='{"op": "clear"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide"
+          {% if not chord_lane.label %}disabled{% endif %} data-cmd="Clear the loop's chords" data-cmd-group="Pattern">Clear the loop's chords</button>
+</div>

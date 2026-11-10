@@ -1,0 +1,76 @@
+{# synthlab/studio/templates/fragments/colours.html
+   The Colours popover (its button is the rail's, beside the theme toggle):
+   the themes' swatches, then a hue slider a role and one that turns them
+   all (--hue-shift), on
+   style.css section 1's variables, and the ladder's two dials under them
+   (contrast, black level). colours.js sets them on <html> and keeps them
+   per browser; a slider's default (double click, the eraser, the menu's
+   Reset to default) is the theme's own, Reset clears them all (the theme
+   stays).
+   No `name` anywhere: nothing here is a form field the server sees. #}
+<div id="colours-pop" class="pop colours-pop" popover aria-label="Colours">
+  <p class="caps">Colours <small>· this browser</small></p>
+  {#- the themes (style.css section 1, `html[data-look]`: a named set of the
+      dials below, each a colour scheme): a swatch each, the page in
+      miniature — it takes its theme's own rule (.look-sw[data-look]) and
+      draws the theme's surface, text and five role colours in the night or
+      day it is. One click applies it (colours.js); the sliders then show
+      its values, and a slider moved from them makes it "custom". The names
+      are the commands' ("Theme: Warm Tube"). -#}
+  <p class="look-now">theme <output id="look-now">Studio Teal</output></p>
+  <div class="look-row" role="group" aria-label="theme">
+    {% for key, name, scheme in [
+      ("studio", "Studio Teal", "split complementary: amber on slate, teal and violet its splits"),
+      ("warm-tube", "Warm Tube", "analogous: a filament's red, orange and amber on warm brown-black, cream text; the magic eye's green sounds"),
+      ("analog-moog", "Analog Moog", "complementary: orange and blue on walnut and cream"),
+      ("neon-night", "Neon Night", "split complementary: magenta with cyan and lime on deep indigo"),
+      ("mono-lab", "Mono Lab", "monochrome + accent: graphite, every role muted under one safety orange"),
+      ("vintage-console", "Vintage Console", "triadic: red, yellow and blue caps on grey-blue steel, cream legends"),
+      ("phosphor", "Phosphor", "analogous greens: a green CRT, with the amber terminal for the hand"),
+    ] %}
+    <button type="button" class="look-sw" data-look="{{ key }}" aria-pressed="false"
+            data-cmd="Theme: {{ name }}" data-cmd-group="View" title="{{ name }} — {{ scheme }}">
+      <span class="look-name">{{ name }}</span><span class="look-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
+    {% endfor %}
+  </div>
+  {% for key, label, hint in [
+    ("shift", "all", "turn every colour by the same angle"),
+    ("accent", "accent", "what is on: a lit step, the primary, selection"),
+    ("signal", "signal", "what is sounding: traces, meters, audio leads"),
+    ("neutral", "surfaces", "the tint of the page, panels and lines"),
+    ("danger", "danger", "delete, record, stop"),
+    ("ai", "AI", "the AI features"),
+    ("go", "play", "the transport's ▶"),
+    ("pause", "pause", "the transport's ⏸"),
+    ("glow", "glow", "the light the instrument gives off while it is played: a played module's edge, a struck key, the brand"),
+  ] %}
+  <label class="colours-row" title="{{ hint }}"><span>{{ label }}</span>
+    <input type="range" class="colours-hue" data-hue="{{ key }}" aria-label="{{ label }} hue"
+           min="{{ -180 if key == 'shift' else 0 }}" max="{{ 180 if key == 'shift' else 359 }}" step="1">
+    <output data-unit="°"></output></label>
+  {% endfor %}
+  {#- the depths: the lightness ladder's two dials (style.css section 1,
+      --contrast and --black-level), in percent; a hue's popover row each -#}
+  {% for key, label, hint, lo, hi, at in [
+    ("contrast", "contrast", "pulls the surfaces, lines and text apart (more) or together (less), both themes — under 100 % the dim text and a field's edge drop below WCAG AA", 80, 140, 100),
+    ("black", "black", "black level: the night's base down to true black (100 % = an OLED black); the surfaces keep their steps", 0, 100, 0),
+  ] %}
+  <label class="colours-row" title="{{ hint }}"><span>{{ label }}</span>
+    <input type="range" class="colours-depth" data-depth="{{ key }}" aria-label="{{ 'black level' if key == 'black' else label }}"
+           min="{{ lo }}" max="{{ hi }}" step="1" value="{{ at }}" style="--fill: {{ ((at - lo) / (hi - lo) * 100) | round(1) }}%">
+    <output data-unit="%"></output></label>
+  {% endfor %}
+  <button type="button" id="colours-reset" class="btn btn-s" data-cmd="Colours: reset to the theme's"
+          data-cmd-group="View" title="every hue, the contrast and the black level back to the theme's own (the theme stays)">Reset</button>
+  {#- Motion (colours.js, `synthlab.motion`): full — the default, whatever the
+      system's animation setting says, deliberately — or
+      calm, style.css's `html[data-motion="calm"]` rules and every island's
+      `synthlab.calm()`. Not a colour, so Reset leaves it alone. -#}
+  <div class="colours-row colours-motion"><span>motion</span>
+    <div class="seg" role="group" aria-label="motion">
+      <button type="button" data-set-motion="full" aria-pressed="true" data-cmd="Motion: full" data-cmd-group="View"
+              title="full: the views rise in, the light breathes with the sound and pumps on the kick, the playheads run — whatever the system's animation setting">full</button>
+      <button type="button" data-set-motion="calm" aria-pressed="false" data-cmd="Motion: calm" data-cmd-group="View"
+              title="calm: no entrances, tweens or pulses; the light holds still and the playheads hide">calm</button>
+    </div></div>
+</div>

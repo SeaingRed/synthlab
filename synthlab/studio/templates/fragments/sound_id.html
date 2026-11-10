@@ -1,0 +1,10 @@
+{# synthlab/studio/templates/fragments/sound_id.html #}
+{# Which sound this is and whether it has moved since it was loaded or saved
+   (the "sound" reset scope). A region inside #sound-bar: re-sent OOB whenever
+   an edit moves it. #}
+<div id="sound-id" class="sound-id" {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  <span class="sid-name">{{ patch.name or "Untitled" }}</span>
+  {% if sound_dirty %}<span class="sid-edited badge badge-accent" title="changed since it was loaded or saved — ↺ Reset can revert it">edited</span>{% endif %}
+  {% if track_hear %}<span class="sid-meta">the song's {{ track_hear.name }} track</span>
+  {% else %}<span class="sid-meta">Layer {{ active_layer + 1 }} of {{ layers | length }}</span>{% endif %}
+</div>

@@ -1,0 +1,69 @@
+{# synthlab/studio/templates/fragments/free_shaper.html #}
+{# Free record's shaper (GET /fragment/free/shaper, routes/freerec.py):
+   a free take — every key from its first note to ■, no bars — made into a
+   loop. shaper.js draws the time-true roll (seconds, not steps) from
+   `data-shaper` and does every edit in the page; ▶ and Make loop post the
+   take as shaped (`played`) with the size and the feel. Drawn into
+   base.html's #free-shaper (a manual popover: the launcher's slots stay
+   clickable under it). NO named field anywhere (htmx.ajax sweeps every
+   named input on the page): shaper.js reads the controls by `data-shp`. #}
+<div class="shp" data-shaper='{{ data | tojson }}' data-menu-section="Shaper">
+  <header class="shp-head">
+    <h2 class="caps">✂ Shape</h2>
+    <span class="shp-what">{{ sound or "Keys" }} · free take · {{ key }}{% if meter != "4/4" %} · {{ meter }}{% endif %} · <output data-shp-out="len"></output></span>
+    <button type="button" class="btn btn-ghost btn-icon btn-s" data-shp-close aria-label="close the shaper"
+            title="close (Esc): the take stays in the Loops list — its ✂ Shape opens it again">✕</button>
+  </header>
+  <div class="shp-tools" role="toolbar" aria-label="shape the take">
+    <div class="shp-grp" role="group" aria-label="cut">
+      <span class="caps">cut</span>
+      <button type="button" class="btn btn-s" data-shp-do="split" data-cmd="Shaper: split at the cursor" title="split every note under the cursor in two (S)">✂ split</button>
+      <button type="button" class="btn btn-s" data-shp-do="delete" data-cmd="Shaper: delete the picked notes" title="delete the picked notes (Delete)">⌫ delete</button>
+      <button type="button" class="btn btn-s" data-shp-do="keep" data-cmd="Shaper: keep only the picked notes" title="keep only the picked notes, trimmed to them (K)">⊡ keep</button>
+      <button type="button" class="btn btn-s" data-shp-do="trim" data-cmd="Shaper: trim to the notes" title="trim the start to the first note and the end to the last one's end (T)">⇤⇥ trim</button>
+      <button type="button" class="btn btn-ghost btn-icon btn-s" data-shp-do="undo" data-cmd="Shaper: undo" aria-label="undo" title="undo the last cut or edit (Ctrl+Z)">↶</button>
+      <button type="button" class="btn btn-ghost btn-s" data-shp-do="reset" data-cmd="Shaper: back to the take as played" title="back to the take as played: every cut, move and the trim undone">as played</button>
+    </div>
+    <div class="shp-grp" role="group" aria-label="size">
+      <span class="caps">size</span>
+      <label class="shp-num" title="the loop's tempo — first a guess from your playing (✦), so the loop lands near your feel">
+        <input type="number" class="field field-s" data-shp="bpm" min="{{ data.bpm_range[0] }}" max="{{ data.bpm_range[1] }}" step="0.1" aria-label="the loop's tempo">bpm</label>
+      <button type="button" class="btn btn-ghost btn-s" data-shp-do="guess" data-cmd="Shaper: guess the tempo from the playing" title="guess the tempo again from the notes between the handles">✦ guess</button>
+      <button type="button" class="btn btn-ghost btn-s" data-shp-do="page" title="the page's tempo ({{ data.page_bpm | round(1) }})">= {{ data.page_bpm | round(1) }}</button>
+      <span class="seg" role="group" aria-label="the loop's bars">
+        {% for n in data.bars %}<button type="button" data-shp-bars="{{ n }}" aria-pressed="false" title="a loop of {{ n | plural('bar') }}">{{ n }}</button>{% endfor %}
+      </span>
+      <span class="seg" role="group" aria-label="fit or crop">
+        <button type="button" data-shp-mode="fit" aria-pressed="true" title="fit: stretch or squash what is between the handles to fill the bars — morph it to the size">fit</button>
+        <button type="button" data-shp-mode="crop" aria-pressed="false" title="crop: keep the timing at the tempo — cut what runs past the bars, or leave the rest silent">crop</button>
+      </span>
+      <output class="shp-out" data-shp-out="stretch" title="how much fit stretches (> 1) or squashes the playing"></output>
+    </div>
+    <div class="shp-grp" role="group" aria-label="feel">
+      <span class="caps">feel</span>
+      <select class="field field-s" data-shp="steps" aria-label="the grid it snaps to" title="the grid: the steps a bar it lands on (and quantise pulls towards)">
+        {% for n, word in rates %}<option value="{{ n }}"{% if n == data.steps %} selected{% endif %}>{{ word }}</option>{% endfor %}
+      </select>
+      <label class="shp-range" title="quantise: 0 % keeps every note exactly as played, 100 % puts each on its step">q
+        <input type="range" data-shp="q" min="0" max="100" step="5" value="0" aria-label="quantise strength"><output data-shp-out="q">0%</output></label>
+      <label class="shp-range" title="swing: the off steps lean late, as quantise pulls them">swing
+        <input type="range" data-shp="swing" min="0" max="{{ data.swing_max }}" step="0.02" value="0" aria-label="swing"><output data-shp-out="swing">0%</output></label>
+      <label class="shp-range" title="the velocity of the picked notes (none picked: every note)">vel
+        <input type="range" data-shp="vel" min="0.05" max="1" step="0.05" value="0.8" aria-label="velocity of the picked notes"></label>
+      {% if arp %}
+      <button type="button" class="btn btn-s" data-shp-do="arp" aria-pressed="true" title="the keys arp's notes (hatched): in the loop (lit), or left out"><i class="led" aria-hidden="true"></i>arp notes</button>
+      {% endif %}
+    </div>
+  </div>
+  <div class="shp-roll" data-shp-roll tabindex="0" role="application"
+       title="the green handles trim the start and end · a note's click picks it (Shift adds), its drag moves it, its end's drag resizes it · a click on empty roll puts the cursor (✂ split there), a drag picks a box"
+       aria-label="the take, in time: notes as played, the loop's bars over them; arrows nudge the picked notes, Delete deletes, S splits at the cursor"></div>
+  <footer class="shp-foot">
+    <button type="button" class="btn btn-s" data-shp-hear data-cmd="Shaper: hear the loop as shaped" aria-pressed="false"
+            title="hear it as the loop will be, looped, from the next bar line of what plays (again: stop)">▶ hear</button>
+    <output class="shp-out" data-shp-out="notes"></output>
+    <output class="shp-into" data-shp-out="into" title="where Make loop puts it: the slot selected on the Loops page's launcher, else the Loops panel"></output>
+    <button type="button" class="btn btn-primary btn-s" data-shp-make data-cmd="Shaper: make the loop"
+            title="make it a loop: on the note grid at its timing (each note off its step as you shaped it), its sound, the tempo — in the Loops panel, and into the selected slot">Make loop</button>
+  </footer>
+</div>

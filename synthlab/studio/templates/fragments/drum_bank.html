@@ -1,0 +1,80 @@
+{% from "drumgrid.html" import beat_bar, drum_grid, drum_tools %}
+{# synthlab/studio/templates/fragments/drum_bank.html #}
+{# The Kit page's beat: the loop's drum grid
+   to edit + randomise/mutate, notation, the genre kit, and Save beat. The
+   bank's 8 slots and the beat library are not drawn here any more: beats
+   are loops — saved into the Loops panel (✚ Save beat: `/loop/beat/keep`),
+   opened from it or from the drawer (Beats ▸, which on this page also
+   lists the bank's slots and the old library's beats: `looplib` "bank" /
+   "lib" rows). The id, the region `drum-bank` and the routes keep their
+   names. Every action re-renders this whole section
+   (hx-target="#drum-bank"). #}
+<section id="drum-bank" class="drum-bank module" data-module="drums.bank" aria-label="The beat"
+         {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  <div class="pattern-tools" role="toolbar" aria-label="Drum pattern tools">
+    {{ drum_tools(can_double_drums, beat_style) }}
+    {{ beat_bar(beat_variants, beat_style) }}
+    <button type="button" class="btn btn-icon btn-s btn-ghost pt-hint" aria-label="How to draw in the drum grid"
+            title="drag across to paint · right-click erases · a row's name selects it: its hits take the lane under the grid (vel / chance / ratchet / nudge / tune) · arrows move, Space toggles, 1-4 ratchet, + − the lane's value, Alt+← → nudge, PageUp / PageDown the lane, Alt+1-4 variation · a row's ⋯ (or a right click on its name) fills, Euclids and shifts it · Ctrl+Z undoes">?</button>
+  </div>
+  {#- an empty loop beat while a song exists: after a starter the song's
+      beats are its patterns (the Song page), not this grid's — say so, and
+      open a section's patterns into the loop (Perform plays them) -#}
+  {% if not arrangement.drums and song_sections %}
+  <p class="grid-hint" role="note">
+    <span>This grid is the loop's beat, and it is empty. Your song's beats are its patterns — open a section into the loop:</span>
+    {% for sid, sname in song_sections %}
+    <button type="button" class="btn btn-s" hx-post="/song/section/{{ sid }}/to-loop" hx-swap="none"
+            data-cmd="Open the song's {{ sname }} into the loop" data-cmd-group="Song"
+            title="Load {{ sname }}'s patterns and sounds into the working loop and go to the Loops page, where they play. The song itself is unchanged">{{ sname }} ▸</button>
+    {% endfor %}
+    <span class="grid-hint-or">or pick a style above.</span>
+  </p>
+  {% endif %}
+  {{ drum_grid("/fragment/drums/grid", arrangement.drums, arrangement.drum_vel, arrangement.drum_bars, arrangement.drum_steps, drum_rows, mix=arrangement.drum_mix, samples=arrangement.drum_samples, clips=clips, hits=arrangement.drum_hits, row_swing=arrangement.drum_row_swing, swing=arrangement.drum_swing, row_tool="/fragment/drums/row/VOICE/OP", bar_meter=arrangement.meter, lanes=true) }}
+
+  <form class="bank-notation" aria-label="Notation" hx-post="/fragment/drums/notation" hx-target="#drum-bank" hx-swap="outerHTML">
+    <label>pattern <input class="field field-s" name="notation" value="{{ notation }}" placeholder="bd*4 [~ sn] hh*8"
+                          autocomplete="off" spellcheck="false" title="bd sn hh cp · ~ rest · [a b] subdivide · x*n repeat · , layers"></label>
+    <button type="submit" class="btn btn-s" data-cmd="Apply the beat notation">Apply</button>
+  </form>
+  <div class="bank-tools">
+    <form class="bank-gen" aria-label="Generate" hx-post="/fragment/drums/randomise" hx-target="#drum-bank" hx-swap="outerHTML">
+      <label>style <select class="field field-s" name="style">
+        {% for family, styles in beat_style_groups %}<optgroup label="{{ family }}">
+          {% for st in styles %}<option value="{{ st }}" {% if st == beat_style %}selected{% endif %}>{{ st | style_name }}</option>{% endfor %}
+        </optgroup>{% endfor %}
+      </select></label>
+      <label>seed <input class="field field-s" type="number" name="seed" min="0" max="999999" value="{{ beat_seed }}"></label>
+      <button type="submit" class="btn btn-s" data-cmd="Randomise the beat">Randomise</button>
+      <button data-cmd="Mutate the beat" type="button" class="btn btn-s" hx-post="/fragment/drums/mutate" hx-target="#drum-bank" hx-swap="outerHTML">Mutate</button>
+      <button data-cmd="Clear the beat" type="button" class="btn btn-s btn-danger bank-clear" hx-post="/fragment/drums/clear" hx-target="#drum-bank" hx-swap="outerHTML">Clear</button>
+    </form>
+    {# a genre kit is a pattern plus the voices shaped for it (swing, the
+       velocity lane, kick/rim/hat tuning) and its Randomise style: it
+       changes the kit panels too, so it answers with the whole view #}
+    <form class="bank-kit" aria-label="Kit" hx-post="/fragment/drums/kit" hx-target="body" hx-swap="innerMorph">
+      <label>genre kit <select class="field field-s" name="kit">
+        {% for k, style in drum_kits %}<option value="{{ k }}" {% if style == beat_style %}selected{% endif %}>{{ k }}</option>{% endfor %}
+      </select></label>
+      <button type="submit" class="btn btn-s" data-cmd="Load the genre kit" title="load the kit's pattern, swing, velocities and voice shaping">Load kit</button>
+      <button type="submit" class="btn btn-s" name="keep" value="pattern" data-cmd="Swap the kit, keep the beat" title="only the kit's voices: the beat on the grid, its swing, velocities, hit data and the rows' samples stay">Swap kit, keep beat</button>
+    </form>
+    {#- Save beat: into the Loops panel only (a beat loop; the bank and the
+        library are not written any more). A name another loop has gets
+        "… 2" — never written over — and a beat a loop already holds is not
+        kept twice (the answer names it). Beats ▸ opens the drawer on the
+        beats: kept ones, and on this page the bank's slots and the old
+        library's, each Open putting it on this grid. -#}
+    <form class="bank-save" aria-label="Save the beat" hx-post="/loop/beat/keep" hx-swap="none" hx-sync="this:drop">
+      <label>name <input class="field field-s" name="name" maxlength="40" autocomplete="off" placeholder="{{ (beat_style or 'beat') | style_name }} beat…"
+                         title="its name in the Loops (blank: named from what it is — style, tempo, bars)"></label>
+      <button type="submit" class="btn btn-s" data-cmd="Save the beat to the Loops" data-cmd-group="Beats"
+              title="keep this beat as a loop in the Loops panel (and the drawer): open it again from there, launch it in a slot, drag it onto the song">✚ Save beat</button>
+      <button type="button" class="btn btn-s" popovertarget="clip-drawer"
+              hx-get="/fragment/clips?whole=1&amp;q=beat" hx-target="#clip-library" hx-swap="outerMorph"
+              data-cmd="Open a beat from the Loops" data-cmd-group="Beats"
+              title="your beats — kept, saved, the bank's 8 slots and the old beat library — in the drawer: Open puts one on this grid (Ctrl+Z takes it back)">Beats ▸</button>
+    </form>
+  </div>
+</section>

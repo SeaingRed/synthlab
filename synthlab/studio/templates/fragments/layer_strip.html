@@ -1,0 +1,141 @@
+{# synthlab/studio/templates/fragments/layer_strip.html #}
+{# The layer strip (a region, service.REGIONS "layer-strip"; context
+   StudioService.layer_context). Two separate facts per slot, never merged:
+   EDITING — the one slot the panels change (✎, the highlighted row) — and
+   HEARING — whether ▶ plays it (the speaker; its title says why not).
+   One row per slot: number + sound (click = edit it), what it plays (MAIN /
+   follows main ±n oct / its own notes), level, M(ute), S(olo), Follow and
+   its octave, ✕ clear. The main lane never follows: the others follow it.
+   Morphed out of band, so a clicked button keeps focus. Sits outside
+   #sound-bar (a form that posts on every input).
+
+   The right edge is the mix bus, drawn as patch leads: every slot with a
+   sound has an output jack, and its lead runs to the FX / master jack —
+   lit while ▶ hears the slot, an unplugged dashed lead while it does not
+   (the speaker's fact, drawn). One <svg>, stretched over the rows
+   (preserveAspectRatio="none", non-scaling strokes): a row is 10 units
+   tall whatever its height in pixels, so nothing measures and no script
+   draws it. A right click (the pen's barrel button) on a row lists its
+   actions (bench.js builds the menu from the row's own buttons).
+   `data-stack`: how many sounds a Load could replace — over one, Load asks
+   what it replaces (soundmenu.js; a song track's sound is one). #}
+<section id="layer-strip" class="layer-strip module" data-module="synths.layers" aria-labelledby="ls-title"
+         data-stack="{{ 1 if song_track is not none else strip | rejectattr('empty') | list | length }}"
+         {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  {# A song track's sound on Synths: the slots are the working loop's
+     (picking one ends the edit), and ▶ plays the track in its section
+     (`track_heard`), so they are not drawn — the track is one sound #}
+  {% if song_track is not none %}
+  <div class="ls-head">
+    <h2 class="ls-title caps" id="ls-title">Layers</h2>
+  </div>
+  <p class="ls-track" title="A song track is one sound, with its own FX below. Layers belong to the working loop: close the dock to get back to them.">One sound: the song's <strong>{{ song_track }}</strong> track</p>
+  {% else %}
+  <div class="ls-head">
+    <h2 class="ls-title caps" id="ls-title">Layers</h2>
+    <span class="ls-hears" aria-hidden="true">▶ hears</span>
+    <div class="ls-listen seg" role="group" aria-label="what ▶ plays">
+      <button type="button" id="ls-all" class="ls-seg" hx-post="/fragment/layer/focus"
+              hx-vals='{"on": "0"}' hx-swap="none"
+              aria-pressed="{{ 'false' if layer_focus else 'true' }}"
+              data-cmd="▶ plays all layers"
+              title="▶ plays every audible layer together">All layers</button>
+      <button type="button" id="ls-this" class="ls-seg" hx-post="/fragment/layer/focus"
+              hx-vals='{"on": "1"}' hx-swap="none"
+              aria-pressed="{{ 'true' if layer_focus else 'false' }}"
+              data-cmd="▶ plays only the layer being edited"
+              title="▶ plays only the layer you are editing">This layer</button>
+    </div>
+    <button data-cmd="Add a layer" type="button" id="ls-add" class="ls-add btn btn-s" hx-post="/fragment/layer/add"
+            hx-target="body" hx-swap="innerMorph"
+            {% if not can_add %}disabled title="Every layer holds a sound — clear one (✕), or press ＋ on a sound in the list to replace this one"{% else %}title="Copy this sound into a new layer that follows the main lane (or press ＋ on a sound in the list)"{% endif %}>+ Add layer</button>
+  </div>
+  <ol class="ls-rows">
+    {% for r in strip %}
+    {% set n = r.index + 1 %}
+    <li class="lrow{% if r.editing %} editing{% endif %}{% if r.empty %} empty{% endif %}{% if not r.hear %} silent{% endif %}{% if r.main %} main{% endif %}"
+        id="lrow-{{ r.index }}"{% if not r.empty %} data-ctx="Layer {{ n }} · {{ r.name }}"{% endif %}>
+      <button type="button" id="l{{ r.index }}-edit" class="l-pick" data-menu="Edit in the panels"{% if not r.empty %} data-cmd="Edit layer {{ n }}" data-cmd-group="Layers"{% endif %}
+              hx-post="/fragment/layer/select" hx-vals='{"index": "{{ r.index }}"}'
+              hx-target="body" hx-swap="innerMorph"
+              {% if r.editing %}aria-current="true"{% endif %}
+              aria-label="{% if r.editing %}editing layer {{ n }}{% else %}edit layer {{ n }}{% endif %}: {{ r.name if not r.empty else 'empty' }}"
+              title="{% if r.editing %}The panels edit this layer{% elif r.empty %}Start a new layer here from the current sound{% else %}Edit this layer in the panels{% endif %}">
+        <span class="l-num">{{ n }}</span>
+        <span class="l-name">{{ r.name if not r.empty else "empty" }}</span>
+        {% if r.editing %}<span class="l-editing"><span aria-hidden="true">✎</span> editing</span>{% endif %}
+      </button>
+      {% if not r.empty %}
+      <span class="l-plays">
+        {% if r.main %}<i class="l-badge badge badge-accent main" title="The other layers follow this layer's notes">MAIN</i>{% endif %}
+        {% if r.role %}<i class="l-badge badge role-{{ r.role }}">{{ r.role | upper }}</i>{% endif %}
+        <span class="l-what">{{ "plays the phrase" if r.main else r.plays }}</span>
+      </span>
+      <span class="l-hear{% if r.hear %} on{% endif %}" role="img"
+            aria-label="{% if r.hear %}heard on ▶{% else %}silent: {{ r.why }}{% endif %}"
+            title="{% if r.hear %}Heard on ▶{% else %}Silent — {{ r.why }}{% endif %}">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor"/>{% if r.hear %}<path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.5a6 6 0 0 1 0 9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>{% else %}<path d="M11 6l4 4M15 6l-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>{% endif %}</svg>
+      </span>
+      <label class="l-gain" title="Level of layer {{ n }} (double-click: 1)">
+        <span class="visually-hidden">level of layer {{ n }}</span>
+        <input type="range" class="knob knob-s" id="l{{ r.index }}-gain" name="gain" min="0" max="1.5" step="0.05"
+               data-default="1"
+               value="{{ r.gain }}" style="--fill: {{ (r.gain / 1.5 * 100) | round(1) }}%"
+               hx-post="/fragment/layer/gain" hx-include="this" hx-trigger="change" hx-sync="this:queue last"
+               hx-vals='{"index": "{{ r.index }}"}' hx-swap="none">
+        <output for="l{{ r.index }}-gain">{{ "%g" | format(r.gain | round(2)) }}</output>
+      </label>
+      <button type="button" id="l{{ r.index }}-m" class="btn btn-s l-tog l-m" data-menu="Mute" data-cmd="Mute layer {{ n }}" data-cmd-group="Layers" hx-post="/fragment/layer/mute"
+              hx-vals='{"index": "{{ r.index }}"}' hx-swap="none"
+              aria-pressed="{{ 'true' if r.muted else 'false' }}"
+              aria-label="mute layer {{ n }}" title="Mute">M</button>
+      <button type="button" id="l{{ r.index }}-s" class="btn btn-s l-tog l-s" data-menu="Solo" data-cmd="Solo layer {{ n }}" data-cmd-group="Layers" hx-post="/fragment/layer/solo"
+              hx-vals='{"index": "{{ r.index }}"}' hx-swap="none"
+              aria-pressed="{{ 'true' if r.solo else 'false' }}"
+              aria-label="solo layer {{ n }}" title="Solo: hear only soloed layers">S</button>
+      <span class="l-follow">
+        {% if r.main %}
+        <button type="button" id="l{{ r.index }}-follow" class="btn btn-s l-tog l-fbtn" disabled
+                aria-pressed="false" aria-label="follow main (layer {{ n }} is the main lane)"
+                title="The main lane — the others follow it">Follow</button>
+        {% else %}
+        <button type="button" id="l{{ r.index }}-follow" class="btn btn-s l-tog l-fbtn" data-menu="Follow the main lane" data-cmd="Layer {{ n }}: follow the main lane, on / off" data-cmd-group="Layers"
+                hx-post="/fragment/layer/follow" hx-swap="none"
+                hx-vals='{"index": "{{ r.index }}", "on": "{{ '0' if r.octave is not none else '1' }}", "octave": "0"}'
+                aria-pressed="{{ 'true' if r.octave is not none else 'false' }}"
+                aria-label="layer {{ n }} follows the main lane's notes"
+                title="Play the main lane's notes (the phrase here)">Follow</button>
+        <label><span class="visually-hidden">layer {{ n }} follows at octave</span>
+          <select class="field field-s" id="l{{ r.index }}-oct" name="octave" hx-post="/fragment/layer/follow"
+                  hx-include="this" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+                  hx-vals='{"index": "{{ r.index }}", "on": "1"}' title="Octave from the main lane">
+            {% for o in (-2, -1, 0, 1) %}
+            <option value="{{ o }}" {% if (r.octave if r.octave is not none else 0) == o %}selected{% endif %}>{{ ("+" if o > 0 else "−" if o < 0 else "±") ~ (o | abs) }} oct</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endif %}
+      </span>
+      <button type="button" id="l{{ r.index }}-clear" class="btn btn-ghost btn-icon btn-s l-clear" data-menu="Clear the layer" data-cmd="Clear layer {{ n }}" data-cmd-group="Layers"
+              hx-post="/fragment/layer/clear" hx-vals='{"index": "{{ r.index }}"}'
+              {% if r.editing %}hx-target="body" hx-swap="innerMorph"{% else %}hx-swap="none"{% endif %}
+              {% if r.editing and not can_clear_edited %}disabled title="{{ 'A song track’s sound — delete the track on the Song page' if song_edit else 'The only sound here — load another one over it' }}"{% elif r.editing %}title="Clear this layer (the panels move to the next one)"{% else %}title="Clear this layer"{% endif %}
+              aria-label="clear layer {{ n }}">✕</button>
+      <i class="jack l-out"{% if r.hear %} data-plugged{% endif %} aria-hidden="true"></i>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {# the mix bus: layer -> FX -> master. Row i's lead leaves at y = 10i + 5 #}
+  {% set rows = strip | length %}
+  <div class="ls-bus" aria-hidden="true">
+    <svg class="ls-cables" viewBox="0 0 40 {{ rows * 10 }}" preserveAspectRatio="none" focusable="false">
+      {% for r in strip if not r.empty %}
+      {% set y = r.index * 10 + 5 %}{% set m = rows * 5 %}
+      <g class="cable{{ '' if r.hear else ' off' }}" data-layer="{{ r.index }}"><path d="M0 {{ y }}C18 {{ y + 3 }} 22 {{ m + 3 }} 40 {{ m }}"/></g>
+      {% endfor %}
+    </svg>
+    <a class="ls-out" href="#fx-rack" tabindex="-1" title="every heard layer runs through its own Layer FX, then the Master FX"><i class="jack" data-plugged></i><b>FX</b><span>master</span></a>
+  </div>
+  {% endif %}
+</section>

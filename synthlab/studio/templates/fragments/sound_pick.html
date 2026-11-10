@@ -1,0 +1,30 @@
+{# synthlab/studio/templates/fragments/sound_pick.html #}
+{# The sound picker (soundmenu.js; base.html draws it once, outside every
+   region, so no swap closes it): a popover over `#lane-sounds` — a search
+   (every word against the name and its group: "acid", "core bass"), ★
+   (your favourites only), the list by group (↑ ↓, Enter picks, Esc
+   closes) — opened by a Perform lane head's sound ▾ (or Alt+S: the edited
+   lane's), and by the Song drawer's sound (a track's: it browses, each ↑ ↓
+   heard as it lands, and asks nothing). And the question a load asks when there is more than one sound
+   to replace (`StudioState.LOAD_AS`): this layer / the whole sound / ＋ add
+   as a layer, the default focused — Synths' Load asks it too, in the same
+   popover, with no list. The choices post through the script; the lane
+   head or the card says the rest. #}
+<div id="sound-pick" class="pop sound-pick" popover aria-label="Pick a sound">
+  <p class="spk-for caps" id="spk-for"></p>
+  <div class="spk-head" id="spk-head">
+    <input type="search" id="spk-q" class="field field-s spk-q" placeholder="search: name, group…" aria-label="search the sounds"
+           autocomplete="off" spellcheck="false" aria-controls="spk-list" aria-autocomplete="list">
+    <button type="button" id="spk-star" class="btn btn-s btn-ghost btn-icon spk-star" aria-pressed="false" title="★ only: the sounds you starred on Synths">★</button>
+  </div>
+  <div class="spk-choice" id="spk-choice" role="group" aria-labelledby="spk-say" hidden>
+    <p class="spk-say" id="spk-say"></p>
+    <div class="seg spk-as">
+      <button type="button" data-as="layer" title="Only the lane you are editing takes the new sound: the other layers stay">replace this layer</button>
+      <button type="button" data-as="whole" title="The whole stack: the other layers go — the sound's own layers come in their place, if it has any">replace the whole sound</button>
+      <button type="button" data-as="add" title="Keep everything: the sound comes in as one more layer, playing the main lane's notes">＋ add as a layer</button>
+    </div>
+  </div>
+  <ul class="spk-list menu" id="spk-list" role="listbox" aria-label="sounds"></ul>
+  <p class="spk-none empty-state" id="spk-none" hidden>No sound matches.</p>
+</div>

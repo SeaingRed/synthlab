@@ -1,0 +1,384 @@
+{# synthlab/studio/templates/fragments/piano.html #}
+{% from "macros.html" import fill %}
+{% set qwerty = ["A","W","S","E","D","F","T","G","Y","H","U","J"] %}
+{#- ... and the classic split carries on into the next octave: C..F (piano.js KEYMAP) -#}
+{% set qwerty2 = ["K","O","L","P",";","'"] %}
+{% set names = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"] %}
+{% set blacks = [1, 3, 6, 8, 10] %}
+{#- the columns layout (columns.js): the home-row key on each natural of the
+    dock's octave and on the next one's C..F, and the number row's digit on
+    a black key (its ♯ choice) — by rel, then note -#}
+{% set cols = {0: {0: "A", 2: "S", 4: "D", 5: "F", 7: "G", 9: "H", 11: "J", 1: "1", 3: "2", 6: "4", 8: "5", 10: "6"}, 1: {0: "K", 2: "L", 4: ";", 5: "'", 1: "8", 3: "9"}} %}
+{# Labels assume the default octave (C4); piano.js rewrites them on octave change. #}
+<div class="piano-wrap fold-body" role="group" aria-label="piano keyboard">
+  {# The pitch-bend wheel (piano.js setWheel; MIDI's pitch bend and the XY
+     "Pitch bend" axis drive the same one): drag and let go to spring back,
+     hold up/down to glide it, left/right step, Home centres. Its range is
+     the patch's bend_range. #}
+  <div class="bend-ctl">
+    <div id="bend-strip" class="bend-strip" role="slider" tabindex="0" aria-label="pitch bend"
+         aria-orientation="vertical" aria-valuemin="-2" aria-valuemax="2" aria-valuenow="0"
+         aria-valuetext="0 semitones" style="--bend: 0"
+         title="Pitch bend: drag, let go to spring back. Hold ↑/↓ to bend (↑↓ bend sets how fast), ←/→ step, Home centres."><i></i></div>
+    <select class="field field-s" id="bend-range" aria-label="bend range in semitones" title="bend range (the sound's bend_range)">
+      {% for r in [2, 7, 12, 24] %}<option value="{{ r }}">±{{ r }}</option>{% endfor %}
+    </select>
+    <button type="button" id="bend-rec" class="btn btn-s btn-rec" aria-pressed="false" data-cmd="Record a pitch bend loop"
+            title="Record one loop of pitch bend as this lane's Pitch bend curve (the loop must be playing)">⏺ bend</button>
+    {# The arrow bend's settings (piano.js arrowsBend/glideTo; per browser,
+       like typing/hold): hold ↑/↓ to glide the wheel over "rise", let go
+       and it glides home over "release". A popover anchored to its button
+       (style.css: light-dismiss and Esc are the browser's). #}
+    <button type="button" class="btn btn-s bend-set" popovertarget="bend-pop" data-cmd="Arrow-key bend settings"
+            title="Arrow-key bend: hold ↑ or ↓ to bend, let go to come back — how fast, and where">↑↓ bend</button>
+      <div popover id="bend-pop" class="bend-pop pop" aria-label="arrow-key bend">
+        <label>Arrows
+          <select class="field field-s" id="bend-arrows">
+            <option value="always">bend any time</option>
+            <option value="strip">only on the strip</option>
+          </select></label>
+        <label>Rise <output id="bend-rise-out">300 ms</output>
+          <input type="range" id="bend-rise" min="0" max="3000" step="10" value="300"
+                 style="--fill: {{ fill(300, 0, 3000) }}"
+                 aria-label="bend rise time, milliseconds"></label>
+        <label>Release <output id="bend-release-out">200 ms</output>
+          <input type="range" id="bend-release" min="0" max="3000" step="10" value="200"
+                 style="--fill: {{ fill(200, 0, 3000) }}"
+                 aria-label="bend release time, milliseconds"></label>
+        <label>Curve
+          <select class="field field-s" id="bend-curve">
+            <option value="linear">steady</option>
+            <option value="ease">speeds up</option>
+          </select></label>
+      </div>
+  </div>
+  {# What a key plays, beside the keys (keysbar.js): at rest the choice
+     (Play's note | triad …), under the pointer the chord or note that key
+     plays (its keys lit faintly), while a chord sounds its name — "Am7",
+     its degree under it. A read-out, never announced (it follows the
+     pointer). The octave it once held is Play's, in the toolbar. #}
+  <div class="kbd-now" title="What a key plays: the chord (or note) under the pointer, and the chord sounding while you hold it">
+    <span class="caps">Plays</span>
+    <output id="kbd-now" for="kbd-plays" data-state="rest">note</output>
+    <small id="kbd-now-deg" aria-hidden="true"></small>
+  </div>
+  {# Five octaves in the page; the strip's own width decides how many show
+     (style.css 7b: a key stays a key's width from a phone to a wide
+     desktop — two octaves stretched across 1400 px were 100 px keys, and
+     squeezed beside the controls 12 px ones). A key held down shows its
+     note ("D4", its aria-label, which piano.js keeps to the octave) in
+     place of its typed letter (style.css). #}
+  <div id="piano">
+    {% for rel in [0, 1, 2, 3, 4] %}
+    <div class="octave">
+      {% for n in range(12) if n not in blacks %}
+      {#- a label slot on EVERY key: chords.js writes the typed key(s) that
+          play it (a row tiled past the first octave, a row of notes in key);
+          only the first octave's had one, so those keys lit unlabelled.
+          The dock's own octave also names its letter for the letters
+          layout (letters.js; style.css shows it in place of the rows' only
+          while that layout is on): a natural its letter, a sharp ⇥ + the
+          letter under it (Tab held is ♯). The columns layout names the
+          home-row key that plays it (A on the dock's C … ' on the F above),
+          and with its ♯ number row a black key's digit: rel 0 is always the
+          dock's octave, so the labels follow it -#}
+      <button type="button" class="pkey" data-note="{{ n }}" data-rel="{{ rel }}"{% if rel == 0 %} data-letter="{{ names[n] }}"{% endif %}{% if n in cols.get(rel, {}) %} data-col="{{ cols[rel][n] }}"{% endif %}
+              aria-label="{{ names[n] }}{{ 4 + rel }}">
+        <span class="qhint" aria-hidden="true">{{ qwerty[n] if rel == 0 else (qwerty2[n] if rel == 1 and n < 6 else "") }}</span>
+      </button>
+      {% endfor %}
+      {% for n in blacks %}
+      <button type="button" class="pkey black b{{ n }}" data-note="{{ n }}" data-rel="{{ rel }}"{% if rel == 0 %} data-letter="⇥{{ names[n - 1] }}"{% endif %}{% if n in cols.get(rel, {}) %} data-colsharp="{{ cols[rel][n] }}"{% endif %}
+              aria-label="{{ names[n] }}{{ 4 + rel }}">
+        <span class="qhint" aria-hidden="true">{{ qwerty[n] if rel == 0 else (qwerty2[n] if rel == 1 and n < 6 else "") }}</span>
+      </button>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {# Monitor: how you hear it, not what it is. `space` is a browser-only
+     reverb/delay on live keys (space.js) and `vol` the listening level —
+     neither is in the patch, the loop render, a bounce or an export, so they
+     are grouped apart from the sound and say so. #}
+  <fieldset class="monitor" aria-describedby="monitor-note">
+    <legend><span class="caps" title="How you hear it, not what it is: neither is saved with the sound, bounced or exported.">Monitor</span> <span id="monitor-note" class="not-saved badge">not saved with the sound</span></legend>
+    <label class="space-ctl" title="a browser-only reverb on the live keys">Room
+      <input type="range" id="space" aria-label="room" min="0" max="1" step="0.01" value="0" data-default="0">
+    </label>
+    <label title="the listening level">Volume
+      <input type="range" id="volume" aria-label="volume" min="0" max="1" step="0.01" value="0.8" data-default="0.8"
+             style="--fill: {{ fill(0.8, 0, 1) }}">
+    </label>
+  </fieldset>
+  {# The toolbar under the keys: one row of captioned groups, always in this
+     order — Play (what each key plays, its strum, hold, latch, the octave) ·
+     QWERTY (typing on / off, what each row plays) · Rec · Talk · Tools
+     (Play tools, at the right end). Each group is a section of its own
+     (`data-menu-section`: its right-click menu lists its commands), and none
+     changes width with its state. Every switch is an action with a state
+     light (`.btn > .led`, lit while aria-pressed), never an "on"/"off" word. #}
+  {% set PLAYS = {"note": "a note", "triad": "a triad", "7th": "a 7th chord", "9th": "a 9th chord", "power": "a power chord", "octave": "an octave"} %}
+  {% set SHORT = {"note": "note", "triad": "triad", "7th": "7th", "9th": "9th", "power": "power", "octave": "oct"} %}
+  {% set SURFACES = [("piano", "piano keys"), ("notes", "notes in key"), ("chords", "chords in key (I–VII)"), ("major", "major chords"), ("minor", "minor chords"), ("seventh", "7th chords"), ("extended", "extended chords"), ("sus", "sus chords"), ("dim", "dim chords"), ("aug", "aug chords"), ("add", "add chords"), ("altered", "altered chords"), ("harmonics", "harmonics"), ("off", "nothing")] %}
+  <div class="kbd-bar" role="group" aria-label="what the keys play">
+    <div class="kbd-grp kbd-play" role="group" aria-labelledby="kbd-play-cap" data-menu-section="Play">
+      <span class="caps" id="kbd-play-cap">Play</span>
+      {#- chords.js: each key plays its note, or the chord in key built on it
+          (`chordAt`) — the on-screen keys, MIDI, piano rows and rows of notes
+          (localStorage synthlab.plays). ONE control, every choice one click;
+          ` toggles note / the last chord, Alt+` steps the chord (keysbar.js) -#}
+      <span class="seg kbd-plays" id="kbd-plays" role="group" aria-label="each key plays"
+            data-keys="`" data-key-label="Each key plays: note / chord (Alt+` the next chord)">
+        {% for v in ["note"] + voicings %}
+        <button type="button" data-plays="{{ v }}" aria-pressed="{{ 'true' if v == 'note' else 'false' }}"
+                data-cmd="Each key plays: {{ PLAYS.get(v, v) }}"
+                title="{{ 'Each key plays its own note' if v == 'note' else 'Each key plays ' ~ PLAYS.get(v, v) ~ ' in key, built on it' }} — the on-screen keys, MIDI and the typing rows of keys or notes (` note / chord, Alt+` the next chord)">{{ SHORT.get(v, v) }}</button>
+        {% endfor %}
+      </span>
+      {#- "keys strum": the live keys' and pads' — not Perform's "grid strum"
+          (Arrangement.strum, the note grid's chords in the loop); kept per
+          browser, a deck dial set's (chords.js) -#}
+      <label class="kbd-strum" title="Keys strum: a chord's notes one after another, this far apart — the keys' chords and the chord pads' (live, this browser's): 0 is all at once. The note grid's chords have their own: “grid strum”, under FEEL on the Loops page">strum
+        <input type="range" id="kbd-strum" min="0" max="60" step="5" value="0" style="--fill: 0%" aria-label="keys strum, ms between notes"></label>
+      <button type="button" id="hold-toggle" class="btn btn-s" aria-pressed="true" data-cmd="Hold: a note sounds while its key is held, on / off"
+              title="Hold: a note sounds while its key is held (lit). Unlit, each press plays a short note and the release tail takes over. Hold left Shift: the sustain pedal."><i class="led" aria-hidden="true"></i>hold</button>
+      {#- piano.js latchTap: the same as a tap of Right Shift -#}
+      <button type="button" id="latch-btn" class="btn btn-s" aria-pressed="false" data-cmd="Latch: the next note or chord holds, on / off"
+              title="Latch (or tap Right Shift): the next note or chord you play keeps sounding after you let go — a drone to play over. Again lets it go."><i class="led" aria-hidden="true"></i>latch</button>
+      {#- the keys arp (arp.js, per browser: synthlab.arp): a chord held —
+          typed, clicked, MIDI, a row's or a pad's, the latch's — plays as an
+          arpeggio on the tempo, on the loop's grid while it plays. NOT the
+          loop's arp (Perform's, under FEEL: the note grid's, in the render).
+          Its switch says its mode, rate and octaves; the rest is its ⚙ (a
+          popover, as the typing rows'). In Play beside hold and latch, a
+          section of its own (its menu): a captioned group of its own did
+          not fit — the toolbar had 4 px to spare at 1920 px on Synths -#}
+      {% set ARP_MODES = [("up", "↑", "up: low to high"), ("down", "↓", "down: high to low"), ("updown", "↕", "up and down"), ("random", "⚄", "random: a shuffle a cycle, the same each time it starts"), ("played", "♪", "as played: in the order the notes were struck"), ("chord", "≡", "chord: the held notes as repeated stabs")] %}
+      <div class="kbd-arp" role="group" aria-label="keys arp" data-menu-section="Arp">
+        <button type="button" id="arp-btn" class="btn btn-s arp-btn" aria-pressed="false" data-cmd="Keys arp: on / off" data-keys="Alt+A"
+                title="Keys arp (Alt+A): a chord you hold — typed, clicked, MIDI, the latch's — plays as an arpeggio on the tempo, on the loop's beat while it plays; it says its mode, rate and octaves. Not the loop's “grid arp” (the Loops page, under FEEL). With latch it keeps running: play over it; latch again (or ■) stops it"><i class="led" aria-hidden="true"></i>arp <span id="arp-face" class="arp-face">↑ 1/8</span></button>
+        <button type="button" class="btn btn-s btn-icon arp-set" popovertarget="arp-pop" aria-label="keys arp settings" data-cmd="Keys arp settings: mode, rate, octaves, gate, swing"
+                title="The keys arp: mode, rate, octaves, gate and swing">⚙</button>
+        <div popover id="arp-pop" class="pop arp-pop" aria-labelledby="arp-pop-title">
+          <h3 class="caps" id="arp-pop-title">Keys arp</h3>
+          <span class="seg" role="group" aria-label="arp mode">
+            {% for v, g, say in ARP_MODES %}<button type="button" data-arp-mode="{{ v }}" aria-pressed="{{ 'true' if v == 'up' else 'false' }}" data-cmd="Keys arp mode: {{ say.split(':')[0] }}" title="{{ say }}">{{ g }}</button>{% endfor %}
+          </span>
+          <span class="seg" role="group" aria-label="arp rate">
+            {% for r in ["1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32"] %}<button type="button" data-arp-rate="{{ r }}" aria-pressed="{{ 'true' if r == '1/8' else 'false' }}" data-cmd="Keys arp rate: {{ r }}" title="a note every {{ r | replace('T', ' triplet') }}">{{ r }}</button>{% endfor %}
+          </span>
+          <span class="seg" role="group" aria-label="arp octaves">
+            {% for n in [1, 2, 3, 4] %}<button type="button" data-arp-oct="{{ n }}" aria-pressed="{{ 'true' if n == 1 else 'false' }}" data-cmd="Keys arp over {{ n }} octave{{ 's' if n > 1 }}" title="over {{ n }} octave{{ 's' if n > 1 }}">×{{ n }}</button>{% endfor %}
+          </span>
+          <label title="how long each note sounds, of its step">gate <output id="arp-gate-out">50%</output>
+            <input type="range" id="arp-gate" min="0.1" max="1" step="0.05" value="0.5" style="--fill: 50%" aria-label="arp gate, of a step"></label>
+          <label title="the off-beat steps later, as the loop's swing">swing <output id="arp-swing-out">0%</output>
+            <input type="range" id="arp-swing" min="0" max="0.6" step="0.05" value="0" style="--fill: 0%" aria-label="arp swing"></label>
+          {#- keyrec.js: ⟲ Capture of the arp's own notes -#}
+          <button type="button" id="arp-print" class="btn btn-s" data-cmd="Print the keys arp to a loop"
+                  title="Print: what the keys arp just played — its notes, as they sounded — as a loop (the last bars the Rec length says, or its latest phrase), into the launcher's selected slot as ⏺ Rec lands">⤓ print</button>
+        </div>
+      </div>
+      <span class="oct-ctl" title="the keys' octave (Z / X, or - / = while rows play)">
+        <button type="button" class="btn btn-icon btn-s oct-btn" data-dir="-1" aria-label="octave down" title="octave down" data-keys="Z" data-cmd="Octave down">−</button>
+        <span id="oct-label" aria-live="polite"><span class="visually-hidden">octave </span>C4</span>
+        <button type="button" class="btn btn-icon btn-s oct-btn" data-dir="1" aria-label="octave up" title="octave up" data-keys="X" data-cmd="Octave up">+</button>
+      </span>
+    </div>
+    <div class="kbd-grp kbd-type" role="group" aria-labelledby="kbd-type-cap" data-menu-section="QWERTY">
+      <span class="caps" id="kbd-type-cap">QWERTY</span>
+      <button type="button" id="keys-toggle" class="btn btn-s" aria-pressed="true" data-cmd="Typing keys play notes: on / off"
+              title="Typing keys play: lit, the letters and numbers play the rows beside — or, in the letters layout, A–G their own note; in the columns layout, a column a root (- / = octave); unlit, typing never plays a note"><i class="led" aria-hidden="true"></i>typing</button>
+      {#- on a page with pads (Perform): what typing plays there — the keys,
+          as on every page (the default), or the pads and the performance
+          FX (Q W E R / A S D F, C V B N · I O P). piano.js shows it where
+          #perform-pads is and keeps it per browser (synthlab.typeto) -#}
+      <span class="seg kbd-typeto" id="kbd-typeto" role="group" aria-label="typing plays" hidden
+            data-keys="Alt+P" data-key-label="Loops page: typing plays the keys / the pads">
+        <button type="button" data-typeto="keys" aria-pressed="true" data-cmd="Typing plays the keys (Loops page)"
+                title="Typing plays the keyboard dock's keys, in its layout, as on every page (Alt+P: the pads)">keys</button>
+        <button type="button" data-typeto="pads" aria-pressed="false" data-cmd="Typing plays the Loops page's pads and FX"
+                title="Typing plays the Loops page's pads — Q W E R / A S D F — and holds its performance FX — C V B N · I O P; the keys' typing stands down (Alt+P: the keys)">pads</button>
+      </span>
+      {#- what each typing row plays, at a glance (keysbar.js writes it from
+          the rows' panel: "1 chords · Q piano · A piano · Z —", and each
+          row's layer while rows → sounds is on); it opens the panel. In the
+          letters layout (letters.js, html[data-keylayout]) the same button
+          shows the letters' modifiers instead, and in the columns layout
+          (columns.js) what each row plays there — "A C · Q maj · Z min ·
+          1 7": A is C, the number row's choice last, in a room as wide as
+          its longest (maj7) — the three faces share one cell, the others keeping their
+          room (style.css), so the group never changes width — a switch of
+          its own beside "typing" wrapped the toolbar's Tools onto a second
+          row at 1920 px -#}
+      {% set LETTERS = "A–G play that note in the dock's octave; held as the letter goes down: Left Shift major, Space minor, Ctrl 7th, Shift+Ctrl maj7, Space+Ctrl m7, Shift+Space sus4 (none: what Play says); Tab held makes it sharp; 1–7 set the octave" %}
+      {% set COLUMNS = "each keyboard column is a root — the home row A S D F G H J K L ; ' plays the notes C D E F G A B C D E F from the dock's C, the row above (Q W E R …) the major chord on the note under it, the row below (Z X C V …) the minor; the number row what its choice says (Alt+N: 7, maj7, m7, sus4, ♯, octave); - / = the octave; Left Shift the sustain pedal" %}
+      <button type="button" class="btn btn-s kbd-rows-btn" popovertarget="kbd-rows" data-cmd="Typing rows: what each row plays, rows → sounds"
+              title="What each typing row plays — the number row, Q, A and Z rows — and, with rows → sounds, which layer; the typing layout (rows, letters or columns, Alt+L)"><span class="kbd-face"><span class="kr-strip" id="kr-strip"><span><kbd>1</kbd>chords</span><span><kbd>Q</kbd>piano</span><span><kbd>A</kbd>piano</span><span><kbd>Z</kbd>—</span></span><span class="kr-strip kbd-letters-key" id="kbd-letters-key" data-keys="A–G" data-key-label="Letters layout: {{ LETTERS }}" title="Letters: {{ LETTERS }}. Left Shift is “major” here, not the sustain pedal"><span><kbd>⇧</kbd>maj</span><span><kbd>␣</kbd>min</span><span><kbd>Ctrl</kbd>7</span><span><kbd>⇥</kbd>♯</span></span><span class="kr-strip kbd-columns-key" id="kbd-columns-key" data-keys="A–'" data-key-label="Columns layout: {{ COLUMNS }}" title="Columns: {{ COLUMNS }}"><span><kbd>A</kbd>C</span><span><kbd>Q</kbd>maj</span><span><kbd>Z</kbd>min</span><span><kbd>1</kbd><span id="kbd-colnum-face">7</span></span></span></span> ⚙</button>
+      {#- the rows' panel: rows → sounds in its head, a row each for the keys
+          & MIDI and the four typing rows, with what it plays and (rows →
+          sounds) its layer. chords.js owns the row map, rowsounds.js the
+          layers — per browser. What a key plays is Play's alone. -#}
+      <div popover id="kbd-rows" class="pop kbd-rows" aria-labelledby="kbd-rows-title">
+        <div class="kr-head">
+          <h3 class="caps" id="kbd-rows-title">Typing rows</h3>
+          {# rowsounds.js: each typing row plays one layer of the stack (the
+             layer column); the on-screen keys and MIDI play the layer being edited #}
+          <button type="button" id="rows-toggle" class="btn btn-s" aria-pressed="false" data-cmd="Typing rows play one layer each: on / off"
+                  title="On: each typing row plays its own layer (the layer column: 1 – = layer 1, Q row 2, A row 3, Z row 4); the on-screen keys and MIDI play the layer you are editing. Off: every key plays the whole stack."><i class="led" aria-hidden="true"></i>rows → sounds</button>
+        </div>
+        {#- the typing layout (letters.js, per browser: synthlab.layout; Alt+L
+            from anywhere): rows — each row plays what this panel says, as it
+            always has — or letters: A–G play that note, the modifiers held
+            make the chord on it (the strip above shows them) — or columns:
+            each keyboard column a root, its note, major and minor, and the
+            number row the choice under it (columns.js, synthlab.colnum,
+            Alt+N; dimmed in the other two layouts) -#}
+        <div class="kr-all kr-layout" role="group" aria-label="typing layout">
+          <span class="caps">layout</span>
+          <span class="seg" id="kbd-layout" data-keys="Alt+L" data-key-label="Typing layout: rows / letters / columns">
+            <button type="button" data-layout="rows" aria-pressed="true" data-cmd="Typing layout: rows (each row plays what this panel says)"
+                    title="Rows: each typing row plays what this panel says (piano keys, notes, chords …); Left Shift is the sustain pedal (Alt+L: letters)">rows</button>
+            <button type="button" data-layout="letters" aria-pressed="false" data-cmd="Typing layout: letters (the key you press is the note)"
+                    title="Letters: the key you press is the note — {{ LETTERS }}. Here Left Shift is “major”, not the sustain pedal (Right Shift still latches); a tap of Space still plays / stops, Ctrl+A–G never reach the browser, and Tab stays in the keys while typing is on (Alt+L: columns)">letters</button>
+            <button type="button" data-layout="columns" aria-pressed="false" data-cmd="Typing layout: columns (each keyboard column a root: note, major, minor)"
+                    title="Columns: {{ COLUMNS }}. Right Shift latches, Space plays / stops, Ctrl / Alt with any key are the browser's (Alt+L: rows)">columns</button>
+          </span>
+        </div>
+        <div class="kr-all kr-colnum" role="group" aria-label="the number row, in the columns layout">
+          <span class="caps" title="the columns layout's number row: 1 is the A column (C), 2 the S column (D) …">1 – 0</span>
+          <span class="seg" id="kbd-colnum" data-keys="Alt+N" data-key-label="Columns layout: the number row plays the next choice (7, maj7, m7, sus4, ♯, octave)">
+          {% for v, say, what in [("7", "7", "the 7th chord on its column's note"), ("maj7", "maj7", "the maj7 chord on its column's note"), ("m7", "m7", "the m7 chord on its column's note"), ("sus4", "sus4", "the sus4 chord on its column's note"), ("sharp", "♯", "its column's note a semitone up (the black keys)")] %}
+            <button type="button" data-colnum="{{ v }}" aria-pressed="{{ 'true' if v == '7' else 'false' }}" data-cmd="Columns layout: each number key plays {{ what }}"
+                    title="Columns layout: each number key plays {{ what }} — 1 the C column, 2 the D … 0 the E above (Alt+N: the next choice)">{{ say }}</button>
+          {% endfor %}
+            <button type="button" data-colnum="octave" aria-pressed="false" data-cmd="Columns layout: the number row sets the octave"
+                    title="Columns layout: 1–7 set the dock's octave (C1..C7), as in letters (Alt+N: the next choice)">oct</button>
+          </span>
+        </div>
+        {#- every row at once, one click (chords.js; lit while every row plays
+            it): all chords or all notes again in one press -#}
+        <div class="kr-all" role="group" aria-label="set every typing row">
+          <span class="caps">all rows</span>
+          <span class="seg">
+          {% for m, say, what in [("piano", "piano", "the piano keys"), ("notes", "notes", "notes in key"), ("chords", "chords", "chords in key (I–VII)"), ("off", "off", "nothing")] %}
+            <button type="button" data-rows-all="{{ m }}" aria-pressed="false"
+                    data-cmd="Typing rows: every row plays {{ what }}" title="every typing row plays {{ what }}">{{ say }}</button>
+          {% endfor %}
+          </span>
+        </div>
+        <div class="kr-grid" role="group" aria-label="what each part of the keyboard plays">
+          <div class="kr-row kr-cols" aria-hidden="true"><span></span><span class="caps">plays</span><span class="caps" title="while rows → sounds is on">layer</span></div>
+          <div class="kr-row">
+            <span class="kr-name">Keys &amp; MIDI</span>
+            {#- Play's choice, read back (keysbar.js): set it in the toolbar -#}
+            <span class="kr-lane" id="kr-keys" title="Play's choice in the toolbar: a note, or a chord in key (` note / chord)">a note (Play)</span>
+            <span class="kr-lane" title="the on-screen keys and MIDI play the layer you are editing">the one you edit</span>
+          </div>
+          {% for row, label in [("num", "1 – ="), ("top", "Q – ]"), ("home", "A – '"), ("low", "Z – /")] %}
+          <div class="kr-row">
+            <kbd class="kr-name">{{ label }}</kbd>
+            <select class="field field-s" name="row-{{ row }}" aria-label="{{ label }} row plays">
+              {% for m, say in SURFACES %}<option value="{{ m }}">{{ say }}</option>{% endfor %}
+            </select>
+            {#- which layer the row plays while "rows → sounds" is on (rowsounds.js
+                disables it while that is off) -#}
+            <select class="field field-s row-lane" name="lane-{{ row }}" aria-label="{{ label }} row plays layer" title="the layer this row plays while “rows → sounds” is on">
+              {% for n in range(1, 5) %}<option value="{{ n }}">layer {{ n }}</option>{% endfor %}
+            </select>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {#- keyrec.js: a take of the keys alone (the key bus; "+ beat" adds the
+        master), on the loop's bar lines when it plays, with the notes; the
+        settings are this browser's, so none of them is a named field.
+        ⏺ Rec and its options, one group under one caption: they set the
+        take, they are not actions of their own -#}
+    <div class="kbd-grp kbd-rec" role="group" aria-labelledby="kbd-rec-cap" data-menu-section="Rec">
+      {#- (the caption is read, not drawn — ⏺ Rec names the group: its room went to ⟲ at 1920 comfy) -#}
+      <span class="caps visually-hidden" id="kbd-rec-cap">Rec</span>
+      <button type="button" id="key-rec" class="btn btn-s btn-rec key-rec" aria-pressed="false" data-max-clip-seconds="{{ limits.MAX_CLIP_SECONDS | int }}" data-max-free-seconds="{{ limits.MAX_FREE_TAKE_SECONDS | int }}"
+              data-cmd="Record a take of the keys" data-keys="Alt+R"
+              title="Record what you play over the loop — the keys alone, not the beat — from its next bar line, with the notes: its audio and a loop, in the Loops panel. With a slot selected on the Loops page's launcher it lands there and plays from it — an empty slot a new loop, a filled one overdubbed or replaced (the choice beside) (Alt+R; at most {{ limits.MAX_CLIP_SECONDS | int }} s, a free take {{ limits.MAX_FREE_TAKE_SECONDS | int }} s)">⏺ Rec</button>
+      {#- keyrec.js: into the launcher's selected slot (slots.js) — shown
+          only while one of a lane of notes is selected (the Loops page);
+          new when it is empty, else overdub | replace (per browser) -#}
+      <span class="seg key-how" id="key-how" role="group" aria-label="⏺ Rec into the selected slot" hidden>
+        <button type="button" data-key-how="new" aria-pressed="true" disabled title="The selected slot is empty: the take is a new loop there, and plays from it">new</button>
+        <button type="button" data-key-how="overdub" aria-pressed="false" data-cmd="Rec into a filled slot: overdub"
+                title="Overdub: the take's notes merge into the selected slot's loop, from the bar it began on (a repeated note is a cut) — one undo step; the take is kept too">overdub</button>
+        <button type="button" data-key-how="replace" aria-pressed="false" data-cmd="Rec into a filled slot: replace"
+                title="Replace: the take's loop takes the selected slot and plays from it (the old loop stays in the Loops)">replace</button>
+      </span>
+      <button type="button" id="key-capture" class="btn btn-s btn-icon" data-cmd="Capture what you just played on the keys" data-keys="Alt+T" aria-label="capture what you just played"
+              title="⟲ Capture (Alt+T): what you just played on the keys or MIDI — without ⏺ Rec — as a loop: the last bars the length says, or (to ■) the latest phrase from its bar line, rounded up to 1, 2, 4 or 8 bars. Notes only, at the tempo playing; into the selected slot when it is empty, else the lane's next empty slot — it never overwrites a loop">⟲</button>
+      <button type="button" id="key-count" class="btn btn-s" aria-pressed="true" data-cmd="Rec: count one bar in first, on / off"
+              title="Count one bar in before ⏺ Rec records (lit): the loop's bar when it plays, else four blips at the tempo"><i class="led" aria-hidden="true"></i>count-in</button>
+      <select id="key-bars" class="field field-s" aria-label="how long a take is"
+              title="How long a take is: whole bars, then it stops by itself — or to ■: until you press ⏺ again, rounded up to the bar — or free: from your first note to ■, no bars, then shape it into a loop">
+        {% for n in [1, 2, 4, 8] %}<option value="{{ n }}">{{ n }} bar{{ "s" if n > 1 }}</option>{% endfor %}
+        <option value="0" selected>to ■</option>
+        <option value="free" title="free: no count-in, no bar line — from your first note to ■, up to {{ limits.MAX_FREE_TAKE_SECONDS | int }} s; then shape it into a loop">free</option>
+      </select>
+      <button type="button" id="key-beat" class="btn btn-s" aria-pressed="false" data-cmd="Rec: record the beat too, on / off"
+              title="Record the beat with the keys (lit) — the whole mix, as you hear it. Unlit, a take is the keys alone"><i class="led" aria-hidden="true"></i>+ beat</button>
+    </div>
+    {#- the mic's two: the talkbox (talkbox.js: the mic speaks through the
+        keys, live, talk-worklet.js) and the live vocal chain (vocal.js) -#}
+    <div class="kbd-grp kbd-talk" role="group" aria-labelledby="kbd-talk-cap" data-menu-section="Talk">
+      <span class="caps" id="kbd-talk-cap">Talk</span>
+      <button type="button" id="talk-btn" class="btn btn-s talk-btn" aria-pressed="false" data-cmd="Talkbox: talk through the keys, on / off"
+              title="Talkbox: the mic is the voice, the keys are the carrier — play and talk or sing, and the keys speak. Live only (the Voice lab bakes a take; ⏺ in ⚙ records this one to Clips). Wear headphones."><i class="led" aria-hidden="true"></i>🎙 talk</button>
+      <button type="button" class="btn btn-s btn-icon talk-gear" popovertarget="talk-pop" aria-label="talkbox settings"
+              data-cmd="Talkbox settings" title="Talkbox: character, bands, formants, consonants, record">⚙</button>
+      {# the live vocal chain (vocal.js): the mic through a rack, over the music — its panel is every page's (#vox-pop) #}
+      <button type="button" class="btn btn-s vox-open" popovertarget="vox-pop" aria-pressed="false"
+              data-cmd="Live vocal…" data-cmd-group="Voice"
+              title="Live vocal: sing over the loop through doubling, auto-tune, compression and the studio tricks, and record it in time (lit while the mic is on)"><i class="led" aria-hidden="true"></i>🎙 vocal</button>
+      {#- the talkbox's panel: this browser's settings (localStorage), sent to a
+          running vocoder as they move; nothing here posts -#}
+      <div popover id="talk-pop" class="pop talk-pop" aria-labelledby="talk-pop-title">
+        <h3 class="caps" id="talk-pop-title">Talkbox</h3>
+        <div class="seg" role="group" aria-label="character">
+          <button type="button" data-talk-character="talkbox" aria-pressed="true" title="the keys speak: a classic talkbox">talkbox</button>
+          <button type="button" data-talk-character="robot" aria-pressed="false" title="its own buzzing carrier at a note: it talks with no keys held">robot</button>
+          <button type="button" data-talk-character="whisper" aria-pressed="false" title="a noise carrier: a whispered, breathy voice">whisper</button>
+          <button type="button" data-talk-character="choir" aria-pressed="false" title="more bands, the formants down, a slow release, a little dry: a choir of the keys">choir</button>
+        </div>
+        <label>carrier <select class="field field-s" data-talk="carrier" aria-label="what speaks">
+          <option value="keys">the keys</option><option value="robot">robot saw</option><option value="noise">noise</option>
+        </select></label>
+        <label title="the robot's note">note <select class="field field-s" data-talk="note" aria-label="the robot's note">
+          {% for m, n in [(36, "C2"), (41, "F2"), (43, "G2"), (45, "A2"), (48, "C3"), (53, "F3"), (55, "G3"), (57, "A3"), (60, "C4")] %}<option value="{{ m }}"{% if m == 48 %} selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select></label>
+        {#- the mic's pick-up, before the vocoder hears it (talk-worklet.js):
+            a whisper wants the gain and the auto level, then the gate so the
+            room's hiss does not speak through the keys -#}
+        <label title="the mic's level into the talkbox — turn it up for a whisper (the meter on 🎙 talk shows what arrives)">mic gain <input type="range" data-talk="gain" value="0" style="--fill: 0%" min="0" max="36" step="1" aria-label="mic gain in dB"></label>
+        <label title="lifts a quiet voice toward speaking level — up to +24 dB, never turns a loud one down">auto level <input type="range" data-talk="auto" value="0" style="--fill: 0%" min="0" max="1" step="0.05" aria-label="auto level"></label>
+        <label title="shuts the mic below this level, so a boosted room's hiss stays silent — all the way left is off">gate <input type="range" data-talk="gate" value="-90" style="--fill: 0%" min="-90" max="-20" step="1" aria-label="gate threshold in dB"></label>
+        <label>bands <input type="range" data-talk="bands" value="16" style="--fill: 33.3%" min="8" max="32" step="4" aria-label="bands"></label>
+        <label title="moves the formants: down is bigger, up is smaller">formants <input type="range" data-talk="shift" value="0" style="--fill: 50%" min="-12" max="12" step="1" aria-label="formant shift in semitones"></label>
+        <label title="the mic's own top: the s and t sounds">consonants <input type="range" data-talk="air" value="0.3" style="--fill: 30%" min="0" max="1" step="0.05" aria-label="consonants"></label>
+        <label title="the keys under the voice">dry <input type="range" data-talk="dry" value="0" style="--fill: 0%" min="0" max="1" step="0.05" aria-label="dry keys"></label>
+        <label title="how long a band rings after the voice leaves it">release <input type="range" data-talk="release" value="0.04" style="--fill: 7.7%" min="0.01" max="0.4" step="0.01" aria-label="release in seconds"></label>
+        <label>level <input type="range" data-talk="level" value="1" style="--fill: 50%" min="0" max="2" step="0.05" aria-label="output level"></label>
+        <button type="button" id="talk-reset" class="btn btn-s btn-ghost" data-cmd="Talkbox: settings back to the defaults"
+                title="every setting back to the Talkbox character's">↺ Defaults</button>
+        <button type="button" id="talk-rec" class="btn btn-s btn-rec talk-rec" aria-pressed="false" data-max-clip-seconds="{{ limits.MAX_CLIP_SECONDS | int }}"
+                data-cmd="Talkbox: record what it says to Clips" title="record what the talkbox plays into the clip library (again to stop)">⏺ record to Clips</button>
+        <button type="button" id="talk-rec-booth" class="btn btn-s btn-rec talk-rec" aria-pressed="false"
+                data-cmd="Talkbox: record what it says into the vocal booth"
+                title="record what the talkbox plays, keep it in Clips and make it the Voice page's take, ready to treat in 4 · Treat (again to stop)">⏺ → booth</button>
+      </div>
+    </div>
+    {#- Play tools: the chord bar region (pads, chords, the code line), its
+        button the toolbar's last, at the right end; they open over the page -#}
+    <div class="kbd-grp kbd-tools" role="group" aria-labelledby="kbd-tools-cap" data-menu-section="Tools">
+      <span class="caps" id="kbd-tools-cap">Tools</span>
+      {% include "fragments/chord_bar.html" %}
+    </div>
+  </div>
+</div>

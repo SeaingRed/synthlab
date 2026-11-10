@@ -1,0 +1,55 @@
+{# synthlab/studio/templates/views/lab.html
+   The Sample Lab: a whole song in, its grid and key found, stems separated,
+   regions cut out as clips and sampler sounds. Server-rendered forms; the
+   islands turn gestures into posts (static/lab.js: the selection on any
+   lane, its edges and keys, a click to hear, a dropped file; labview.js:
+   Ctrl + wheel, the overview, the ruler and lines; labchop.js: the chops'
+   edges, which folds are open). Nothing here is a render input: a source
+   lives in its own store (studio/sources.py), never in the session.
+   The page is tiled (dense.css D19): the songs down the left, the selected
+   song's selection and lanes taking the height, the chops over what else a
+   selection becomes beside them (side by side from 1900 px). #}
+<main class="cockpit lab-view" id="view" hx-history-elt data-view="lab">
+  <header class="view-head">
+    <div>
+      <h1>Lab</h1>
+      <p class="view-sub">The Sample Lab: bring in a song, split it into stems, cut out the parts you want.</p>
+      <div id="head-how" class="pop head-how" popover><p class="view-how">1. Import a recording and check
+        its tempo and bar 1 (the ruler numbers the bars). 2. Separate splits
+        it into drums, bass, vocals and the rest, a lane each. 3. Drag on a
+        lane to select a sample of THAT lane (the mix lane: the recording;
+        Shift adds a stem) — it snaps to bars, or to beats (Alt held = free);
+        drag its edges on the ruler; click a lane to hear it from there.
+        Ctrl + wheel zooms in round the pointer, Shift + wheel scrolls, the
+        box on the strip at the top is what you see. 4. Space plays the
+        selection round and round; ← → move it a beat (Shift a bar), [ ]
+        make it shorter or longer, Enter keeps it as a clip named for what
+        it is and where. ⤷ Sampler, ✂ Chop and → Beat are one press too;
+        the cards beside make a voice, vocal chops, a pattern, a kit or a
+        take; the line under the selection opens what was made, or undoes
+        it. Right-click a lane, a chop or a song for its menu. Whether you may
+        sample or separate a recording you did not make is for you to check;
+        the Lab does not.</p></div>
+    </div>
+    <div class="head-tools">{% include "fragments/head_help.html" %}{% include "fragments/reset_menu.html" %}</div>
+  </header>
+
+  <section class="lab-import module" aria-label="Import a song" data-module="lab.import">
+    <h2 class="caps">Songs</h2>
+    <form id="lab-upload" hx-post="/lab/upload" hx-encoding="multipart/form-data"
+          hx-target="#lab-body" hx-swap="outerHTML" hx-trigger="change" hx-sync="this:queue all">
+      <label class="filepick lab-drop" id="lab-drop"
+             title="WAV, FLAC, MP3 or OGG, up to {{ lab.max_minutes }} minutes and {{ lab.max_mb }} MB; {{ lab.max_sources }} songs at most. Whether you may sample or separate a recording you did not make is for you to check; the Lab does not.">
+        drop or choose a song
+        <input type="file" id="lab-file" name="file"
+               accept=".wav,.flac,.mp3,.ogg,audio/*" {% if not lab.codec %}disabled{% endif %}>
+      </label>
+    </form>
+    <p class="lab-meta lab-limits">wav flac mp3 ogg · {{ lab.max_minutes }} min · {{ lab.max_mb }} MB · {{ lab.max_sources }} songs</p>
+    {% if not lab.codec %}<p class="lab-error"><strong>Importing needs the soundfile package
+      (uv sync --all-extras).</strong></p>{% endif %}
+  </section>
+
+  {% include "fragments/lab_body.html" %}
+  <div id="analysis" class="readouts" hidden></div>
+</main>

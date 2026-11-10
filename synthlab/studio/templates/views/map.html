@@ -1,0 +1,20 @@
+{# synthlab/studio/templates/views/map.html
+   The plot fills the window beside a slim rack (fragments/map_body.html,
+   fetched on load: the PCA is not on the page's own path). Until it
+   arrives the box is a skeleton, not a blank. #}
+<main class="cockpit map-view" id="view" hx-history-elt data-view="map">
+  <header class="view-head">
+    <div>
+      <h1>Map</h1>
+      <p class="view-sub">The whole sound space at a glance — click a dot to load that sound.</p>
+      <div id="head-how" class="pop head-how" popover><p class="view-how">Click any dot, or a row of the list beside the plot, to jump back to that sound. The map fills as you breed and audition.</p></div>
+    </div>
+    <div class="head-tools">{% include "fragments/head_help.html" %}
+      <button data-cmd="Refresh the map" class="btn btn-ghost btn-icon btn-s" aria-label="refresh map" title="refresh the map"
+              hx-get="/fragment/map" hx-target="#map-svg" hx-swap="outerHTML" hx-indicator="#map-svg">↻</button>
+      {% include "fragments/reset_menu.html" %}
+    </div>
+  </header>
+  <section id="map-svg" aria-label="Map" hx-get="/fragment/map" hx-trigger="load" hx-swap="outerHTML"><div class="skel map-skel"></div></section>
+  <div id="analysis" class="readouts" hidden></div>
+</main>

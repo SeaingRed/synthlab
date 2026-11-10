@@ -1,0 +1,101 @@
+{# synthlab/studio/templates/fragments/mixer_strips.html — the Mix view's
+   board, region `mixer-strips` (watch: `regions._w_mixer`; context:
+   `mixer_context`): the bar (transport, the section the meters read,
+   Balance), one strip a track, the returns. Its root is `display:
+   contents`, so its three children sit in the view's own grid areas (bar /
+   strips / returns). Re-sent MORPHED after every mix edit: the control
+   under the hand keeps its node, its focus and its drag.
+
+   No level is drawn here: mixer.js lights the meters from the plan's
+   `levels` (data-meter = the track's or the return's id), so this HTML
+   depends on the song alone. #}
+{% from "macros.html" import fill %}
+<div id="mixer-strips" class="mix-board"{% if oob %} hx-swap-oob="outerMorph"{% endif %}>
+  <div class="mix-bar" id="mixer-head" role="group" aria-label="Mix">
+    {#- the transport first, as on every page: ▶ ⏸ ■ (the Song page's player) -#}
+    <button type="button" id="mix-play" class="btn btn-primary btn-play btn-icon" data-song-action="play" data-player="song" aria-pressed="false"
+            data-cmd="Play the song" data-cmd-group="Transport" data-keys="Space"
+            {% if mix.empty %}disabled{% endif %} aria-label="play the song" title="Play / stop the song (Space)">▶</button>
+    <button type="button" id="mix-pause" class="btn btn-icon btn-pause" data-song-action="pause"
+            data-cmd="Pause the song" data-cmd-group="Transport"
+            {% if mix.empty %}disabled{% endif %} aria-label="pause the song" title="Pause: stop here — ▶ carries on from this bar">⏸</button>
+    <button type="button" id="mix-stop" class="btn btn-icon btn-stop" data-song-action="stop"
+            data-cmd="Stop the song" data-cmd-group="Transport"
+            {% if mix.empty %}disabled{% endif %} aria-label="stop the song" title="Stop: back to where ▶ started">■</button>
+    <output class="play-cue" data-cue-for="mix-play">the song</output>
+    <strong class="mix-title" title="The song">{{ mix_title }}</strong>
+    <span class="caps mix-len">{{ mix.strips | length }} tracks · {{ mix_bars }} bars</span>
+    <button type="button" id="mix-loop" class="btn" data-song-action="loop" aria-pressed="false"
+            data-cmd="Loop the selected section" data-cmd-group="Transport" data-keys="L"
+            {% if mix.empty %}disabled{% endif %} title="Loop the section shown (L)">⟳ loop</button>
+    {#- what the meters read (a strip's level steps at section boundaries):
+        "section" alone read as "play this section" -#}
+    <label class="mix-sec" title="The section the meters read — ⟳ loop loops it. While the song plays it follows the playhead">meters in
+      <select id="mix-section" class="field field-s" aria-label="the section the meters read"{% if not mix.sections %} disabled{% endif %}>
+        {% for sid, name in mix.sections %}<option value="{{ sid }}"{% if sid == mix.section %} selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select></label>
+    <span class="mix-acts" role="group" aria-label="mix actions">
+      <button type="button" id="mix-undo" class="btn btn-icon" hx-post="/song/undo" hx-swap="none"
+              data-cmd="Undo the last song edit" data-keys="Ctrl+Z" aria-label="undo"
+              {% if not mix_undo.undo %}disabled title="Nothing to undo"{% else %}title="Undo: {{ mix_undo.undo }} (Ctrl+Z)"{% endif %}>↶</button>
+      <button type="button" id="mix-redo" class="btn btn-icon" hx-post="/song/redo" hx-swap="none"
+              data-cmd="Redo the song edit" data-keys="Ctrl+Shift+Z" aria-label="redo"
+              {% if not mix_undo.redo %}disabled title="Nothing to redo"{% else %}title="Redo: {{ mix_undo.redo }} (Ctrl+Shift+Z)"{% endif %}>↷</button>
+      <button type="button" id="mix-focus-mute" class="btn" data-mix-focus="mute" data-cmd="Mute the focused strip" data-cmd-group="Mix"
+              {% if mix.empty %}disabled{% endif %} title="Mute the strip last touched (its top edge is lit) — its own M does the same">Mute strip</button>
+      <button type="button" id="mix-focus-solo" class="btn" data-mix-focus="solo" data-cmd="Solo the focused strip" data-cmd-group="Mix"
+              {% if mix.empty %}disabled{% endif %} title="Solo the strip last touched (its top edge is lit) — its own S does the same">Solo strip</button>
+      <button type="button" id="mix-balance" class="btn" hx-post="/song/mix" hx-vals='{"op": "balance"}' hx-swap="none"
+              data-cmd="Balance the mix" data-cmd-group="Mix" {% if mix.empty %}disabled{% endif %}
+              title="Set each track that has a role to its role's level under the drums, in the loudest section: bass −2, lead and vocal −3, chords −6, arp −7, pad −9, fx −10 dB. One undo step">Balance</button>
+    </span>
+  </div>
+  {% if mix.empty %}
+  <div class="empty-state mix-empty">
+    <h3>Nothing to mix yet</h3>
+    <p>Every track of the song gets a strip here: level, pan, two sends, a duck under the kick, a three-band EQ.</p>
+    {% include "fragments/empty_start.html" %}
+  </div>
+  {% else %}
+  <div class="mix-strips" role="group" aria-label="Tracks">
+    {% for x in mix.strips %}{% set i = loop.index0 %}{% include "fragments/mixer_strip.html" %}{% endfor %}
+  </div>
+  <div class="mix-returns" role="group" aria-label="Returns" data-module="mix.returns">
+    {% for r in mix.returns %}
+    {% set post = "/song/mix/return/" ~ r.id %}
+    <fieldset class="panel mix-strip mix-return module" data-return="{{ r.id }}" data-ctx="Return {{ r.slot }}">
+      <legend><span class="panel-name" title="{{ r.name }}: {{ r.rack | join(' → ') }}, fully wet · {{ r.feeds }} track{{ '' if r.feeds == 1 else 's' }} sending">{{ r.name }}</span>
+        <button type="button" class="btn btn-ghost btn-icon btn-s" hx-post="/song/mix" hx-vals='{"op": "return-remove", "id": "{{ r.id }}"}' hx-swap="none"
+                hx-confirm="Remove {{ r.name }} and every send to it? Ctrl+Z brings it back." data-menu="Remove this return"
+                data-cmd="Remove return {{ r.slot }}" data-cmd-group="Mix" aria-label="remove {{ r.name }}" title="Remove this return and every send to it (Ctrl+Z brings it back)">✕</button></legend>
+      <div class="mix-level">
+        <span class="meter meter-v" data-meter="{{ r.id }}" role="img" aria-label="{{ r.name }} level in the section"
+              title="{{ r.name }}: its level in the section shown — it steps at section boundaries"><i></i><b></b></span>
+        <input type="range" class="knob fader" id="mix-{{ r.id }}-gain" name="gain" min="0" max="1.5" step="0.01" value="{{ r.gain }}" data-default="1"
+               hx-post="{{ post }}" hx-trigger="change" hx-sync="this:queue last" hx-swap="none" style="--fill: {{ fill(r.gain, 0, 1.5) }}"
+               aria-label="{{ r.name }} level" title="Return level · double-click: 100%">
+        <output class="mix-val" for="mix-{{ r.id }}-gain" data-pct>{{ (r.gain * 100) | round | int }}%</output>
+      </div>
+      {% set short = {"feedback": "fdbk", "ping_pong": "ping", "damping": "damp"} %}
+      {% for name, lo, hi, default, value in r.params %}
+      <label class="mix-ctl" title="{{ r.unit }} {{ name | replace('_', ' ') }}"><span class="caps">{{ short.get(name, name) }}</span>
+        <input type="range" class="knob knob-s" id="mix-{{ r.id }}-p{{ name }}" name="p.{{ name }}" min="{{ lo }}" max="{{ hi }}"
+               step="{{ 1 if name in ('sync', 'ping_pong') else ((hi - lo) / 100) | round(4) }}" value="{{ value }}" data-default="{{ default }}"
+               hx-post="{{ post }}" hx-trigger="change" hx-sync="this:queue last" hx-swap="none" style="--fill: {{ fill(value, lo, hi) }}"
+               aria-label="{{ r.name }} {{ name | replace('_', ' ') }}">
+        <output class="mix-val" for="mix-{{ r.id }}-p{{ name }}">{{ value | round(2) }}</output></label>
+      {% endfor %}
+      <span class="mix-rack" title="{{ r.feeds }} track{{ '' if r.feeds == 1 else 's' }} sending → {{ r.rack | join(' → ') }} → master">
+        <svg class="cable{{ ' off' if not r.feeds }}" viewBox="0 0 24 14" aria-hidden="true"><path d="M2 4C7 15 17 15 22 4"/><circle cx="2" cy="4" r="1.7"/><circle cx="22" cy="4" r="1.7"/></svg>
+        <span class="mix-chain">{{ r.feeds }} in</span>
+      </span>
+    </fieldset>
+    {% endfor %}
+    {% if mix.can_add_return %}
+    <button type="button" id="mix-return-add" class="btn mix-add" hx-post="/song/mix" hx-vals='{"op": "return-add"}' hx-swap="none"
+            data-cmd="Add a return" data-cmd-group="Mix"
+            title="Add a return: a shared reverb (A), then a shared delay (B). A strip's A and B knobs send to them — turning one up adds them too">+ return</button>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

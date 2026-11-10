@@ -1,0 +1,8 @@
+{# synthlab/studio/templates/fragments/head_help.html #}
+{# The page head's "how this page works": the instructions every view used
+   to print under its title, behind one button. A declarative popover
+   (#head-how, in the view's own head): no script opens it, Esc and a click
+   outside close it, and it is in the top layer, so nothing clips it. #}
+<button type="button" class="btn btn-ghost btn-icon btn-s head-help" popovertarget="head-how"
+        aria-label="how this page works" title="how this page works"
+        data-cmd="How this page works" data-cmd-group="Help"><svg class="vi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 11v6M12 7.4v.2"/></svg></button>

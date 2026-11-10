@@ -1,0 +1,49 @@
+{# synthlab/studio/templates/fragments/bass_panels.html #}
+{# the root keeps refreshing itself: it replaces (outerHTML) the placeholder
+   that carried the trigger, so without its own the panels froze after the
+   first swap.
+   Three cards: the sub spectrum (fragments/sub_plot.html: the SVG in a
+   `.sub-plot` that keeps its 100:40 box, so the grid behind it and the Hz /
+   dB ticks over it sit on the trace's own coordinates at any size), mono
+   compatibility and the phone-speaker test — each a lamp or a `.meter`
+   beside its number. On the Bass page the root is `display: contents` and
+   the cards are cells of the page's grid. On Synths (`split`: the asking
+   view is the editor) the mono and phone cards sit in a row in
+   the Bass check module and the sub spectrum is a module of its own,
+   #bass-sub, which rides this answer out of band. #}
+<section id="bass-panels" aria-label="Bass panels"
+         hx-get="/fragment/bass" hx-trigger="preview-ready from:body" hx-swap="outerHTML">
+  {% if not split %}
+  <article class="meter-card module wide">
+    <h3 class="caps">Sub spectrum 10–120 Hz</h3>
+    {% include "fragments/sub_plot.html" %}
+  </article>
+  {% endif %}
+  <article class="meter-card module bp-mono" title="Mono sub stays intact when the channels sum — a club system, a phone.">
+    <h3 class="caps">Mono compatibility</h3>
+    <div class="bass-readout">
+      <span class="lamp led {{ 'ok' if mono.mono_sub_ok else 'bad' }}" data-on="{{ 'on' if mono.mono_sub_ok else 'clip' }}"
+            aria-label="mono compatibility"></span>
+      <span>mono sub {{ 'ok' if mono.mono_sub_ok else 'bad' }}
+        ({{ '%.2f'|format(mono.low_correlation) }} correlation)</span>
+    </div>
+    <span class="meter bass-meter" style="--level: {{ ((mono.low_correlation + 1) * 50) | round(1) }}%"
+          title="low-band correlation, −1 (cancels in mono) … +1 (identical channels)" aria-hidden="true"><i></i><b></b></span>
+  </article>
+  <article class="meter-card module bp-phone" title="How much of the sound survives a 300 Hz highpass: what a phone speaker plays.">
+    <h3 class="caps">Phone speaker test</h3>
+    <div class="bass-readout">
+      <meter min="0" max="1" value="{{ phone.survives_ratio }}"
+             aria-label="phone survival ratio"></meter>
+      <span>phone test: {{ '%.0f'|format(phone.survives_ratio * 100) }}% survives</span>
+    </div>
+    <span class="meter bass-meter" style="--level: {{ (phone.survives_ratio * 100) | round(1) }}%" aria-hidden="true"><i></i><b></b></span>
+    <button type="button" class="btn btn-s" hx-post="/fragment/bass/phone-audition" hx-swap="none"
+            data-cmd="Audition the sound highpassed (phone speaker)" data-cmd-group="Bass"
+            title="hear what survives a 300 Hz highpass">
+      Audition highpassed
+    </button>
+  </article>
+</section>
+{#- Synths: the sub spectrum module, out of band to wherever it stands -#}
+{% if split %}{% with oob = true %}{% include "fragments/bass_sub.html" %}{% endwith %}{% endif %}

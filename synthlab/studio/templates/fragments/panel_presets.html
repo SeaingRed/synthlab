@@ -1,0 +1,14 @@
+{# synthlab/studio/templates/fragments/panel_presets.html #}
+<ul class="panel-preset-list" id="panel-presets-{{ group | lower | replace(" ", "-") }}">
+  {% for name in presets %}
+  <li>
+    {#- the menu closes as it loads (the load is a body morph, which keeps it open) -#}
+    <button type="button" class="menu-item" hx-post="/fragment/panel/preset/load"
+            popovertarget="pp-{{ group | lower | replace(" ", "-") }}" popovertargetaction="hide"
+            hx-vals='{{ {"group": group, "name": name} | tojson }}'
+            hx-target="body" hx-swap="innerMorph">{{ name }}</button>
+  </li>
+  {% else %}
+  <li class="pp-none">No {{ group }} presets saved yet.</li>
+  {% endfor %}
+</ul>

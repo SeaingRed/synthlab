@@ -1,0 +1,16 @@
+{# synthlab/studio/templates/fragments/toast.html #}
+{#- This fragment is only ever returned as a 422 error body (never
+   included as page markup), and is picked up purely by audio.js's
+   htmx:response:error handler via DOMParser on ctx.text — it must stay
+   out of htmx's own swap/OOB pipeline. Under htmx 2 this was moot
+   (4xx bodies were never swapped at all, OOB included); under htmx 4,
+   OOB elements are processed unconditionally regardless of hx-swap or
+   the noSwap status-code list (see base.html's htmx-config meta), so an
+   hx-swap-oob attribute here would make htmx replace #toasts itself
+   *in addition to* audio.js's own insertion — a redundant swap that
+   also orphans audio.js's auto-dismiss timer (it holds a reference to
+   the <p> it inserted, not to whatever the OOB swap replaces it with).
+   Keep this a plain, non-OOB fragment. #}
+<div id="toasts" role="status" aria-live="polite">
+  <p class="toast error" role="alert">{{ message }}{% if still_playing %} — still playing the previous loop.{% endif %}</p>
+</div>

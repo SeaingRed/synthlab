@@ -1,0 +1,78 @@
+{# synthlab/studio/templates/fragments/map_body.html
+   What GET /fragment/map answers with (routes/views.py map_fragment): the
+   plot — mapview.map_svg's SVG, unchanged — filling its box, and a slim
+   rack beside it saying the same rows in words: where you are, what size
+   and colour mean (the SVG's own legend and axis captions are hidden on
+   the desktop tier, where they scaled with the window: 25 px type at
+   1920), and the newest points as a list — each row the dot's own load,
+   so the map is reachable from the keyboard and by name. `map` is
+   mapview.map_facts. #}
+<section id="map-svg" aria-label="Map">
+  {% if not map.plotted %}
+  <div class="empty-state map-empty"><h3>The map is empty</h3>
+    <p>Audition sounds in Breed to fill the map.</p>
+    <a class="btn btn-s" {{ view_link("/view/breed") }}>Go to Breed</a> {% include "fragments/empty_play.html" %}</div>
+  {% else %}
+  <div class="map-plot module-well">{{ svg | safe }}
+    <span class="caps map-ax map-ax-x" aria-hidden="true">{{ map.x_label }}</span>
+    <span class="caps map-ax map-ax-y" aria-hidden="true">{{ map.y_label }}</span>
+  </div>
+  <aside class="map-rack module" aria-label="Map legend and sounds" data-module="map.legend">
+    {% if map.here %}
+    <section class="rack-sec">
+      <h2 class="caps">You are here</h2>
+      <p class="map-here"><span class="map-dot map-ring" style="--b: {{ map.here.b }}"></span><b>{{ map.here.name }}</b></p>
+      {#- the map's numbers are the breeder's probe — one A3 note — so a
+          bass reads brighter and thinner here than on the Library, which
+          measures it in its own register: the caption says so -#}
+      <div class="t-facts" title="Measured on one A3 note, as Breed measures: a bass reads brighter and lighter here than on the Library, which measures it in its own register">
+        <span class="caps">sub</span><span class="meter" style="--level: {{ map.here.sub_level }}%"><i></i></span><output>{{ map.here.sub_pct }}%</output>
+        <span class="caps">bright</span><span class="meter" style="--level: {{ map.here.bright_level }}%"><i></i></span><output>{{ map.here.centroid }} Hz</output>
+        <span class="caps map-at">at A3</span>
+      </div>
+    </section>
+    {% endif %}
+    <section class="rack-sec">
+      <h2 class="caps">Legend</h2>
+      <dl class="map-legend-list">
+        <dt class="caps">size</dt><dd><span class="map-sizes" aria-hidden="true"><i></i><i></i><i></i></span> sub weight</dd>
+        <dt class="caps">colour</dt><dd><span class="map-hues" aria-hidden="true"></span> dark → bright</dd>
+        <dt class="caps">across</dt><dd>{{ map.x_label }}</dd>
+        <dt class="caps">up</dt><dd>{{ map.y_label }}</dd>
+        <dt class="caps">measured</dt><dd>on one A3 note (the breeder's probe)</dd>
+        <dt class="caps">points</dt><dd><output>{{ map.count }}</output> of the newest {{ map.max_points }}{% if map.shelf %} · <output>{{ map.shelf }}</output> shipped, faint{% endif %}</dd>
+      </dl>
+    </section>
+    {#- the sound's neighbourhood: the points the plot lights
+        round "you are here", nearest first — a shipped sound by its shelf's
+        own Use, a logged one by its id -#}
+    {% if map.near %}
+    <section class="rack-sec map-list map-near">
+      <h2 class="caps">Near you <small>{{ map.near | length }}</small></h2>
+      <ul>
+        {% for r in map.near %}
+        <li data-ctx="{{ r.name }}"><button type="button" class="row map-row map-near-row"
+                    data-menu="Load on Synths"
+                    {% if r.load %}hx-post="/fragment/{{ r.load }}/load" hx-vals='{{ {"name": r.name} | tojson }}'{% else %}hx-post="/fragment/load" hx-vals='{"id": "{{ r.id }}"}'{% endif %}
+                    hx-target="body" hx-swap="innerMorph" title="load {{ r.name }} on Synths">
+          <span class="map-dot" style="--b: {{ r.b }}"></span><span class="map-name">{{ r.name }}</span>
+          <output>{{ r.sub_pct }}%</output><output>{{ r.centroid }} Hz</output></button></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+    <section class="rack-sec map-list">
+      <h2 class="caps">Newest <small>{{ map.rows | length }}</small></h2>
+      <ul>
+        {% for r in map.rows %}
+        <li data-ctx="{{ r.name }}"><button type="button" class="row map-row{{ ' row-on' if map.here and r.id == map.here.id }}"
+                    data-menu="Load on Synths" hx-post="/fragment/load" hx-vals='{"id": "{{ r.id }}"}' hx-target="body" hx-swap="innerMorph"
+                    title="load {{ r.name }} on Synths">
+          <span class="map-dot" style="--b: {{ r.b }}"></span><span class="map-name">{{ r.name }}</span>
+          <output>{{ r.sub_pct }}%</output><output>{{ r.centroid }} Hz</output></button></li>
+        {% endfor %}
+      </ul>
+    </section>
+  </aside>
+  {% endif %}
+</section>

@@ -1,0 +1,374 @@
+{# synthlab/studio/templates/drumgrid.html — the step sequencer, shared.
+   Drums (drum_bank.html), Perform (perform_drums.html) and the Song page's
+   drawer (fragments/drawer_drums.html) draw the same grid from these
+   macros, so the drawer posts exactly the field names the grid routes
+   parse. tests/studio/test_grid_macros.py pins Drums byte for byte; keep
+   the whitespace control as it is. The step sequencer: drums.md, "The
+   step sequencer".
+
+   drum_grid: the whole grid form — its post URL, the hidden bars / steps,
+   the per-hit table and the rows' own swing (two hidden JSON fields that
+   steps.js keeps: `hits`, `rswing`), the 8 voice rows with their step
+   LEDs marked for a ratchet / a chance / a nudge / a tune / a velocity of
+   their own, the lane under the grid, the lane switch, the inspector (the
+   selected row's level and swing, the cursor hit's five values: seven
+   knobs, the deck's dials) and the hit menu. `tools` draws each row
+   head's mute, solo and ⋯ menu, which act on the working loop's drum
+   mixer; the drawer edits a pool pattern and passes tools=false (its rows
+   keep the swing knob: a row's swing is the pattern's).
+
+   The grid is ONE Tab stop: a step, a lane bar and a row head's controls
+   take the keyboard only on the row and step the cursor is on (tabindex
+   -1 elsewhere; steps.js moves it). Every knob here is unnamed on
+   purpose: steps.js writes what it means into the two hidden fields, and
+   the grid's own post carries them (the "any control inside #drum-grid
+   posts the whole grid" rule, used rather than fought). #}
+
+{% from "macros.html" import fill %}
+{#- where a drum tool's answer goes: Drums MORPHS its #drum-bank (the step
+    under the keyboard keeps the focus through a tool, a variation, a fill:
+    a replaced grid dropped it, and Shift+arrows shifted the beat once);
+    Perform's rack (target none) swaps nothing and comes back, morphed, by
+    its region watch. steps.js draws its own state again after either -#}
+{% macro swap_to(target) %}{% if target %}hx-target="{{ target }}" hx-swap="outerMorph"{% else %}hx-swap="none"{% endif %}{% endmacro %}
+
+{#- a step's marks, from its hit's data (steps.js `mark` writes the same) -#}
+{% macro hit_marks(h) %}{% if h %}{% if h.r is defined and h.r > 1 %} data-r="{{ h.r }}"{% endif %}{% if h.p is defined %} data-p="{{ (h.p * 100) | round | int }}"{% endif %}{% if h.n is defined and h.n %} data-n="{{ '-' if h.n < 0 else '+' }}"{% endif %}{% if h.t is defined and h.t %} data-t="{{ '-' if h.t < 0 else '+' }}"{% endif %}{% if h.v is defined %} style="--hv: {{ h.v }}"{% endif %}{% endif %}{% endmacro %}
+
+{% macro drum_grid(post, drums, drum_vel, bars, steps, drum_rows, form_id="drum-grid", tools=true, mix={}, samples={}, clips=[], target="#drum-bank", form_class="", hits={}, row_swing={}, swing=0.0, row_tool="", bar_meter="4/4", lanes=false) -%}
+{#- another meter's bar (meter.py): its beats and its groups' heads -#}
+{%- set acc = meter.grid_accents(bar_meter, steps) -%}
+<form id="{{ form_id }}" class="drum-grid{% if form_class %} {{ form_class }}{% endif %}"
+        hx-post="{{ post }}" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last" hx-swap="none">
+    {% set dsteps = bars * steps %}
+    {% set any_solo = mix.values() | selectattr("solo") | list | length > 0 %}
+    <input type="hidden" name="bars" value="{{ bars }}">
+    <input type="hidden" name="steps" value="{{ steps }}">
+    <input type="hidden" name="hits" value="{{ hits | tojson | forceescape }}">
+    <input type="hidden" name="rswing" value="{{ row_swing | tojson | forceescape }}">
+    {%- if tools %}
+    <input type="hidden" name="rlevel" value="{}">
+    {%- endif %}
+    <div class="grid drum-grid-8" aria-label="Drum grid" data-bars="{{ bars }}" style="--steps: {{ dsteps }}; --rows: {{ drum_rows | length }}">
+      <i class="playhead" aria-hidden="true" style="grid-row: 1 / span {{ (drum_rows | length) + 1 }}"></i>
+      {% for drum in drum_rows %}
+      {% set m = mix.get(drum, {}) %}
+      {% set silent = m.get("mute") or (any_solo and not m.get("solo")) %}
+      {% set sample = samples.get(drum) %}
+      {% set tab = 0 if loop.first else -1 %}
+      {% set own = row_swing.get(drum) %}
+      <div class="gridrow drumrow {% if silent %}silent{% endif %}" role="group" aria-label="{{ drum }} row" data-voice="{{ drum }}">
+        {# The row head holds only what you reach for mid-groove: its name
+           (press: hear it and select the row — its hits own the lane),
+           mute, solo, a ⋯ menu with the row tools and the sample source
+           and from 1900 px its level and swing as knobs. Sticky,
+           so it stays put while the steps scroll on a phone. #}
+        <span class="rowhead"{% if row_tool %} data-ctx-pop="rowmenu-{{ form_id }}-{{ drum }}"{% endif %}>
+          <button type="button" class="btn btn-s btn-ghost rowlabel" data-voice="{{ drum }}" aria-pressed="false" tabindex="{{ tab }}"
+                  aria-label="select the {{ drum }} row" title="{{ drum }}: hear it · its hits take the lane under the grid (again: every row)">{{ drum }}{% if sample %}<i class="row-src" title="plays clip {{ sample }}">◆</i>{% endif %}</button>
+          {%- if tools %}
+          <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="{{ 'true' if m.get('mute') else 'false' }}" tabindex="{{ tab }}"
+                  hx-post="/fragment/drums/row/{{ drum }}/mute" {{ swap_to(target) }}
+                  aria-label="mute {{ drum }}">M</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn solo" aria-pressed="{{ 'true' if m.get('solo') else 'false' }}" tabindex="{{ tab }}"
+                  hx-post="/fragment/drums/row/{{ drum }}/solo" {{ swap_to(target) }}
+                  aria-label="solo {{ drum }}">S</button>
+          {%- endif %}
+          {%- if row_tool %}
+          <span class="row-menu">
+            <button type="button" class="btn btn-s btn-icon rowbtn" tabindex="{{ tab }}" popovertarget="rowmenu-{{ form_id }}-{{ drum }}" aria-label="{{ drum }} row tools" title="row tools">⋯</button>
+            <div popover id="rowmenu-{{ form_id }}-{{ drum }}" class="pop row-menu-panel" role="group" aria-label="{{ drum }} row tools">
+              {%- if tools %}
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/{{ drum }}/randomise"
+                      hx-include="#drum-bank select[name=style]" {{ swap_to(target) }}
+                      aria-label="randomise {{ drum }} row">⚄ randomise</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/{{ drum }}/mutate"
+                      {{ swap_to(target) }}
+                      aria-label="mutate {{ drum }} row">± mutate</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/{{ drum }}/clear"
+                      {{ swap_to(target) }}
+                      aria-label="clear {{ drum }} row">✕ clear</button>
+              {# FL's "fill each N steps" and a one-step nudge of the row #}
+              <span class="rowtool-group" role="group" aria-label="fill the {{ drum }} row">fill
+                {%- for n in (1, 2, 4, 8) %}
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/{{ drum }}/fill{{ n }}"
+                        {{ swap_to(target) }} title="a {{ drum }} hit every {{ n }} step{{ 's' if n > 1 else '' }}"
+                        aria-label="fill the {{ drum }} row every {{ n }} steps">{{ n }}</button>
+                {%- endfor %}
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/{{ drum }}/shift_left"
+                      {{ swap_to(target) }} aria-label="shift the {{ drum }} row a step earlier" title="shift a step earlier (wraps)">◀</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/{{ drum }}/shift_right"
+                      {{ swap_to(target) }} aria-label="shift the {{ drum }} row a step later" title="shift a step later (wraps)">▶</button>
+              {%- endif %}
+              {# Euclid: N hits spread as evenly as they go over M steps,
+                 turned — 3 in 8 is the tresillo, 5 in 16 the bossa. Its
+                 three numbers post with the button alone (hx-include), so
+                 they are no field of the grid #}
+              <span class="rowtool-group euclid" role="group" aria-label="Euclid the {{ drum }} row" title="hits spread evenly over steps, then turned: 3 in 8, 5 in 16 …">euclid
+                <input class="field field-s" type="number" name="hits" form="euclid-{{ form_id }}-{{ drum }}" min="0" max="{{ dsteps }}" value="3" aria-label="{{ drum }}: Euclid hits">
+                in <input class="field field-s" type="number" name="of" form="euclid-{{ form_id }}-{{ drum }}" min="1" max="{{ dsteps }}" value="{{ 8 if steps >= 8 else steps }}" aria-label="{{ drum }}: Euclid steps">
+                ↻ <input class="field field-s" type="number" name="rotate" form="euclid-{{ form_id }}-{{ drum }}" min="0" max="{{ dsteps }}" value="0" aria-label="{{ drum }}: Euclid turn">
+                <button type="submit" class="btn btn-s rowtool" form="euclid-{{ form_id }}-{{ drum }}"
+                        aria-label="apply Euclid to the {{ drum }} row">apply</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="{{ row_tool | replace('VOICE', drum) | replace('OP', 'hitclear') }}"
+                      hx-vals='{"voice": "{{ drum }}"}' {{ swap_to(target) }}
+                      title="every {{ drum }} hit back to plain: no ratchet, chance, nudge, tune or velocity of its own"
+                      aria-label="clear the {{ drum }} row's hit data">plain hits</button>
+              {% if tools %}
+              <select class="field field-s row-sample" name="clip.{{ drum }}" hx-post="/fragment/drums/sample"
+                      hx-vals='{"voice": "{{ drum }}"}' hx-trigger="change" hx-sync="this:queue last"
+                      {{ swap_to(target) }}
+                      title="play a clip instead of the synthesized {{ drum }}"
+                      aria-label="sample for the {{ drum }} row">
+                <option value="">synth {{ drum }}</option>
+                {#- the percussion the eight voices lack (synthlab/percussion.py):
+                    rendered into the clip store on first use, as perc-<kind> -#}
+                <optgroup label="Percussion">
+                  {% for k in perc_kinds %}
+                  <option value="perc:{{ k }}" {% if sample == "perc-" ~ k %}selected{% endif %}>{{ k }}</option>
+                  {% endfor %}
+                </optgroup>
+                {#- every clip but the five generated ones, which are listed above -#}
+                {% if clips %}<optgroup label="Clips">
+                {% for c in clips if c.name not in perc_clips %}
+                <option value="{{ c.name }}" {% if sample == c.name %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+                </optgroup>{% endif %}
+              </select>
+              {% endif %}
+            </div>
+          </span>
+          {%- endif %}
+          {# the row's own knobs (from 1900 px; below that the inspector
+             under the grid holds the selected row's): level is the kit's
+             mixer, swing the pattern's — double-click = the kit's swing #}
+          <span class="row-knobs">
+            {%- if tools %}
+            <input type="range" id="{{ form_id }}-{{ drum }}-level" style="--fill: {{ fill(m.get('level', 1.0), 0, 1.5) }}" class="knob knob-s" data-row="level" min="0" max="1.5" step="0.01" value="{{ m.get('level', 1.0) }}" data-default="1" tabindex="{{ tab }}"
+                   aria-label="{{ drum }} level" title="{{ drum }} level">
+            {%- endif %}
+            <input type="range" id="{{ form_id }}-{{ drum }}-swing" style="--fill: {{ fill(swing if own is none else own, 0, 0.6) }}" class="knob knob-s{% if own is not none %} own{% endif %}" data-row="swing" min="0" max="0.6" step="0.01" value="{{ swing if own is none else own }}" data-default="{{ swing }}" tabindex="{{ tab }}"
+                   aria-label="{{ drum }} swing" title="{{ drum }} swing: this row's own, over the kit's (double-click: follow the kit again)">
+          </span>
+        </span>
+        {% for step in range(dsteps) %}
+        {# .beat every 4 steps, .bar at every bar line after the first (so a
+           bar line reads apart from a beat line) #}
+        <input type="checkbox" name="drum.{{ drum }}.{{ step }}"
+               class="cell {% if acc is none %}{% if step % 4 == 0 %}beat{% endif %}{% else %}{{ meter.mark(acc, step) }}{% endif %} {% if step and step % steps == 0 %}bar{% endif %}"
+               {% if [drum, step] in drums %}checked{{ hit_marks(hits.get(drum ~ "." ~ step)) }}{% endif %}
+               aria-label="{{ drum }} step {{ step + 1 }}" tabindex="{{ 0 if loop.first and tab == 0 else -1 }}">
+        {% endfor %}
+      </div>
+      {% endfor %}
+      <div class="velrow" role="group" aria-label="drum velocity row" data-lane="v">
+        {#- under the rows' knobs (from 1900 px), what each column is: two
+            twin dials a row read as one control twice -#}
+        <span class="rowhead"><span class="rowlabel lane-name" aria-hidden="true">vel</span>
+          <span class="row-knobs row-knob-caps" aria-hidden="true">{% if tools %}<span title="each row's level (the kit's mixer)">lvl</span>{% endif %}<span title="each row's swing, over the kit's">sw</span></span></span>
+        {% for step in range(dsteps) %}
+        {% set v = drum_vel.get(step|string, 1.0) %}
+        {# a full-height bar under a step with no hit is noise, not data #}
+        {% set hit = drums | selectattr(1, "equalto", step) | list | length > 0 %}
+        <div class="vel-lane{% if not hit %} idle{% endif %}" data-step="{{ step }}" data-ctx-pop="hitmenu-{{ form_id }}" role="slider" tabindex="{{ 0 if loop.first else -1 }}"
+             aria-label="drum velocity step {{ step + 1 }}"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="{{ v }}">
+          <div class="vel-bar" style="--v: {{ v|round(3) }}"></div>
+          <input type="hidden" name="dvel.{{ step }}" value="{{ v }}">
+        </div>
+        {% endfor %}
+      </div>
+      {#- Kit (`lanes`): the four other hit lanes stacked under
+          the velocity's, drawn where the page has the height (dense.css,
+          the stacked lanes; the lane switch is the fallback): the selected
+          row's hits, else the cursor's row's (steps.js `draw`). The same
+          `.vel-lane` bars: audio.js paints them, steps.js reads each into
+          its field -#}
+      {%- if lanes %}
+      {%- for f, name in (("p", "chance"), ("r", "ratchet"), ("n", "nudge"), ("t", "tune")) %}
+      <div class="velrow hitrow" role="group" aria-label="the {{ name }} lane" data-lane="{{ f }}">
+        <span class="rowhead"><span class="rowlabel lane-name" aria-hidden="true">{{ name }}</span><span class="lane-who" aria-hidden="true"></span></span>
+        {%- for step in range(dsteps) %}
+        <div class="vel-lane idle" data-step="{{ step }}" data-ctx-pop="hitmenu-{{ form_id }}" role="slider" tabindex="-1"
+             aria-label="{{ name }} step {{ step + 1 }}" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        {%- endfor %}
+      </div>
+      {%- endfor %}
+      {%- endif %}
+    </div>
+    {# under the grid: which lane it shows, of which row; then the knobs
+       for the selected row and the hit under the cursor #}
+    <div class="lane-bar" role="toolbar" aria-label="the lane under the grid, and the hit under the cursor">
+      <span class="caps">lane</span>
+      <div class="seg lane-pick" role="group" aria-label="the lane under the grid">
+        {%- for f, name, cmd, hint in (
+            ("v", "vel", "velocity", "how hard each hit of the selected row plays (no row selected: the step's, for every voice on it)"),
+            ("p", "chance", "chance", "how often each hit plays: 100 % always, 50 % half the passes — rolled once a pattern, the same every time"),
+            ("r", "ratchet", "ratchet", "1 to 4 hits inside the step, each a little quieter"),
+            ("n", "nudge", "nudge", "each hit early or late, up to half a step"),
+            ("t", "tune", "tune", "each hit up or down, to an octave (kick, snare, tom, rim and sampled rows)")) %}
+        <button type="button" data-lane="{{ f }}" aria-pressed="{{ 'true' if f == 'v' else 'false' }}"
+                data-cmd="Lane: {{ cmd }}" data-cmd-group="Pattern" data-keys="PageUp / PageDown" title="{{ hint }}">{{ name }}</button>
+        {%- endfor %}
+      </div>
+      <button type="button" class="btn btn-s btn-ghost lane-of" data-row-all aria-label="the lane's row"
+              title="the row whose hits the lane shows — press for every row (the steps' shared velocity)">every row</button>
+      <fieldset class="hit-insp" aria-label="the selected row and the hit under the cursor">
+        {%- if tools %}
+        <label title="the selected row's level (the kit's mixer)">level <input type="range" id="{{ form_id }}-row-level" style="--fill: {{ fill(1, 0, 1.5) }}" class="knob" data-row="level" min="0" max="1.5" step="0.01" value="1" data-default="1" disabled
+               aria-label="selected row: level"><output>1</output></label>
+        {%- endif %}
+        <label title="the selected row's own swing, over the kit's (double-click: follow the kit again)">swing <input type="range" id="{{ form_id }}-row-swing" style="--fill: {{ fill(swing, 0, 0.6) }}" class="knob" data-row="swing" min="0" max="0.6" step="0.01" value="{{ swing }}" data-default="{{ swing }}" disabled
+               aria-label="selected row: swing"><output data-pct class="hit-val">{{ (swing * 100) | round | int }}%</output></label>
+        <output class="hit-at caps" aria-label="the hit under the cursor" title="the hit these five belong to: the step the cursor is on">no hit</output>
+        <label title="this hit's own velocity, in place of its step's">vel <input type="range" id="{{ form_id }}-hit-v" style="--fill: {{ fill(1, 0.05, 1) }}" class="knob" data-hit="v" min="0.05" max="1" step="0.05" value="1" data-default="1" disabled
+               aria-label="hit: velocity"><output data-pct class="hit-val">100%</output></label>
+        <label title="how often this hit plays">chance <input type="range" id="{{ form_id }}-hit-p" style="--fill: {{ fill(1, 0, 1) }}" class="knob" data-hit="p" min="0" max="1" step="0.05" value="1" data-default="1" disabled
+               aria-label="hit: chance"><output data-pct class="hit-val">100%</output></label>
+        <label title="hits inside the step">ratchet <input type="range" id="{{ form_id }}-hit-r" style="--fill: {{ fill(1, 1, 4) }}" class="knob" data-hit="r" min="1" max="4" step="1" value="1" data-default="1" disabled
+               aria-label="hit: ratchet"><output>1</output></label>
+        <label title="early (left) or late (right), in steps">nudge <input type="range" id="{{ form_id }}-hit-n" style="--fill: {{ fill(0, -0.5, 0.5) }}" class="knob" data-hit="n" min="-0.5" max="0.5" step="0.05" value="0" data-default="0" disabled
+               aria-label="hit: nudge"><output>0</output></label>
+        <label title="semitones on this hit">tune <input type="range" id="{{ form_id }}-hit-t" style="--fill: {{ fill(0, -12, 12) }}" class="knob" data-hit="t" min="-12" max="12" step="1" value="0" data-default="0" disabled
+               aria-label="hit: tune"><output>0</output></label>
+      </fieldset>
+      <button type="button" class="btn btn-s btn-icon hit-menu-btn" popovertarget="hitmenu-{{ form_id }}"
+              data-cmd="Hit menu" data-cmd-group="Pattern" data-keys="Menu"
+              aria-label="hit menu: ratchet, chance, nudge, clear" title="the hit under the cursor: ratchet ×2 ×3 ×4, chance 25 / 50 / 75, nudge, clear (Menu key on a step; a long press on a hit)">⋯</button>
+      {#- what the page adds to this bar (the Song drawer: the beat's family) -#}
+      {%- if caller %}{{ caller() }}{% endif %}
+    </div>
+    {# the hit menu: one per grid, in the top layer (a right click on a
+       lane bar opens it for that step — menu.js `data-ctx-pop` —, as do
+       the Menu key and a long press on a hit, and the ⋯ beside the lane
+       switch; a right click on a STEP still erases) #}
+    <div id="hitmenu-{{ form_id }}" class="pop menu menu-pop hit-menu" popover role="menu" aria-label="this hit">
+      <input type="hidden" data-from="step" value="">
+      <div class="caps ctx-title hit-menu-title" role="presentation">hit</div>
+      {%- for label, what in (("ratchet ×2", "r=2"), ("ratchet ×3", "r=3"), ("ratchet ×4", "r=4"), ("no ratchet", "r=1")) %}
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="{{ what }}">{{ label }}</button>
+      {%- endfor %}
+      <hr class="menu-sep">
+      {%- for label, what in (("chance 25 %", "p=0.25"), ("chance 50 %", "p=0.5"), ("chance 75 %", "p=0.75"), ("always", "p=1")) %}
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="{{ what }}">{{ label }}</button>
+      {%- endfor %}
+      <hr class="menu-sep">
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="n-">nudge earlier <kbd>Alt+←</kbd></button>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="n+">nudge later <kbd>Alt+→</kbd></button>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="n=0">on the grid</button>
+      <hr class="menu-sep">
+      <button type="button" class="menu-item danger" role="menuitem" data-hit-set="clear">clear hit data <kbd>Del</kbd></button>
+    </div>
+  </form>
+  {#- a row's Euclid numbers post from here, never with the grid -#}
+  {%- if row_tool %}
+  {%- for drum in drum_rows %}
+  <form id="euclid-{{ form_id }}-{{ drum }}" class="euclid-form" hx-post="{{ row_tool | replace('VOICE', drum) | replace('OP', 'euclid') }}"
+        hx-vals='{"voice": "{{ drum }}"}' {{ swap_to(target) }} hidden></form>
+  {%- endfor %}
+  {%- endif %}
+{%- endmacro %}
+
+
+{# The beat's variations and generators (routes/drums.py): A-D (a press
+   on a letter that holds nothing copies the beat into it), copy to, the
+   fill and its lengths, sparser / busier, build. On Drums and Perform;
+   the Song drawer has its own row (drawer_drums.html), a pool beat's
+   family. `target` as drum_grid's. #}
+{% macro beat_bar(variants, beat_style, target="#drum-bank") -%}
+<div class="beat-bar" role="toolbar" aria-label="Beat variations and generators">
+      <span class="caps">beat</span>
+      {#- the palette's and the deck's names, spelt out (a key is bound to a
+          command by its name: tests/browser/test_palette_reach.py) -#}
+      {% set cmds = {"A": 'data-cmd="Beat variation A" data-keys="Alt+1"', "B": 'data-cmd="Beat variation B" data-keys="Alt+2"',
+                     "C": 'data-cmd="Beat variation C" data-keys="Alt+3"', "D": 'data-cmd="Beat variation D" data-keys="Alt+4"'} %}
+      <div class="seg var-pick" role="group" aria-label="beat variation">
+        {%- for v, on, has in variants %}
+        <button type="button" data-var="{{ v }}" class="{{ '' if has else 'empty' }}" aria-pressed="{{ 'true' if on else 'false' }}"
+                hx-post="/fragment/drums/var" hx-vals='{"var": "{{ v }}"}' {{ swap_to(target) }}
+                {{ cmds[v] | safe }} data-cmd-group="Pattern"
+                title="{{ 'variation ' ~ v ~ ' (on the grid)' if on else ('switch to variation ' ~ v ~ ' on the next bar' if has else 'variation ' ~ v ~ ': empty — a press copies this beat into it') }}">{{ v }}</button>
+        {%- endfor %}
+      </div>
+      <span class="pt-menu">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-copy-{{ (target or '#loop') | replace('#', '') }}" title="Copy the beat on the grid into another variation" aria-label="copy this beat to a variation">copy ▸</button>
+        <div popover id="ptm-copy-{{ (target or '#loop') | replace('#', '') }}" class="pop menu pt-menu-panel" role="group" aria-label="copy this beat to">
+          {%- set here = (variants | selectattr(1) | first)[0] %}
+          {%- for v, on, has in variants if not on %}
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-copy-{{ (target or '#loop') | replace('#', '') }}" popovertargetaction="hide" hx-post="/fragment/drums/var" hx-vals='{"var": "{{ v }}", "copy": "{{ here }}"}' {{ swap_to(target) }}
+                  title="{{ here }} over {{ v }}, and switch to it">{{ here }} → {{ v }}</button>
+          {%- endfor %}
+        </div>
+      </span>
+      <div class="pt-group" role="group" aria-label="generate">
+        <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "fill"}' {{ swap_to(target) }}
+                data-anim="roll" data-cmd="Add a fill" data-cmd-group="Pattern"
+                title="A fill in the last bar, in the {{ beat_style }} style — press again for another (one Ctrl+Z takes them all back)">⚄ fill</button>
+        <span class="pt-menu">
+          <button type="button" class="btn btn-s btn-icon pt" popovertarget="ptm-fill-{{ (target or '#loop') | replace('#', '') }}" title="Fill lengths, and a fill every few bars" aria-label="fill options">▾</button>
+          <div popover id="ptm-fill-{{ (target or '#loop') | replace('#', '') }}" class="pop menu pt-menu-panel" role="group" aria-label="fill options">
+            {%- for label, vals in (("the last half bar", '{"kind": "fill", "len": "0.5"}'), ("the last bar", '{"kind": "fill", "len": "1"}'), ("the last two bars", '{"kind": "fill", "len": "2"}'),
+                                    ("every bar", '{"kind": "fill", "every": "1", "len": "0.5"}'), ("every 2 bars", '{"kind": "fill", "every": "2"}'), ("every 4 bars", '{"kind": "fill", "every": "4"}')) %}
+            <button type="button" class="menu-item rowtool" popovertarget="ptm-fill-{{ (target or '#loop') | replace('#', '') }}" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{{ vals }}' {{ swap_to(target) }}>{{ label }}</button>
+            {%- endfor %}
+          </div>
+        </span>
+        <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "sparser"}' {{ swap_to(target) }}
+                data-cmd="Make it sparser" data-cmd-group="Pattern"
+                title="The weakest hits out: ghosts first, then what sits between the eighths — never a kick on the beat, never the backbeat">sparser</button>
+        <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "busier"}' {{ swap_to(target) }}
+                data-cmd="Make it busier" data-cmd-group="Pattern"
+                title="Hits in: quiet ghosts beside the backbeat, then offbeat hats, then the sixteenths between — never a kick">busier</button>
+        <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "build"}' {{ swap_to(target) }}
+                data-anim="roll" data-cmd="Add a build" data-cmd-group="Pattern"
+                title="The beat becomes a roll over the grid's bars (two at least): quarters, eighths, sixteenths, 32nds — the snare getting louder and higher. Ctrl+Z brings the beat back">⚄ build</button>
+      </div>
+    </div>
+{%- endmacro %}
+
+
+{# The drum grid's pattern tools (routes/pattern.py): shift, reverse, ×2,
+   the velocity menu, undo — and on Perform, where Drums' own bank tools
+   aren't, randomise and clear too. `target` as drum_grid's. #}
+{% macro drum_tools(can_double, beat_style, target="#drum-bank", extras=false) -%}
+<div class="pt-group" role="group" aria-label="move the beat">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/drums/shift_left" {{ swap_to(target) }}
+              data-anim="left" title="Shift the beat a step earlier (wraps round)" aria-label="shift the beat left" data-cmd="Shift the beat left" data-cmd-group="Pattern">◀</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/drums/shift_right" {{ swap_to(target) }}
+              data-anim="right" title="Shift the beat a step later (wraps round)" aria-label="shift the beat right" data-cmd="Shift the beat right" data-cmd-group="Pattern">▶</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/drums/reverse" {{ swap_to(target) }}
+              data-anim="flip" title="Reverse the beat" aria-label="reverse the beat" data-cmd="Reverse the beat" data-cmd-group="Pattern">⇆</button>
+    </div>
+    <div class="pt-group" role="group" aria-label="length, feel and velocity">
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/drums/duplicate" {{ swap_to(target) }}
+              data-anim="grow" {% if not can_double %}disabled{% endif %}
+              title="{{ 'Double the beat: the bars you have, twice' if can_double else 'The drum grid is at its longest' }}"
+              aria-label="duplicate the beat" data-cmd="Duplicate the beat" data-cmd-group="Pattern">×2</button>
+      {%- if extras %}
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/drums/randomise" {{ swap_to(target) }}
+              hx-vals='{"style": "{{ beat_style }}", "seed": ""}' data-anim="roll"
+              title="A new {{ beat_style }} beat (style and seed are on Kit)" aria-label="randomise the beat" data-cmd="Randomise the beat" data-cmd-group="Pattern">⚄</button>
+      {%- endif %}
+      <span class="pt-menu">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-dvel-{{ (target or '#loop') | replace('#', '') }}" title="Velocity tools" aria-label="drum velocity tools">vel</button>
+        <div popover id="ptm-dvel-{{ (target or '#loop') | replace('#', '') }}" class="pop menu pt-menu-panel" role="group" aria-label="drum velocity tools">
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvel-{{ (target or '#loop') | replace('#', '') }}" popovertargetaction="hide" hx-post="/fragment/pattern/drums/vel_humanise" {{ swap_to(target) }}
+                  title="Nudge each hit's velocity a little, at random">humanise</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvel-{{ (target or '#loop') | replace('#', '') }}" popovertargetaction="hide" hx-post="/fragment/pattern/drums/vel_ramp" {{ swap_to(target) }}
+                  title="Quiet to loud across the loop: a build">ramp ↗</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvel-{{ (target or '#loop') | replace('#', '') }}" popovertargetaction="hide" hx-post="/fragment/pattern/drums/vel_accent" {{ swap_to(target) }}
+                  title="Loud on the beat, softer between">accent</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvel-{{ (target or '#loop') | replace('#', '') }}" popovertargetaction="hide" hx-post="/fragment/pattern/drums/vel_reset" {{ swap_to(target) }}
+                  title="Every step back to full">reset</button>
+        </div>
+      </span>
+      {%- if extras %}
+      <button type="button" class="btn btn-s btn-icon btn-danger pt danger" hx-post="/fragment/drums/clear" {{ swap_to(target) }}
+              data-anim="clear" title="Clear the beat (Ctrl+Z brings it back)" aria-label="clear the beat" data-cmd="Clear the beat" data-cmd-group="Pattern">✕</button>
+      {%- endif %}
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/undo" {{ swap_to(target) }}
+              title="Undo the last pattern edit (Ctrl+Z)" aria-label="undo the last pattern edit" data-cmd="Undo the last pattern edit" data-cmd-group="Pattern">↶</button>
+    </div>
+{%- endmacro %}

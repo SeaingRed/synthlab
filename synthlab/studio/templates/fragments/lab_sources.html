@@ -1,0 +1,27 @@
+{# synthlab/studio/templates/fragments/lab_sources.html
+   The imported songs (included by lab_body.html), each with its LED: lit
+   once it is separated. `oob`: the separation's status line found its job
+   ended and sends this along with the panel (routes/lab.py `lab_job`), so
+   the LED and "· stems" follow without a reload. #}
+<section id="lab-sources" class="lab-sources" aria-label="Imported songs"
+         {% if oob %}hx-swap-oob="true"{% endif %}>
+  {% for s in lab.sources %}
+  <div class="lab-source row {{ 'active row-on' if s.selected }}" data-ctx="{{ s.name }}">
+    <span class="led" {% if s.stems %}data-on{% endif %} aria-hidden="true"
+          title="{{ 'separated into stems' if s.stems else 'not separated yet' }}"></span>
+    <button type="button" class="btn btn-ghost btn-s lab-open" hx-post="/lab/select" hx-vals='{"source": "{{ s.id }}"}'
+            hx-target="#lab-body" hx-swap="outerHTML" data-menu="Open"
+            {% if s.selected %}aria-current="true"{% endif %}
+            title="open {{ s.name }}">{{ s.name }}
+      <span class="lab-meta">{{ s.duration }}{% if s.stems %} · stems{% endif %}</span></button>
+    <button type="button" class="btn btn-ghost btn-icon btn-s btn-danger lab-x" hx-post="/lab/delete" hx-vals='{"source": "{{ s.id }}"}'
+            hx-target="#lab-body" hx-swap="outerHTML" data-menu="Delete from the Lab…"
+            hx-confirm="Delete “{{ s.name }}” and its stems from the Lab? Clips and sampler sounds made from it stay.{{ s.on_song }}"
+            aria-label="delete {{ s.name }}" title="delete this song from the Lab">✕</button>
+  </div>
+  {% else %}
+  {# the box above is the import; the panel says what follows (one empty
+     state a page, with one action) #}
+  <p class="lab-meta lab-none">No songs yet.</p>
+  {% endfor %}
+</section>

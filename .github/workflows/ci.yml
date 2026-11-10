@@ -1,0 +1,88 @@
+# The checks in CONTRIBUTING.md, "Commands": lint,
+# the suite on the native kernels and on the NumPy fallback, the committed
+# WebAssembly module against a fresh build, the Rust kernels alone, and the
+# dependency audit.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --all-extras
+      - run: uv run ruff check synthlab tests tools
+      - run: uv run ruff format --check synthlab tests tools
+
+  test:
+    # x86-64: the native kernels install from crates/wheels (no Rust needed)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # the parity tests and the bench run on node 24 LTS
+      - run: uv sync --all-extras
+      - name: suite (native kernels)
+        run: uv run pytest -q
+      - name: engine on the NumPy fallback
+        run: uv run pytest -q tests --ignore=tests/studio
+        env:
+          SYNTHLAB_NATIVE: "0"
+      - name: committed wasm == a fresh build
+        run: uv run python tools/build_wasm.py --check
+
+  test-arm64:
+    # the ARM64 wheel is cross-compiled on x86-64: this is the only place
+    # it runs on ARM64 hardware before an ARM64 checkout pulls it
+    runs-on: windows-11-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # pin the arch: a bare version can pick an emulated x86 interpreter
+      - run: uv venv --python cpython-3.13-windows-aarch64-none
+      - run: uv sync --all-extras
+      - run: uv run python -c "import platform, synthlab_dsp; print(platform.machine(), synthlab_dsp.build_info())"
+      - name: native kernels vs their NumPy twins
+        run: uv run pytest -q tests/test_native.py tests/test_native_voice.py
+      - name: quick tier
+        run: uv run pytest -q -m "not slow"
+
+  rust:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: crates
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+  audit:
+    # The Windows-on-ARM cryptography pin carries known advisories
+    # (pyproject.toml says why); this job resolves the x86-64 set.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx pip-audit

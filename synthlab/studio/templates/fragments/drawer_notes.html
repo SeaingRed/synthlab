@@ -1,0 +1,33 @@
+{# synthlab/studio/templates/fragments/drawer_notes.html — the Song
+   drawer's note grid and its form (included by song_drawer.html, which
+   sets `d` and `p`): the piano roll in a file of its own. #}
+{% from "grids.html" import note_grid, roll_tools %}
+{% from "macros.html" import fill %}
+    {#- the piano roll's own tools (the drawer's rack above holds the
+        pattern's: shift, transpose, x2 — the same routes) -#}
+    <div class="roll-box" data-ctx="Piano roll">
+    <div class="pattern-tools roll-bar" role="toolbar" aria-label="Piano roll tools">
+      {{ roll_tools("/song/pattern/" ~ p.id ~ "/tool/", d.span, d.oct, "drawer", p.steps_per_bar, d.roll, (-2, 4)) }}
+    </div>
+    <form id="drawer-grid" class="drawer-notes"
+          hx-post="/song/pattern/{{ p.id }}/grid" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last" hx-swap="none">
+      <input type="hidden" name="bars" value="{{ p.bars }}">
+      <input type="hidden" name="steps" value="{{ p.steps_per_bar }}">
+      <input type="hidden" name="span" value="{{ d.span }}">
+      <input type="hidden" name="oct" value="{{ d.oct }}">
+      <div class="drawer-arp" role="group" aria-label="Arpeggiator">
+        <label>arp <select class="field field-s" name="arp_mode" title="Arpeggiate the checked notes at step rate">
+          {% for m in ["off", "up", "down", "updown"] %}<option {% if p.arp_mode == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+        </select></label>
+        <label>oct <select class="field field-s" name="arp_octaves">
+          {% for o in [1, 2, 3] %}<option {% if p.arp_octaves == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+        </select></label>
+        <label>strum <input type="range" id="drawer-strum" class="knob knob-s" name="strum" min="-60" max="60" step="5" data-default="0"
+                            value="{{ p.get('strum', 0) | round | int }}"
+                            style="--fill: {{ fill(p.get('strum', 0), -60, 60) }}"
+                            title="Strum: a chord's notes start this many ms apart, low to high (negative: high to low). 0 = together. An arp plays one note a step, so it has nothing to strum"></label>
+        <output for="drawer-strum" data-unit="ms">{{ p.get('strum', 0) | round | int }} ms</output>
+      </div>
+      {{ note_grid(d.rows, p.bars * p.steps_per_bar, p.cells, p.slides, p.velocities, root_rows=d.roll.roots, steps_per_bar=p.steps_per_bar, cuts=p.cuts or [], roll=d.roll, zoom="drawer", span=d.span, oct=d.oct, bar_meter=p.get("meter") or "4/4") }}
+    </form>
+    </div>

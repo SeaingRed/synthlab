@@ -1,0 +1,81 @@
+{# synthlab/studio/templates/fragments/hub_make.html
+   Make from it: the plan's pickers (clipmake.py) and ✦ Describe. ▶
+   Preview posts the form (`/hub/make`): the clip is listened to, the beat
+   or the part made and rendered, NOTHING written — the result (and its
+   Apply) lands in #hub-result. "auto" leaves a choice to the description
+   when ✦ is used, else to the default. Which pickers show follows the
+   target (CSS `:has()`, no script). ✦ sends the clip's first seconds to
+   Gemini, and says so. #}
+{% set b = hub.bench %}{% set pk = b.pick %}
+<form class="hub-sec hub-make" id="hub-make" hx-post="/hub/make" hx-target="#hub-result" hx-swap="outerMorph"
+      hx-sync="this:queue all" aria-label="make something from it">
+  <h3 class="caps">Make from it</h3>
+  <input type="hidden" name="item" value="{{ b.ref }}">
+  <div class="seg hub-target" role="radiogroup" aria-label="make">
+    <label title="its hits on the drum grid: Kit and the Loops page"><input type="radio" name="target" value="beat" checked> → Beat</label>
+    <label title="a part on the working loop's note grid, played by a sound: the Loops page"><input type="radio" name="target" value="notes"> → Notes</label>
+    <label title="the clip itself as a playable sampler sound: Synths"><input type="radio" name="target" value="sound"> → Sound</label>
+  </div>
+
+  <div class="hub-opts hub-opts-beat">
+    <label>kit <select name="kit" class="field field-s"><option value="auto">auto (its own hits)</option>
+      {% for v, l in pk.kits %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+    <label>style <select name="style" class="field field-s"><option value="auto">auto (as heard)</option>
+      {% for v, l in pk.styles %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+    <label>feel <select name="feel" class="field field-s"><option value="auto">auto (as is)</option>
+      <option value="as is">as is</option><option value="half-time">half-time</option><option value="double-time">double-time</option></select></label>
+    <label>fill <select name="fill" class="field field-s"><option value="auto">auto (none)</option>
+      <option value="none">none</option><option value="half">half a bar</option><option value="bar">a bar</option></select></label>
+    <label>swing <select name="swing" class="field field-s"><option value="">the clip's own</option>
+      {% for s in (0, 0.08, 0.16, 0.25, 0.33, 0.5) %}<option value="{{ s }}">{{ (s * 100) | round | int }}%</option>{% endfor %}</select></label>
+  </div>
+
+  <div class="hub-opts hub-opts-notes">
+    <label>notes <select name="notes_from" class="field field-s"><option value="auto">auto (its melody)</option>
+      {% for v, l in pk.notes_from %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+    <label>played by <select name="sound" class="field field-s hub-sound">
+      <option value="auto">auto (the sound on Synths now)</option>
+      <option value="keep">the sound on Synths now</option>
+      <option value="clip">the clip itself, as a sampler</option>
+      {% for source, groups in b.sounds.items() %}{% for group, names in groups %}
+      <optgroup label="{{ source }}{% if group != source %} · {{ group }}{% endif %}">
+        {% for n in names %}<option value="{{ source }}:{{ n }}">{{ n }}</option>{% endfor %}
+      </optgroup>{% endfor %}{% endfor %}
+    </select></label>
+    <label>key <select name="snap" class="field field-s"><option value="auto">auto (the loop's, {{ b.loop.key }})</option>
+      <option value="loop">the loop's</option><option value="clip">the clip's (the loop moves to it)</option><option value="none">as sung (no key)</option></select></label>
+    <label class="param param-knob"><input type="range" class="knob" name="transpose" min="-24" max="24" step="1" value="0" data-default="0"><span>transpose</span><output>0</output></label>
+    <label class="hub-check"><input type="checkbox" class="check" name="with_beat"> preview with the beat</label>
+  </div>
+
+  <div class="hub-opts hub-opts-sound hub-opts-notes">
+    <label>as a sampler <select name="sound_mode" class="field field-s"><option value="auto">auto (whole)</option>
+      <option value="whole">whole, from its root</option><option value="chops">chopped (a slice a key)</option><option value="voice">a held note, looped (a voice)</option></select></label>
+  </div>
+
+  <div class="hub-opts hub-opts-beat hub-opts-notes">
+    <label>density <select name="density" class="field field-s"><option value="auto">auto (same)</option>
+      <option value="same">same</option><option value="busier">busier</option><option value="sparser">sparser</option></select></label>
+    <label class="param param-knob"><input type="range" class="knob" name="amount" min="0.05" max="1" step="0.05" value="0.25" data-default="0.25"><span>by</span><output data-pct>25%</output></label>
+    <label>FX <select name="fx" class="field field-s"><option value="auto">auto (keep)</option>
+      {% for v, l in pk.fxs %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+    <label class="hub-check" title="the loop's tempo becomes the clip's (else the pattern plays at the loop's {{ b.loop.bpm | round | int }} bpm)"><input type="checkbox" class="check" name="loop_tempo"> loop takes the clip's tempo</label>
+  </div>
+
+  <div class="hub-go">
+    <button type="submit" class="btn" data-cmd="Preview what the clip makes" data-cmd-group="Clip hub"
+            title="listen to the clip and make it — nothing is written until Apply">▶ Preview</button>
+  </div>
+
+  <div class="hub-morph">
+    <label class="hub-describe is-ai">✦ Describe it
+      <textarea name="describe" class="field" rows="2" maxlength="{{ b.max_describe }}"
+                placeholder="darker and half-time, like the Trance kit · make it a trance pluck arp"
+                aria-label="describe what to make of it"></textarea></label>
+    <button type="button" class="btn btn-ai" hx-post="/hub/make" hx-include="#hub-make" hx-vals='{"ai": "1"}'
+            hx-target="#hub-result" hx-swap="outerMorph" hx-sync="#hub-make:queue all"
+            data-cmd="Make it from my words (Gemini listens)" data-cmd-group="AI"
+            {% if b.ai %}disabled title="needs Gemini: {{ b.ai }}"{% else %}title="Gemini hears the clip and reads your words, then picks the kit, style, sound and FX — the pickers you set stay as you set them"{% endif %}>✦ Make it from my words</button>
+    <p class="hub-ai-note">{% if b.ai %}✦ needs Gemini: {{ b.ai }}. The pickers work without it.{% else %}✦ sends the first {{ b.morph_seconds | int }} s of this clip's audio and your words to Google Gemini.{% endif %}</p>
+  </div>
+</form>

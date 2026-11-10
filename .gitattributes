@@ -1,0 +1,2 @@
+# prebuilt native wheels (tools/build_wheels.py): never touch their bytes
+*.whl binary

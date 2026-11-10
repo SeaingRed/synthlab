@@ -1,0 +1,106 @@
+{# synthlab/studio/templates/fragments/jam_bar.html — the jam (song
+   creation):
+   the launcher that stands in the playlist's place while "Jam" is on
+   (#jam-toggle in the topbar; jam.js puts `jam-on` on #view, and style.css
+   section 29 swaps the two).
+
+   A scene is a section (a column), a pad a cell (its pattern on its
+   track). Pressing a pad queues that cell for the next quantise point; a
+   scene's head queues its whole column; a row's ■ stops the track. Every
+   pad plays `GET /song/cell/{section}/{track}.wav` — the cell loop the
+   drawer's solo renders — so nothing here is a second render path, and
+   the bar says what that means: tracks before the master chain.
+
+   Included from song_arranger.html (inside #song-arranger, so every song
+   edit redraws it with the playlist; jam.js lays what is sounding and
+   queued back over the new markup). Rendered only when a pad would be:
+   an empty song keeps the arranger's own empty states, whose buttons make
+   sound. No state of its own on the server: what sounds, what is queued
+   and the log are the page's. One tab stop (the grid: jam.js gives it a
+   roving cursor); every action is a `data-cmd`. #}
+{% set rows = song.tracks | rejectattr("kind", "equalto", "audio") | list %}
+<div id="jam" class="jam" data-bpm="{{ song.bpm }}" data-max-events="{{ limits.MAX_JAM_EVENTS }}">
+  <div class="jam-bar module" role="toolbar" aria-label="Jam">
+    {#- the bar clock: the beat of the jam's bar, and what lands next -#}
+    <span class="jam-clock" aria-hidden="true"><i class="led"></i><i class="led"></i><i class="led"></i><i class="led"></i></span>
+    <output id="jam-says" class="jam-says" aria-live="polite">Press a pad: it plays.</output>
+    <label class="song-field" title="When a pad you press starts: on the next bar line, on the next fourth bar, or when the loop that is sounding comes round">quantise
+      <select id="jam-q" class="field field-s" aria-label="jam quantise" data-cmd="Jam: quantise to" data-cmd-group="Jam">
+        <option value="1" selected>1 bar</option>
+        <option value="4">4 bars</option>
+        <option value="end">loop end</option>
+      </select></label>
+    <button type="button" id="jam-stop" class="btn btn-s btn-stop" data-jam="stop" data-cmd="Stop all" data-cmd-group="Jam" data-keys="Alt+0"
+            title="Stop every track now (Alt+0) · what was played stays in the log until it is captured or forgotten">■ Stop all</button>
+    <button type="button" id="jam-capture" class="btn btn-s" data-jam="capture" data-cmd="Capture the jam to the song" data-cmd-group="Jam" data-keys="Alt+C"
+            aria-disabled="true"
+            title="Write what was just played to the end of the song as sections — one where the pads changed (Alt+C) · one undo step">⏺ Capture</button>
+    <button type="button" id="jam-forget" class="btn btn-s btn-ghost" data-jam="forget" data-cmd="Forget the jam" data-cmd-group="Jam"
+            aria-disabled="true" title="Start the log again from nothing: what was played so far is not captured">✕ forget</button>
+    <output id="jam-log" class="jam-log" aria-live="off"></output>
+    <span class="jam-note" title="A pad plays one track's loop of its section, at its level in the mix. No master chain; a loop's tail is cut where you switch; a ducked bass ducks to its own section's kick; takes and whole stems do not play; mute and solo are ignored">tracks before the master chain</span>
+  </div>
+  <div class="jam-scroll">
+    <table class="jam-grid" style="--scenes: {{ song.sections | length }}; --rows: {{ rows | length }}">
+      <thead>
+        <tr>
+          <th scope="col" class="jam-corner"><span class="caps">track</span></th>
+          {#- the first nine scenes are commands (the palette, Alt+1..9, a
+              Stream Deck key). Written out: deck.js binds a key to a
+              command's literal name, and a test holds every name it uses
+              to one a template declares -#}
+          {% set cmds = {1: 'data-cmd="Launch scene 1" data-keys="Alt+1"', 2: 'data-cmd="Launch scene 2" data-keys="Alt+2"',
+                         3: 'data-cmd="Launch scene 3" data-keys="Alt+3"', 4: 'data-cmd="Launch scene 4" data-keys="Alt+4"',
+                         5: 'data-cmd="Launch scene 5" data-keys="Alt+5"', 6: 'data-cmd="Launch scene 6" data-keys="Alt+6"',
+                         7: 'data-cmd="Launch scene 7" data-keys="Alt+7"', 8: 'data-cmd="Launch scene 8" data-keys="Alt+8"',
+                         9: 'data-cmd="Launch scene 9" data-keys="Alt+9"'} %}
+          {% for sec in song.sections %}
+          <th scope="col" class="jam-col" style="--section-color: {{ sec.color }}">
+            <button type="button" class="jam-scene" id="jam-scene-{{ sec.id }}" data-jam="scene" data-section-id="{{ sec.id }}" tabindex="-1"
+                    aria-pressed="false"{% if sec.id in song_timed %} aria-disabled="true"{% endif %}
+                    {% if loop.index in cmds %}{{ cmds[loop.index] | safe }} data-cmd-group="Jam"{% endif %}
+                    title="Launch {{ sec.name }}: every track's block of it, on the next quantise point{% if loop.index <= 9 %} (Alt+{{ loop.index }}){% endif %}{% if sec.id in song_timed %} · not in the jam: {{ sec.name }} keeps its own meter or tempo, and the jam plays every pad on the song's one bar clock{% endif %}">
+              <span class="jam-scene-name">▶ {{ sec.name }}</span>
+              <span class="jam-scene-len">{{ sec.bars }} bar{{ "" if sec.bars == 1 else "s" }}</span>
+            </button>
+          </th>
+          {% endfor %}
+          <th scope="col" class="jam-end"><span class="caps">stop</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in rows %}
+        <tr class="jam-row" data-track-id="{{ t.id }}">
+          <th scope="row" class="jam-head"><div class="jam-head-in">
+            <span class="track-kind track-kind-{{ t.kind }}" aria-hidden="true"></span>
+            <span class="jam-name">{{ t.name }}</span>
+            <span class="meter jam-meter" id="jam-meter-{{ t.id }}" aria-hidden="true"><i></i></span>
+          </div></th>
+          {% for sec in song.sections %}
+          {% set pid = sec.cells.get(t.id) %}
+          {% set p = song.patterns.get(pid) if pid else none %}
+          <td class="jam-cell">
+            {% if p %}
+            <button type="button" class="jam-pad" id="jam-pad-{{ sec.id }}-{{ t.id }}" data-jam="pad" tabindex="-1"
+                    data-section-id="{{ sec.id }}" data-track-id="{{ t.id }}" aria-pressed="false"{% if sec.id in song_timed %} aria-disabled="true"{% endif %}
+                    style="--pattern-color: {{ p.color }}"
+                    aria-label="{{ t.name }}: {{ p.name }}, from {{ sec.name }}"
+                    title="{{ t.name }} plays {{ p.name }} (its block of {{ sec.name }}) from the next quantise point · Shift+Enter: the whole scene · Backspace: stop the track{% if sec.id in song_timed %} · not in the jam: {{ sec.name }} keeps its own meter or tempo, and the jam plays every pad on the song's one bar clock{% endif %}">
+              <span class="jam-pad-name">{{ p.name }}</span>
+              <i class="jam-ring" aria-hidden="true"></i>
+            </button>
+            {% else %}
+            <span class="jam-none" data-section-id="{{ sec.id }}" data-track-id="{{ t.id }}" aria-hidden="true">·</span>
+            {% endif %}
+          </td>
+          {% endfor %}
+          <td class="jam-end">
+            <button type="button" class="btn btn-icon jam-off" id="jam-off-{{ t.id }}" data-jam="off" data-track-id="{{ t.id }}" tabindex="-1"
+                    aria-label="stop {{ t.name }}" title="Stop {{ t.name }} on the next quantise point (Backspace on the row)">■</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

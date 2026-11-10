@@ -1,0 +1,588 @@
+<form id="transport" class="transport module" data-module="perform.notes" data-ctx="Piano roll"
+      hx-post="/fragment/arrangement" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last"
+      hx-include="#patch, #transport" hx-swap="none"
+      >
+  <div class="transport-controls"><fieldset class="tcluster ed-lane"><legend>editing</legend>
+      <span class="ed-lane-name" title="This grid edits lane 1: init — pick another lane in the lane inspector (at the right) or select a slot in the launcher"><b>1</b> init</span>
+    </fieldset>
+    <fieldset class="tcluster"><legend>length</legend>
+      <span class="label-text">bars</span>
+      <div class="seg barchips">
+        
+        <button type="button" class="barchip on"
+                hx-post="/fragment/arrangement" hx-include="#transport"
+                hx-vals='{"bars": "1"}' hx-swap="none"
+                aria-pressed="false">1</button>
+        
+        <button type="button" class="barchip on"
+                hx-post="/fragment/arrangement" hx-include="#transport"
+                hx-vals='{"bars": "2"}' hx-swap="none"
+                aria-pressed="true">2</button>
+        
+        <button type="button" class="barchip "
+                hx-post="/fragment/arrangement" hx-include="#transport"
+                hx-vals='{"bars": "3"}' hx-swap="none"
+                aria-pressed="false">3</button>
+        
+        <button type="button" class="barchip "
+                hx-post="/fragment/arrangement" hx-include="#transport"
+                hx-vals='{"bars": "4"}' hx-swap="none"
+                aria-pressed="false">4</button>
+        
+      </div>
+      <input type="hidden" name="bars" value="2">
+    </fieldset>
+    <fieldset class="tcluster"><legend>pattern</legend>
+      <label>steps <select class="field field-s" name="steps">
+        
+        <option >4</option>
+        
+        <option selected>8</option>
+        
+        <option >16</option>
+        
+        <option >32</option>
+        
+      </select></label>
+      <label>root <select class="field field-s" name="root">
+        
+        <option >A0</option>
+        
+        <option >A#0</option>
+        
+        <option >B0</option>
+        
+        <option >C1</option>
+        
+        <option >C#1</option>
+        
+        <option >D1</option>
+        
+        <option >D#1</option>
+        
+        <option >E1</option>
+        
+        <option >F1</option>
+        
+        <option >F#1</option>
+        
+        <option >G1</option>
+        
+        <option >G#1</option>
+        
+        <option selected>A1</option>
+        
+        <option >A#1</option>
+        
+        <option >B1</option>
+        
+        <option >C2</option>
+        
+        <option >C#2</option>
+        
+        <option >D2</option>
+        
+        <option >D#2</option>
+        
+        <option >E2</option>
+        
+        <option >F2</option>
+        
+        <option >F#2</option>
+        
+        <option >G2</option>
+        
+        <option >G#2</option>
+        
+        <option >A2</option>
+        
+        <option >A#2</option>
+        
+        <option >B2</option>
+        
+        <option >C3</option>
+        
+        <option >C#3</option>
+        
+        <option >D3</option>
+        
+        <option >D#3</option>
+        
+        <option >E3</option>
+        
+      </select></label>
+      <label>scale <select class="field field-s" name="scale_name">
+        
+        <option >major</option>
+        
+        <option >minor</option>
+        
+        <option >harmonic_minor</option>
+        
+        <option >dorian</option>
+        
+        <option >phrygian</option>
+        
+        <option >lydian</option>
+        
+        <option >mixolydian</option>
+        
+        <option selected>pentatonic_minor</option>
+        
+        <option >pentatonic_major</option>
+        
+        <option >blues</option>
+        
+        <option >japanese</option>
+        
+        <option >whole_tone</option>
+        
+      </select></label>
+    </fieldset>
+    <fieldset class="tcluster"><legend>feel</legend>
+      <label>swing <input type="range" id="t-swing" class="knob knob-s" name="swing" min="0" max="0.6" step="0.05" data-default="0"
+                          value="0.0"
+                          style="--fill: 0.0%"></label>
+      <output for="t-swing">0</output>
+      <label>grid arp <select class="field field-s" name="arp_mode" title="Grid arp: arpeggiate the checked notes at step rate — in the loop and the song. The live keys have their own: “keys arp”, on the keyboard dock">
+        
+        <option >off</option>
+        
+        <option selected>up</option>
+        
+        <option >down</option>
+        
+        <option >updown</option>
+        
+      </select></label>
+      <label>oct <select class="field field-s" name="arp_octaves">
+        
+        <option selected>1</option>
+        
+        <option >2</option>
+        
+        <option >3</option>
+        
+      </select></label><label>grid strum <input type="range" id="t-strum" class="knob knob-s" name="strum" min="-60" max="60" step="5" data-default="0"
+                          value="0"
+                          style="--fill: 50.0%"
+                          title="Grid strum: a chord's notes in the note grid start this many ms apart, low to high (negative: high to low) — in the loop and the song. 0 = together. An arp plays one note a step, so it has nothing to strum. The live keys have their own: “keys strum”, on the keyboard dock"></label>
+      <output for="t-strum" data-unit="ms">0 ms</output>
+    </fieldset>
+  </div><input type="hidden" name="span" value="1">
+  <input type="hidden" name="oct" value="0">
+  <div class="pattern-tools" role="toolbar" aria-label="Note pattern tools">
+    <div class="pt-group" role="group" aria-label="move">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/shift_left" hx-swap="none"
+              data-anim="left" title="Shift every note a step earlier (wraps round)" aria-label="shift notes left" data-cmd="Shift notes left" data-cmd-group="Pattern">◀</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/shift_right" hx-swap="none"
+              data-anim="right" title="Shift every note a step later (wraps round)" aria-label="shift notes right" data-cmd="Shift notes right" data-cmd-group="Pattern">▶</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/reverse" hx-swap="none"
+              data-anim="flip" title="Reverse the pattern" aria-label="reverse the pattern" data-cmd="Reverse the pattern" data-cmd-group="Pattern">⇆</button>
+    </div>
+    <div class="pt-group" role="group" aria-label="transpose">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/up" hx-swap="none"
+              data-anim="up" title="Every note up one tone of the key" aria-label="transpose up a scale tone" data-cmd="Transpose up a scale tone" data-cmd-group="Pattern">▲</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/down" hx-swap="none"
+              data-anim="down" title="Every note down one tone of the key" aria-label="transpose down a scale tone" data-cmd="Transpose down a scale tone" data-cmd-group="Pattern">▼</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/oct_up" hx-swap="none"
+              data-anim="up" title="Every note up an octave" aria-label="transpose up an octave" data-cmd="Transpose up an octave" data-cmd-group="Pattern">+8va</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/oct_down" hx-swap="none"
+              data-anim="down" title="Every note down an octave" aria-label="transpose down an octave" data-cmd="Transpose down an octave" data-cmd-group="Pattern">−8va</button>
+    </div>
+    <div class="pt-group" role="group" aria-label="length and velocity">
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/duplicate" hx-swap="none"
+              data-anim="grow" 
+              title="Double the pattern: the bars you have, twice" aria-label="duplicate the pattern" data-cmd="Duplicate the pattern" data-cmd-group="Pattern">×2</button>
+      <span class="pt-menu">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-nvel" title="Velocity tools" aria-label="velocity tools">vel</button>
+        <div popover id="ptm-nvel" class="pop menu pt-menu-panel" role="group" aria-label="velocity tools">
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-nvel" popovertargetaction="hide" hx-post="/fragment/pattern/notes/vel_humanise" hx-swap="none"
+                  title="Nudge each note's velocity a little, at random">humanise</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-nvel" popovertargetaction="hide" hx-post="/fragment/pattern/notes/vel_ramp" hx-swap="none"
+                  title="Quiet to loud across the loop">ramp ↗</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-nvel" popovertargetaction="hide" hx-post="/fragment/pattern/notes/vel_accent" hx-swap="none"
+                  title="Loud on the beat, softer between">accent</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-nvel" popovertargetaction="hide" hx-post="/fragment/pattern/notes/vel_reset" hx-swap="none"
+                  title="Every step back to the default">reset</button>
+        </div>
+      </span>
+      <button type="button" class="btn btn-s btn-icon btn-danger pt danger" hx-post="/fragment/pattern/notes/clear" hx-swap="none"
+              data-anim="clear" title="Clear every note the grid shows (Ctrl+Z brings them back)" aria-label="clear the notes" data-cmd="Clear the notes" data-cmd-group="Pattern">✕</button>
+      <button type="button" class="btn btn-s btn-icon pt" id="pattern-undo" data-keys="Ctrl+Z" hx-post="/fragment/pattern/undo" hx-swap="none"
+              title="Undo the last pattern edit (Ctrl+Z)" aria-label="undo the last pattern edit" data-cmd="Undo the last pattern edit" data-cmd-group="Pattern">↶</button>
+    </div><div class="pt-group roll-gen" role="group" aria-label="generators">
+      <span class="pt-menu">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-write" title="Write a part over what the grid shows: it follows the chords, plays at once, and Ctrl+Z takes it back" aria-label="write a part with a generator">⚄ write</button>
+        <div popover id="ptm-write" class="pop menu pt-menu-panel" role="group" aria-label="write a part">
+          
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-write" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "bass_root"}' hx-swap="none"
+                  title="Write a bass over the notes the grid shows" data-cmd="Write a bass" data-cmd-group="Pattern">bass</button>
+          
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-write" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "bass_rolling"}' hx-swap="none"
+                  title="Write a rolling bass over the notes the grid shows" data-cmd="Write a rolling bass" data-cmd-group="Pattern">rolling bass</button>
+          
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-write" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "chords"}' hx-swap="none"
+                  title="Write a chords over the notes the grid shows" data-cmd="Write a chords" data-cmd-group="Pattern">chords</button>
+          
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-write" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "pad"}' hx-swap="none"
+                  title="Write a pad over the notes the grid shows" data-cmd="Write a pad" data-cmd-group="Pattern">pad</button>
+          
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-write" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "arp"}' hx-swap="none"
+                  title="Write a arp over the notes the grid shows" data-cmd="Write a arp" data-cmd-group="Pattern">arp</button>
+          
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-write" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "lead"}' hx-swap="none"
+                  title="Write a lead over the notes the grid shows" data-cmd="Write a lead" data-cmd-group="Pattern">lead</button>
+          
+        </div>
+      </span>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "again"}' hx-swap="none"
+              title="Roll again: the part last written, with another seed (the same Ctrl+Z step)" aria-label="roll the written part again" data-cmd="Roll the part again" data-cmd-group="Pattern">⚄</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "busier"}' hx-swap="none"
+              title="Busier: chord tones on the silent offbeats" aria-label="busier notes" data-cmd="Busier notes" data-cmd-group="Pattern">busier</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "sparser"}' hx-swap="none"
+              title="Sparser: the weakest notes out — off the beat and off the chord first" aria-label="sparser notes" data-cmd="Sparser notes" data-cmd-group="Pattern">sparser</button>
+    </div>
+    <div class="pt-group seg roll-tools" role="group" aria-label="tool">
+      
+      <button type="button" data-roll-tool="draw" aria-pressed="true"
+              title="Draw: click a step, drag across to paint, drag a note&#39;s right end to make it longer or shorter" data-cmd="Tool: draw" data-cmd-group="Pattern" data-menu="Tool: draw">✎ draw</button>
+      
+      <button type="button" data-roll-tool="select" aria-pressed="false"
+              title="Select: drag a box round notes, then drag them (Ctrl-drag copies), or use the arrows and Delete" data-cmd="Tool: select" data-cmd-group="Pattern" data-menu="Tool: select">▭ select</button>
+      
+      <button type="button" data-roll-tool="stamp" aria-pressed="false"
+              title="Stamp: a click writes the chord on that row" data-cmd="Tool: stamp" data-cmd-group="Pattern" data-menu="Tool: stamp">♫ stamp</button>
+      
+      <button type="button" data-roll-tool="erase" aria-pressed="false"
+              title="Erase: a click or a drag clears steps" data-cmd="Tool: erase" data-cmd-group="Pattern" data-menu="Tool: erase">⌫ erase</button>
+      
+    </div>
+    <div class="pt-group roll-stamp" role="group" aria-label="the stamp">
+      <select class="field field-s" data-roll-opt="q" aria-label="chord the stamp writes" title="The chord a stamp writes, in the key, from the row you click" data-cmd="Stamp chord" data-cmd-group="Pattern">
+        
+        <option value="triad">triad</option><option value="7th">7th</option><option value="9th">9th</option><option value="sus2">sus2</option><option value="sus4">sus4</option><option value="power">power</option>
+      </select>
+      <select class="field field-s" data-roll-opt="len" aria-label="length of a stamped chord" title="How long a stamped chord is" data-cmd="Stamp length" data-cmd-group="Pattern">
+        
+        <option value="1">1 step</option>
+        
+        <option value="2">1 beat</option>
+        
+        <option value="4" selected>½ bar</option>
+        
+        <option value="8">1 bar</option>
+        
+      </select>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/stamp" hx-swap="none" data-roll-op="stamp" data-menu
+              title="Stamp the chord at the cursor's step and row (in the stamp tool: a click, or Enter)" aria-label="stamp a chord at the cursor" data-cmd="Stamp a chord at the cursor" data-cmd-group="Pattern">♫</button>
+    </div>
+    <div class="pt-group" role="group" aria-label="note lengths">
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/legato" hx-swap="none"
+              title="Legato: each note (each selected note) runs to where the next begins" aria-label="legato" data-cmd="Legato" data-cmd-group="Pattern">legato</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/half" hx-swap="none"
+              title="Halve the length of every note (every selected note)" aria-label="halve the note lengths" data-cmd="Halve the lengths" data-cmd-group="Pattern">½×</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/double" hx-swap="none"
+              title="Double the length of every note (every selected note)" aria-label="double the note lengths" data-cmd="Double the lengths" data-cmd-group="Pattern">2×</button>
+    </div>
+    <div class="pt-group roll-sel" role="group" aria-label="the selection">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/resize" hx-vals='{"by": "-1"}' hx-swap="none" data-menu
+              title="Shorten the selected notes a step (Ctrl+←)" aria-label="shorten the selected notes" data-cmd="Shorten the selected notes" data-cmd-group="Pattern">⇤</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/resize" hx-vals='{"by": "1"}' hx-swap="none" data-roll-op="len" data-menu
+              title="Lengthen the selected notes a step (Ctrl+→)" aria-label="lengthen the selected notes" data-cmd="Lengthen the selected notes" data-cmd-group="Pattern">⇥</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/copy" hx-swap="none" data-roll-op="dup" data-menu
+              title="Duplicate the selection to its right (Ctrl+D)" aria-label="duplicate the selection" data-cmd="Duplicate the selection" data-cmd-group="Pattern">dup</button>
+      <button type="button" class="btn btn-s pt wide" data-roll-op="mark" data-menu
+              title="Copy: remember the selection (Ctrl+C)" aria-label="copy the selection" data-cmd="Copy the selection" data-cmd-group="Pattern">copy</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/copy" hx-swap="none" data-roll-op="paste" data-menu
+              title="Paste what was copied at the cursor's step and row (Ctrl+V)" aria-label="paste at the cursor" data-cmd="Paste at the cursor" data-cmd-group="Pattern">paste</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/move" hx-swap="none" data-roll-op="move" data-menu
+              title="Move the selection to the cursor's step and row (a drag in the select tool does the same)" aria-label="move the selection to the cursor" data-cmd="Move the selection to the cursor" data-cmd-group="Pattern">move</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/remove" hx-swap="none" data-menu
+              title="Delete the selected notes (Delete)" aria-label="delete the selected notes" data-cmd="Delete the selected notes" data-cmd-group="Pattern">⌦</button>
+    </div>
+    <div class="pt-group pt-range seg" role="group" aria-label="grid rows">
+      
+      <button type="button" aria-pressed="true"
+              hx-post="/fragment/grid/span" hx-vals='{"span": "1"}' hx-swap="none"
+              title="Six tones of the key from the root" data-cmd="Rows: six notes" data-cmd-group="Pattern">6</button>
+      
+      <button type="button" aria-pressed="false"
+              hx-post="/fragment/grid/span" hx-vals='{"span": "2"}' hx-swap="none"
+              title="Two octaves of the key, root to root: every row is in key" data-cmd="Rows: key" data-cmd-group="Pattern">key</button>
+      
+      <button type="button" aria-pressed="false"
+              hx-post="/fragment/grid/span" hx-vals='{"span": "3"}' hx-swap="none"
+              title="Chromatic: 24 semitones, the off-key rows dimmed" data-cmd="Rows: all" data-cmd-group="Pattern">all</button>
+      
+    </div>
+    <div class="pt-group roll-oct" role="group" aria-label="octave window">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/grid/span" hx-vals='{"oct_by": "1"}' hx-swap="none" data-roll-oct="1"
+              
+              title="Show the rows an octave higher (PageUp at the top row)" aria-label="octave window up" data-cmd="Octave window up" data-cmd-group="Pattern">▲</button>
+      <span class="roll-oct-now" title="The octave window: octaves above the key's root">±0</span>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/grid/span" hx-vals='{"oct_by": "-1"}' hx-swap="none" data-roll-oct="-1"
+              
+              title="Show the rows an octave lower (PageDown at the bottom row)" aria-label="octave window down" data-cmd="Octave window down" data-cmd-group="Pattern">▼</button>
+    </div>
+    <div class="pt-group" role="group" aria-label="view">
+      <button type="button" class="btn btn-s pt wide" data-roll-ghosts aria-pressed="true"
+              title="Ghost notes: the other lanes' notes, drawn dimly behind this one's (there are none yet)"
+              aria-label="ghost notes" data-cmd="Show / hide ghost notes" data-cmd-group="Pattern">ghosts</button>
+      <button type="button" class="btn btn-s btn-icon pt" data-zoom-by="-1" data-zoom-for="perform"
+              title="Narrower steps (Ctrl+wheel, Ctrl+−)" aria-label="zoom the grid out" data-cmd="Zoom the grid out" data-cmd-group="Pattern">−</button>
+      <button type="button" class="btn btn-s pt wide" data-zoom-by="0" data-zoom-for="perform"
+              title="Fit every step in the pane (Ctrl+0)" aria-label="fit the grid" data-cmd="Fit the grid" data-cmd-group="Pattern">fit</button>
+      <button type="button" class="btn btn-s btn-icon pt" data-zoom-by="1" data-zoom-for="perform"
+              title="Wider steps (Ctrl+wheel, Ctrl+=)" aria-label="zoom the grid in" data-cmd="Zoom the grid in" data-cmd-group="Pattern">+</button>
+    </div>
+    
+    <button type="button" class="btn btn-icon btn-s btn-ghost pt-hint" aria-label="How to draw in the note grid"
+            title="draw: drag across to paint, drag a note's right end to change its length · right-click erases · a run of steps is one held note — Shift-click a step to start a new note there · select: drag a box, drag the notes, Ctrl-drag copies · wheel scrolls, Shift+wheel sideways, Ctrl+wheel zooms · keys: arrows move, Space toggles, Shift+arrows select, Alt+arrows move, Ctrl+← → length, Ctrl+↑ ↓ velocity, Ctrl+C V D, Delete · the lanes under the grid: drag a bar, or ↑ ↓ its value, ← → the steps, PageUp / PageDown velocity ↔ chance (a step under 100 % may rest: each pass rolls afresh, a re-render plays the same rolls)" data-cmd="How to draw in the note grid" data-cmd-group="Pattern">?</button>
+  </div>
+  <div class="grid roll" aria-label="Note grid" data-zoom="perform" data-bars="2" data-spb="8" data-span="1" data-oct="0" style="--steps: 16; --rows: 6; --step-w: var(--zoom-perform)">
+    <i class="playhead" aria-hidden="true" style="grid-row: 1 / span 10"></i>
+    
+    <div class="ruler" aria-hidden="true">
+      <span class="rowlabel"></span>
+      <b style="grid-column: span 8">1</b><b style="grid-column: span 8">2</b>
+    </div>
+    
+    <div class="chordrow" role="group" aria-label="the loop's chords">
+      <span class="rowlabel"><button type="button" class="chordrow-tools" popovertarget="loop-chord-tools" aria-label="the loop's chords" data-cmd="The loop's chords: progression, length, roll" data-cmd-group="Pattern"
+              title="The loop's chords — what the generators (⚄ write) follow and the roll's dots show; they make no sound. Click a chord for its menu, 1–7 its degree, Delete removes it">chords</button></span>
+      <button type="button" class="lchord-empty" style="grid-column: span 16" aria-label="give the loop chords"
+              hx-post="/fragment/chords/track" hx-vals='{"op": "roll"}' hx-swap="none" data-cmd="Give the loop chords" data-cmd-group="Pattern"
+              title="A progression in this key for the loop — the generators (⚄ write) follow it and the roll shows its tones; it makes no sound">⚄ chords: a progression in this key</button>
+    </div>
+    
+    
+    <div class="gridrow" role="group" aria-label="A2 row">
+      <span class="rowlabel root" data-pitch="A2" aria-hidden="true">A2</span><input type="checkbox" name="cell.A2.0" class="cell beat" aria-label="A2 step 1"><input type="checkbox" name="cell.A2.1" class="cell" aria-label="A2 step 2"><input type="checkbox" name="cell.A2.2" class="cell" aria-label="A2 step 3"><input type="checkbox" name="cell.A2.3" class="cell" aria-label="A2 step 4"><input type="checkbox" name="cell.A2.4" class="cell beat" aria-label="A2 step 5"><input type="checkbox" name="cell.A2.5" class="cell" aria-label="A2 step 6"><input type="checkbox" name="cell.A2.6" class="cell" aria-label="A2 step 7"><input type="checkbox" name="cell.A2.7" class="cell" aria-label="A2 step 8"><input type="checkbox" name="cell.A2.8" class="cell beat bar" aria-label="A2 step 9"><input type="checkbox" name="cell.A2.9" class="cell" aria-label="A2 step 10"><input type="checkbox" name="cell.A2.10" class="cell" aria-label="A2 step 11"><input type="checkbox" name="cell.A2.11" class="cell" aria-label="A2 step 12"><input type="checkbox" name="cell.A2.12" class="cell beat" aria-label="A2 step 13"><input type="checkbox" name="cell.A2.13" class="cell" aria-label="A2 step 14"><input type="checkbox" name="cell.A2.14" class="cell" aria-label="A2 step 15"><input type="checkbox" name="cell.A2.15" class="cell" aria-label="A2 step 16">
+    </div>
+    
+    <div class="gridrow" role="group" aria-label="G2 row">
+      <span class="rowlabel" data-pitch="G2" aria-hidden="true">G2</span><input type="checkbox" name="cell.G2.0" class="cell beat" aria-label="G2 step 1"><input type="checkbox" name="cell.G2.1" class="cell" aria-label="G2 step 2"><input type="checkbox" name="cell.G2.2" class="cell" aria-label="G2 step 3"><input type="checkbox" name="cell.G2.3" class="cell" aria-label="G2 step 4"><input type="checkbox" name="cell.G2.4" class="cell beat" aria-label="G2 step 5"><input type="checkbox" name="cell.G2.5" class="cell" aria-label="G2 step 6"><input type="checkbox" name="cell.G2.6" class="cell" aria-label="G2 step 7"><input type="checkbox" name="cell.G2.7" class="cell" aria-label="G2 step 8"><input type="checkbox" name="cell.G2.8" class="cell beat bar" aria-label="G2 step 9"><input type="checkbox" name="cell.G2.9" class="cell" aria-label="G2 step 10"><input type="checkbox" name="cell.G2.10" class="cell" aria-label="G2 step 11"><input type="checkbox" name="cell.G2.11" class="cell" aria-label="G2 step 12"><input type="checkbox" name="cell.G2.12" class="cell beat" aria-label="G2 step 13"><input type="checkbox" name="cell.G2.13" class="cell" aria-label="G2 step 14"><input type="checkbox" name="cell.G2.14" class="cell" aria-label="G2 step 15"><input type="checkbox" name="cell.G2.15" class="cell" aria-label="G2 step 16">
+    </div>
+    
+    <div class="gridrow" role="group" aria-label="E2 row">
+      <span class="rowlabel" data-pitch="E2" aria-hidden="true">E2</span><input type="checkbox" name="cell.E2.0" class="cell beat" aria-label="E2 step 1"><input type="checkbox" name="cell.E2.1" class="cell" aria-label="E2 step 2"><input type="checkbox" name="cell.E2.2" class="cell" aria-label="E2 step 3"><input type="checkbox" name="cell.E2.3" class="cell" aria-label="E2 step 4"><input type="checkbox" name="cell.E2.4" class="cell beat" aria-label="E2 step 5"><input type="checkbox" name="cell.E2.5" class="cell" aria-label="E2 step 6"><input type="checkbox" name="cell.E2.6" class="cell" aria-label="E2 step 7"><input type="checkbox" name="cell.E2.7" class="cell" aria-label="E2 step 8"><input type="checkbox" name="cell.E2.8" class="cell beat bar" aria-label="E2 step 9"><input type="checkbox" name="cell.E2.9" class="cell" checked aria-label="E2 step 10"><input type="checkbox" name="cell.E2.10" class="cell" aria-label="E2 step 11"><input type="checkbox" name="cell.E2.11" class="cell" aria-label="E2 step 12"><input type="checkbox" name="cell.E2.12" class="cell beat" aria-label="E2 step 13"><input type="checkbox" name="cell.E2.13" class="cell" aria-label="E2 step 14"><input type="checkbox" name="cell.E2.14" class="cell" aria-label="E2 step 15"><input type="checkbox" name="cell.E2.15" class="cell" aria-label="E2 step 16">
+    </div>
+    
+    <div class="gridrow" role="group" aria-label="D2 row">
+      <span class="rowlabel" data-pitch="D2" aria-hidden="true">D2</span><input type="checkbox" name="cell.D2.0" class="cell beat" aria-label="D2 step 1"><input type="checkbox" name="cell.D2.1" class="cell" aria-label="D2 step 2"><input type="checkbox" name="cell.D2.2" class="cell" aria-label="D2 step 3"><input type="checkbox" name="cell.D2.3" class="cell" aria-label="D2 step 4"><input type="checkbox" name="cell.D2.4" class="cell beat" aria-label="D2 step 5"><input type="checkbox" name="cell.D2.5" class="cell" aria-label="D2 step 6"><input type="checkbox" name="cell.D2.6" class="cell" aria-label="D2 step 7"><input type="checkbox" name="cell.D2.7" class="cell" aria-label="D2 step 8"><input type="checkbox" name="cell.D2.8" class="cell beat bar" aria-label="D2 step 9"><input type="checkbox" name="cell.D2.9" class="cell" aria-label="D2 step 10"><input type="checkbox" name="cell.D2.10" class="cell" aria-label="D2 step 11"><input type="checkbox" name="cell.D2.11" class="cell" aria-label="D2 step 12"><input type="checkbox" name="cell.D2.12" class="cell beat" aria-label="D2 step 13"><input type="checkbox" name="cell.D2.13" class="cell" aria-label="D2 step 14"><input type="checkbox" name="cell.D2.14" class="cell" aria-label="D2 step 15"><input type="checkbox" name="cell.D2.15" class="cell" aria-label="D2 step 16">
+    </div>
+    
+    <div class="gridrow" role="group" aria-label="C2 row">
+      <span class="rowlabel" data-pitch="C2" aria-hidden="true">C2</span><input type="checkbox" name="cell.C2.0" class="cell beat" aria-label="C2 step 1"><input type="checkbox" name="cell.C2.1" class="cell" aria-label="C2 step 2"><input type="checkbox" name="cell.C2.2" class="cell" aria-label="C2 step 3"><input type="checkbox" name="cell.C2.3" class="cell" checked aria-label="C2 step 4"><input type="checkbox" name="cell.C2.4" class="cell beat" aria-label="C2 step 5"><input type="checkbox" name="cell.C2.5" class="cell" aria-label="C2 step 6"><input type="checkbox" name="cell.C2.6" class="cell" aria-label="C2 step 7"><input type="checkbox" name="cell.C2.7" class="cell" aria-label="C2 step 8"><input type="checkbox" name="cell.C2.8" class="cell beat bar" aria-label="C2 step 9"><input type="checkbox" name="cell.C2.9" class="cell" aria-label="C2 step 10"><input type="checkbox" name="cell.C2.10" class="cell" aria-label="C2 step 11"><input type="checkbox" name="cell.C2.11" class="cell" aria-label="C2 step 12"><input type="checkbox" name="cell.C2.12" class="cell beat" aria-label="C2 step 13"><input type="checkbox" name="cell.C2.13" class="cell" aria-label="C2 step 14"><input type="checkbox" name="cell.C2.14" class="cell" aria-label="C2 step 15"><input type="checkbox" name="cell.C2.15" class="cell" aria-label="C2 step 16">
+    </div>
+    
+    <div class="gridrow" role="group" aria-label="A1 row">
+      <span class="rowlabel root" data-pitch="A1" aria-hidden="true">A1</span><input type="checkbox" name="cell.A1.0" class="cell beat" checked aria-label="A1 step 1"><input type="checkbox" name="cell.A1.1" class="cell" aria-label="A1 step 2"><input type="checkbox" name="cell.A1.2" class="cell" aria-label="A1 step 3"><input type="checkbox" name="cell.A1.3" class="cell" aria-label="A1 step 4"><input type="checkbox" name="cell.A1.4" class="cell beat" aria-label="A1 step 5"><input type="checkbox" name="cell.A1.5" class="cell" aria-label="A1 step 6"><input type="checkbox" name="cell.A1.6" class="cell" aria-label="A1 step 7"><input type="checkbox" name="cell.A1.7" class="cell" aria-label="A1 step 8"><input type="checkbox" name="cell.A1.8" class="cell beat bar" aria-label="A1 step 9"><input type="checkbox" name="cell.A1.9" class="cell" aria-label="A1 step 10"><input type="checkbox" name="cell.A1.10" class="cell" aria-label="A1 step 11"><input type="checkbox" name="cell.A1.11" class="cell" aria-label="A1 step 12"><input type="checkbox" name="cell.A1.12" class="cell beat" aria-label="A1 step 13"><input type="checkbox" name="cell.A1.13" class="cell" aria-label="A1 step 14"><input type="checkbox" name="cell.A1.14" class="cell" aria-label="A1 step 15"><input type="checkbox" name="cell.A1.15" class="cell" aria-label="A1 step 16">
+    </div>
+    
+    <div class="gridrow sliderow" role="group" aria-label="slide row" title="Slide: this step glides in from the previous note (303-style)">
+      <span class="rowlabel" aria-hidden="true">slide</span>
+      <input type="checkbox" name="slide.0" class="cell slide beat" aria-label="slide into step 1"><input type="checkbox" name="slide.1" class="cell slide" aria-label="slide into step 2"><input type="checkbox" name="slide.2" class="cell slide" aria-label="slide into step 3"><input type="checkbox" name="slide.3" class="cell slide" checked aria-label="slide into step 4"><input type="checkbox" name="slide.4" class="cell slide beat" aria-label="slide into step 5"><input type="checkbox" name="slide.5" class="cell slide" aria-label="slide into step 6"><input type="checkbox" name="slide.6" class="cell slide" aria-label="slide into step 7"><input type="checkbox" name="slide.7" class="cell slide" aria-label="slide into step 8"><input type="checkbox" name="slide.8" class="cell slide beat" aria-label="slide into step 9"><input type="checkbox" name="slide.9" class="cell slide" checked aria-label="slide into step 10"><input type="checkbox" name="slide.10" class="cell slide" aria-label="slide into step 11"><input type="checkbox" name="slide.11" class="cell slide" aria-label="slide into step 12"><input type="checkbox" name="slide.12" class="cell slide beat" aria-label="slide into step 13"><input type="checkbox" name="slide.13" class="cell slide" aria-label="slide into step 14"><input type="checkbox" name="slide.14" class="cell slide" aria-label="slide into step 15"><input type="checkbox" name="slide.15" class="cell slide" aria-label="slide into step 16">
+    </div>
+    <div class="velrow" role="group" aria-label="velocity row">
+      <button type="button" class="rowlabel lane-flip" data-roll-lane="chance" tabindex="-1" aria-label="show the chance lane"
+              data-cmd="Note grid: the chance lane / the velocities" data-cmd-group="Pattern"
+              title="velocity — press (or PageDown in the lane) for the chance lane">vel</button>
+      
+      
+      
+      <div class="vel-lane" data-step="0" role="slider" tabindex="0"
+           aria-label="velocity step 1"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.7">
+        <div class="vel-bar" style="--v: 0.7"></div>
+        <input type="hidden" name="vel.0" value="0.7">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="1" role="slider" tabindex="0"
+           aria-label="velocity step 2"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.1" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="2" role="slider" tabindex="0"
+           aria-label="velocity step 3"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.2" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane" data-step="3" role="slider" tabindex="0"
+           aria-label="velocity step 4"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.3" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="4" role="slider" tabindex="0"
+           aria-label="velocity step 5"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.4" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="5" role="slider" tabindex="0"
+           aria-label="velocity step 6"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.5" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="6" role="slider" tabindex="0"
+           aria-label="velocity step 7"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.6" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="7" role="slider" tabindex="0"
+           aria-label="velocity step 8"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.7" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="8" role="slider" tabindex="0"
+           aria-label="velocity step 9"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.8" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane" data-step="9" role="slider" tabindex="0"
+           aria-label="velocity step 10"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.3">
+        <div class="vel-bar" style="--v: 0.3"></div>
+        <input type="hidden" name="vel.9" value="0.3">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="10" role="slider" tabindex="0"
+           aria-label="velocity step 11"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.10" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="11" role="slider" tabindex="0"
+           aria-label="velocity step 12"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.11" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="12" role="slider" tabindex="0"
+           aria-label="velocity step 13"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.12" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="13" role="slider" tabindex="0"
+           aria-label="velocity step 14"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.13" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="14" role="slider" tabindex="0"
+           aria-label="velocity step 15"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.14" value="0.9">
+      </div>
+      
+      
+      
+      <div class="vel-lane idle" data-step="15" role="slider" tabindex="0"
+           aria-label="velocity step 16"
+           aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.9">
+        <div class="vel-bar" style="--v: 0.9"></div>
+        <input type="hidden" name="vel.15" value="0.9">
+      </div>
+      
+    </div>
+    <div class="velrow chancerow" data-lane="p" role="group" aria-label="chance row" title="Chance: the odds that the notes starting on a step play. Each pass of the loop rolls afresh; a re-render, the Song and the MIDI file play the same rolls. 100 % always plays">
+      <button type="button" class="rowlabel lane-flip" data-roll-lane="" tabindex="-1" aria-label="show the velocity lane" title="chance — press (or PageUp in the lane) for the velocities">chance</button>
+      <div class="vel-lane" data-step="0" role="slider" tabindex="-1" aria-label="chance step 1" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.0" value="1"></div><div class="vel-lane idle" data-step="1" role="slider" tabindex="-1" aria-label="chance step 2" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.1" value="1"></div><div class="vel-lane idle" data-step="2" role="slider" tabindex="-1" aria-label="chance step 3" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.2" value="1"></div><div class="vel-lane" data-step="3" role="slider" tabindex="-1" aria-label="chance step 4" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.3" value="1"></div><div class="vel-lane idle" data-step="4" role="slider" tabindex="-1" aria-label="chance step 5" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.4" value="1"></div><div class="vel-lane idle" data-step="5" role="slider" tabindex="-1" aria-label="chance step 6" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.5" value="1"></div><div class="vel-lane idle" data-step="6" role="slider" tabindex="-1" aria-label="chance step 7" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.6" value="1"></div><div class="vel-lane idle" data-step="7" role="slider" tabindex="-1" aria-label="chance step 8" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.7" value="1"></div><div class="vel-lane idle" data-step="8" role="slider" tabindex="-1" aria-label="chance step 9" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.8" value="1"></div><div class="vel-lane" data-step="9" role="slider" tabindex="-1" aria-label="chance step 10" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.9" value="1"></div><div class="vel-lane idle" data-step="10" role="slider" tabindex="-1" aria-label="chance step 11" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.10" value="1"></div><div class="vel-lane idle" data-step="11" role="slider" tabindex="-1" aria-label="chance step 12" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.11" value="1"></div><div class="vel-lane idle" data-step="12" role="slider" tabindex="-1" aria-label="chance step 13" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.12" value="1"></div><div class="vel-lane idle" data-step="13" role="slider" tabindex="-1" aria-label="chance step 14" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.13" value="1"></div><div class="vel-lane idle" data-step="14" role="slider" tabindex="-1" aria-label="chance step 15" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.14" value="1"></div><div class="vel-lane idle" data-step="15" role="slider" tabindex="-1" aria-label="chance step 16" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><div class="vel-bar" style="--v: 1"></div><input type="hidden" name="nchance.15" value="1"></div>
+    </div>
+    
+    
+  </div>
+  <div id="loop-chord-menu" class="pop menu ctx-menu" popover role="group" aria-label="This chord of the loop">
+  <input type="hidden" name="scope" data-from="scope" form="loop-chord-menu">
+  <input type="hidden" name="slot" data-from="slot" form="loop-chord-menu">
+  <p class="menu-label menu-now"></p>
+  <div class="menu-row chord-degs" role="group" aria-label="degree">
+    <button type="button" class="btn btn-s menu-btn" data-is="deg-1" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "deg": "1"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide"
+            aria-label="i, Am" title="Am (1 on the keys)">i</button><button type="button" class="btn btn-s menu-btn" data-is="deg-2" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "deg": "2"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide"
+            aria-label="ii°, Bdim" title="Bdim (2 on the keys)">ii°</button><button type="button" class="btn btn-s menu-btn" data-is="deg-3" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "deg": "3"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide"
+            aria-label="III, C" title="C (3 on the keys)">III</button><button type="button" class="btn btn-s menu-btn" data-is="deg-4" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "deg": "4"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide"
+            aria-label="iv, Dm" title="Dm (4 on the keys)">iv</button><button type="button" class="btn btn-s menu-btn" data-is="deg-5" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "deg": "5"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide"
+            aria-label="v, Em" title="Em (5 on the keys)">v</button><button type="button" class="btn btn-s menu-btn" data-is="deg-6" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "deg": "6"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide"
+            aria-label="VI, F" title="F (6 on the keys)">VI</button><button type="button" class="btn btn-s menu-btn" data-is="deg-7" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "deg": "7"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide"
+            aria-label="VII, G" title="G (7 on the keys)">VII</button>
+  </div>
+  <div class="menu-row" role="group" aria-label="quality">
+    <button type="button" class="btn btn-s menu-btn" data-is="q-triad" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "q": "triad"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">triad</button><button type="button" class="btn btn-s menu-btn" data-is="q-7th" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "q": "7th"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">7th</button><button type="button" class="btn btn-s menu-btn" data-is="q-9th" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "q": "9th"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">9th</button><button type="button" class="btn btn-s menu-btn" data-is="q-sus2" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "q": "sus2"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">sus2</button><button type="button" class="btn btn-s menu-btn" data-is="q-sus4" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "q": "sus4"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">sus4</button><button type="button" class="btn btn-s menu-btn" data-is="q-power" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "q": "power"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">power</button>
+  </div>
+  <div class="menu-row" role="group" aria-label="inversion">
+    <span class="menu-label">inversion</span>
+    <button type="button" class="btn btn-s menu-btn" data-is="inv-0" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "inv": "0"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">root</button><button type="button" class="btn btn-s menu-btn" data-is="inv-1" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "inv": "1"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">1st</button><button type="button" class="btn btn-s menu-btn" data-is="inv-2" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "set", "inv": "2"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">2nd</button>
+  </div>
+  <hr class="menu-sep">
+  <button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "split"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">Split in two</button>
+  <button type="button" class="menu-item danger" hx-post="/fragment/chords/track" hx-include="#loop-chord-menu input" hx-vals='{"op": "remove"}' hx-swap="none" popovertarget="loop-chord-menu" popovertargetaction="hide">Remove <kbd>Del</kbd></button>
+</div><div id="loop-chord-tools" class="pop menu loop-chord-tools" popover role="group" aria-label="The loop's chords">
+  <p class="menu-label">no chords yet</p>
+  <button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "roll"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide"
+          data-cmd="Roll the loop's chords again" data-cmd-group="Pattern" title="Another progression from this key's list">⚄ Another progression</button>
+  <hr class="menu-sep">
+  <button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "preset", "prog": "0"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide">i VI III VII<span class="menu-hint">4 bars</span></button><button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "preset", "prog": "1"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide">i VII VI VII<span class="menu-hint">4 bars</span></button><button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "preset", "prog": "2"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide">VI VII i i<span class="menu-hint">4 bars</span></button><button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "preset", "prog": "3"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide">i iv VI v<span class="menu-hint">4 bars</span></button><button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "preset", "prog": "4"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide">i v VI iv<span class="menu-hint">4 bars</span></button><button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "preset", "prog": "5"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide">iv VI i VII<span class="menu-hint">4 bars</span></button><button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "preset", "prog": "6"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide">ii° v i i<span class="menu-hint">4 bars</span></button><button type="button" class="menu-item" hx-post="/fragment/chords/track" hx-vals='{"op": "preset", "prog": "7"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide">i i VI VII<span class="menu-hint">4 bars</span></button>
+  <hr class="menu-sep">
+  <div class="menu-row" role="group" aria-label="chords and length">
+    <button type="button" class="btn btn-s menu-btn" hx-post="/fragment/chords/track" hx-vals='{"op": "add"}' hx-swap="none"
+            data-cmd="Add a chord to the loop's" data-cmd-group="Pattern" title="One more chord (the bars are shared out again)">+ chord</button>
+    <button type="button" class="btn btn-s menu-btn" hx-post="/fragment/chords/track" hx-vals='{"op": "remove", "slot": "0"}' hx-swap="none"
+            disabled data-cmd="Remove the loop's last chord" data-cmd-group="Pattern" title="One chord fewer">− chord</button>
+    <span class="menu-label">over</span>
+    <button type="button" class="btn btn-s menu-btn" data-is="bars-1" aria-pressed="false" hx-post="/fragment/chords/track" hx-vals='{"op": "bars", "bars": "1"}' hx-swap="none" title="the progression repeats every 1 bar">1</button><button type="button" class="btn btn-s menu-btn" data-is="bars-2" aria-pressed="false" hx-post="/fragment/chords/track" hx-vals='{"op": "bars", "bars": "2"}' hx-swap="none" title="the progression repeats every 2 bars">2</button><button type="button" class="btn btn-s menu-btn" data-is="bars-4" aria-pressed="false" hx-post="/fragment/chords/track" hx-vals='{"op": "bars", "bars": "4"}' hx-swap="none" title="the progression repeats every 4 bars">4</button><button type="button" class="btn btn-s menu-btn" data-is="bars-8" aria-pressed="false" hx-post="/fragment/chords/track" hx-vals='{"op": "bars", "bars": "8"}' hx-swap="none" title="the progression repeats every 8 bars">8</button><button type="button" class="btn btn-s menu-btn" data-is="bars-16" aria-pressed="false" hx-post="/fragment/chords/track" hx-vals='{"op": "bars", "bars": "16"}' hx-swap="none" title="the progression repeats every 16 bars">16</button>
+  </div>
+  <hr class="menu-sep">
+  <button type="button" class="menu-item danger" hx-post="/fragment/chords/track" hx-vals='{"op": "clear"}' hx-swap="none" popovertarget="loop-chord-tools" popovertargetaction="hide"
+          disabled data-cmd="Clear the loop's chords" data-cmd-group="Pattern">Clear the loop's chords</button>
+</div>
+</form>

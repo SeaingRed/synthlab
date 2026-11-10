@@ -1,0 +1,20 @@
+{# synthlab/studio/templates/fragments/chain.html #}
+{# The signal chain, left to right in the order the engine runs it, one line
+   per stage (studio/chain.py). Each stage links to its panel, and the line
+   under it lists what is moving the sound. A region (service.REGIONS): re-sent
+   OOB whenever an edit moves what it shows, since patch posts swap nothing
+   else. #}
+<nav id="signal-chain" class="signal-chain module" data-module="synths.chain" aria-label="Signal chain" data-menu-section="Signal chain"
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  <ol class="chain-stages">
+    {% for st in chain %}
+    <li>{% if not loop.first %}<svg class="cable live {{ 'off' if st.off }}" viewBox="0 0 24 14" aria-hidden="true"><path d="M2 4C7 15 17 15 22 4"/><circle cx="2" cy="4" r="1.7"/><circle cx="22" cy="4" r="1.7"/></svg>{% endif %}<a class="stage {{ 'off' if st.off }}" href="#{{ st.id }}" data-menu="{{ st.title }}">
+      <b>{{ st.title }}</b><span>{{ st.text }}</span>
+    </a></li>
+    {% endfor %}
+  </ol>
+  <p class="chain-motion">
+    <a href="#panel-motion" class="caps" title="what moves the sound: the Motion panel's LFOs, vibrato and tremolo, the mod matrix, curves">Moving</a>
+    {% for m in motion %}<span class="motion-chip badge badge-accent">{{ m }}</span>{% else %}<span class="motion-none">nothing is moving the sound</span>{% endfor %}
+  </p>
+</nav>

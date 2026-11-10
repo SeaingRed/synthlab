@@ -1,0 +1,114 @@
+[project]
+name = "synthlab"
+version = "0.1.0a1"
+description = "A hackable synthesizer and music studio: a NumPy + Rust synthesis engine with a browser-based workstation"
+readme = "README.md"
+requires-python = ">=3.13,<3.15"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+    "numpy>=2.1",
+    "scipy>=1.14",
+    # the native DSP kernels (crates/, Rust via PyO3), installed from the
+    # committed wheels (below) — no Rust needed to run; see crates/README.md
+    "synthlab-dsp",
+]
+
+[project.urls]
+Homepage = "https://github.com/SeaingRed/synthlab"
+Issues = "https://github.com/SeaingRed/synthlab/issues"
+
+[project.optional-dependencies]
+studio = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    # FLAC / MP3 export (audio.encode): libsndfile, bundled in the wheel.
+    # 0.14 ships a Windows-on-ARM wheel (py2.py3-none-win_arm64, beside
+    # win_amd64; 0.13.1 had none), and cffi has cp313/cp314 wheels for both.
+    # Imported lazily: without it WAV still exports and the others say why not.
+    "soundfile>=0.14",
+]
+# sounddevice needs a working audio backend, which the studio server never
+# touches (audio.play()/stream() import it lazily, inside the function —
+# never at module level) — split out so `studio` installs on a headless box.
+playback = [
+    "sounddevice>=0.5",
+]
+# The sound agent (studio/agent/): Gemini via google-genai. Optional — the
+# studio runs without it and the drawer says "agent unavailable".
+# google-auth needs cryptography, and 46.0.0-46.0.3 are the only releases with a
+# Windows-on-ARM wheel (47+ would build from source: Rust + OpenSSL). That pin
+# carries advisories pip-audit reports (X.509/PKCS parsing; the agent's
+# API-key-over-TLS path never calls into cryptography), so it is fenced to
+# that one platform and everything else resolves a current release.
+agent = [
+    "google-genai>=2.25",
+    "cryptography==46.0.3; sys_platform == 'win32' and platform_machine == 'ARM64'",
+    "cryptography>=50.0.1; sys_platform != 'win32' or platform_machine != 'ARM64'",
+]
+# Stem separation in the Sample Lab (synthlab/stems.py): HT-Demucs as an ONNX
+# graph on ONNX Runtime's CPU provider. Not PyTorch: its Windows-on-ARM wheels
+# stop at cp312 and this project needs >= 3.13. onnxruntime 1.30 ships
+# cp313/cp314 wheels for win_amd64 and win_arm64. Imported lazily: without
+# it (or without the model, downloaded on the first Separate) the Lab still
+# imports, analyses and cuts, and the Separate button says what is missing.
+stems = [
+    "onnxruntime>=1.30",
+]
+
+[project.scripts]
+synthlab-studio = "synthlab.studio.server:main"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.1",
+    "pytest>=8.3",
+    "ruff>=0.8",
+    "ty>=0.0.72",
+]
+# The real-browser smoke suite (tests/browser/): Playwright driving headless
+# Chromium against a scratch studio. Its own group, NOT in dev: `uv sync
+# --all-extras` and `uv run pytest -q` never install it, and tests/browser/
+# skips itself when it (or its Chromium) is missing. Run with
+# `uv run --group browser pytest tests/browser -q` after a one-time
+# `uv run --group browser playwright install chromium`.
+browser = [
+    "playwright>=1.55",
+]
+
+[build-system]
+requires = ["uv_build>=0.8,<2"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+# Prebuilt by tools/build_wheels.py (cross-compiled for ARM64), so running
+# the studio needs no Rust toolchain. Anything else builds from source.
+synthlab-dsp = [
+    { path = "crates/wheels/synthlab_dsp-0.1.0-cp313-abi3-win_amd64.whl", marker = "sys_platform == 'win32' and platform_machine == 'AMD64'" },
+    { path = "crates/wheels/synthlab_dsp-0.1.0-cp313-abi3-win_arm64.whl", marker = "sys_platform == 'win32' and platform_machine == 'ARM64'" },
+    { path = "crates/dsp-py", marker = "sys_platform != 'win32' or (platform_machine != 'AMD64' and platform_machine != 'ARM64')" },
+]
+
+[tool.uv.build-backend]
+module-root = ""
+# the WebAssembly voice's sources and their (git-ignored) toolchain: the
+# built static/voice-dsp.wasm ships, what builds it doesn't
+source-exclude = ["synthlab/studio/wasm/node_modules"]
+wheel-exclude = ["synthlab/studio/wasm"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+extend-exclude = ["synthlab/studio/static/htmx.min.js"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "NPY"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: heavy files (the live parity corpus); `-m \"not slow\"` skips them",
+    "browser: real-browser smoke journeys (tests/browser/, Playwright + Chromium); skipped when either is missing",
+]

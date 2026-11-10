@@ -1,0 +1,39 @@
+{# synthlab/studio/templates/fragments/ab_slots.html #}
+{# A/B compare (routes/patch.py `ab`). The live sound is one slot
+   (`ab_live`, lit: aria-pressed) or neither; a slot holding a sound shows
+   ● — holding is not "on". Pressing a slot saves your edits into the live
+   one and plays the pressed one; an empty slot stores the live sound. ⇄
+   goes to the other slot, and the morph blends toward it. `ab_oob`:
+   /fragment/morph sends the strip back on its own, which springs the
+   morph slider back to 0. #}
+{% set other = 'b' if ab_live == 'a' else 'a' if ab_live == 'b' else ('a' if slot_a or not slot_b else 'b') %}
+<span class="ab-slots" id="ab-slots"{% if ab_oob %} hx-swap-oob="outerHTML"{% endif %}>
+{% for key, slot in (('a', slot_a), ('b', slot_b)) %}
+  {% set up = key | upper %}
+  <button type="button" hx-post="/fragment/ab/slot_{{ key }}"
+          hx-target="body" hx-swap="innerMorph"
+          class="btn btn-s{{ ' filled' if slot }}" aria-pressed="{{ 'true' if ab_live == key else 'false' }}"
+          title="{% if ab_live == key %}you're hearing {{ up }} — your edits stay in it{% elif slot %}play {{ up }}: “{{ slot.name }}”{% else %}store the current sound as {{ up }}{% endif %}"
+          aria-label="{% if ab_live == key %}hearing slot {{ up }}{% elif slot %}play slot {{ up }} ({{ slot.name }}){% else %}store current sound as {{ up }}{% endif %}">{{ up }}{% if slot %}<i class="ab-dot" aria-hidden="true">●</i>{% endif %}</button>
+{% endfor %}
+  <button type="button" class="btn btn-s btn-icon" hx-post="/fragment/ab/swap" hx-target="body"
+          hx-swap="innerMorph" title="go to the other slot" data-cmd="A/B: go to the other slot"
+          aria-label="go to the other slot">⇄</button>
+  {#- the morph's place is kept while there is nothing to morph toward:
+      the sound bar's row never reflows when the second slot fills -#}
+  {#- (drawn unlit — "Morph" over an empty slot — so the place reads as
+      the control to come, not a hole) -#}
+  {% if not (slot_a if other == 'a' else slot_b) %}<span class="morph morph-slot" aria-hidden="true" title="store both A and B to morph from one toward the other">Morph</span>
+  {% else %}
+  {# one morph per release (change, not input): each gesture blends the
+     current sound toward the other slot, then the slider springs back
+     visually when the morph answers with this strip OOB (with the moved
+     rows) #}
+  <label class="morph" title="blend the current sound toward {{ other | upper }} — one step each time you let go">Morph → {{ other | upper }}
+    <input type="range" min="0" max="1" step="0.05" value="0" name="t" style="--fill: 0%" data-springs
+           hx-post="/fragment/morph" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+           hx-vals='{"slot": "{{ other }}"}'
+           aria-label="morph toward slot {{ other | upper }}">
+  </label>
+  {% endif %}
+</span>

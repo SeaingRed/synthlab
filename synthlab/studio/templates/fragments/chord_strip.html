@@ -1,0 +1,52 @@
+{# synthlab/studio/templates/fragments/chord_strip.html — the chord track's
+   tools (song creation): the
+   song's harmony, the one thing every generator reads
+   (studio/gen/chordtrack.py). It renders nothing: a pattern already
+   written keeps its notes until it is rolled again.
+
+   Drawn for `cs` (service/songpage.py `chord_context`): the song's in the
+   playlist's tool bar, and — in a section's ⋯ menu — that section's own,
+   once it has one. The progressions on offer in this key, one chord more
+   or fewer, the length that repeats, ⚄. Every control posts
+   POST /song/chords with hx-swap="none" (the arranger comes back by its
+   watch): native selects and buttons, no script, the same by keyboard, pen
+   or finger. Only the song's declares commands (a section's copy would
+   name them twice).
+
+   THE CHORDS THEMSELVES are tiles on the time axis (song_arranger.html,
+   the `.arr-chords` row): a tile a chord at its true place
+   and width, its menu (#chord-menu) the degree, quality, inversion, split
+   and remove this strip's row of selects used to be. The routes are the
+   same ones. #}
+{% set top = cs.scope == "song" %}
+<div {% if top %}id="chord-strip"{% endif %} class="chord-strip" role="group" aria-label="Chords of {{ cs.name }}"
+     data-scope="{{ cs.scope }}" data-chords="{{ cs.label }}">
+  <span class="caps" title="The harmony the generators follow: chords by degree of {{ song.root[:-1] }} {{ song.scale_name | replace('_', ' ') }}, so a key change carries it. It makes no sound of its own · the chords are the tiles over the lanes: click one to change it, drag its left edge to move where it starts">chords</span>
+  <form class="chord-form" hx-post="/song/chords" hx-trigger="change, submit" hx-sync="this:queue last" hx-swap="none">
+    <input type="hidden" name="scope" value="{{ cs.scope }}">
+    <input type="hidden" name="op" value="preset">
+    <label class="song-field" title="Progressions in this key: the style's own first"><span class="tool-word">progression</span>
+      <select class="field field-s" name="prog" aria-label="progression of {{ cs.name }}">
+        <option value="" selected disabled>{{ cs.label }}</option>
+        {% for m in cs.menu %}<option value="{{ loop.index0 }}">{{ m.label }} · {{ m.bars }} bar{{ "" if m.bars == 1 else "s" }}</option>{% endfor %}
+      </select></label>
+  </form>
+  <span class="chord-tools" role="group" aria-label="Progression tools">
+    <button type="button" class="btn btn-s btn-icon" hx-post="/song/chords" hx-vals='{"scope": "{{ cs.scope }}", "op": "add"}' hx-swap="none"
+            {% if top %}data-cmd="Add a chord" data-cmd-group="Song"{% else %}data-stay{% endif %} aria-label="add a chord to {{ cs.name }}" title="One more chord (the progression's bars are shared out again)">+</button>
+    <button type="button" class="btn btn-s btn-icon" hx-post="/song/chords" hx-vals='{"scope": "{{ cs.scope }}", "op": "remove", "slot": "{{ cs.slots | length - 1 }}"}' hx-swap="none"
+            {% if top %}data-cmd="Remove the last chord" data-cmd-group="Song"{% else %}data-stay{% endif %} aria-label="remove the last chord of {{ cs.name }}" title="One chord fewer"
+            {% if cs.slots | length <= 1 %}disabled{% endif %}>−</button>
+    <label class="song-field" title="The length that repeats">over
+      <select class="field field-s" name="bars" aria-label="progression length of {{ cs.name }} in bars"
+              hx-post="/song/chords" hx-vals='{"scope": "{{ cs.scope }}", "op": "bars"}' hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+        {% for b in limits.CHORD_BAR_CHOICES %}<option value="{{ b }}" {% if b == cs.bars %}selected{% endif %}>{{ b }} bar{{ "" if b == 1 else "s" }}</option>{% endfor %}
+      </select></label>
+    <button type="button" class="btn btn-s" hx-post="/song/chords" hx-vals='{"scope": "{{ cs.scope }}", "op": "roll"}' hx-swap="none"
+            {% if top %}data-cmd="Roll the chords again" data-cmd-group="Song"{% else %}data-stay{% endif %} title="Another progression from this key's list">⚄<span class="tool-word"> chords</span></button>
+    {% if not top %}
+    <button type="button" class="btn btn-s" hx-post="/song/chords" hx-vals='{"scope": "{{ cs.scope }}", "op": "clear"}' hx-swap="none"
+            title="{{ cs.name }} plays the song's progression again">Use the song’s</button>
+    {% endif %}
+  </span>
+</div>

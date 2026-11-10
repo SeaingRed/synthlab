@@ -1,0 +1,60 @@
+{# synthlab/studio/templates/views/voice.html
+   The take is the modulator; the carrier is the current sound (on typed
+   notes, or following the voice), the Synths loop, or a library clip.
+   Everything that decodes audio happens in the browser (see
+   static/voice.js) — the server only ever receives 16-bit PCM WAV.
+
+   Three columns, in signal order: the take (where it comes from, then the
+   take itself), the vocoder (carrier and settings), the result with the FX
+   it runs through. #voice-panel is `display: contents` on a desktop
+   window, so its three parts are the page grid's own cells (style.css
+   section 17); it is still one element to swap. #}
+<main class="cockpit voice-view" id="view" hx-history-elt data-view="voice">
+  <header class="view-head">
+    <div>
+      <h1>Voice</h1>
+      <p class="view-sub">Make the synth talk — your voice shapes its sound.</p>
+      <div id="head-how" class="pop head-how" popover><p class="view-how">Record a voice, drop one in or take a clip from the
+        library, then Vocode it: the take supplies the words, the carrier —
+        your sound, the loop or another clip — supplies the tone. Keep what
+        you like as a clip. The Master FX are applied to the result; a
+        layer’s FX are part of the loop, so they reach the vocoder only
+        through “the Synths loop” carrier.</p></div>
+    </div>
+    <div class="head-tools">{% include "fragments/head_help.html" %}{% include "fragments/reset_menu.html" %}</div>
+  </header>
+
+  <section class="vx-source module" aria-label="Take source" data-module="voice.source">
+    <h2 class="caps voice-step"><i class="jack" data-plugged aria-hidden="true"></i>1 · Take <small>the words</small></h2>
+    {# Mic is opt-in and one click, like midi.js: nothing touches
+       getUserMedia until this button is pressed, and the stream is stopped
+       the moment recording ends so the browser's indicator goes out. #}
+    <button type="button" id="mic-btn" class="btn btn-rec" aria-pressed="false"
+            data-cmd="Record a take from the microphone" data-cmd-group="Voice"
+            title="record from the microphone (asks once); press again to stop — max {{ max_seconds | int }} s">
+      ● Record
+    </button>
+    <label class="btn filepick" title="any audio file your browser can play: it decodes locally and uploads plain WAV — max {{ max_seconds | int }} s">
+      Open a file…
+      <input type="file" id="voice-file" accept="audio/*" aria-label="drop or choose an audio file">
+    </label>
+    {# the clip library is the third way in: "Use as take" on any clip,
+       "as carrier" for what plays under it. The drawer's own button, here. #}
+    <button type="button" class="btn voice-from-lib" popovertarget="clip-drawer"
+            hx-get="/fragment/clips?whole=1" hx-target="#clip-library" hx-swap="outerMorph"
+            hx-include="#clip-q"
+            data-cmd="Take from the clip library" data-cmd-group="Voice"
+            title="open the clip library: “Use as take” on a clip (a Lab vocal chop, a jam, a bounce)">
+      From the clips…
+    </button>
+    <span id="mic-status" class="voice-status" role="status" aria-live="polite"></span>
+    {#- the live vocal chain (vocal.js): sing over the music through a live
+        rack and record it — its panel is every page's (#vox-pop, base.html) -#}
+    <button type="button" class="btn vox-open" popovertarget="vox-pop" aria-pressed="false" data-cmd="Live vocal…" data-cmd-group="Voice"
+            title="Live vocal: sing over the loop or the song through doubling, auto-tune, compression and the studio tricks — heard as you sing, recorded in time with the dry voice beside it (lit while the mic is on)"><i class="led" aria-hidden="true"></i>🎙 Live vocal…</button>
+  </section>
+
+  {% include "fragments/voice_panel.html" %}
+  {% include "fragments/fx_rack.html" %}
+  <div id="analysis" class="readouts" hidden></div>
+</main>

@@ -1,0 +1,82 @@
+{# synthlab/studio/templates/views/song.html #}
+{# The Song page: the transport on top, the pattern
+   pool on the left, the arranger in the middle, the pattern editor docked
+   below. Grid areas at both breakpoints (style.css .song-view): at
+   <= 900px the pool becomes a bottom sheet and the playlist scrolls
+   sideways beside a narrow track head.
+
+   The v2 -> v3 migration note shows once: it posts
+   /song/migration-note/clear as it appears (hx-trigger="load"), and its
+   ✕ posts it again and swaps the toast away. It embeds scene names, so it
+   is autoescaped like every other user string. #}
+{#- data-own-keys: L loops the section here (song.js), so the keyboard dock's
+    typing never plays it on this page (piano.js `typing`) -#}
+<main class="cockpit song-view" id="view" hx-history-elt data-view="song" data-own-keys="KeyL">
+  <header class="view-head">
+    <h1>Song</h1>
+    <p class="view-sub">Sections left to right on a bar ruler, one row per track. Each block plays a pattern from the pool; a paler block is a repeat.</p>
+    <div id="head-how" class="pop head-how" popover><p class="view-how">Click a block to edit its pattern below. Drag a block to move it (Ctrl copies), its edges to trim it, a section’s right edge to repeat it; click the ruler to choose where Play starts. A pattern is shared: change it once and every section using it follows — “Make unique” gives one cell its own copy.</p></div>
+    <div class="head-tools">{% include "fragments/head_help.html" %}{% include "fragments/reset_menu.html" %}</div>
+  </header>
+  {% if song.migration_note %}
+  <div class="toast song-note" role="status"
+       hx-post="/song/migration-note/clear" hx-trigger="load" hx-swap="none">
+    <p>{{ song.migration_note }}</p>
+    <button type="button" class="btn btn-icon btn-s btn-ghost song-note-close" hx-post="/song/migration-note/clear"
+            hx-target="closest .song-note" hx-swap="delete" aria-label="Dismiss this note">✕</button>
+  </div>
+  {% endif %}
+  {% include "fragments/song_topbar.html" %}
+  {% include "fragments/song_pool.html" %}
+  {% include "fragments/song_arranger.html" %}
+  {% include "fragments/song_drawer.html" %}
+  {# the docked editor pane while no cell is open (the drawer is [hidden]) #}
+  <p class="empty-state drawer-idle">The pattern editor. Click a block to edit its pattern here, or an empty cell (+) to make one.{% if not song.sections %} {% include "fragments/empty_start.html" %}{% endif %}</p>
+  {% include "fragments/song_dock.html" %}
+  {# the editor pane's handles (layout.js): its width while it stands beside
+     the playlist (from 2200 px), its height while it sits under it (and a
+     cell is open). Dense tier only; outside every region, so no swap
+     takes a handle mid-drag. #}
+  <div class="splitter drawer-splitter drawer-splitter-x" data-var="--drawer-w" data-scope=".song-view" data-pane="#song-drawer:not([hidden]), .drawer-idle" data-edge="left" data-min="420" data-max="1800" role="separator" aria-orientation="vertical" aria-label="resize the pattern editor" title="drag to resize · double-click resets" tabindex="0"></div>
+  <div class="splitter drawer-splitter drawer-splitter-y" data-var="--drawer-h" data-scope=".song-view" data-pane="#song-drawer" data-axis="y" data-edge="top" data-min="140" data-max="1400" role="separator" aria-orientation="horizontal" aria-label="resize the pattern editor" title="drag to resize · double-click resets" tabindex="0"></div>
+  {% include "fragments/song_thumbs.html" %}
+  {# Recording (static/songrec.js): arming a cell whose pattern other sections share asks
+     first. Outside the OOB regions, so a swap never closes it. #}
+  {# A take (static/songtake.js), outside every region so no swap resets
+     what the script shows: the count-in's "ready, 3, 2, 1" over the page;
+     the finger drums while the drums lane is armed (fixed, out of the
+     grid's flow); and what ✦ Clean up did and Gemini said. #}
+  <output id="rec-countdown" class="rec-countdown" aria-live="assertive" hidden></output>
+  <div id="finger-drums" class="finger-drums" role="group" aria-label="Finger drums: the drums track's kit" hidden>
+    {% for voice, keys in [("kick", "A Z"), ("snare", "S X"), ("hat", "D C"), ("ohat", "F V"), ("clap", "G B"), ("tom", "H N"), ("rim", "J M"), ("crash", "K ,")] %}
+    <button type="button" class="btn fd-pad" data-voice="{{ voice }}" title="{{ voice }} — keys {{ keys }}">{{ "open hat" if voice == "ohat" else voice }}<kbd>{{ keys }}</kbd></button>
+    {% endfor %}
+  </div>
+  <div id="take-report" class="pop take-report" popover aria-labelledby="take-report-title">
+    <h2 class="caps is-ai" id="take-report-title">✦ Clean-up</h2>
+    <p class="tr-what"></p>
+    <ul class="tr-fixes"></ul>
+    <div class="tr-ai">
+      <h3 class="caps is-ai">✦ Gemini</h3>
+      <ul class="tr-feedback"></ul>
+      <ul class="tr-edits"></ul>
+    </div>
+    <p class="tr-note"></p>
+    <div class="tr-actions">
+      <button type="button" class="btn btn-s" data-take-undo title="The take as it was recorded (Ctrl+Z on the Song page does the same)">↶ Undo clean-up</button>
+      <button type="button" class="btn btn-s" popovertarget="take-report" popovertargetaction="hide">Keep</button>
+    </div>
+  </div>
+  <dialog id="rec-shared" class="rec-shared" aria-labelledby="rec-shared-q">
+    <form method="dialog">
+      {#- it names what ⏺ is about to record — the armed track, else the
+          cursor's — and where, and Cancel (or Esc) records nothing -#}
+      <p id="rec-shared-q">Record <strong class="rec-shared-track"></strong> in <strong class="rec-shared-sec"></strong>:
+        its pattern <strong class="rec-shared-name"></strong> plays in <span class="rec-shared-count"></span> sections.
+        Record into all of them, or make it unique to this one?</p>
+      <button type="submit" class="btn" value="unique" autofocus>Make unique</button>
+      <button type="submit" class="btn" value="shared">Record into shared</button>
+      <button type="submit" class="btn btn-ghost" value="">Cancel</button>
+    </form>
+  </dialog>
+</main>

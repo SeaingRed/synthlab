@@ -1,0 +1,528 @@
+{# synthlab/studio/templates/fragments/lab_panel.html
+   The selected song, laid out so picking a sample is easy. One path, top
+   to bottom:
+   1. the song's bar: its tempo and bar grid, key, its stems;
+   2. PICK (`#lab-region`, module lab.lanes): the selection — what it plays,
+      where, ▶ (Space), and what to do with it in one press: Keep clip
+      (Enter), ⤷ Sampler, ✂ Chop, → Beat — over the lanes: the overview
+      strip (the whole song, the window on it a box to drag), the bar ruler,
+      the mix lane and a lane a stem, each in its own colour. A drag on a
+      lane selects on THAT lane (the mix: the recording; a stem: it alone;
+      Shift: added to the ticked ones), snapped to bars or beats (Alt:
+      free); its edges drag; a click plays the lane from there. Ctrl + wheel
+      zooms round the pointer, Shift + wheel scrolls (labview.js); the
+      ruler, the bar and beat lines and every marker are labview.js's,
+      drawn for whatever span the page shows, so a zoom is immediate and the
+      lanes' sharper peaks follow (`POST /lab/view action=set`);
+   3. the chop list beside them (lab_chops.html) and what else a selection
+      becomes (`#lab-make`: the one-stem things and the song take).
+   A lane "feeds" the result when it is what the region plays: the mix
+   while no stem is ticked, else each ticked stem (`.feeds`: its region band
+   bright, the others faint). The snap's radios and the stem boxes post the
+   region form themselves (`.lab-auto`): a `change from:find` trigger on the
+   form never fired in htmx 4. A stem's level knob posts the same form and
+   MORPHS the body (outerMorph: replaced, the control under the keyboard
+   would lose focus after one arrow key). Its solo button changes which
+   boxes are ticked, so it replaces; it has an id, which htmx re-focuses.
+   lab.js's gestures ignore a press on a label, a button, a link, a chop's
+   edge (labchop.js drags those) and the separation call-out (`.lab-cta`).
+   A lane's meter is `lab.region_meter`: the stem's stored peak over the
+   region at the lane's level — static, what the region will send. #}
+{% set src = lab.source %}
+{% macro separate_buttons(primary) -%}
+  {% if not lab.separation.runtime %}
+  <p class="lab-meta">{{ lab.separation.reason }}</p>
+  <button type="button" class="btn btn-s" disabled>Separate into stems</button>
+  {% else %}
+  {# a button a model, each with that model's own download notice; the
+     model the song already shows stems of is not offered again. The
+     page's ONE primary: the first separation of a song that has none. #}
+  {% set sep_how = "Drums, bass, vocals and the rest, on this machine's CPU: about a minute for a four-minute song. The 6-stem model also splits out guitar and piano (its piano is the weakest of the six); a song keeps the stems of both once they are made." %}
+  <span class="lab-actions">
+  {% for m in lab.models %}
+  {% if m.id != src.stems_model %}
+  {% set there = m.have or (loop.first and lab.separation.model) %}
+  <button type="button" class="btn btn-s btn-ai{{ ' btn-primary' if loop.first and not src.has_stems }}"
+          hx-post="/lab/separate" hx-vals='{"source": "{{ src.id }}", "model": "{{ m.id }}"}'
+          hx-target="#lab-body" hx-swap="outerHTML" title="{{ m.label }}. {{ sep_how }}{% if not there %} The first run downloads its model ({{ m.megabytes }} MB).{% endif %}"
+          data-cmd="{{ 'Separate into stems' if loop.first else 'Separate into 6 stems' }}" data-cmd-group="AI"
+          {% if lab.job %}disabled{% endif %}
+          {% if not there %}hx-confirm="Separating into {{ m.label }} needs a model file: {{ m.megabytes }} MB, downloaded once into your user cache. Download it and separate this song?"{% endif %}
+          >✦ {{ 'Separate into stems' if loop.first else 'Separate into 6 stems' }}</button>
+  {% endif %}
+  {% endfor %}
+  </span>
+  {% if primary %}
+  {% for m in lab.models %}{% if m.id != src.stems_model and not (m.have or (loop.first and lab.separation.model)) %}
+  <p class="lab-meta">The first “{{ 'Separate into stems' if loop.first else 'Separate into 6 stems' }}” downloads its model ({{ m.megabytes }} MB).</p>
+  {% endif %}{% endfor %}
+  {% endif %}
+  {% endif %}
+{%- endmacro %}
+<section id="lab-panel" class="lab-panel module" data-module="lab.song" aria-label="Selected song" data-cmd-group="Sample Lab"
+         {% if oob %}hx-swap-oob="true"{% endif %}>
+  {% if not src %}
+  {# the Lab with no song: ONE action, on topic, and the steps ahead #}
+  <div class="empty-state lab-start"><h3>Bring in a song</h3>
+    <p>Drop a recording on the box at the left, or choose one. The Lab reads its tempo and key, then:</p>
+    <ol class="lab-steps">
+      <li><strong>split it into stems</strong> — drums, bass, vocals and the rest, a lane each</li>
+      <li><strong>pick a sample</strong> — drag across a lane; it snaps to bars, and Ctrl + wheel zooms in</li>
+      <li><strong>keep it</strong> — Enter keeps it as a clip; or a sampler sound, a chop, a beat</li>
+    </ol>
+    <label class="btn btn-s btn-primary" for="lab-file">Choose a song</label></div>
+  {% else %}
+  <div class="lab-bar">
+  <h2 class="lab-name">{{ src.name }} <span class="lab-meta">{{ src.duration }}</span></h2>
+
+  <form class="lab-grid" hx-post="/lab/grid" hx-target="#lab-body" hx-swap="outerHTML"
+        aria-label="Tempo and bar grid">
+    <input type="hidden" name="source" value="{{ src.id }}">
+    <input type="hidden" name="action" value="set">
+    <label><span class="caps">tempo</span>
+      <input type="number" class="field field-s" name="bpm" min="30" max="300" step="0.01"
+             value="{{ src.bpm if src.grid.set else '' }}" aria-label="tempo in bpm">
+    </label>
+    <button type="submit" class="btn btn-s" data-cmd="Set the song's tempo">set</button>
+    <span class="seg">
+    <button type="button" hx-post="/lab/grid" hx-vals='{"source": "{{ src.id }}", "action": "half"}'
+            hx-target="#lab-body" hx-swap="outerHTML" title="half the tempo" data-cmd="Halve the song's tempo">÷2</button>
+    <button type="button" hx-post="/lab/grid" hx-vals='{"source": "{{ src.id }}", "action": "double"}'
+            hx-target="#lab-body" hx-swap="outerHTML" title="double the tempo" data-cmd="Double the song's tempo">×2</button>
+    </span>
+    <span class="lab-nudge seg" role="group" aria-label="move the first bar line">
+      <span class="caps" title="move the bar lines until bar 1 sits on the song's first downbeat">bar 1</span>
+      {% for n in src.nudges %}
+      <button type="button" hx-post="/lab/grid"
+              hx-vals='{"source": "{{ src.id }}", "action": "nudge", "beats": "{{ n }}"}'
+              hx-target="#lab-body" hx-swap="outerHTML"
+              data-cmd="Move the bar lines {{ 'a beat' if n | abs == 1 else 'a quarter beat' }} {{ 'earlier' if n < 0 else 'later' }}"
+              title="move the bar lines {{ 'a beat' if n | abs == 1 else 'a quarter beat' }} {{ 'earlier' if n < 0 else 'later' }}"
+              aria-label="bar lines {{ 'a beat' if n | abs == 1 else 'a quarter beat' }} {{ 'earlier' if n < 0 else 'later' }}"
+              >{{ '◀' if n < 0 else '▶' }}{{ '' if n | abs == 1 else '¼' }}</button>
+      {% endfor %}
+    </span>
+    <button type="button" class="btn btn-s" hx-post="/lab/grid" hx-vals='{"source": "{{ src.id }}", "action": "reset"}'
+            hx-target="#lab-body" hx-swap="outerHTML" title="back to the detected tempo and bar line"
+            data-cmd="Back to the detected tempo and bar line"
+            {% if not (src.grid.user_bpm or src.grid.user_offset) %}disabled{% endif %}>↺ reset</button>
+    <p class="lab-readout">
+      {% if src.bpm_detected %}detected {{ src.bpm_detected }} bpm · {{ src.bpm_percent }}% sure
+      {%- if src.bpm_percent < 30 %} — check it by ear{% endif %}
+      {%- if src.meter_guess == 3 %} · <span class="lab-meter" title="Its beats repeat in threes more strongly than in fours ({{ src.meter_percent }}% ahead): a waltz, or a 6/8 felt in two. The grid below still counts four a bar">sounds in 3</span>{% endif %}
+      {% else %}no clear tempo: type one{% endif %}
+      {% if src.grid.set %}· {{ src.bars }} bars, bar 1 at {{ src.offset }} s{% endif %}
+    </p>
+  </form>
+
+  <form class="lab-grid lab-key" hx-post="/lab/key" hx-target="#lab-body" hx-swap="outerHTML"
+        hx-trigger="change" hx-sync="this:queue last" aria-label="Key">
+    <input type="hidden" name="source" value="{{ src.id }}">
+    <label><span class="caps">key</span>
+      <select class="field field-s" name="key" aria-label="the song's key"
+              title="names the key on what you send from here; it changes no audio">
+        <option value="">{{ 'detected: ' ~ src.key_detected if src.key_detected else 'none detected' }}</option>
+        {% for k in src.key_names %}
+        <option value="{{ k }}" {% if k == src.key_user %}selected{% endif %}>{{ k }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if src.has_stems %}
+    <button type="button" class="btn btn-s" hx-post="/lab/key" hx-vals='{"source": "{{ src.id }}", "reread": "1"}'
+            hx-target="#lab-body" hx-swap="outerHTML" hx-disable="this" data-cmd="Read the key again from the stems"
+            title="read the key again from the stems: no drums, and the bass line decides between the key and its relative">read again</button>
+    {% endif %}
+    <p class="lab-readout" id="lab-key-readout">
+      {% if src.key_user %}set by you{% if src.key_detected %} · detected {{ src.key_detected }}, {{ src.key_percent }}% sure{% endif %}
+      {% elif src.key_detected %}{{ src.key_percent }}% sure of the scale
+      {%- if src.key_percent < 30 %} — check it by ear{% endif %}
+      {%- if src.key_alt %} · could be its relative, {{ src.key_alt }}{% endif %}
+      {%- if src.key_tonic == 'bass' %} · the bass line picked {{ src.key_detected }} over {{ src.key_scores_alt }}{% endif %}
+      {%- if src.key_from == 'stems' %} · read from the stems, without the drums{% endif %}
+      {% else %}no clear key: pick one if you know it{% endif %}
+    </p>
+  </form>
+  {% if src.has_stems %}
+  {# the stems: whole, out; and the other model's separation #}
+  <div class="lab-grid lab-stems-tools" role="group" aria-label="Stems">
+    <span class="caps">stems</span>
+    <a class="btn btn-s lab-dl-all" href="/lab/{{ src.id }}/stems.zip" download data-cmd="Download all stems"
+       title="Stems are separated: this is every stem of the set, whole, as FLAC in one zip (a lane's level is not applied).">⤓ all</a>
+    {{ separate_buttons(false) }}
+  </div>
+  {% endif %}
+  </div>
+
+  {% set mix_feeds = not (src.has_stems and src.picked) %}
+  {% set off = src.region.too_long %}
+  {% set d = src.lanes_data %}
+  {% set sel_lane = src.picked[0] if src.has_stems and src.picked | length == 1 else 'mix' %}
+  <form id="lab-region" class="lab-region module" data-module="lab.lanes" hx-post="/lab/region" hx-target="#lab-body"
+        hx-swap="outerHTML" aria-label="Pick a sample">
+    <input type="hidden" name="source" value="{{ src.id }}">
+    <input type="hidden" name="drag_a" value=""><input type="hidden" name="drag_b" value="">
+    {% if src.has_stems %}<input type="hidden" name="stems" value="1">{% endif %}
+    {# the selection: what it plays and where, heard (Space), kept (Enter) #}
+    <div class="lab-pick" role="group" aria-label="The selection">
+      <div class="player lab-player">
+        <button type="button" class="btn btn-icon btn-s player-play" id="lab-play" aria-pressed="false"
+                data-player="media" data-keys="Space" data-plays="the selection · {{ src.pick_name }}"
+                aria-label="audition the selection" title="play / stop the selection ({{ src.what }}), round and round"
+                data-cmd="Audition the selection" data-cmd-group="Lab">▶</button>
+        <span class="player-bar" role="slider" tabindex="0" aria-label="position in the selection" aria-valuemin="0"
+              aria-valuemax="{{ src.region.length_s }}" aria-valuenow="0" title="click to seek · ← → step"><i></i></span>
+        <output class="player-time">0:00 / {{ "%d:%02d" | format((src.region.length_s | float // 60) | int, (src.region.length_s | float % 60) | int) }}</output>
+        <button type="button" class="btn btn-s btn-icon player-loop" aria-pressed="true"
+                title="loop the selection: on, it plays round and round (hear the seam)"
+                data-cmd="Loop the selection's audition: on or off" data-cmd-group="Lab">⟲</button>
+        <audio preload="none" loop src="{{ src.audio_url }}" data-from="{{ src.region.start_s }}"
+               aria-label="the selection: {{ src.pick_name }}"></audio>
+      </div>
+      <p class="lab-pick-what" title="what the selection plays (drag on a lane to pick that lane) and where">
+        <i class="lab-swatch lane-{{ sel_lane }}" aria-hidden="true"></i><strong class="lab-what">{{ src.what }}</strong>
+        <span class="lab-pick-where">{{ src.region.label }}</span>
+        <span class="lab-meta">{{ src.region.from }}–{{ src.region.to }} · {{ src.region.length_s }} s</span></p>
+      <span class="lab-pick-do">
+        {# the page's ONE primary once the song has stems (before, Separate) #}
+        <button type="button" class="btn btn-s{{ ' btn-primary' if src.has_stems }}" id="lab-keep" data-keys="Enter"
+                data-cmd="Keep the selection as a clip" data-menu="Keep as a clip"
+                hx-post="/lab/send" hx-vals='{"target": "clip"}' hx-include="closest form"
+                hx-target="#lab-body" hx-swap="outerHTML"
+                title="keep it as the clip “{{ src.pick_name }}” in Clips (Enter on the lanes)"
+                {% if off %}disabled{% endif %}>Keep clip</button>
+        <label class="lab-fit" title="time-stretch the clip (same pitch) so its bars are the loop's {{ '%g' | format(src.session_bpm) }} bpm bars"><input type="checkbox" class="check" name="fit"> fit {{ '%g' | format(src.session_bpm) }}</label>
+        <span class="lab-split">
+        <button type="button" class="btn btn-s" id="lab-sampler" data-cmd="Send the selection to the sampler" data-menu="Make a sampler sound"
+                hx-post="/lab/send" hx-vals='{"target": "sampler"}' hx-include="closest form"
+                hx-target="body" hx-swap="innerMorph"
+                title="a new sampler sound, opening on Synths (Before last load there brings yours back); its root is the selection's pitch when it has a clear one, else the song's key"
+                {% if off %}disabled{% endif %}>⤷ Sampler</button>
+        <select class="field field-s" name="chop" aria-label="how the selection is laid on the keys" title="how the selection is laid on the keys">
+          <option value="none">whole</option>
+          <option value="transients">a slice a hit</option>
+          <option value="beats" {% if not src.grid.set %}disabled{% endif %}>a slice a beat</option>
+          <option value="bars" {% if not src.grid.set %}disabled{% endif %}>a slice a bar</option>
+        </select>
+        </span>
+        <button type="button" class="btn btn-s" id="lab-chop-add" data-cmd="Cut the selection as a chop" data-menu="Cut it as a chop"
+                hx-post="/lab/chop" hx-vals='{"source": "{{ src.id }}", "op": "add"}'
+                hx-target="#lab-body" hx-swap="outerMorph" hx-disable="this"
+                title="a chop of the selection, named “{{ src.pick_name[:60] }}”, with its own cleaning (in Chops)">✂ Chop</button>
+        <button type="button" class="btn btn-s" id="lab-beat" data-cmd="Make a beat from the selection" data-menu="Make a beat on the drum grid"
+                hx-post="/lab/drums" hx-vals='{"to": "grid", "loop_tempo": "on"}' hx-include="closest form"
+                hx-target="#lab-body" hx-swap="outerHTML"
+                hx-confirm="Replace the pattern on the drum grid with this selection's drums? (Undo here, or Ctrl+Z on Kit, takes it back.)"
+                title="{% if src.region.mode != 'bars' %}a beat sits on bar lines: snap the selection to bars first{% else %}kick, snare and hats of its first {{ lab.pattern_bars }} bars onto the drum grid, read from {{ 'the drums stem' if 'drums' in src.stem_names else 'the mix' }}{% endif %}"
+                {% if off or src.region.mode != 'bars' %}disabled{% endif %}>→ Beat</button>
+      </span>
+      <span class="lab-pick-set">
+        {% if src.region.mode == 'bars' %}
+        <label title="the selection's first bar">bar <input type="number" class="field field-s" name="bar" min="1" max="{{ [src.bars, 1] | max }}" step="1" value="{{ src.region.start }}"></label>
+        <label title="how many bars">× <input type="number" class="field field-s" name="bars" min="1" max="{{ src.max_bars }}" step="1" value="{{ src.region.length }}"></label>
+        {% else %}
+        <label title="where the selection starts, in seconds">at <input type="number" class="field field-s" name="start" min="0" max="{{ src.seconds }}" step="0.01" value="{{ src.region.start }}"></label>
+        <label title="how long it is, in seconds">+ <input type="number" class="field field-s" name="length" min="0.05" max="{{ src.seconds }}" step="0.01" value="{{ src.region.length }}"> s</label>
+        {% endif %}
+        <button type="submit" class="btn btn-s btn-ghost" data-cmd="Set the selection" title="set the selection to the numbers typed">set</button>
+        {% if src.lengths %}
+        <span class="seg lab-lengths" role="group" aria-label="selection length in bars">
+          {% for n in src.lengths %}<button type="button" hx-post="/lab/region" hx-include="closest form"
+            hx-vals='{"mode": "bars", "bar": "{{ src.region.start }}", "bars": "{{ n }}"}'
+            hx-target="#lab-body" hx-swap="outerHTML" aria-pressed="{{ 'true' if src.region.length == n else 'false' }}"
+            data-cmd="Selection: {{ n }} bar{{ 's' if n > 1 }} from its first bar" title="{{ n }} bar{{ 's' if n > 1 }} from bar {{ src.region.start }}">{{ n }}</button>{% endfor %}
+        </span>
+        {% endif %}
+        <span role="radiogroup" aria-label="snap" class="seg lab-snap">
+          <span class="caps" aria-hidden="true">snap</span>
+          <label title="the selection sits on bar lines: a drag snaps to whole bars (Alt held: free)"><input type="radio" class="lab-auto" hx-post="/lab/region" hx-sync="closest .seg:queue last" hx-include="closest form" hx-target="#lab-body" hx-swap="outerHTML" name="mode" value="bars" {% if src.region.mode == 'bars' %}checked{% endif %}
+                        {% if not src.grid.set %}disabled{% endif %}> bar</label>
+          <label title="a drag snaps to beats (Alt held: free)"><input type="radio" class="lab-auto" hx-post="/lab/region" hx-sync="closest .seg:queue last" hx-include="closest form" hx-target="#lab-body" hx-swap="outerHTML" name="mode" value="seconds" {% if src.region.mode == 'seconds' %}checked{% endif %}> beat</label>
+        </span>
+      </span>
+    </div>
+    {% if src.region.too_long %}
+    <p class="lab-error lab-pick-note">The selection is longer than {{ src.max_region | int }} s: the
+      audition plays its first {{ src.max_region | int }} s, and it is too long to
+      keep as a clip, a sample or a take.</p>
+    {% endif %}
+    {# what was just made, where it went and its undo: under the selection,
+       the first thing in sight after a make #}
+    {% if lab.said %}
+    <div class="lab-said" id="lab-said" role="status">
+      <p>{{ lab.said }}</p>
+      {% if lab.go %}<p class="lab-go">
+        {% if lab.go.href %}<a class="btn btn-s" href="{{ lab.go.href }}" data-cmd="{{ lab.go.label }}">{{ lab.go.label }} →</a>
+        {% else %}<button type="button" class="btn btn-s" popovertarget="{{ lab.go.popover }}" popovertargetaction="show"
+                data-cmd="{{ lab.go.label }}">{{ lab.go.label }}</button>{% endif %}
+        {% if lab.go.undo %}<button type="button" class="btn btn-ghost btn-s" id="lab-undo" hx-post="/lab/undo"
+                hx-vals='{{ dict(lab.go.undo, source=src.id) | tojson }}' hx-target="#lab-body" hx-swap="outerHTML"
+                data-cmd="Undo what the Lab just made" title="take back what this just made">Undo</button>{% endif %}
+      </p>{% endif %}
+      {% if lab.rows %}
+      <pre class="lab-rows" aria-label="the pattern that was written">{% for lane, row in lab.rows %}{{ '%-5s' | format(lane) }} {{ row }}
+{% endfor %}</pre>
+      {% endif %}
+    </div>
+    {% endif %}
+    {# the lanes: the overview strip and the zoom over the ruler, then the
+       mix and a lane a stem. Times on the page are seconds of the song;
+       labview.js maps them onto whatever span is shown. #}
+    <div class="lab-lanes" id="lab-wave" tabindex="0" role="group"
+         aria-label="the lanes: drag to select, click to hear from there"
+         data-keys="← →" data-key-label="Lanes: ← → move the selection a beat (Shift: a bar) · [ ] shorter / longer · Enter keeps it · Ctrl+wheel zooms, Shift+wheel scrolls"
+         data-total="{{ d.total }}" data-beat="{{ d.beat }}" data-offset="{{ d.offset }}" data-bars="{{ d.bars }}"
+         data-per-bar="{{ d.per_bar }}" data-view-start="{{ d.view_start }}" data-view-seconds="{{ d.view_seconds }}"
+         data-min-view="{{ d.min_view }}" data-sel-start="{{ d.sel_start }}" data-sel-seconds="{{ d.sel_seconds }}"
+         data-mode="{{ d.mode }}" data-lane-url="{{ src.lane_url }}"
+         style="--stems: {{ src.lanes | length if src.has_stems else (4 if lab.job else 1) }}">
+      <div class="lab-corner" role="group" aria-label="Zoom and scroll the lanes">
+        <span class="seg">
+        {% for action, glyph, title, dis in [
+            ("left", "◀", "scroll back half a screen", src.view.at_start),
+            ("out", "−", "zoom out", src.view.zoom == 1),
+            ("in", "+", "zoom in on the region", not src.view.can_in),
+            ("right", "▶", "scroll on half a screen", src.view.at_end),
+            ("region", "⇔", "frame the region", false),
+            ("all", "all", "show the whole song", src.view.zoom == 1),
+          ] %}
+        <button type="button" hx-post="/lab/view"
+                hx-vals='{"source": "{{ src.id }}", "action": "{{ action }}"}'
+                hx-target="#lab-body" hx-swap="outerMorph" title="{{ title }}{{ ' (or Ctrl + wheel on the lanes)' if action in ('in', 'out') else '' }}" aria-label="{{ title }}"
+                data-cmd="Waveform: {{ title }}"
+                {% if dis %}disabled{% endif %}>{{ glyph }}</button>
+        {% endfor %}
+        </span>
+        <output class="lab-meta lab-zoom-readout">{% if src.view.zoom > 1 %}×{{ src.view.zoom }}{% endif %}</output>
+      </div>
+      <div class="lab-strip" title="the whole song: drag the box to scroll the lanes, click to look there">
+        {{ src.strip | safe }}<span class="lab-ov-win" style="left: {{ src.view.box_x }}%; width: {{ src.view.box_w }}%"></span>
+      </div>
+      {# the bar numbers (labview.js), and the selection written on the ruler,
+         its edges handles to drag #}
+      <div class="lab-ruler">
+        <span class="lab-ruler-nums" aria-hidden="true"></span>
+        <span class="lab-ruler-region lab-at" data-at="{{ src.region.start_s }}" data-to="{{ src.region.end_s }}"
+              style="left: {{ src.region.x }}%; width: {{ src.region.x_end - src.region.x }}%"
+              title="the selection: {{ src.region.label }}"></span>
+        {% for edge in ("start", "end") %}
+        <span class="lab-sel-edge lab-at" data-edge="{{ edge }}" data-at="{{ src.region.start_s if edge == 'start' else src.region.end_s }}"
+              style="left: {{ src.region.x if edge == 'start' else src.region.x_end }}%" aria-hidden="true"
+              title="drag the selection's {{ edge }} ({{ 'it snaps to bars' if src.region.mode == 'bars' else 'it snaps to beats' }}; Alt held = free)"></span>
+        {% endfor %}
+        <output class="lab-hover-t" hidden></output>
+      </div>
+      <div class="lab-lane lab-mix lane-mix{{ ' feeds' if mix_feeds }}" data-lane="mix" data-ctx="the mix">
+        <div class="lab-head">
+          <span class="lab-head-name" title="{{ 'the selection plays and sends the recording itself' if mix_feeds else 'the selection plays the ticked stems: drag on this lane to take it from the recording' }}">
+            <span class="led" {% if mix_feeds %}data-on{% endif %} aria-hidden="true"></span>
+            <i class="lab-swatch" aria-hidden="true"></i><span class="lab-lane-name">mix</span></span>
+          {% if not mix_feeds %}<button type="button" class="btn btn-ghost btn-s" id="lab-use-mix"
+              hx-post="/lab/region" hx-include="closest form"
+              hx-vals='{ {% for lane in src.lanes %}"stem.{{ lane.name }}": "", {% endfor %}"stems": "1"}'
+              hx-target="#lab-body" hx-swap="outerHTML" data-cmd="Take the region from the whole mix" data-menu="Use the mix"
+              title="untick every stem: the selection plays and sends the recording itself">use mix</button>{% endif %}
+          <span class="lab-head-tools">
+            <span class="meter{{ ' clipped' if src.meter.clip }}" style="--level: {{ src.meter.pct }}%"
+                  title="the recording's peak over the selection: {{ src.meter.text }}"><i></i><b></b></span>
+            <a class="lab-dl" href="/lab/{{ src.id }}/stem/mix.flac" download data-menu="Download the song as FLAC"
+               title="download the whole song as FLAC" aria-label="download the mix as FLAC">⤓ flac</a>
+            <a class="lab-dl" href="/lab/{{ src.id }}/stem/mix.wav" download data-menu="Download the song as WAV"
+               title="download the whole song as WAV" aria-label="download the mix as WAV">wav</a></span>
+          <span class="lab-grip" data-grip="mix" aria-hidden="true" title="drag to make the mix lane taller or shorter (double-click: fit)"></span>
+        </div>
+        <div class="lab-track">{{ src.svg | safe }}</div>
+      </div>
+      {% if src.has_stems %}
+      {% for lane in src.lanes %}
+      <div class="lab-lane lane-{{ lane.name }}{{ ' picked feeds' if lane.picked }}" data-lane="{{ lane.name }}" data-ctx="the {{ lane.name }} stem">
+        <div class="lab-head">
+          <label class="lab-head-name" title="tick to play and send the {{ lane.name }} stem, untick to mute it (nothing ticked = the mix); a drag on its lane selects it alone">
+            <input type="checkbox" class="check lab-auto" hx-post="/lab/region" hx-sync="this:queue last" hx-include="closest form" hx-target="#lab-body" hx-swap="outerHTML" name="stem.{{ lane.name }}" {% if lane.picked %}checked{% endif %}
+                   data-menu="Play and send it" aria-label="{{ lane.name }}: in the selection">
+            <i class="lab-swatch" aria-hidden="true"></i><span class="lab-lane-name">{{ lane.name }}</span></label>
+          <button type="button" class="btn btn-s lab-solo" id="lab-solo-{{ lane.name }}"
+                  hx-post="/lab/region" hx-include="closest form" hx-vals='{"solo": "{{ lane.name }}"}'
+                  hx-target="#lab-body" hx-swap="outerHTML"
+                  aria-pressed="{{ 'true' if lane.solo else 'false' }}"
+                  aria-label="solo {{ lane.name }}" data-menu="Solo" data-cmd="Solo the {{ lane.name }} stem"
+                  title="{{ 'every stem again' if lane.solo else 'play and send the ' ~ lane.name ~ ' stem alone' }}">S</button>
+          <span class="lab-head-tools">
+            <span class="meter{{ ' clipped' if lane.meter.clip }}" style="--level: {{ lane.meter.pct }}%"
+                  title="the {{ lane.name }} stem's peak over the selection at this level: {{ lane.meter.text }}"><i></i><b></b></span>
+            <label class="lab-level" title="the {{ lane.name }} stem's level in what the selection plays and sends (when it is ticked)">
+              <input type="range" class="knob knob-s" id="lab-level-{{ lane.name }}" name="level.{{ lane.name }}"
+                     min="{{ src.level_range[0] | int }}" max="{{ src.level_range[1] | int }}" step="0.5" value="{{ '%g' | format(lane.level) }}"
+                     data-default="0"
+                     style="--fill: {{ ((lane.level - src.level_range[0]) / (src.level_range[1] - src.level_range[0]) * 100) | round(1) }}%"
+                     aria-label="{{ lane.name }} level in dB"
+                     hx-post="/lab/region" hx-include="closest form" hx-target="#lab-body" hx-swap="outerMorph" hx-trigger="change" hx-sync="this:queue last">
+              <output>{{ lane.level_text }}</output></label>
+            <a class="lab-dl" href="/lab/{{ src.id }}/stem/{{ lane.name }}.flac" download data-menu="Download the stem as FLAC"
+               title="download the whole {{ lane.name }} stem as FLAC (as separated: the level is not applied)"
+               aria-label="download the {{ lane.name }} stem as FLAC">⤓</a>
+            <a class="lab-dl" href="/lab/{{ src.id }}/stem/{{ lane.name }}.wav" download data-menu="Download the stem as WAV"
+               title="download the whole {{ lane.name }} stem as WAV"
+               aria-label="download the {{ lane.name }} stem as WAV">wav</a>
+          </span>
+          <span class="lab-grip" data-grip="stem" aria-hidden="true" title="drag to make the stem lanes taller or shorter (double-click: fit; Ctrl + Shift + wheel too)"></span>
+        </div>
+        <div class="lab-track">{{ lane.svg | safe }}</div>
+      </div>
+      {% endfor %}
+      {% elif lab.job %}
+      {# a separation is running: where its lanes will be #}
+      {% for n in range(4) %}<div class="lab-lane lab-lane-skel"><span class="skel"></span>
+        {% if loop.first %}<span class="lab-meta lab-skel-note">separating — the stems land here</span>{% endif %}</div>{% endfor %}
+      {% else %}
+      {# not separated: the one place that says stems exist, and makes them #}
+      <div class="lab-lane lab-cta">
+        <p><span class="caps">stems</span> <strong>drums · bass · vocals · other</strong> —
+          separate the song to take one part alone: the acapella, the beat, the bass line.</p>
+        {{ separate_buttons(true) }}
+      </div>
+      {% endif %}
+      {# over every lane: the bar and beat lines (labview.js), the chops'
+         edges (labchop.js drags them and nudges them with the arrows; the
+         server decides where each lands), the playhead, the pointer's line #}
+      <div class="lab-over">
+        <svg class="lab-gridlines" viewBox="0 0 1000 1" preserveAspectRatio="none" aria-hidden="true"></svg>
+        {% for c in src.chop_rows %}{% for m in c.marks %}
+        <span class="chop-mark lab-at chop-{{ m.edge }}{{ ' on' if c.selected }}" id="chop-mark-{{ c.id }}-{{ m.edge }}"
+              role="slider" tabindex="0" data-chop="{{ c.id }}" data-edge="{{ m.edge }}" data-at="{{ m.at }}"
+              style="left: {{ m.x }}%" {% if not m.seen %}hidden{% endif %} aria-orientation="horizontal"
+              aria-label="{{ m.edge }} of chop {{ c.name }}" aria-valuemin="0" aria-valuemax="{{ src.seconds }}"
+              aria-valuenow="{{ m.at }}" aria-valuetext="{{ m.clock }}"
+              title="{{ m.edge }} of “{{ c.name }}”: drag, or arrows (5 ms, Shift 50 ms); Alt = no snap"></span>
+        {% endfor %}{% endfor %}
+        <i class="lab-playhead" hidden></i><i class="lab-hover" hidden></i>
+      </div>
+    </div>
+    <audio id="lab-scrub" preload="none" data-from="0" aria-label="the lane from where you clicked"></audio>
+  </form>
+
+  {% include "fragments/lab_chops.html" %}
+
+  {# What else the selection becomes: the one-stem things and the song
+     take, a card each saying what you get, where it goes and which audio
+     feeds it. Selecting a chop makes it the region, so these act on the
+     chop that is marked. #}
+  {% set vocal_from = 'vocals stem' if 'vocals' in src.stem_names else src.what %}
+  {% set drums_from = 'drums stem' if 'drums' in src.stem_names else src.what %}
+  <section class="lab-make module" id="lab-make" data-module="lab.make" aria-labelledby="lab-make-h">
+  <form class="lab-send" aria-label="Make something from the selection">
+    <input type="hidden" name="source" value="{{ src.id }}">
+    <div class="lab-make-head">
+      <h3 id="lab-make-h" class="caps">More from {{ src.region.label }}</h3>
+      <label title="the name of what is made (a sound, a take); empty = what it plays and where"><span class="caps">name</span>
+        <input type="text" class="field field-s" name="name" maxlength="60" placeholder="{{ src.pick_name }}"></label>
+    </div>
+    <div class="lab-cards">
+    <article class="lab-card module" id="make-voice">
+      <h4>Vocal instrument <span class="lab-from" title="read from one stem alone, whatever is ticked: the lane levels are not used">from {{ vocal_from }}</span></h4>
+      <p class="lab-meta">The longest held note, looped, keeping its formants as you play. Opens on Synths.{% if not src.has_stems %} No stems yet: only a voice alone works.{% endif %}</p>
+      <div class="lab-card-do">
+        <button type="button" class="btn btn-icon btn-s audition" data-note="{{ src.vocals_url }}"
+                data-cmd="Hear what the vocal instrument reads" aria-label="hear the {{ vocal_from }} in the region"
+                title="hear the {{ vocal_from }} in the region" {% if off %}disabled{% endif %}>▶</button>
+        <button type="button" class="btn btn-s" data-cmd="Make a playable voice from the region"
+                hx-post="/lab/vocal" hx-vals='{"what": "instrument"}' hx-include="closest form"
+                hx-target="body" hx-swap="innerMorph"
+                {% if off %}disabled{% endif %}>Make voice ⤷ Synths</button>
+      </div>
+    </article>
+    <article class="lab-card module" id="make-vchops">
+      <h4>Vocal chops <span class="lab-from" title="read from one stem alone, whatever is ticked: the lane levels are not used">from {{ vocal_from }}</span></h4>
+      <p class="lab-meta">A syllable on each key, ready to play a new line. Opens on Synths.</p>
+      <div class="lab-card-do">
+        <button type="button" class="btn btn-icon btn-s audition" data-note="{{ src.vocals_url }}"
+                data-cmd="Hear what the vocal chops read" aria-label="hear the {{ vocal_from }} in the region"
+                title="hear the {{ vocal_from }} in the region" {% if off %}disabled{% endif %}>▶</button>
+        <button type="button" class="btn btn-s" data-cmd="Make vocal chops from the region"
+                hx-post="/lab/vocal" hx-vals='{"what": "chops"}' hx-include="closest form"
+                hx-target="body" hx-swap="innerMorph"
+                {% if off %}disabled{% endif %}>Make chops ⤷ Synths</button>
+      </div>
+    </article>
+    <article class="lab-card module" id="make-beat">
+      <h4>Drum pattern <span class="lab-from" title="read from one stem alone, whatever is ticked: the lane levels are not used">from {{ drums_from }}</span></h4>
+      <p class="lab-meta">Kick, snare and hats of its first {{ lab.pattern_bars }} bars as steps — a guess to edit. → the drum grid on Kit, or a beat in the Song's pool.{% if not src.has_stems %} No stems yet: only drums alone work.{% endif %}</p>
+      {% if src.region.mode != 'bars' %}
+      <div class="lab-card-do">
+        <span class="lab-meta">A pattern sits on bar lines:</span>
+        <button type="button" class="btn btn-s" hx-post="/lab/region" hx-vals='{"mode": "bars"}' hx-include="closest form"
+                hx-target="#lab-body" hx-swap="outerHTML" data-cmd="Put the region on the bar lines"
+                {% if not src.grid.set %}disabled title="the song has no tempo yet: type one above"{% endif %}>snap the selection to bars</button>
+      </div>
+      {% else %}
+      {% if lab.loop_tempo %}
+      <label class="lab-meta" title="so the beat plays at its own speed"><input type="checkbox" class="check" name="loop_tempo" checked>
+        the loop takes this song’s {{ lab.loop_tempo | int }} bpm (the loop’s is {{ '%g' | format(lab.session_bpm | round(1)) }})</label>
+      {% endif %}
+      <div class="lab-card-do">
+        <button type="button" class="btn btn-icon btn-s audition" data-note="{{ src.drums_url }}"
+                data-cmd="Hear what the drum pattern reads" aria-label="hear the {{ drums_from }} in the region"
+                title="hear the {{ drums_from }} in the region" {% if off %}disabled{% endif %}>▶</button>
+        <button type="button" class="btn btn-s" data-cmd="Read the region's drums onto the drum grid"
+                hx-post="/lab/drums" hx-vals='{"to": "grid"}' hx-include="closest form"
+                hx-target="#lab-body" hx-swap="outerHTML"
+                hx-confirm="Replace the pattern on the drum grid with this region's? (Undo here, or Ctrl+Z on Kit, takes it back.)"
+                {% if off %}disabled{% endif %}>→ drum grid</button>
+        <button type="button" class="btn btn-ghost btn-s" data-cmd="Read the region's drums as a Song beat pattern"
+                hx-post="/lab/drums" hx-vals='{"to": "pool"}' hx-include="closest form"
+                hx-target="#lab-body" hx-swap="outerHTML"
+                {% if off %}disabled{% endif %}>→ Song beat pattern</button>
+      </div>
+      {% endif %}
+    </article>
+    <article class="lab-card module" id="make-kit">
+      <h4>Drum kit <span class="lab-from" title="read from one stem alone, whatever is ticked: the lane levels are not used">from {{ drums_from }}</span></h4>
+      <p class="lab-meta">One clean hit per drum — kick, snare, hats — cut as clips onto the drum rows. → Kit</p>
+      <div class="lab-card-do">
+        <button type="button" class="btn btn-icon btn-s audition" data-note="{{ src.drums_url }}"
+                data-cmd="Hear what the drum kit reads" aria-label="hear the {{ drums_from }} in the region"
+                title="hear the {{ drums_from }} in the region" {% if off %}disabled{% endif %}>▶</button>
+        <button type="button" class="btn btn-s" data-cmd="Make a drum kit from this stem"
+                hx-post="/lab/drums" hx-vals='{"to": "kit"}' hx-include="closest form"
+                hx-target="#lab-body" hx-swap="outerHTML"
+                hx-confirm="Cut one hit per drum from this region and put them on the drum rows (kick, snare, hats) in place of the synthesized ones?"
+                {% if off %}disabled{% endif %}>→ drum rows</button>
+      </div>
+    </article>
+    <article class="lab-card module" id="make-take">
+      <h4>Song take <span class="lab-from" title="what the lanes feed: the ticked stems at their levels, else the recording">from {{ src.what }}</span></h4>
+      <p class="lab-meta">Stretched to the Song page’s {{ '%g' | format(lab.song.bpm) }} bpm, held to whole bars, on its first audio track. → Song</p>
+      {% if lab.song.sections %}
+      <div class="lab-card-do">
+        <select class="field field-s" name="section_id" aria-label="the section the region goes in">
+          {% for sec in lab.song.sections %}
+          <option value="{{ sec.id }}">{{ sec.name }} · {{ sec.bars }} bars</option>
+          {% endfor %}
+        </select>
+        <label><span class="caps">bar</span> <input type="number" class="field field-s" name="at_bar" min="1" max="64" step="1" value="1" aria-label="the bar of the section it starts on"></label>
+        <button type="button" class="btn btn-s" data-cmd="Place the region on the song"
+                hx-post="/lab/place" hx-include="closest form"
+                hx-target="#lab-body" hx-swap="outerHTML"
+                title="The section's end cuts it."
+                {% if off %}disabled{% endif %}>→ Song</button>
+      </div>
+      {% else %}
+      <div class="lab-card-do">
+        <span class="lab-meta">The song has no sections yet.</span>
+        <a class="btn btn-s" {{ view_link("/view/song") }} data-cmd="Open the Song page to add a section">Open Song</a>
+        <button type="button" class="btn btn-s" data-cmd="Place the region on the song" disabled>→ Song</button>
+      </div>
+      {% endif %}
+      {# the whole song, not the region: long audio (routes/song_long.py) #}
+      <div class="lab-card-do lab-whole">
+        <button type="button" class="btn btn-ghost btn-s" id="lab-whole" data-cmd="Lay the whole song on a Song track"
+                hx-post="/song/long" hx-swap="none" hx-include="closest form"
+                hx-vals='{"op": "add", "source": "{{ src.id }}", "mix": "lanes", "bar_base": "1"}'
+                title="Or all of it: what is ticked (nothing ticked: the recording), full length and as recorded, on the song's first audio track from the bar above — a repeat of a section plays the next bars. It is not stretched{% if src.grid.set %}: bar 1 at {{ src.offset }} s lands on the bar line{% endif %}.">or the whole song, unstretched</button>
+        <label title="A whole stem is never stretched: it is in time only when the Song page's tempo is its own"><input type="checkbox" class="check" name="tempo" checked> the Song page takes {{ 'its ' ~ src.bpm if src.grid.set else 'its' }} bpm</label>
+      </div>
+    </article>
+    </div>
+  </form>
+  </section>
+  {% endif %}
+</section>

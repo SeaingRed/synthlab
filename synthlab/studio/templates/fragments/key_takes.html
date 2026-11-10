@@ -1,0 +1,27 @@
+{# synthlab/studio/templates/fragments/key_takes.html #}
+{# The keyboard dock's Loops strip (region `key-takes`, every page, at the
+   head of the dock; `looplib.context` with `session`): this session's
+   loops, newest first — the quick view — and "All loops" opening the clip
+   library, whose Loops group is the whole list (on Perform, the Loops
+   panel is: fragments/loops_panel.html). One ⏺ Rec in the keyboard dock
+   makes a loop that is both its audio and an editable loop: the notes as
+   played, their place on a grid, the sound that played them, tempo, key
+   and meter (loops.py). Hidden while this session has made none.
+   The rows are loop_rows.html's. Morphed out of band: a pressed button
+   keeps its focus. #}
+{% from "fragments/loop_rows.html" import loop_rows %}
+{% set kt = key_takes %}
+<section id="key-takes" class="key-takes fold-body" aria-label="Loops"
+         {% if not kt.rows %}hidden{% endif %} {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  <h2 class="caps kt-title" title="This session's loops: each ⏺ Rec is its audio and an editable loop — Edit opens it on the Loops page, → Song puts it in the song">Loops <small>this session</small></h2>
+  {% if kt.rows %}
+  {{ loop_rows(kt, "strip") }}
+  {% endif %}
+  {#- the whole list is the clip library's Loops group: the rail button's
+      own two moves (open, and ask for it again) -#}
+  <button type="button" class="btn btn-ghost btn-s lp-all" popovertarget="clip-drawer"
+          hx-get="/fragment/clips?whole=1" hx-target="#clip-library" hx-swap="outerMorph"
+          hx-include="#clip-q, #clip-place"
+          data-cmd="Open the Loops" data-cmd-group="Loops"
+          title="every loop and take: the clip library's Loops">All loops{% if kt.more %} · {{ kt.more }} more{% endif %} ▸</button>
+</section>

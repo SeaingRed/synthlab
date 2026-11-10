@@ -1,0 +1,21 @@
+{# synthlab/studio/templates/fragments/hub_player.html
+   The bench's player: the shared .player (bench.js: play / pause, the bar
+   as a seek control, the time), its bar drawn as the clip's waveform with
+   the played share lit (`--at`), and ⟲ (cliphub.js: the <audio>'s loop,
+   kept across a tune's redraw). The audio is the item as tuned
+   (`/hub/audio.wav?item=…&semis=…`), a stem streamed from the Lab. #}
+{% set b = hub.bench %}{% set it = hub.item %}
+<div class="player hub-player" id="hub-player">
+  <button type="button" class="btn btn-icon player-play" aria-pressed="false"
+          aria-label="play / pause {{ it.name }}" title="play / pause"
+          data-cmd="Play the clip on the bench" data-cmd-group="Clip hub">▶</button>
+  <span class="player-bar hub-wavebar" role="slider" tabindex="0" aria-label="position in {{ it.name }}"
+        aria-valuemin="0" aria-valuemax="{{ it.seconds }}" aria-valuenow="0" title="click to seek · ← → step">
+    {%- if b.wave %}<svg class="hub-wave" viewBox="0 0 240 2" preserveAspectRatio="none" aria-hidden="true"><path d="{{ b.wave }}"/></svg>{% endif -%}
+    <i></i></span>
+  <output class="player-time">0:00</output>
+  <button type="button" class="btn btn-icon btn-s hub-loop" id="hub-loop" aria-pressed="false"
+          aria-label="loop" title="loop it" data-cmd="Loop the clip on the bench" data-cmd-group="Clip hub">⟲</button>
+  {% if b.tuned %}<span class="badge badge-accent" title="what plays is tuned; the waveform is the clip as stored">tuned</span>{% endif %}
+  <audio preload="metadata" src="{{ b.audio }}" aria-label="{{ it.name }}"></audio>
+</div>

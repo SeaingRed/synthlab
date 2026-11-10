@@ -1,0 +1,33 @@
+{# synthlab/studio/templates/fragments/track_edit_banner.html #}
+{# Synths while a song track's sound is being edited (state.song_edit_track,
+   set by POST /song/track/{id}/edit-sound): every patch change here is
+   mirrored into that track. Always rendered, empty when no edit runs, so
+   the region can be swapped out of band. The track name is autoescaped.
+   The hint says what ends the edit: going to any view but the Song page
+   (routing ends it), so a sound picked on Library or Breed loads into the
+   loop, not the track. In the Song page's dock (a frame: <html
+   data-embed>) the way back is hidden — the page is already there. #}
+<div id="track-edit-banner" class="track-edit-banner" role="status"
+     {% if not song_edit %}hidden{% endif %}
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  {% if song_edit and song_edit.kind == "drums" %}
+  {# the Drum Lab on the song's drums track: its kit and bus FX are the
+     track's; the grid and the bank stay the working loop's beat #}
+  <p class="teb-line" title="The kit and the drum-bus FX here are the song's drums track's: every change plays in every section. The grid and the saved beats are still the working loop's — a song's beats are its patterns, edited on the Song page. Leaving the Drum Lab and the Song page ends the edit.">
+    <i class="led" data-on aria-hidden="true"></i>
+    Editing the kit of the song's <strong>{{ song_edit.name }}</strong> track ·
+    <a {{ view_link("/view/song") }}>← back to Song</a> ·
+    <span class="teb-plays">the grid below is the loop's beat, not the song's</span>
+  </p>
+  {% elif song_edit %}
+  <p class="teb-line" title="Changes here play in every section on this track. Leaving Synths ends the edit — Library, Breed and the other views load sounds into the loop, not the track.">
+    <i class="led" data-on aria-hidden="true"></i>
+    Editing <strong>{{ song_edit.name }}</strong> track ·
+    <a {{ view_link("/view/song") }}>← back to Song</a> ·
+    {# what ▶ plays here (service/song.py track_heard): the track's
+       section at the song's level, in the mix or alone (the sound bar's
+       Hear) — not the loop's phrase, key or tempo #}
+    <span class="teb-plays" data-plays-now="{{ song_edit.name }}: {{ ('its part in ' ~ song_edit_from) if song_edit_from else 'the phrase' }}" title="▶ plays this track's section at its level in the song — in the mix or alone (Hear, in the sound bar). The keys below play the same sound. Any sound in the list loads into this track.">▶ {{ ("its part in " ~ song_edit_from) if song_edit_from else "the phrase" }} · {{ song.bpm | round | int }} bpm · {{ song.root }} {{ song.scale_name }}</span>
+  </p>
+  {% endif %}
+</div>

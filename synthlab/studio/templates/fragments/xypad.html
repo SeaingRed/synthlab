@@ -1,0 +1,54 @@
+{# synthlab/studio/templates/fragments/xypad.html #}
+<section class="panel module" id="xypad-panel" data-module="synths.xy" aria-label="XY performance pad"
+         {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  <div class="xy-head" data-ws-head>
+    <span class="xy-legend caps">XY pad</span>
+    {# The cross shows where the two params actually are, so it pins to an
+       edge whenever one sits at its minimum (the default patch does). Rather
+       than draw a centre that isn't true, this snaps both axes to 50%. #}
+    <button type="button" class="btn btn-ghost btn-icon btn-s" id="xy-center" data-cmd="Centre the XY pad"
+            hx-post="/fragment/xy/center" hx-swap="none"
+            title="snap both axes to 50%" aria-label="centre the XY pad">⊕</button>
+    <div class="xy-axes">
+      <label>X <select class="field field-s" name="xy_x" hx-post="/fragment/xy/axes" hx-include="closest section"
+                        hx-target="#xypad-panel" hx-swap="outerHTML" hx-trigger="change" hx-sync="this:queue last">
+          {% for name, label in xy_choices %}
+          <option value="{{ name }}" {% if name == xy_axes[0] %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select></label>
+      <label>Y <select class="field field-s" name="xy_y" hx-post="/fragment/xy/axes" hx-include="closest section"
+                        hx-target="#xypad-panel" hx-swap="outerHTML" hx-trigger="change" hx-sync="this:queue last">
+          {% for name, label in xy_choices %}
+          <option value="{{ name }}" {% if name == xy_axes[1] %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select></label>
+    </div>
+    <span id="xy-readout" aria-live="polite">X {{ xy_x_spec.label }} = {{ (xy_nx * 100) | round | int }}% · Y {{ xy_y_spec.label }} = {{ (xy_ny * 100) | round | int }}%</span>
+    <button type="button" id="xy-play" class="btn btn-s xy-arm" aria-pressed="false"
+            title="Lit: touching the pad holds a drone — one note, the key's root, of the sound you are editing — while you move it" data-cmd="XY pad: play a drone"><i class="led" aria-hidden="true"></i>▶ drone</button>
+    <button type="button" id="xy-rec" class="btn btn-s xy-arm" aria-pressed="false"
+            title="record the next drag as a gesture" data-cmd="XY pad: record a gesture"><i class="led" aria-hidden="true"></i> rec</button>
+    {# visible-but-disabled, not hidden: the sticky loop arm was invisible
+       state until a gesture existed #}
+    <button type="button" id="xy-loop" class="btn btn-s xy-arm" aria-pressed="false" data-cmd="XY pad: loop the gesture"
+            title="record a gesture first (rec, then drag)" {% if not xy_gesture %}disabled{% endif %}>loop</button>
+    <button type="button" id="xy-clear" class="btn btn-ghost btn-icon btn-s xy-arm" aria-label="clear the recorded gesture"
+            title="clear the recorded gesture" {% if not xy_gesture %}hidden{% endif %}>&#10005;</button>
+  </div>
+  <div id="xypad" tabindex="0" role="application" class="module-well"
+       aria-label="XY pad — arrow keys move 2%, shift for 10%"
+       data-min-x="{{ xy_x_spec.min }}" data-max-x="{{ xy_x_spec.max }}"
+       data-log-x="{{ 1 if xy_x_log else 0 }}"
+       data-min-y="{{ xy_y_spec.min }}" data-max-y="{{ xy_y_spec.max }}"
+       data-log-y="{{ 1 if xy_y_log else 0 }}"
+       data-gesture='{{ xy_gesture | tojson }}'>
+    <div id="xyline-v" style="left: {{ (xy_nx * 100) | round(2) }}%;"></div>
+    <div id="xyline-h" style="top: {{ ((1 - xy_ny) * 100) | round(2) }}%;"></div>
+    <span id="xycross" style="left: {{ (xy_nx * 100) | round(2) }}%; top: {{ ((1 - xy_ny) * 100) | round(2) }}%;"></span>
+    <span id="xyghost" hidden></span>
+  </div>
+  <div class="xy-labels">
+    <span class="xy-label-x">{{ xy_x_spec.label }} →</span>
+    <span class="xy-label-y">↑ {{ xy_y_spec.label }}</span>
+  </div>
+</section>

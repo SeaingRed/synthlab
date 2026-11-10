@@ -1,0 +1,348 @@
+{# synthlab/studio/templates/base.html #}
+<!doctype html>
+<html lang="en" data-theme="{{ theme }}" data-density="{{ density | default('compact') }}"{% if pen %} data-pen{% endif %}{% if embed %} data-embed{% endif %}{% if clips_pinned %} data-clips="pinned"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>{{ view_title or "synthlab studio" }}</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%8E%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="{{ asset('/static/style.css') }}">
+  {# the dense tier (the desktop density): for a fine pointer, and for
+     anyone who has used a pen here — on a Surface the primary pointer can
+     report coarse while the hand holds a pen (tweak.js sets the `pen`
+     cookie on the first pen contact and flips this media on the spot) #}
+  <link rel="stylesheet" id="dense-css" href="{{ asset('/static/dense.css') }}"
+        media="{{ 'all' if pen else '(pointer: fine)' }}">
+  {# the hues this browser chose (the Colours popover): blocking, so they are on <html> before the first paint #}
+  <script src="{{ asset('/static/colours.js') }}"></script>
+  {# the page's layout (moved, tabbed, folded, floating modules): deferred —
+     colours.js above hides #view on a page with a saved layout until this
+     has laid it out, so no flash of the server's order and 45 KB no longer
+     holds the parser (workspace.js; frontend.md, "Workspace") #}
+  <script src="{{ asset('/static/workspace.js') }}" defer></script>
+  {#- htmx 4 swaps every non-204/304 response body into its target by
+     default (v2 only swapped 2xx). Our error-path elements rely on the
+     v2 behavior of never auto-swapping 4xx/5xx bodies (the 422 toast
+     fragment is parsed out of the response text in JS instead, see
+     htmx:response:error in audio.js) — extend noSwap via the documented
+     meta[name="htmx-config"] mechanism so later tasks don't have to add
+     hx-swap="none" to every request-issuing element by hand. #}
+  <meta name="htmx-config" content='{"noSwap": [204, 304, "4xx", "5xx"]}'>
+  <script src="{{ asset('/static/htmx.min.js') }}" defer></script>
+  {# htmx 4 dropped hx-prompt from core; this 356-byte official extension
+     restores it (panel preset "save…" is the one caller). Must load after
+     htmx and before anything that issues a prompted request. #}
+  <script src="{{ asset('/static/hx-prompt.min.js') }}" defer></script>
+  <script src="{{ asset('/static/audio.js') }}" defer></script>
+  {# the transport: every player reports to it; the top dock's "now
+     playing", the cue under each ▶, Space and Shift+Space #}
+  <script src="{{ asset('/static/transport.js') }}" defer></script>
+  {# GSAP, served from static/ (CSP is script-src 'self' 'wasm-unsafe-eval'), then the motion
+     island that drives the scope/spectrum/meter and the UI motion. The repository does not
+     ship GSAP: the first launch fetches it (vendor.py); until then the page leaves it out
+     and every island that animates runs without it #}
+  {% if 'gsap.min.js' in static_hashes %}<script src="{{ asset('/static/gsap.min.js') }}" defer></script>{% endif %}
+  {# the visualiser registry (every scope / spectrum variation motion.js can
+     draw into the dock) before motion.js; the Visuals page's gallery, demo
+     signal and swap after it; visuals2.js, the second batch, registers
+     into it #}
+  <script src="{{ asset('/static/visuals.js') }}" defer></script>
+  <script src="{{ asset('/static/visuals2.js') }}" defer></script>
+  <script src="{{ asset('/static/motion.js') }}" defer></script>
+  {# the page transition: the old page leaving (htmx's view transition), the
+     new one's modules arriving on GSAP; the docks stand still #}
+  <script src="{{ asset('/static/pagemotion.js') }}" defer></script>
+  <script src="{{ asset('/static/vispage.js') }}" defer></script>
+  <script src="{{ asset('/static/keys.js') }}" defer></script>
+  <script src="{{ asset('/static/livefx.js') }}" defer></script>
+  <script src="{{ asset('/static/piano.js') }}" defer></script>
+  {# the keys' letters layout: after piano.js, before chords.js — its window capture hears a letter first #}
+  <script src="{{ asset('/static/letters.js') }}" defer></script>
+  {# ... and its columns layout: after letters.js (it reads the switch), before chords.js for the same reason #}
+  <script src="{{ asset('/static/columns.js') }}" defer></script>
+  <script src="{{ asset('/static/space.js') }}" defer></script>
+  <script src="{{ asset('/static/perform.js') }}" defer></script>
+  <script src="{{ asset('/static/grid.js') }}" defer></script>
+  {# song creation: the piano roll's tools and its zoom, the step
+     sequencer's selected row #}
+  <script src="{{ asset('/static/roll.js') }}" defer></script>
+  <script src="{{ asset('/static/zoom.js') }}" defer></script>
+  <script src="{{ asset('/static/steps.js') }}" defer></script>
+  {# Kit's pads: each voice's one-shot drawn on its pad, its numbers (kitpads.js) #}
+  <script src="{{ asset('/static/kitpads.js') }}" defer></script>
+  <script src="{{ asset('/static/layout.js') }}" defer></script>
+  <script src="{{ asset('/static/midi.js') }}" defer></script>
+  <script src="{{ asset('/static/chords.js') }}" defer></script>
+  <script src="{{ asset('/static/rowsounds.js') }}" defer></script>
+  {# the keyboard dock's toolbar as a face: after chords.js / rowsounds.js, whose state it shows #}
+  <script src="{{ asset('/static/keysbar.js') }}" defer></script>
+  {# the keys arp: piano.js hands it the notes it holds and it plays them, in time, through the bridge chords.js wraps #}
+  <script src="{{ asset('/static/arp.js') }}" defer></script>
+  <script src="{{ asset('/static/talkbox.js') }}" defer></script>
+  {# hardware control: the control surface (dials / strip / keys), its
+     Stream Deck + driver, MIDI learn, both decks' drawing, the virtual deck's panel; the pen #}
+  <script src="{{ asset('/static/deck.js') }}" defer></script>
+  <script src="{{ asset('/static/deckhid.js') }}" defer></script>
+  <script src="{{ asset('/static/midilearn.js') }}" defer></script>
+  <script src="{{ asset('/static/deckart.js') }}" defer></script>
+  <script src="{{ asset('/static/deckui.js') }}" defer></script>
+  {# the dial sets under the deck's dials: after deckui.js, which builds the panel they sit in #}
+  <script src="{{ asset('/static/decksets.js') }}" defer></script>
+  <script src="{{ asset('/static/pen.js') }}" defer></script>
+  <script src="{{ asset('/static/voice.js') }}" defer></script>
+  {# the sampler panel's ● Record sample: a timed mic take through voice.js's capture #}
+  <script src="{{ asset('/static/samplerec.js') }}" defer></script>
+  <script src="{{ asset('/static/zonemap.js') }}" defer></script>
+  {# the keyboard dock's ⏺ Rec: what you play (the master bus) into Clips, live #}
+  <script src="{{ asset('/static/keyrec.js') }}" defer></script>
+  {# free record's shaper: a free take (keyrec.js) made into a loop, time-true #}
+  <script src="{{ asset('/static/shaper.js') }}" defer></script>
+  {# the Loops panel on Perform (open / fold / pin, search, sort, filters, a row
+     dragged onto a grid) and ▶ in time on every Loops list #}
+  <script src="{{ asset('/static/loopspanel.js') }}" defer></script>
+  {# Perform's launcher: the quantise, queued slots, drags onto a slot, its keys
+     (after loopspanel.js: a Loops panel row dragged onto a slot) #}
+  <script src="{{ asset('/static/slots.js') }}" defer></script>
+  {# Perform's ✦ Coach: open / closed (Alt+K), its proposal drawn on the grids, 🎙 hold to talk #}
+  <script src="{{ asset('/static/coach.js') }}" defer></script>
+  {# the live vocal chain: the mic through a live rack (livefx.js's stages), the monitor, ⏺ in time #}
+  <script src="{{ asset('/static/vocal.js') }}" defer></script>
+  <script src="{{ asset('/static/song.js') }}" defer></script>
+  <script src="{{ asset('/static/songrec.js') }}" defer></script>
+  <script src="{{ asset('/static/songtake.js') }}" defer></script>
+  <script src="{{ asset('/static/songcell.js') }}" defer></script>
+  <script src="{{ asset('/static/songedit.js') }}" defer></script>
+  <script src="{{ asset('/static/songdrag.js') }}" defer></script>
+  <script src="{{ asset('/static/songline.js') }}" defer></script>
+  <script src="{{ asset('/static/songdock.js') }}" defer></script>
+  {# the one sound menu: a Song lane's list, Perform's lane heads' searchable
+     sound ▾, what Synths' Load replaces (fragments/sound_pick.html) #}
+  <script src="{{ asset('/static/soundmenu.js') }}" defer></script>
+  {# song creation: the playlist's range selection, the jam launcher (stubs
+     until their packages fill them) #}
+  <script src="{{ asset('/static/songsel.js') }}" defer></script>
+  <script src="{{ asset('/static/jam.js') }}" defer></script>
+  {# the Mix view: the strips' meters, the keyboard inside a strip #}
+  <script src="{{ asset('/static/mixer.js') }}" defer></script>
+  {# the filled pages' live parts: the Song editor's rows and ghost repeats,
+     the Mix master's read-outs, a Breed litter's entrance (after visuals*.js) #}
+  <script src="{{ asset('/static/pagefill.js') }}" defer></script>
+  {# the metronome: a tick on every beat of the playing loop #}
+  <script src="{{ asset('/static/click.js') }}" defer></script>
+  {# the Sample Lab: a drag across the waveform, a dropped file #}
+  <script src="{{ asset('/static/labview.js') }}" defer></script>
+  <script src="{{ asset('/static/lab.js') }}" defer></script>
+  <script src="{{ asset('/static/labchop.js') }}" defer></script>
+  {# the clip hub: the bench's loop toggle, the row just opened, Ctrl+Z #}
+  <script src="{{ asset('/static/cliphub.js') }}" defer></script>
+  {# the Library: its filter and chips, the arrow keys, cards or rows, the lamp #}
+  <script src="{{ asset('/static/library.js') }}" defer></script>
+  {# server push (GET /events): render progress, and edits made in another
+     tab or on another device #}
+  <script src="{{ asset('/static/events.js') }}" defer></script>
+  {# the shell: the command palette and the shortcut sheet's generated half
+     (palette.js), tooltips and the status strip's progress line (shell.js),
+     THE context menu (menu.js: a thing's `data-menu` controls, a value
+     control's generated rows), the pen and the sliders' fine mode / knob
+     drag (tweak.js) and a typed value (tweaktype.js) #}
+  <script src="{{ asset('/static/palette.js') }}" defer></script>
+  <script src="{{ asset('/static/shell.js') }}" defer></script>
+  <script src="{{ asset('/static/menu.js') }}" defer></script>
+  <script src="{{ asset('/static/tweak.js') }}" defer></script>
+  <script src="{{ asset('/static/tweaktype.js') }}" defer></script>
+  {# the bench (Synths, Bass, Voice): the patch bay's leads, the audio
+     player — after tweak.js, whose `synthlab.tweak` it moves controls
+     through #}
+  <script src="{{ asset('/static/bench.js') }}" defer></script>
+  {# the FX racks' patch leads, drawn where the modules are (beside or a row below) #}
+  <script src="{{ asset('/static/fxcables.js') }}" defer></script>
+  {# the drawn controls (the FM4 algorithms, ratio presets, the
+     wavetables' position) and the racks' chain browser — after tweak.js #}
+  <script src="{{ asset('/static/panelfaces.js') }}" defer></script>
+  <script src="{{ asset('/static/wtdraw.js') }}" defer></script>
+</head>
+<body>
+  {#- the first Tab stop: past the rail (19 stops) and the top dock to the
+      page (style.css 16; it shows only when the keyboard reaches it) -#}
+  <a class="skip-link btn btn-s" href="#view">Skip to the page</a>
+  {#- the one signal graphic's fade (sigdraw.py, style.css 32): every
+      spark, spectrum and energy shape fills with it; its stops take
+      their colour from the theme -#}
+  <svg class="sig-defs" aria-hidden="true" focusable="false"><defs>
+    <linearGradient id="sig-fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0"/><stop offset="1"/></linearGradient>
+  </defs></svg>
+  <div class="topdock">
+  <header class="topbar">
+    <span class="wordmark">synthlab<b>studio</b></span>
+    <span id="audio-led" data-state="off" role="status" aria-label="audio engine off"></span>
+    {#- the view icons (24-unit line glyphs): in the compact workbench the
+        nav is a slim activity bar down the left edge, VS Code style, and
+        the icon carries it; the label stays for the comfy top bar and
+        screen readers -#}
+    {% set icons = {
+      "editor": "M2 12c2.5-7 4.5-7 7 0s4.5 7 7 0 3-5 6-2",
+      "library": "M4 7h16v13H4zM6.5 4h11M9 11h6",
+      "breed": "M7 3v5a5 5 0 0 0 10 0V3M12 13v8M8.5 21h7",
+      "drums": "M4 8a8 3 0 1 0 16 0a8 3 0 1 0-16 0M4 8v8a8 3 0 0 0 16 0V8M9 3l3 5M15 3l-3 5",
+      "song": "M3 6h7M12 6h9M3 12h11M16 12h5M3 18h4M9 18h12",
+      "mixer": "M6 3v18M12 3v18M18 3v18M4 15h4M10 8h4M16 12h4",
+      "perform": "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M10 8.5v7l6-3.5z",
+      "voice": "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21",
+      "map": "M4 19l5-7 4 3 7-9M4 4v16h16",
+      "lab": "M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2M21 12h0M9 3l6 18",
+      "clips": "M3 5h18v14H3zM3 12h3l1.5-3 2 6 2-8 2 7 1.5-2H21",
+      "visuals": "M2 12c3-5 6.5-7 10-7s7 2 10 7c-3 5-6.5 7-10 7s-7-2-10-7M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
+      "find": "M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13M15.5 15.5L20 20",
+      "keys": "M3 7h18v10H3zM7 10.5v.1M11 10.5v.1M15 10.5v.1M7.5 14h9",
+      "click": "M9 3h6l4 18H5zM12 15l5-9",
+      "midi": "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M7.5 12.5v.1M16.5 12.5v.1M8.8 8.8v.1M15.2 8.8v.1M12 7.2v.1M10 17h4",
+      "stop": "M7 7h10v10H7z",
+      "dense": "M4 5h16M4 9.7h16M4 14.3h16M4 19h16",
+      "theme": "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 3v18M12 7.5h7.5M12 12h9M12 16.5h7.5",
+      "fullscreen": "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5",
+    } %}
+    {% macro icon(name) %}<svg class="vi" viewBox="0 0 24 24" aria-hidden="true"><path d="{{ icons[name] }}"/></svg>{% endmacro %}
+    {#- in the order of the job: make — Synths, Kit (/view/drums),
+        Loops (/view/perform),
+        Song, Mix —, find — Library, Breed, Map —, audio — Voice, Lab,
+        Clips (the page and the drawer's button: one name) —, then Visuals
+        (the top dock's scopes and spectrums, no jump key). Alt+Shift+1…0
+        jump in this order (shell.js; plain Alt+digits are the drum
+        variations' and the jam's scenes) -#}
+    <nav class="views" aria-label="Views">
+      {% for key, label in [("editor", "Synths"), ("drums", "Kit"), ("perform", "Loops"), ("song", "Song"), ("mixer", "Mix"), ("library", "Library"), ("breed", "Breed"), ("map", "Map"), ("voice", "Voice"), ("lab", "Lab"), ("clips", "Clips"), ("visuals", "Visuals")] %}
+      {% set jump = ("Alt+Shift+" ~ (loop.index % 10)) if loop.index <= 10 else "" %}
+      <a class="view {{ 'active' if current_view == key }}" {{ view_link("/view/" ~ key) }} title="{{ label }}{% if jump %} ({{ jump }}){% endif %}"
+         data-cmd="Go to {{ label }}" data-cmd-group="Go to"{% if jump %} data-keys="{{ jump }}{% if key == 'mixer' %} · Alt+M{% endif %}"{% endif %}
+         {% if current_view == key %}aria-current="page"{% endif %}><svg class="vi" viewBox="0 0 24 24" aria-hidden="true"><path d="{{ icons[key] }}"/></svg><span class="vl">{{ label }}</span></a>
+      {% endfor %}
+    </nav>
+    {# the clip library: its rail button and drawer, on every page and
+       outside #view, so a view swap never closes or redraws it by accident
+       (region `clip-library`) #}
+    {% with oob = false %}{% include "fragments/clip_library.html" %}{% endwith %}
+    {# the rail's tools: one canonical icon button each, a real tooltip
+       (shell.js) and a command name (palette.js). MIDI stays text: midi.js
+       writes its label ("MIDI 2"). #}
+    <div class="rail-tools" role="group" aria-label="tools">
+    <button type="button" id="palette-btn" class="btn btn-ghost btn-s" aria-haspopup="dialog"
+            title="commands, pages, sounds and clips (Ctrl+K)" aria-label="command palette"
+            data-keys="Ctrl+K" data-key-label="Command palette">{{ icon("find") }}</button>
+    <button type="button" id="midi-btn" class="btn btn-s midi-btn" data-state="off"
+            title="enable MIDI input" aria-label="toggle MIDI input" aria-pressed="false"
+            data-cmd="MIDI input: on / off">{{ icon("midi") }}<span class="btn-label">MIDI</span></button>
+    {# the metronome (click.js): a tick on every beat — of what plays, else its own at the tempo #}
+    <button type="button" id="click-btn" class="btn btn-s" data-state="off"
+            title="metronome: a tick on every beat — on the loop, the song or a take while one plays, on its own at the tempo when nothing does" aria-label="toggle the metronome" aria-pressed="false"
+            data-cmd="Metronome: on / off">{{ icon("click") }}<span class="btn-label">click</span></button>
+    {# the live vocal chain (vocal.js): its panel on every page, so a voice
+       sung over Synths, Perform or Song keeps singing through a page change #}
+    <button type="button" id="vox-open" class="btn btn-s vox-open" popovertarget="vox-pop" aria-haspopup="dialog" aria-pressed="false"
+            title="live vocal: sing over the music through doubling, auto-tune, compression and the studio tricks, and record it (lit while the mic is on)" aria-label="live vocal"
+            data-cmd="Live vocal…" data-cmd-group="Voice">{{ icon("voice") }}<span class="btn-label">vocal</span></button>
+    <button type="button" id="keys-help" class="btn btn-ghost btn-s" aria-haspopup="dialog"
+            title="keyboard shortcuts (?)" aria-label="keyboard shortcuts"
+            data-cmd="Keyboard shortcuts" data-cmd-group="Help" data-keys="?">{{ icon("keys") }}</button>
+    {# the workbench's density: dense (small type, hairline seams, tight
+       gaps, the side rail — the desktop density) or comfy (the roomier
+       layout, kept as an option); a cookie layout.js writes, read here so
+       the first paint is right #}
+    <button type="button" id="density-toggle" class="btn btn-ghost btn-s density-toggle"
+            aria-pressed="{{ 'true' if (density | default('compact')) == 'compact' else 'false' }}"
+            title="dense / comfy layout" aria-label="toggle the dense layout"
+            data-cmd="Density: dense / comfy" data-cmd-group="View">{{ icon("dense") }}</button>
+    <button type="button" class="btn btn-ghost btn-s theme-toggle" hx-post="/theme" hx-swap="none"
+            title="switch to the {{ 'night' if theme == 'day' else 'day' }} theme"
+            aria-label="Switch to {{ 'night' if theme == 'day' else 'day' }} theme"
+            data-cmd="Theme: switch to {{ 'night' if theme == 'day' else 'day' }}" data-cmd-group="View">{{ icon("theme") }}</button>
+    <button type="button" id="colours-btn" class="btn btn-ghost btn-s" popovertarget="colours-pop" aria-haspopup="dialog"
+            title="colours: the palette's hues, for this browser" aria-label="colours"
+            data-cmd="Colours…" data-cmd-group="View"><svg class="vi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-1 1.4-2.2-.7-1.3.2-2.8 1.7-2.8H18a3 3 0 0 0 3-3c0-5.5-4-10-9-10M7.5 11v.1M10 7v.1M15 7.5v.1"/></svg></button>
+    {# full screen (shell.js, the Fullscreen API): the whole studio, the
+       browser's own chrome gone — more of the instrument on one screen #}
+    <button type="button" id="fullscreen-btn" class="btn btn-ghost btn-s" aria-pressed="false"
+            title="full screen: the whole studio, the browser's bars hidden (Esc leaves)" aria-label="full screen"
+            data-cmd="Full screen: on / off" data-cmd-group="View">{{ icon("fullscreen") }}</button>
+    </div>
+  </header>
+  {# the scope/spectrum strip rides in the sticky dock rather than down in the
+     editor: it is the one panel you want visible while you scroll a long
+     panel stack, and every view gets it for free #}
+  <div class="vizbar">
+    {# labelled, so the strip reads as instruments even while it is idle #}
+    {# each slot draws the variation chosen on the Visuals page (visuals.js);
+       .viz-name is its name, ticked in when it changes #}
+    <div class="viz-cell" data-label="scope" aria-hidden="true"><canvas id="scope" class="module-well"></canvas><span class="viz-name" data-viz-slot="scope"></span></div>
+    <div class="viz-cell" data-label="spectrum" aria-hidden="true"><canvas id="spectrum" class="module-well"></canvas><span class="viz-name" data-viz-slot="spectrum"></span></div>
+    {# 2×: the scope and spectrum at double height, per browser (colours.js
+       sets it before the first paint, as it does the hues) #}
+    <button type="button" id="viz-size" class="btn btn-ghost btn-s viz-size" aria-pressed="false"
+            title="the scope and spectrum at double height (this browser)"
+            data-cmd="Visualisers: double height on / off" data-cmd-group="View">2×</button>
+  </div>
+  {# the status strip: what is loaded and what the engine is doing, on
+     every page. The facts are a region (the server's); the output meter
+     (motion.js), the live voice's CPU (livefx.js) and the running render
+     (shell.js, from events.js's own progress line) are the client's and sit
+     beside that region, not in it. The meter and #cpu-meter used to be on
+     Synths, Perform and Drums only. #}
+  <div class="statusbar" role="group" aria-label="status">
+    {# now playing (transport.js, the client's: outside the region): what
+       sounds — its source, name, place and state — what waits for the bar,
+       and THE stop for everything (Shift+Space), on every page. Stopped, it
+       says what Space would play here. #}
+    <div id="now-playing" class="np" data-state="idle" role="group" aria-label="now playing">
+      <span class="np-led" aria-hidden="true"></span>
+      <span class="np-kind caps">Stopped</span>
+      <span class="np-label" aria-live="polite">Nothing playing</span>
+      <span class="np-pos"></span>
+      <span class="np-bar" aria-hidden="true"><i></i></span>
+      <span class="np-next"></span>
+      <span class="np-also"></span>
+      <button type="button" id="np-resume" class="btn btn-icon btn-s btn-play" hidden
+              aria-label="resume" title="Resume from where it paused (Space on its page)">▶</button>
+      <button type="button" id="np-pause" class="btn btn-icon btn-s btn-pause" hidden
+              aria-label="pause" title="Pause: hold the place (Space on its page)">⏸</button>
+      <button type="button" id="global-stop" class="btn btn-icon btn-s btn-stop" disabled
+              data-cmd="Stop everything" data-cmd-group="Transport" data-keys="Shift+Space"
+              aria-label="stop everything" title="Stop everything that plays (Shift+Space)">■</button>
+    </div>
+    {% with oob = false %}{% include "fragments/status_bar.html" %}{% endwith %}
+    <button type="button" class="meter st" id="meter" title="output level, with the loudest of the last second held — click to clear the clip light"
+            aria-label="output level meter, click to clear the clip indicator"><i></i><b></b></button>
+    <output id="cpu-meter" class="cpu-meter st" hidden
+            title="live keys' CPU: the key engine's share of the audio thread's realtime budget (red over 80%) and its sounding voices"></output>
+    <span class="st st-task" id="st-task"></span>
+  </div>
+  </div>
+  <div id="toasts" role="status" aria-live="polite"></div>
+  {% block main %}{% endblock %}
+  {#- the keyboard dock: every page's, after #view and outside it, so a view
+      swap never redraws it — the keys, their layout and settings, a held
+      note, carry from page to page (fragments/keys_dock.html) -#}
+  {% include "fragments/keys_dock.html" %}
+  {% include "fragments/shortcuts.html" %}
+  {#- every sound there is, once a page (a Song lane's menu, Perform's lane
+      heads), and the searchable menu a lane head's sound ▾ and Synths'
+      Load open (soundmenu.js) -#}
+  {% if sound_menu is defined %}{% include "fragments/sound_menu.html" %}{% endif %}
+  {% include "fragments/sound_pick.html" %}
+  {#- the live vocal chain's panel (fragments/vocal_panel.html): drawn by
+      vocal.js when it opens; outside #view, so a view swap keeps it -#}
+  <div popover id="vox-pop" class="pop vox-pop" aria-label="Live vocal">
+    <div id="vox-panel" class="vox-panel"><p class="empty-state">Opening the live vocal chain…</p></div>
+  </div>
+  {#- free record's shaper (shaper.js; fragments/free_shaper.html, drawn when
+      a free take opens): a manual popover outside #view, so a page change
+      keeps it and the launcher's slots stay clickable under it -#}
+  <div popover="manual" id="free-shaper" class="pop shp-pop" aria-label="Shape a free take"></div>
+  {% include "fragments/palette.html" %}
+  {% include "fragments/colours.html" %}
+  {# the one tooltip (shell.js): a manual popover, so it is in the top layer
+     and no overflow clips it #}
+  <div id="tip" class="tip" popover="manual" role="tooltip"></div>
+  {# S.post's source (audio.js): connected, with no field under it #}
+  <i id="post-from" hidden></i>
+</body>
+</html>

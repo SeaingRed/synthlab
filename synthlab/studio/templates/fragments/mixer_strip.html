@@ -1,0 +1,91 @@
+{# synthlab/studio/templates/fragments/mixer_strip.html — one channel
+   strip of the Mix view (`mixer.context`'s `strips` row as `x`, its
+   place as `i`). Included by mixer_strips.html.
+
+   A strip is a FIELDSET whose first four value controls are level, pan,
+   send A, send B — so the Stream Deck's focus mode puts exactly those on
+   the four dials of the strip last touched, and its next page is duck and
+   the three EQ gains (deck.js pages a panel's controls in fours; nothing
+   here is deck code). Every value is a native range, so the mouse, the
+   wheel, the arrow keys, a pen, a typed value and a dial take tweak.js's
+   one path, and each posts itself on `change` with hx-swap="none": the
+   region comes back morphed, the control keeps its node and its focus.
+   hx-sync="this:queue last": a held arrow key or a spun dial posts faster
+   than the server answers, and htmx's default keeps the FIRST waiting
+   request and drops the rest — the page showed 95 % and the song held
+   98 %. The last one waiting is the value the hand left.
+   Mute and solo are buttons. The meter is unlit here: mixer.js lights it
+   from the plan (it steps at section boundaries; the master's is live). #}
+{% from "macros.html" import fill %}
+{% set post = "/song/mix/strip/" ~ x.id %}
+<fieldset class="panel mix-strip module{{ ' muted' if not x.heard }}" data-strip="{{ x.id }}" data-kind="{{ x.kind }}"
+          data-ctx="{{ x.name }}">
+  <legend class="module-head"><span class="panel-name" title="{{ x.name }}{% if x.role %} · {{ x.role }}{% endif %}">{{ x.name }}</span></legend>
+  <div class="mix-level">
+    <span class="meter meter-v" data-meter="{{ x.id }}" role="img" aria-label="{{ x.name }} level in the section"
+          title="{{ x.name }}: its level in the section shown, as the render measured it — it steps at section boundaries, and is dim after an edit until the song has been measured again"><i></i><b></b></span>
+    <input type="range" class="knob fader" id="mix-{{ x.id }}-gain" name="gain" min="0" max="1.5" step="0.01" value="{{ x.gain }}" data-default="1"
+           hx-post="{{ post }}" hx-trigger="change" hx-sync="this:queue last" hx-swap="none" style="--fill: {{ fill(x.gain, 0, 1.5) }}"
+           aria-label="{{ x.name }} level" title="Level · double-click: 100%">
+    <output class="mix-val" for="mix-{{ x.id }}-gain" data-pct>{{ (x.gain * 100) | round | int }}%</output>
+  </div>
+  <div class="mix-ms" role="group" aria-label="{{ x.name }} mute and solo">
+    <button type="button" class="btn btn-s btn-icon rowbtn mute" data-mix="mute" aria-pressed="{{ 'true' if x.mute else 'false' }}"
+            hx-post="{{ post }}" hx-vals='{"mute": "{{ 'off' if x.mute else 'on' }}"}' hx-swap="none"
+            data-cmd="Mute {{ x.name }}" data-cmd-group="Mix" data-menu="Mute" aria-label="mute {{ x.name }}" title="Mute">M</button>
+    <button type="button" class="btn btn-s btn-icon rowbtn solo" data-mix="solo" aria-pressed="{{ 'true' if x.solo else 'false' }}"
+            hx-post="{{ post }}" hx-vals='{"solo": "{{ 'off' if x.solo else 'on' }}"}' hx-swap="none"
+            data-cmd="Solo {{ x.name }}" data-cmd-group="Mix" data-menu="Solo" aria-label="solo {{ x.name }}" title="Solo">S</button>
+  </div>
+  {% set off = not x.chained %}
+  {% set why = "An audio track has no pan or sends yet: its EQ and its rack (the Song page's drawer) are on its takes" %}
+  <label class="mix-ctl" title="{{ why if off else 'Pan · double-click: centre' }}"><span class="caps">pan</span>
+    <input type="range" class="knob knob-s" data-bipolar id="mix-{{ x.id }}-pan" name="pan" min="-1" max="1" step="0.05" value="{{ x.pan }}" data-default="0"
+           hx-post="{{ post }}" hx-trigger="change" hx-sync="this:queue last" hx-swap="none" style="--fill: {{ fill(x.pan, -1, 1) }}"
+           aria-label="{{ x.name }} pan"{{ ' disabled' if off }}>
+    {%- set p = (x.pan * 100) | round | int %}
+    <output class="mix-val" for="mix-{{ x.id }}-pan" data-pct data-pan>{{ 'C' if p == 0 else ('L' ~ (-p) if p < 0 else 'R' ~ p) }}</output></label>
+  {% for slot in mix.slots %}
+  {% set v = x.sends[loop.index0] %}
+  <label class="mix-ctl" title="{{ why if off else 'Send ' ~ slot ~ ': how much of ' ~ x.name ~ ' feeds return ' ~ slot ~ (' — the first one turned up makes the returns' if not mix.returns else '') }}"><span class="caps">{{ slot }}</span>
+    <input type="range" class="knob knob-s" id="mix-{{ x.id }}-send{{ loop.index0 }}" name="send.{{ loop.index0 }}" min="0" max="1" step="0.01" value="{{ v }}" data-default="0"
+           hx-post="{{ post }}" hx-trigger="change" hx-sync="this:queue last" hx-swap="none" style="--fill: {{ fill(v, 0, 1) }}"
+           aria-label="{{ x.name }} send {{ slot }}"{{ ' disabled' if off }}>
+    <output class="mix-val" for="mix-{{ x.id }}-send{{ loop.index0 }}" data-pct>{{ (v * 100) | round | int }}%</output></label>
+  {% endfor %}
+  <label class="mix-ctl" title="{{ 'Duck: how far the kick pushes ' ~ x.name ~ ' down (its sidechain unit; added on the first touch)' if x.ducks else 'Only a synth track ducks under the kick' }}"><span class="caps">duck</span>
+    <input type="range" class="knob knob-s" id="mix-{{ x.id }}-duck" name="duck" min="0" max="1" step="0.01" value="{{ x.duck }}" data-default="0"
+           hx-post="{{ post }}" hx-trigger="change" hx-sync="this:queue last" hx-swap="none" style="--fill: {{ fill(x.duck, 0, 1) }}"
+           aria-label="{{ x.name }} duck"{{ ' disabled' if not x.ducks }}>
+    <output class="mix-val" for="mix-{{ x.id }}-duck" data-pct>{{ (x.duck * 100) | round | int }}%</output></label>
+  {% for band, label in [("low", "lo"), ("mid", "mid"), ("high", "hi")] %}
+  {% set v = x.eq[band] %}
+  <label class="mix-ctl mix-eq" title="EQ {{ label }} (dB): the track’s EQ unit, added on the first touch"><span class="caps">{{ label }}</span>
+    <input type="range" class="knob knob-s" data-bipolar id="mix-{{ x.id }}-eq{{ band }}" name="eq.{{ band }}" min="-12" max="12" step="0.5" value="{{ v }}" data-default="0"
+           hx-post="{{ post }}" hx-trigger="change" hx-sync="this:queue last" hx-swap="none" style="--fill: {{ fill(v, -12, 12) }}"
+           aria-label="{{ x.name }} EQ {{ label }}">
+    <output class="mix-val" for="mix-{{ x.id }}-eq{{ band }}">{{ v | round(1) }}</output></label>
+  {% endfor %}
+  <label class="mix-role" title="What the track is for: Balance sets its level by it"><span class="caps">role</span>
+    <select class="field field-s" name="role" aria-label="{{ x.name }} role"
+            hx-post="/song/track/{{ x.id }}/mix" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"{{ ' disabled' if x.kind == 'audio' }}>
+      <option value="" {% if not x.role %}selected{% endif %}>—</option>
+      {% for r, label in mix_roles %}<option value="{{ r }}" {% if x.role == r %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select></label>
+  {#- the strip's rack, as a patch lead: in, each unit, out to the master.
+      A synth's or the kit's is its sound's chain: the units are a button
+      to it (Synths or the Drum Lab, editing this track); an audio track's
+      is its own, on the Song page's drawer, so here it is a line of text
+      (they were pills that looked pressable and were not) -#}
+  <span class="mix-rack" title="{{ x.name }} → {% for u in x.rack %}{{ u }} → {% endfor %}master">
+    <svg class="cable{{ ' off' if not x.heard }}" viewBox="0 0 24 14" aria-hidden="true"><path d="M2 4C7 15 17 15 22 4"/><circle cx="2" cy="4" r="1.7"/><circle cx="22" cy="4" r="1.7"/></svg>
+    {% if x.kind != "audio" %}
+    <button type="button" class="btn btn-s btn-ghost mix-chain" hx-post="/song/track/{{ x.id }}/edit-sound" hx-swap="none"
+            data-menu="Edit its effects ↗"
+            aria-label="{{ x.name }}'s effects: {{ x.rack | join(', ') if x.rack else 'none' }} — edit on the {{ 'Drum Lab' if x.kind == 'drums' else 'Synths' }} page"
+            title="Its effects are its sound's: edit them on the {{ 'Drum Lab' if x.kind == 'drums' else 'Synths' }} page, editing {{ x.name }} ↗">{{ x.rack | join(' · ') if x.rack else 'dry' }} ↗</button>
+    {% else %}
+    <span class="mix-chain">{{ x.rack | join(' · ') if x.rack else 'dry' }}</span>
+    {% endif %}
+  </span>
+</fieldset>

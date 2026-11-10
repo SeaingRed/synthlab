@@ -1,0 +1,185 @@
+{# synthlab/studio/templates/fragments/clip_list.html #}
+{# The drawer's list: the clips by group, then the Lab's separated songs.
+   It is what a search answers with (GET /fragment/clips?q=), so the box
+   being typed in is never redrawn. A row is text and buttons — no
+   waveform, nothing rendered per clip. ▶ is the .audition[data-note]
+   one-shot idiom; every action that redraws the drawer morphs it and
+   carries the search and the Place bar (#clip-q, #clip-place).
+   A row's controls are the canonical button; right-click (the pen's
+   barrel) on a row is its menu — the same controls, by name (menu.js:
+   `data-menu` under the row's `data-ctx`). No `data-cmd` per row: the
+   palette finds clips by name through the server. #}
+{% set lib = clip_lib %}
+{% set keep = "#clip-q, #clip-place" %}
+{#- the Loops, first (looplib.py): every loop ⏺ Rec made — its audio and
+    its notes, one row — the loops saved and the ones made from a clip;
+    the search narrows them too. loop_rows.html's rows -#}
+{% from "fragments/loop_rows.html" import loop_rows %}
+{% if loop_lib.rows or not lib.q %}
+<section class="cd-group cd-loops" data-group="loops" aria-label="Loops">
+  <h3 class="caps lib-section" title="what ⏺ Rec in the keyboard dock made — its audio and an editable loop together — and the loops you saved: Edit one on the Loops page's grid, put it into the song">Loops <small>{{ loop_lib.rows | length }}</small></h3>
+  {% if loop_lib.rows %}
+  {{ loop_rows(loop_lib, "drawer", clip_bars) }}
+  {% else %}
+  <p class="cd-empty">No loops yet: ⏺ Rec in the keyboard dock records the keys over the loop — its audio and an editable loop, together.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% for g in lib.groups %}
+<section class="cd-group" data-group="{{ g.key }}" aria-label="{{ g.label }}">
+  <h3 class="caps lib-section">{{ g.label }} <small>{{ g.clips | length }}</small>
+    {%- if lib.view == "editor" and g.clips | length > 1 %}
+    {#- auto-map: the group's clips (a search narrows them) as one
+        multi-sample instrument, a zone each -#}
+    {% set names = g.clips | map(attribute="name") | join("\n") %}
+    <span class="cd-map">
+      <button type="button" class="btn btn-ghost btn-s" hx-post="/fragment/sampler/zones/map"
+              hx-vals='{{ {"names": names, "mode": "pitch", "label": g.label} | tojson }}' hx-target="body" hx-swap="innerMorph"
+              popovertarget="clip-drawer" popovertargetaction="hide" data-menu="Map them by pitch (zones)"
+              title="⤷ zones: these {{ g.clips | length }} clips as one sampler sound, each on the keys around its detected pitch (the same pitch twice: its round-robin takes)">⤷ zones</button>
+      <button type="button" class="btn btn-ghost btn-s" hx-post="/fragment/sampler/zones/map"
+              hx-vals='{{ {"names": names, "mode": "keys", "label": g.label} | tojson }}' hx-target="body" hx-swap="innerMorph"
+              popovertarget="clip-drawer" popovertargetaction="hide" data-menu="Map them a key each (a kit)"
+              title="⤷ keys: these {{ g.clips | length }} clips as one sampler sound, a key each from C4 in this order — a kit">⤷ keys</button>
+    </span>
+    {%- endif %}</h3>
+  <ul class="cd-clips">
+    {% for c in g.clips %}
+    {#- on Song a row drags out of the drawer onto an audio lane
+        (songdrag.js): it lands as a take at the bar under the pointer,
+        `data-bars` long in the drop's preview -#}
+    <li class="cd-clip" data-name="{{ c.name }}" data-ctx="{{ c.name }}"{% if lib.view == "song" %} draggable="true" data-bars="{{ clip_bars.get(c.name, 1) }}"
+        title="Drag onto an audio lane of the song"{% endif %}>
+      <button type="button" class="btn btn-icon btn-s audition sc-play" data-note="/clip/{{ c.name | urlencode }}.wav"
+              data-menu="Hear" aria-label="hear clip {{ c.name }}">▶</button>
+      <span class="sc-name">{{ c.name }} <small>{{ c.detail }}</small></span>
+      <span class="cd-acts">
+        {% if lib.view == "voice" %}
+        {# both carry the vocoder's form, so the panel that comes back
+           still holds what was typed into it #}
+        <button type="button" class="btn btn-s cd-take" hx-post="/voice/take/clip"
+                hx-vals='{{ {"name": c.name} | tojson }}' hx-target="#voice-panel" hx-swap="outerHTML"
+                hx-include="#voice-render" data-menu="Use as the take"
+                title="put this clip in the take slot (summed to mono): the voice the vocoder hears"
+                aria-label="use clip {{ c.name }} as the take">Use as take</button>
+        <button type="button" class="btn btn-s cd-carrier" hx-post="/voice/carrier/clip"
+                hx-vals='{{ {"name": c.name} | tojson }}' hx-target="#voice-panel" hx-swap="outerHTML"
+                hx-include="#voice-render" data-menu="Use as the carrier"
+                title="vocode over this clip: it plays under the voice, repeated or cut to the take's length"
+                aria-label="use clip {{ c.name }} as the carrier">as carrier</button>
+        {% elif lib.place %}
+        <button type="button" class="btn btn-s cd-place-btn"
+                hx-post="/song/section/{{ lib.place.section | urlencode }}/clip"
+                hx-vals='{{ {"clip": c.name} | tojson }}' hx-include="{{ keep }}" hx-swap="none"
+                data-menu="Place in the song"
+                title="place this clip as a take: the section, bar and track chosen above (Ctrl+Z undoes it)"
+                aria-label="place clip {{ c.name }} in the song">Place</button>
+        {% endif %}
+        {% if c.lab and c.lab.href %}
+        <a class="btn btn-ghost btn-s cd-lab" href="{{ c.lab.href }}" data-menu="Open in the Sample Lab"
+           title="open the song this was cut from in the Sample Lab">Open in Lab</a>
+        {% elif c.lab %}
+        <span class="btn btn-ghost btn-s cd-lab" aria-disabled="true"
+              title="the song this was cut from is no longer in the Lab">Open in Lab</span>
+        {% endif %}
+        {# the clip becomes a playable instrument (the sampler shape), on
+           Synths: the page it lands on is the point, so the drawer closes #}
+        <button type="button" class="btn btn-ghost btn-s sc-sample" hx-post="/fragment/sampler/clip"
+                popovertarget="clip-drawer" popovertargetaction="hide"
+                hx-vals='{{ {"name": c.name} | tojson }}' hx-target="body" hx-swap="innerMorph"
+                data-menu="Play from the keys (sampler)"
+                title="use as sampler: play this clip from the keys on Synths"
+                aria-label="use clip {{ c.name }} as a sampler">⤷ sampler</button>
+        {% if lib.view == "editor" %}
+        {#- one more zone of the edited sampler (a multi-sample instrument),
+            at its detected pitch; the drawer stays open for the next -#}
+        <button type="button" class="btn btn-ghost btn-s cd-zone" hx-post="/fragment/sampler/zone/add"
+                hx-vals='{{ {"name": c.name} | tojson }}' hx-target="body" hx-swap="innerMorph"
+                data-menu="Add as a zone of the sampler"
+                title="＋ zone: add this clip to the sampler sound as one more zone, at its detected pitch (a zone already there gives up half its keys; one on the same pitch gains it as its next round-robin take)"
+                aria-label="add clip {{ c.name }} as a zone of the sampler">＋ zone</button>
+        {% endif %}
+        {% if g.key in ("take", "take-new") %}
+        {#- a keys take's notes onto Perform's note grid (routes/takes.py) -#}
+        <button type="button" class="btn btn-ghost btn-s cd-take-notes" hx-post="/take/keys/notes"
+                popovertarget="clip-drawer" popovertargetaction="hide"
+                hx-vals='{{ {"name": c.name} | tojson }}' hx-target="body" hx-swap="innerMorph"
+                data-menu="To the Loops page as notes"
+                title="its notes onto the Loops page's note grid, the lane you edit (Ctrl+Z undoes it)"
+                aria-label="take {{ c.name }}'s notes onto the Loops page's grid">→ notes</button>
+        {% endif %}
+        <details class="ren">
+          <summary class="btn btn-ghost btn-icon btn-s" aria-label="rename clip {{ c.name }}" title="rename" data-menu="Rename…">✎</summary>
+          <form hx-post="/fragment/clip/rename" hx-target="#clip-library" hx-swap="outerMorph"
+                hx-include="{{ keep }}">
+            <input type="hidden" name="name" value="{{ c.name }}">
+            <input class="field field-s" name="new" value="{{ c.name }}" maxlength="60" autocomplete="off" spellcheck="false"
+                   aria-label="new name for clip {{ c.name }}">
+            <button type="submit" class="btn btn-s">ok</button>
+          </form>
+        </details>
+        <details class="del">
+          <summary class="btn btn-ghost btn-icon btn-s btn-danger" aria-label="delete clip {{ c.name }}" title="delete" data-menu="Delete…">✕</summary>
+          {# a clip the session still uses says where before it goes #}
+          <button type="button" class="btn btn-s btn-danger" hx-post="/fragment/clip/delete"
+                  hx-vals='{{ {"name": c.name} | tojson }}' hx-include="{{ keep }}"
+                  hx-target="#clip-library" hx-swap="outerMorph"
+                  {% if c.used %}hx-confirm="{{ c.used }}"{% endif %}>sure?</button>
+        </details>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}{% if not loop_lib.rows %}
+<div class="empty-state cd-empty">
+  {% if lib.q %}<h3>No match</h3><p>No clip’s name contains “{{ lib.q }}”.</p>
+  {% else %}<h3>No clips yet</h3><p>⏺ Bounce on Synths, ⏺ resample on the Loops page, “keep take” or “Keep result” in Voice, or keep a chop in the Lab.</p>{% endif %}
+  {% include "fragments/empty_play.html" %}
+</div>{% endif %}
+{% endfor %}
+{% if lib.stems %}
+<section class="cd-group cd-stems" data-group="stems" aria-label="Stems">
+  <h3 class="caps lib-section">Stems <small>in the Lab — downloads, not clips</small></h3>
+  {% if lib.view == "song" %}
+  {# Song: "→ Song" lays a WHOLE stem on an audio track, as recorded,
+     from the "Place into" section and bar (routes/song_long.py) #}
+  <label class="cd-tempo" title="A whole stem is never stretched: it is in time only when the song's tempo is its own">
+    <input type="checkbox" class="check" id="long-tempo" name="tempo" checked> → Song: the song takes the stem's tempo</label>
+  {% endif %}
+  <ul class="cd-clips">
+    {% for s in lib.stems %}
+    <li class="cd-source" data-source="{{ s.id }}" data-ctx="{{ s.name }}">
+      <span class="sc-name">{{ s.name }}</span>
+      <a class="btn btn-ghost btn-s cd-lab" {{ view_link("/view/lab?source=" ~ s.id) }} data-menu="Open in the Sample Lab"
+         title="open this song in the Sample Lab">Open in Lab</a>
+      {% for set in s.sets %}
+      <span class="cd-set" title="separated with {{ set.model }}">
+        <span class="caps">{{ set.count }} stems</span>
+        {% for stem in set.stems %}
+        {% if lib.view == "song" %}
+        {#- a stem drags onto an audio lane too: the whole stem from the
+            bar under the pointer (POST /song/long, op=add) -#}
+        <span class="cd-stem" draggable="true" data-source="{{ s.id }}" data-model="{{ set.model }}" data-stem="{{ stem }}"
+              title="Drag onto an audio lane: the whole {{ stem }} stem from that bar">
+        {% endif %}
+        <a class="cd-dl" download href="/lab/{{ s.id }}/stem/{{ stem | urlencode }}.flac?model={{ set.model | urlencode }}"
+           title="download the whole {{ stem }} stem (FLAC)">{{ stem }}</a>
+        {% if lib.view == "song" %}
+        <button type="button" class="btn btn-s cd-song" hx-post="/song/long" hx-swap="none"
+                hx-vals='{"op": "add", "source": "{{ s.id }}", "model": "{{ set.model }}", "stems": "{{ stem }}", "section_id": "{{ lib.place.section if lib.place else '' }}"}'
+                hx-include="#clip-place, #long-tempo"
+                title="lay the whole {{ stem }} stem on an audio track of the song, as recorded, from the section and bar chosen above"
+                aria-label="place the whole {{ stem }} stem of {{ s.name }} on the song">→ Song</button>
+        </span>
+        {% endif %}
+        {% endfor %}
+        <a class="cd-dl cd-zip" download href="/lab/{{ s.id }}/stems.zip?model={{ set.model | urlencode }}"
+           title="download every stem of this set as one zip">all .zip</a>
+      </span>
+      {% endfor %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}

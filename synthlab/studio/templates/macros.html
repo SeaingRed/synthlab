@@ -1,0 +1,26 @@
+{# synthlab/studio/templates/macros.html — shared template helpers #}
+{% macro fill(value, min, max) -%}
+{{ ((value|float - min|float) / ((max|float - min|float) or 1) * 100)|round(2) }}%
+{%- endmacro %}
+
+{# fmt(v) — compact numeric display for value chips. Whole numbers render
+   with no decimal point (2200.0 -> 2200); fractional values keep just
+   enough precision to stay legible, shrinking further if that still
+   doesn't fit the ~5-character chip budget (0.206, 17.5, -10.5, …). #}
+{% macro fmt(v) -%}
+{%- set f = v|float -%}
+{%- if f == (f|round(0))|float -%}
+{{- f|round(0)|int -}}
+{%- else -%}
+{%- set s3 = ("%.3f"|format(f)).rstrip('0').rstrip('.') -%}
+{%- if s3|length <= 5 -%}
+{{- s3 -}}
+{%- elif ("%.2f"|format(f))|length <= 5 -%}
+{{- "%.2f"|format(f) -}}
+{%- elif ("%.1f"|format(f))|length <= 5 -%}
+{{- "%.1f"|format(f) -}}
+{%- else -%}
+{{- f|round(0)|int -}}
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}

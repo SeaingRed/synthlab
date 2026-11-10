@@ -1,0 +1,22 @@
+{# synthlab/studio/templates/fragments/palette_found.html #}
+{# What GET /fragment/palette found for the palette's query (studio/
+   palette.py): each row is the app's own control for that thing — a
+   sound's Use post, the clip drawer's opener — declared as a command.
+   Never shown (style.css #pal-found); palette.js lists and activates
+   them like any other `[data-cmd]`. #}
+<div id="pal-found" data-q="{{ q }}">
+  {% for r in found %}
+  {% if r.kind == "clip" %}
+  <button type="button" tabindex="-1" data-cmd="{{ r.name }}" data-cmd-group="Clips"
+          data-cmd-hint="open in the clip library" data-cmd-fill="#clip-q"
+          popovertarget="clip-drawer" popovertargetaction="show"
+          hx-get="/fragment/clips?whole=1" hx-include="#clip-q, #clip-place"
+          hx-target="#clip-library" hx-swap="outerMorph"></button>
+  {% else %}
+  <button type="button" tabindex="-1" data-cmd="{{ r.name }}" data-cmd-group="{{ r.group }}"
+          data-cmd-hint="{{ r.hint }}"
+          hx-post="{{ r.post }}" hx-vals='{{ {"name": r.name} | tojson }}'
+          hx-target="body" hx-swap="innerMorph"></button>
+  {% endif %}
+  {% endfor %}
+</div>

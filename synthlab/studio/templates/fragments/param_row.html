@@ -1,0 +1,180 @@
+{# synthlab/studio/templates/fragments/param_row.html #}
+{# One control in the panel stack. Extracted so a macro move can send back
+   just the sliders it actually moved (hx-swap-oob) instead of swapping the
+   whole ~2800-node body on every drag frame.
+
+   `subheads` (paramui.SUBHEADS, a Jinja global) puts a heading before the
+   row. The hint is the row's tooltip. A curvable row carries its own `.curve-slot`:
+   ⤳ loads the automation curve there, under the row you pressed, rather than
+   in a shared editor far down the page.
+
+   A row is a slider (label | track | value | ⤳) or, for the parameters in
+   `dials`, a knob cell (`.param-knob`: the dial, its engraved name, its
+   value), five to a line. The dials are the ones that come in runs — an
+   oscillator's level / octave / detune, the mixer, Character, each
+   modulator's rate / depth / delay, a route's amount; a lone knob between
+   sliders would cost a line, so the filter, the envelopes and the vowel
+   stay sliders (long travel: cutoff, the times, the sweeps; resonance is
+   also the slider the pen's fine-drag journey measures). Either way it is
+   the same native range input with the same name, min / max / step and
+   data-default, so the form, the pen, the wheel and a hardware dial drive
+   both alike (docs/frontend.md, "Tweakable controls"). The value is a
+   read-out you can type into: click it, or press Enter on the control
+   (bench.js). #}
+{% from "macros.html" import fill, fmt %}
+{% set dials = ["osc1_level", "osc1_octave", "osc1_detune", "osc2_level", "osc2_octave", "osc2_detune",
+                "fm_ratio", "fm_index", "fm_decay", "pluck_damping", "pluck_bright",
+                "sub_level", "noise_level", "fm_amount", "ring_mod",
+                "drive", "glide", "unison", "unison_detune", "unison_spread",
+                "vibrato_rate", "vibrato_depth", "vibrato_delay", "tremolo_rate", "tremolo_depth",
+                "pwm_rate", "pwm_depth", "pitch_env", "pitch_env_decay",
+                "mod1_amt", "mod2_amt", "mod3_amt", "mod4_amt", "sync_pitch", "drift",
+                "osc1_warp_amt", "osc2_warp_amt",
+                "filter2_cutoff", "filter2_resonance", "filter2_key_track", "filter2_env",
+                "mod_wheel", "aftertouch", "lfo2_rate", "lfo2_phase", "lfo3_rate", "lfo3_phase"] %}
+{#- route amounts 5-12, envelopes 3 and 4 — knobs too -#}
+{% set dial_runs = spec.name[:3] == "mod" and spec.name.endswith("_amt") and spec.name != "mod_wheel"
+                   or spec.name[:5] in ("env3_", "env4_") %}
+{#- the FM4 panel's operator matrix (editor.html): every fm4 number is a knob
+    whose row and column say what it is, so its name is for the deck, MIDI
+    learn and a screen reader (visually hidden) -#}
+{% set fm4_knob = spec.name[:4] == "fm4_" and spec.kind == "range" %}
+{% set dial = spec.kind == "range" and (spec.name in dials or fm4_knob or dial_runs) %}
+{# a group's heading stands before its first row (a knob cell is a fifth of
+   the line, so it cannot hold one), with its own id so a shape block's
+   heading still hides with its rows (editor.html's generated rule). Never
+   re-sent with an OOB row; `skip_subhead`: the page drew it already (the
+   filter envelope's, above its drawing). #}
+{% if spec.name in subheads and not oob and not skip_subhead %}<h4 class="subhead" id="sub-{{ spec.name }}">{{ subheads[spec.name] }}</h4>{% endif %}
+{#- idle (paramui.idle): it changes nothing under the other settings now —
+    drawn faint, the reason after its hint; audio.js moves it after an edit -#}
+{% set why = (idle | default({})).get(spec.name) %}
+<div class="param{{ ' param-knob' if dial }}" id="row-{{ spec.name }}" data-kind="{{ spec.kind }}"
+     {% if spec.hint %}data-hint="{{ spec.hint }}"{% endif %}{% if why %} data-idle{% endif %}
+     {% if spec.hint or why %}title="{{ spec.hint }}{% if why %}{{ ' — ' if spec.hint }}no effect now: {{ why }}{% endif %}"{% endif %}
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  {# pills render a radiogroup, not a single control: a for= here would
+     dangle (invalid) and leave the group with no accessible name #}
+  <label {% if spec.kind == "pills" %}id="lbl-{{ spec.name }}"{% else %}for="p-{{ spec.name }}"{% endif %}{% if fm4_knob %} class="visually-hidden"{% endif %}>{{ spec.label }}</label>
+  {% if spec.kind == "select" %}
+  <select id="p-{{ spec.name }}" name="{{ spec.name }}">
+    {% for value, label in spec.options %}
+    <option value="{{ value }}" {% if patch_values[spec.name] == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <span class="curve-spacer" aria-hidden="true"></span>
+  {% if spec.name == "fm4_algo" %}
+  {#- each algorithm's wiring, drawn (oscfaces.FM4_FACES): carriers on the
+      bottom line into the output, modulators above what they bend, op 4's
+      feedback loop. A view of the select — a click picks that algorithm
+      through tweak.js (panelfaces.js); the select stays the control the
+      keyboard, a screen reader, the deck and MIDI learn use -#}
+  {% set vw, vh = osc_faces.FM4_VIEW %}
+  <span class="fm4-algos" aria-hidden="true">
+    {% for value, label in spec.options %}{% set face = osc_faces.FM4_FACES[value] %}
+    <span class="fm4-algo" data-algo="{{ value }}" title="{{ label }}"><svg viewBox="0 0 {{ vw }} {{ vh }}" width="{{ vw }}" height="{{ vh }}" font-size="6.5" focusable="false">
+      <path class="fm4-wire" d="{{ face.wires }}"/><path class="fm4-loop" d="{{ face.loop }}"/>
+      {% for op, x, y, carrier in face.ops %}<g class="fm4-op{{ ' fm4-out' if carrier }}"><rect x="{{ x }}" y="{{ y }}" width="9" height="8" rx="1.5"/><text x="{{ x + 4.5 }}" y="{{ y + 6.2 }}">{{ op }}</text></g>{% endfor %}
+    </svg></span>
+    {% endfor %}
+  </span>
+  {% endif %}
+  {% elif spec.name == "wt_table" %}
+  {#- the tables as a radio group of drawings (oscfaces.WT_FACES): each
+      table's frames over one another, the frame the position stands on
+      lit (`--wt-pos`, kept from the position slider by panelfaces.js).
+      Its id makes it a stepped value control, as a select is (tweak.js
+      `steps`): a deck dial, a learned CC and the menu step its radios -#}
+  {% set vw, vh = osc_faces.WT_VIEW %}
+  <div class="wt-pick" id="p-{{ spec.name }}" role="radiogroup" aria-labelledby="lbl-{{ spec.name }}"
+       {% if "wt_pos" in patch_values %}style="--wt-pos: {{ patch_values.wt_pos }}"{% endif %}>
+    {% for value, label in spec.options %}{% set frames = osc_faces.WT_FACES.get(value, ()) %}
+    <label class="wt-thumb" title="{{ label }}">
+      <input type="radio" name="{{ spec.name }}" value="{{ value }}" class="visually-hidden"
+             {% if patch_values[spec.name] == value and not patch_values.wt_custom %}checked{% endif %}>
+      <svg viewBox="0 0 {{ vw }} {{ vh }}" aria-hidden="true" focusable="false" style="--last: {{ [frames | length - 1, 1] | max }}">
+        {% for d in frames %}<path class="wt-f" style="--i: {{ loop.index0 }}" d="{{ d }}"/>{% endfor %}
+      </svg>
+      <span>{{ label }}</span>
+    </label>
+    {% endfor %}
+    {#- this studio's own tables (oscfaces.own_faces), radios of
+        the same group — "own:<id>" sets wt_custom (forms.patch_from_form),
+        so the deck and a learned CC step through them too -#}
+    {% for t in own_tables() %}
+    <label class="wt-thumb wt-own" title="{{ t.name }} — your table, {{ t.frames }} frames">
+      <input type="radio" name="{{ spec.name }}" value="own:{{ t.id }}" class="visually-hidden"
+             {% if patch_values.wt_custom == t.id %}checked{% endif %}>
+      <svg viewBox="0 0 {{ vw }} {{ vh }}" aria-hidden="true" focusable="false" style="--last: {{ [t.paths | length - 1, 1] | max }}">
+        {% for d in t.paths %}<path class="wt-f" style="--i: {{ loop.index0 }}" d="{{ d }}"/>{% endfor %}
+      </svg>
+      <span>{{ t.name }}</span>
+    </label>
+    {% endfor %}
+  </div>
+  {#- make one: the popovers are outside the patch form (editor.html, wt_make.html) -#}
+  <span class="wt-make">
+    <button type="button" class="btn btn-ghost btn-s" popovertarget="wt-from-clip"
+            data-cmd="Wavetable: make one from a clip" data-cmd-group="Panels"
+            title="Slice a clip or a sample into single-cycle frames: your own table">+ from clip…</button>
+    <button type="button" class="btn btn-ghost btn-s" popovertarget="wt-draw"
+            data-cmd="Wavetable: draw one" data-cmd-group="Panels"
+            title="Draw up to four single cycles: your own table">draw…</button>
+  </span>
+  {% elif spec.kind == "pills" %}
+  {#- its id: a stepped value control, as the picker above -#}
+  <div class="seg" id="p-{{ spec.name }}" role="radiogroup" aria-labelledby="lbl-{{ spec.name }}">
+    {% for value, label in spec.options %}
+    <label>
+      <input type="radio" name="{{ spec.name }}" value="{{ value }}"
+             {% if patch_values[spec.name] == (none if value == "" else value) %}checked{% endif %}>
+      <span>{{ label }}</span>
+    </label>
+    {% endfor %}
+  </div>
+  {% else %}
+  {% if spec.log %}
+  {# log taper: the visible slider is a 0..1 position; the hidden field
+     carries the real value the form posts (a linear 60-8000
+     cutoff gave the musical 60-500 Hz region ~5% of the travel) #}
+  <input type="hidden" name="{{ spec.name }}" value="{{ patch_values[spec.name] }}">
+  <input type="range" id="p-{{ spec.name }}"{% if dial %} class="knob"{% endif %} data-log="1"
+         data-min="{{ spec.min }}" data-max="{{ spec.max }}"
+         data-default="{{ spec.default }}"
+         min="0" max="1" step="0.001"
+         value="{{ patch_values[spec.name] | logpos(spec.min, spec.max) }}"
+         style="--fill: {{ fill(patch_values[spec.name] | logpos(spec.min, spec.max), 0, 1) }}">
+  {% else %}
+  {# widened to take in a value outside the spec (a factory sound's -2600 Hz
+     filter env): a browser clamps a range input to its min/max, and the
+     clamped value would post back on the next edit of any control
+     (forms.slider_bounds / patch_from_form) #}
+  {% set lo = [spec.min, patch_values[spec.name]] | min %}
+  {% set hi = [spec.max, patch_values[spec.name]] | max %}
+  <input type="range" id="p-{{ spec.name }}" name="{{ spec.name }}"{% if dial %} class="knob"{% endif %}
+         min="{{ lo }}" max="{{ hi }}" step="{{ spec.step }}"
+         {% if spec.default is not none %}data-default="{{ spec.default }}"{% endif %}
+         value="{{ patch_values[spec.name] }}"
+         style="--fill: {{ fill(patch_values[spec.name], lo, hi) }}">
+  {% endif %}
+  {#- a route's amount reads in percent, as the patch bay's cables print it
+      (0.29 was "0.29" here and "+29%" on its lead) -#}
+  {% if spec.name[:3] == "mod" and spec.name.endswith("_amt") %}
+  <output for="p-{{ spec.name }}" data-pct>{{ (patch_values[spec.name] * 100) | round | int }}%</output>
+  {% else %}
+  <output for="p-{{ spec.name }}" {% if spec.unit %}data-unit="{{ spec.unit }}"{% endif %}>{{ fmt(patch_values[spec.name]) }}{% if spec.unit %} {{ spec.unit }}{% endif %}</output>
+  {% endif %}
+  {% if spec.name in curvable %}
+  <button type="button"
+          class="curve-toggle {{ 'has-curve' if spec.name in has_curve }}"
+          hx-get="/fragment/curve/{{ spec.name }}"
+          hx-target="next .curve-slot" hx-swap="innerHTML"
+          aria-pressed="{{ 'true' if spec.name in has_curve else 'false' }}"
+          title="Automate {{ spec.label | lower }} across each note"
+          aria-label="automate {{ spec.label }}">⤳</button>
+  <div class="curve-slot"></div>
+  {% else %}
+  <span class="curve-spacer" aria-hidden="true"></span>
+  {% endif %}
+  {% endif %}
+</div>

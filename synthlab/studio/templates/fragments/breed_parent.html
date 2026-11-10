@@ -1,0 +1,10 @@
+{# synthlab/studio/templates/fragments/breed_parent.html #}
+{# which sound(s) the next generation comes from: starred cards if any
+   (breedboard.new_generation), else the sound loaded on Synths. A region
+   (service.REGIONS): rides OOB whenever a star, generation or restore moves
+   it. The LED is amber while starred cards are the parents. #}
+<p class="breed-parent" id="breed-parent" {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  <span class="led" {% if starred %}data-on="armed"{% endif %} aria-hidden="true"></span>
+  {% if starred %}Breeding from your <b>{{ starred | length }} starred</b> sound{{ "s" if starred | length != 1 }} — unstar them all to breed from <b>{{ patch.name }}</b> again.
+  {% else %}Breeding from <b>{{ patch.name }}</b>, the sound on <a {{ view_link("/view/editor") }}>Synths</a>.{% endif %}
+</p>

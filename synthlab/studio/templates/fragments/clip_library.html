@@ -1,0 +1,81 @@
+{# synthlab/studio/templates/fragments/clip_library.html #}
+{# The clip library (region `clip-library`): a rail button and the drawer it
+   opens, drawn from base.html on every page, outside #view — a view swap
+   or another page's edit re-fetching #view leaves it alone. The drawer is a
+   declarative popover (no script opens or closes it; Esc and a click
+   outside are the browser's), and every redraw of it MORPHS, so it stays
+   open, keeps its scroll and the keyboard's place. It replaced the clip
+   shelf Synths and Perform drew (bounces, kept takes, jams land here).
+   `clip_lib` is `cliplib.library(...)`: nothing in here reads a clip's
+   meta, which is a file anyone can edit. #}
+{% set lib = clip_lib %}
+<div class="clip-library" id="clip-library" {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  {# the click opens the drawer (the browser's) and asks for it again
+     (htmx): a separation that finished in the background, a clip another
+     tab made, are there the moment it is looked at #}
+  <button type="button" class="btn btn-s midi-btn clips-btn" popovertarget="clip-drawer"
+          data-cmd="Clips: the loops and clips drawer" data-cmd-group="Go to"
+          hx-get="/fragment/clips?whole=1" hx-target="#clip-library" hx-swap="outerMorph"
+          hx-include="#clip-q, #clip-place"
+          title="Clips: your loops (what ⏺ Rec made: audio and notes; the count) and the clip library — bounces, resamples, Lab chops and stems"
+          aria-label="loops and clips: {{ loop_lib.total }} loop{{ '' if loop_lib.total == 1 else 's' }}, {{ lib.clips }} clip{{ '' if lib.clips == 1 else 's' }}">
+    <svg class="vi" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM4 9h16M8 13v2M11 12v4M14 13v2M17 12.5v3"/></svg>
+    {#- the count is the loops' (not the clip store's, which counts a
+        loop's audio and the risers in it too); the clips beside it on
+        the comfy top bar, never in the compact rail. Named "Clips": the
+        rail already has a "Loops" view -#}
+    <span class="cb-label">Clips <span class="loop-count">{{ loop_lib.total }}</span><span class="cb-more"> loops · <span class="clip-count">{{ lib.clips }}</span> clips</span></span>
+  </button>
+  <aside id="clip-drawer" class="drawer clip-drawer" popover aria-label="Clip library">
+    <header class="cd-head">
+      <h2>Loops &amp; clips <small>{{ lib.count }}</small></h2>
+      {# the answer replaces the list below, never this box #}
+      <input type="text" role="searchbox" inputmode="search" enterkeyhint="search"
+             id="clip-q" name="q" value="{{ lib.q }}" maxlength="60"
+             placeholder="search by name" autocomplete="off" spellcheck="false"
+             aria-label="search clips by name"
+             hx-get="/fragment/clips" hx-trigger="input delay:200ms" hx-sync="this:queue last" hx-target="#clip-list"
+             hx-swap="innerHTML" hx-include="#clip-place">
+      {# pinned (shell.js, the `clips` cookie): on a wide window the drawer is
+         a column beside the page instead of a sheet over it — the width
+         is there, and a clip is then one drag from a Song lane #}
+      <button type="button" id="clip-pin" class="btn btn-ghost btn-icon btn-s cd-pin"
+              title="pin the clip library beside the page (wide windows)"
+              aria-label="pin the clip library beside the page" aria-pressed="false"
+              data-cmd="Clip library: pin beside the page / unpin" data-cmd-group="View"><svg class="vi" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3v18M4 5h16v14H4z"/></svg></button>
+      <button type="button" class="btn btn-ghost btn-icon btn-s cd-close" popovertarget="clip-drawer"
+              popovertargetaction="hide" aria-label="close the clip library">✕</button>
+    </header>
+    {% if lib.place %}
+    {# Song: where "Place" on a clip puts it. The section is the route's
+       path, so choosing one asks for the drawer again; bar and track ride
+       each Place post. #}
+    <div class="cd-place" id="clip-place" role="group" aria-label="where Place puts a clip">
+      <span class="cap">Place into</span>
+      <select name="place_section" aria-label="section"
+              hx-get="/fragment/clips?whole=1" hx-trigger="change" hx-sync="this:queue last" hx-target="#clip-library"
+              hx-swap="outerMorph" hx-include="#clip-q, #clip-place">
+        {% for sec in lib.place.sections %}
+        <option value="{{ sec.id }}" {% if sec.id == lib.place.section %}selected{% endif %}>{{ sec.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="at_bar" aria-label="bar">
+        {% for b in range(lib.place.bars) %}
+        <option value="{{ b }}" {% if b == lib.place.at_bar %}selected{% endif %}>bar {{ b + 1 }}</option>
+        {% endfor %}
+      </select>
+      <select name="track_id" aria-label="audio track">
+        <option value="">{{ 'first audio track' if lib.place.tracks else 'a new audio track' }}</option>
+        {% for t in lib.place.tracks %}
+        <option value="{{ t.id }}" {% if t.id == lib.place.track %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% elif lib.view == "song" %}
+    <p class="cd-empty">Add a section to the song to place clips into it.</p>
+    {% endif %}
+    <div class="cd-list" id="clip-list">
+      {% include "fragments/clip_list.html" %}
+    </div>
+  </aside>
+</div>

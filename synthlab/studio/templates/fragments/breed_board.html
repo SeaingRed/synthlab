@@ -1,0 +1,95 @@
+{# synthlab/studio/templates/fragments/breed_board.html #}
+<section id="breed-board" aria-label="This generation">
+  {% for t in tiles %}
+  <article class="tile module {% if t.id in starred %}starred{% endif %} {% if t.id == active %}active{% endif %} {% if t.layered %}layered{% endif %}" data-tile-id="{{ t.id }}" data-ctx="{{ t.name | default(t.id) }}">
+    {# the card plays the sound on its own — the reference phrase, no other
+       layers, beat or session FX — so the eight can be told apart; a
+       layered card plays its whole stack, exactly what "Use with its
+       layers" lands in a fresh session. "In your mix" loops exactly what
+       Use lands on Synths (svc.audition). The spectrum and numbers are
+       measured on the breeder's probe: one A3 note, the phrase's register,
+       with its release — the whole stack's, for a layered card
+       (explore/probe.py, studio/genome.py). #}
+    <button class="audition" data-note="/breed/{{ t.id }}/audition.wav" data-menu="Hear on its own"
+            title="{% if t.layered %}Hear the whole sound, its layers too, on its own{% else %}Hear the sound on its own{% endif %}"
+            aria-label="hear {{ t.name | default(t.id) }}">
+      <span class="t-head"><span class="t-play" aria-hidden="true">▶</span><span class="t-name">{{ t.name | default(t.id) }}</span></span>
+      {% if t.chips %}
+      <span class="t-chips" title="the sound's parts: the main lane and the layers that play its notes">{% for c in t.chips %}<i class="chip role-{{ c.role }}">{{ c.role | upper }}{% if c.role == "main" %} {{ c.label }}{% elif c.label %} {{ c.label }}{% endif %}</i>{% endfor %}</span>
+      {% endif %}
+      <svg class="sig t-spec" viewBox="{{ t.spectrum | sig_box }}" preserveAspectRatio="none" aria-hidden="true"><path d="{{ t.spectrum | default([]) | sig_path }}"/></svg>
+      {# measured on one A3 note. Sub: the share of energy under 120 Hz.
+         Bright: the spectral centre on a log scale, 60 Hz .. 7.7 kHz (the
+         Map's colour scale, mapview.bright_pct). #}
+      <span class="t-facts" title="measured on one A3 note: sub weight, the spectral centre (higher is brighter), and how much brighter or darker than its parent">
+        {#- a tile is session state: one saved before a measurement existed
+            (or a bare one) draws no meter for it rather than failing the board #}
+        {% if t.sub_pct is defined %}<span class="caps">sub</span><span class="meter" style="--level: {{ [t.sub_pct, 100] | min | round | int }}%"><i></i></span><output>{{ t.sub_pct }}%</output>{% endif %}
+        {% if t.centroid is defined %}<span class="caps">bright</span><span class="meter" style="--level: {{ t.centroid | bright_pct }}%"><i></i></span><output>{{ t.centroid }} Hz</output>{% endif %}
+        {% if t.vs_parent %}<span class="caps">vs parent</span><span class="t-vs">{{ t.vs_parent }}</span>{% endif %}
+      </span>
+      {#- what changed from its parent (breedboard.changes), biggest move
+          first: the gene, a bar pair (the parent's place on its range, dim,
+          over the child's) and the two values. A choice has no bars. A board
+          bred before the list existed shows its gene badges alone -#}
+      {% if t.changes %}
+      <span class="t-diff" title="what changed from its parent, the biggest move first: the parent's value, then this card's">
+        <span class="caps t-diff-head">changed</span>
+        {%- for c in t.changes %}
+        <span class="t-d"><span class="t-d-name">{{ c.label }}</span>
+          <span class="t-d-val">{{ c["from"] }} → <b>{{ c.to }}</b></span>
+          {%- if c.a >= 0 %}<span class="t-d-bars" style="--a: {{ c.a }}; --b: {{ c.b }}" aria-hidden="true"><i></i><i></i></span>
+          {%- else %}<span class="t-d-bars t-d-swap" aria-hidden="true">⇄</span>{% endif -%}
+        </span>
+        {%- endfor %}
+      </span>
+      {% endif %}
+      {#- with the list, the badges keep only how it was bred (a cross, a big jump, random) -#}
+      {% set ops = [] %}{% for g in t.badges_genes %}{% if not t.changes or not ("→" in g or "↑" in g or "↓" in g) %}{% set _ = ops.append(g) %}{% endif %}{% endfor %}
+      {% if ops %}
+      <span class="gene-badges" title="{{ 'how it was bred' if t.changes else 'what changed from the parent' }}">{% for g in ops %}<i class="badge badge-gene">{{ g | gene_label }}</i>{% endfor %}</span>
+      {% endif %}
+    </button>
+    <div class="t-acts">
+      <input type="checkbox" class="star" {% if t.id in starred %}checked{% endif %}
+             hx-post="/fragment/breed/star" hx-sync="this:queue all" hx-vals='{"id": "{{ t.id }}"}'
+             hx-target="#breed-board" hx-swap="outerHTML"
+             data-menu="{{ 'Unstar' if t.id in starred else 'Star: a parent of the next generation' }}"
+             title="star: starred sounds become the parents of the next generation"
+             aria-label="star {{ t.name }}">
+      <button class="btn btn-s loop-btn" hx-post="/fragment/breed/audition" hx-vals='{"id": "{{ t.id }}"}'
+              hx-target="#breed-board" hx-swap="outerHTML" data-menu="Loop in your mix"
+              data-cmd="Loop card {{ loop.index }} in your mix" data-cmd-hint="{{ t.name }}"
+              title="Loop it in your mix — exactly what {% if t.layered %}Use with its layers{% else %}Use on Synths{% endif %} gives you"
+              aria-label="loop {{ t.name }} in your mix">⟳ in your mix</button>
+      {% if t.layered %}
+      {# the main lane alone: what "Use sound" gives you, so it too is
+         heard before it is picked #}
+      <button class="btn btn-s audition main-only" data-note="/breed/{{ t.id }}/audition.wav?main=1"
+              data-menu="Hear the main sound alone"
+              title="Hear the main sound alone, without its layers — what Use sound gives you"
+              aria-label="hear {{ t.name }}, main only">▶ main only</button>
+      <button class="btn btn-s t-use" hx-post="/fragment/breed/adopt" hx-vals='{"id": "{{ t.id }}"}'
+              hx-target="body" hx-swap="innerMorph" data-menu="Use with its layers"
+              data-cmd="Use card {{ loop.index }} with its layers" data-cmd-hint="{{ t.name }}"
+              {% if busy_lanes %}hx-confirm="This sound brings its own layers: it replaces {{ busy_lanes }} lane{{ 's' if busy_lanes != 1 }} holding notes of {{ 'their' if busy_lanes != 1 else 'its' }} own on Synths (Before last load brings them back). Use it?"{% endif %}
+              title="The whole sound — its layers replace the other lanes on Synths"
+              aria-label="use {{ t.name }} with its layers on Synths">Use with its layers</button>
+      <button class="btn btn-s t-use alt" hx-post="/fragment/breed/adopt" hx-vals='{"id": "{{ t.id }}", "main": "1"}'
+              hx-target="body" hx-swap="innerMorph" data-menu="Use the main sound"
+              data-cmd="Use card {{ loop.index }}: the main sound" data-cmd-hint="{{ t.name }}"
+              title="The main sound with its effects and curves; your other lanes stay"
+              aria-label="use {{ t.name }} main sound on Synths">Use sound</button>
+      {% else %}
+      <button class="btn btn-s t-use" hx-post="/fragment/breed/adopt" hx-vals='{"id": "{{ t.id }}"}'
+              hx-target="body" hx-swap="innerMorph" data-menu="Use on Synths"
+              data-cmd="Use card {{ loop.index }} on Synths" data-cmd-hint="{{ t.name }}"
+              aria-label="use {{ t.name }} on Synths">Use on Synths</button>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+  {% if not tiles %}
+  <div class="empty-state"><h3>No generation yet</h3><p>Breed next generation makes 8 variations of the sound on Synths.</p>{% include "fragments/empty_play.html" %}</div>
+  {% endif %}
+</section>

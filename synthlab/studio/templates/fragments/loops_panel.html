@@ -1,0 +1,35 @@
+{# synthlab/studio/templates/fragments/loops_panel.html #}
+{# The Loops panel's list (region `loops-panel`, Perform; `looplib.context`):
+   every loop, take and Drums bank beat, newest first, the tags in use as
+   a bar of filters, and "loop the lane" at its foot. The panel around it —
+   its head, ◀ fold, pin, search, kind, ★, sort — is the page's
+   (views/perform.html) and never redrawn: loopspanel.js filters and sorts
+   these rows by their `data-*` (a style rule for the filter, so a morph
+   of this list shows the filtered rows at once). The rows are
+   loop_rows.html's ("panel": a row drags onto Perform's grids). #}
+{% from "fragments/loop_rows.html" import loop_rows %}
+{% set lp = loops_panel %}
+<div id="loops-panel" class="lp-body" {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  {#- (how many it shows is the head's: loopspanel.js counts the rows its
+      filter leaves) -#}
+  {% if lp.tags %}
+  <div class="lp-tagbar" role="group" aria-label="filter by a tag">
+    {% for t in lp.tags %}<button type="button" class="btn btn-ghost btn-s lp-tag" data-tag="{{ t }}" aria-pressed="false" title="only the loops tagged #{{ t }} (again: all)">#{{ t }}</button>{% endfor %}
+  </div>
+  {% endif %}
+  {% if lp.rows %}
+  {{ loop_rows(lp, "panel") }}
+  <p class="kt-empty lp-none">Nothing here matches: another word, or <button type="button" class="btn btn-ghost btn-s lp-reset">show all</button></p>
+  {% else %}
+  <p class="kt-empty">No loops yet — ⏺ Rec in the keyboard dock records the keys over the loop: its audio and an editable loop, together. ✚ Keep on the drum rack keeps a beat.</p>
+  {% endif %}
+  <p class="kt-lane">
+    <span class="caps">loop the lane</span>
+    {% for n in lp.loop_bars %}
+    <button type="button" class="btn btn-s barchip" hx-post="/loop/save" hx-swap="none"
+            hx-vals='{{ {"lane": "1", "bars": n} | tojson }}' hx-prompt="Name the loop (blank: named from what it is)"
+            {% if loop.first %}data-cmd="Save the lane as a loop" data-cmd-group="Loops"{% endif %}
+            title="save the lane you edit as a loop of {{ n | plural('bar') }}: its grid, the sound with its layers, the tempo and key">{{ n }}</button>
+    {% endfor %}
+  </p>
+</div>

@@ -1,0 +1,47 @@
+{# synthlab/studio/templates/fragments/wt_make.html #}
+{# Your own wavetable (routes/wavetable.py): the two makers the
+   wavetable picker's "+ from clip…" and "draw…" open. Popovers outside the
+   #patch form (its every input is a patch post); each answers with the
+   whole page, the new table picked (one undo step). #}
+<div popover id="wt-from-clip" class="dialog pop wt-dialog" aria-label="Wavetable from a clip">
+  <form hx-post="/fragment/wavetable/clip" hx-target="body" hx-swap="innerMorph" hx-sync="this:queue all">
+    <h3 class="caps wt-dialog-head">Wavetable from a clip</h3>
+    {#- the clips and samples, read when it opens -#}
+    <label>Source
+      <span id="wt-sources" hx-get="/fragment/wavetable/sources" hx-trigger="toggle from:#wt-from-clip" hx-swap="innerHTML">
+        <select class="field" name="source" disabled><option>…</option></select>
+      </span>
+    </label>
+    <label title="How many single-cycle frames to cut the clip into ({{ limits.WT_FRAMES_RANGE[0] }}-{{ limits.WT_FRAMES_RANGE[1] }}); the position knob sweeps them">Frames
+      <input class="field" type="number" name="frames" min="{{ limits.WT_FRAMES_RANGE[0] }}" max="{{ limits.WT_FRAMES_RANGE[1] }}" value="16"></label>
+    <div class="seg" role="radiogroup" aria-label="How a frame is cut">
+      <label title="The clip cut into equal slices, each played as one cycle: a texture scanned"><input type="radio" name="mode" value="slice" checked><span>slices</span></label>
+      <label title="One period of the clip's own pitch at each point: a played or sung note's timbre, moving"><input type="radio" name="mode" value="pitch"><span>pitch cycles</span></label>
+    </div>
+    <label>Name <input class="field" name="name" maxlength="40" autocomplete="off" placeholder="the clip's name"></label>
+    <span class="dialog-acts"><button type="submit" class="btn"
+      data-cmd="Wavetable: make it from the clip" data-cmd-group="Panels">Make table</button></span>
+  </form>
+</div>
+<div popover id="wt-draw" class="dialog pop wt-dialog" aria-label="Draw a wavetable">
+  {#- wtdraw.js: the pointer or pen draws the frame shown (64 points) and
+      keeps `points` up to date; the frames posted are the first `count` -#}
+  <form class="wt-draw-form" hx-post="/fragment/wavetable/draw" hx-target="body" hx-swap="innerMorph" hx-sync="this:queue all">
+    <h3 class="caps wt-dialog-head">Draw a wavetable</h3>
+    <div class="seg wt-frame-tabs" role="radiogroup" aria-label="Frame drawn">
+      {% for i in range(4) %}<label><input type="radio" name="wt_frame" value="{{ i }}"{% if not i %} checked{% endif %}><span>{{ i + 1 }}</span></label>{% endfor %}
+    </div>
+    <canvas class="wt-canvas" width="256" height="96" aria-label="draw one cycle: drag across it"></canvas>
+    <span class="wt-draw-tools">
+      {% for shape in ("sine", "triangle", "saw", "square", "flat") %}
+      <button type="button" class="btn btn-ghost btn-s" data-wt-shape="{{ shape }}" title="fill this frame with a {{ shape }}">{{ shape }}</button>
+      {% endfor %}
+    </span>
+    <label title="How many of the frames make the table: the position knob morphs through them">Frames
+      <select class="field" name="count">{% for i in range(1, 5) %}<option{% if i == 2 %} selected{% endif %}>{{ i }}</option>{% endfor %}</select></label>
+    <input type="hidden" name="points" value="">
+    <label>Name <input class="field" name="name" maxlength="40" autocomplete="off" placeholder="Drawn table"></label>
+    <span class="dialog-acts"><button type="submit" class="btn"
+      data-cmd="Wavetable: make the drawn one" data-cmd-group="Panels">Make table</button></span>
+  </form>
+</div>

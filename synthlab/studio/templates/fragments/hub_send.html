@@ -1,0 +1,97 @@
+{# synthlab/studio/templates/fragments/hub_send.html
+   Send to: each destination's OWN route, posted from here — nothing in
+   the hub writes to them itself. A clip as stored (Keep a tune first to
+   send the tuned one): Synths' sampler (`/fragment/sampler/clip`, it lands
+   there) or one more zone of it (`/fragment/sampler/zone/add`), a drum row's sample (`/fragment/drums/sample`), the song at a
+   section and bar (`/song/section/{id}/clip`: the section is the route's
+   path, so choosing one asks for this panel again), the Voice lab's take
+   or carrier, the Sample Lab. A sample is kept as a clip first; a stem is
+   opened in the Lab. #}
+{% set b = hub.bench %}{% set it = hub.item %}
+<section class="hub-sec hub-send" id="hub-send" aria-label="send it">
+  <h3 class="caps">Send to</h3>
+  {% if b.kind == "clip" %}
+  {% set nv = {"name": b.clip} %}
+  <div class="hub-dest">
+    <span class="hub-dest-name">Synths</span>
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/clip" hx-vals='{{ nv | tojson }}'
+            hx-target="body" hx-swap="innerMorph" data-cmd="Send the clip to Synths as a sampler sound" data-cmd-group="Clip hub"
+            title="play this clip from the keys: a sampler sound, landing on Synths (Ctrl+Z there undoes it)">⤷ as a sampler sound</button>
+    <button type="button" class="btn btn-s" hx-post="/fragment/sampler/zone/add" hx-vals='{{ nv | tojson }}'
+            hx-target="body" hx-swap="innerMorph" data-cmd="Send the clip to Synths as a zone of the sampler" data-cmd-group="Clip hub"
+            title="one more zone of the sampler sound on Synths (a multi-sample instrument), at the clip's detected pitch — a sound that is not a sampler yet becomes one (Ctrl+Z there undoes it)">＋ as a zone</button>
+  </div>
+  <div class="hub-dest" role="group" aria-label="a drum row's sample">
+    <span class="hub-dest-name">Drum row</span>
+    {% for row in b.drum_rows %}
+    <button type="button" class="btn btn-s hub-row-btn" hx-post="/fragment/drums/sample"
+            hx-vals='{{ {"voice": row, "clip": b.clip} | tojson }}' hx-swap="none"
+            title="the {{ row }} row plays this clip (its own picker on Kit sets it back to synth)"
+            aria-label="send to the {{ row }} row">{{ row }}</button>
+    {% endfor %}
+  </div>
+  <div class="hub-dest" role="group" aria-label="the song">
+    <span class="hub-dest-name">Song</span>
+    {% if b.place %}
+    <span class="hub-place" id="hub-place">
+      <select name="place_section" class="field field-s" aria-label="section"
+              hx-get="/fragment/hub/send" hx-trigger="change" hx-sync="this:queue last" hx-target="#hub-send"
+              hx-swap="outerMorph" hx-include="#hub-place" hx-vals='{{ {"item": b.ref} | tojson }}'>
+        {% for sec in b.place.sections %}
+        <option value="{{ sec.id }}" {% if sec.id == b.place.section %}selected{% endif %}>{{ sec.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="at_bar" class="field field-s" aria-label="bar">
+        {% for bar in range(b.place.bars) %}
+        <option value="{{ bar }}" {% if bar == b.place.at_bar %}selected{% endif %}>bar {{ bar + 1 }}</option>
+        {% endfor %}
+      </select>
+      <select name="track_id" class="field field-s" aria-label="audio track">
+        <option value="">{{ 'first audio track' if b.place.tracks else 'a new audio track' }}</option>
+        {% for t in b.place.tracks %}
+        <option value="{{ t.id }}" {% if t.id == b.place.track %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </span>
+    <button type="button" class="btn btn-s" hx-post="/song/section/{{ b.place.section | urlencode }}/clip"
+            hx-vals='{{ {"clip": b.clip} | tojson }}' hx-include="#hub-place" hx-swap="none"
+            data-cmd="Place the clip in the song" data-cmd-group="Clip hub"
+            title="place it as a take at that section and bar (Ctrl+Z on Song undoes it). on the Loops page the song's sections open as scenes: a placed clip plays when its section does">Place</button>
+    {% else %}
+    <span class="hub-none">the song has no section yet — add one on Song</span>
+    {% endif %}
+  </div>
+  <div class="hub-dest" role="group" aria-label="the Voice lab">
+    <span class="hub-dest-name">Voice lab</span>
+    <button type="button" class="btn btn-s" hx-post="/voice/take/clip" hx-vals='{{ nv | tojson }}' hx-swap="none"
+            title="the voice the vocoder hears (summed to mono, 30 s at most)">as the take</button>
+    <button type="button" class="btn btn-s" hx-post="/voice/carrier/clip" hx-vals='{{ nv | tojson }}' hx-swap="none"
+            title="what plays under the voice">as the carrier</button>
+    <a class="btn btn-s btn-ghost" {{ view_link("/view/voice") }}>open Voice →</a>
+  </div>
+  <div class="hub-dest">
+    <span class="hub-dest-name">Sample Lab</span>
+    {% if it.lab_href %}
+    <a class="btn btn-s" {{ view_link(it.lab_href) }} data-cmd="Open the clip in the Sample Lab" data-cmd-group="Clip hub"
+       title="open the song this was cut from, with this chop the region">Open in Lab</a>
+    {% else %}
+    <button type="button" class="btn btn-s" hx-post="/hub/lab" hx-vals='{{ {"item": b.ref} | tojson }}'
+            data-cmd="Open the clip in the Sample Lab" data-cmd-group="Clip hub"
+            title="bring this clip into the Lab as a song of its own: its tempo and key read, ready to split or chop">Open in Lab</button>
+    {% endif %}
+    <a class="btn btn-s btn-ghost" download href="{{ it.download }}" title="download the WAV">download</a>
+  </div>
+  {% elif b.kind == "sample" %}
+  <div class="hub-dest">
+    <p class="hub-none">A sampler sample{% if it.used %} — played by {{ it.used }}{% endif %}. Keep it as a clip to send it anywhere a clip goes.</p>
+    <button type="button" class="btn btn-s" hx-post="/hub/keep" hx-vals='{{ {"item": b.ref} | tojson }}'
+            hx-target="body" hx-swap="innerMorph" data-cmd="Keep the sample as a clip" data-cmd-group="Clip hub">Keep as a clip</button>
+  </div>
+  {% else %}
+  <div class="hub-dest">
+    <p class="hub-none">A whole stem of a Lab song: cut a region in the Lab to make a clip of it.</p>
+    <a class="btn btn-s" {{ view_link(it.lab_href) }} data-cmd="Open the stem's song in the Sample Lab" data-cmd-group="Clip hub">Open in Lab</a>
+    <a class="btn btn-s btn-ghost" download href="{{ it.download }}">download FLAC</a>
+  </div>
+  {% endif %}
+</section>

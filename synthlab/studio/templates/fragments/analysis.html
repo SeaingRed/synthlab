@@ -1,0 +1,7 @@
+{# synthlab/studio/templates/fragments/analysis.html #}
+<div id="analysis" class="readouts" hx-swap-oob="true" title="level, sub weight and brightness of the last render">
+  <span><b>{{ analysis.peak_db }}</b> dB peak</span>
+  <span><b>{{ analysis.rms_db }}</b> dB rms</span>
+  <span><b>{{ analysis.sub_pct }}</b>% sub</span>
+  <span title="spectral centroid: where the energy sits — higher is brighter"><b>{{ analysis.centroid }}</b> Hz bright</span>
+</div>

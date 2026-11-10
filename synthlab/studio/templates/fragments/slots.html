@@ -1,0 +1,100 @@
+{# synthlab/studio/templates/fragments/slots.html #}
+{# Perform's launcher grid (region `slots`; `StudioService.slots_context`,
+   loop-and-perform.md "Slots and scenes"): a column a lane — the four
+   layer slots, then the drums — and a row a scene. The head row names
+   each lane's sound (struck through while ▶ does not hear it); a row's ▶
+   launches the scene (Alt+1…8: one render, one undo step; a lane whose
+   slot there is empty stops), ⤓ keeps it as an idea (the Loops panel's
+   "ideas"), →§ makes it a section of the song; a slot's click
+   (or Space, or Enter while it is not selected) only SELECTS it — the
+   editor opens its lane (`/fragment/perform/slot/select`) — and its own ▶ (`.sl-go`), a double-click or Enter
+   on the selected slot launches its loop on its lane (the one already
+   playing is only selected); it drags
+   onto another (Ctrl copies), ✕ empties it; an empty slot's click
+   selects it (where ⏺ Rec lands; slots.js draws the selection,
+   `aria-selected`, per tab), its ＋ (`.sl-plus`) keeps what its lane
+   plays as a new loop there; the foot's ■ stops a
+   lane. The slot that plays is drawn `data-state="playing"` (it is the
+   loop open on its lane: edits on the grid save to it); one waiting for
+   its quantise point is slots.js's (`data-q`) until the switch. One tab
+   stop with a roving focus (slots.js). No named field (htmx.ajax sweeps
+   every named input): what a button posts is its hx-vals. #}
+{% set sl = slots %}
+<div id="slots" class="sl-grid" role="grid" aria-label="Launcher: lanes by scenes" style="--sl-lanes: {{ sl.lanes | length }}"
+     {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  <div class="sl-row sl-heads" role="row">
+    <span class="sl-corner caps" role="columnheader">scene</span>
+    {% for ln in sl.lanes %}
+    <span class="sl-lane{% if ln.stopped %} is-stopped{% endif %}{% if ln.edited %} is-edited{% endif %}" role="columnheader" data-lane="{{ ln.i }}"
+          title="{{ 'the drum lane' if ln.kind == 'beat' else 'lane ' ~ ln.label ~ (': ' ~ ln.sound if ln.sound else ': no sound yet') }}{{ ' — stopped' if ln.stopped else '' }}{{ ' — edited on the grid' if ln.edited else '' }}">{{ ln.label }}{% if ln.sound %} <small>{{ ln.sound }}</small>{% endif %}</span>
+    {% endfor %}
+    <span class="sl-corner" aria-hidden="true"></span>
+  </div>
+  {% for row in sl.rows %}
+  {% set r = row.i %}
+  <div class="sl-row{% if row.on %} is-on{% endif %}" role="row" data-row="{{ r }}">
+    <button type="button" class="btn btn-s sl-scene" hx-post="/fragment/perform/scene/launch" hx-swap="none"
+            hx-vals='{{ {"row": r} | tojson }}' {% if row.on %}data-state="on"{% endif %}{% if not row.filled %} disabled{% endif %}
+            data-cmd="Launch scene {{ r + 1 }}" data-cmd-group="Launch" data-keys="Alt+{{ r + 1 }}"
+            aria-label="launch scene {{ r + 1 }}{{ ' ' ~ row.name if row.name else '' }}"
+            title="{{ (row.name ~ ' — ') if row.name else '' }}launch every lane's slot of scene {{ r + 1 }} (Alt+{{ r + 1 }}): a lane with an empty slot here stops">▶ {{ r + 1 }}{% if row.name %} <small>{{ row.name }}</small>{% endif %}</button>
+    {% for c in row.cells %}
+    {% set lane = sl.lanes[c.lane] %}
+    {% set v = {"lane": c.lane, "row": r} | tojson %}
+    {#- (a slot's own launch selects it too: the editor opens its lane) -#}
+    {% set vs = {"lane": c.lane, "row": r, "select": "1"} | tojson %}
+    <div class="sl-cell" role="gridcell" data-lane="{{ c.lane }}" data-row="{{ r }}" data-kind="{{ lane.kind }}"
+         {% if c.name %}data-ctx="slot {{ c.title }}" data-loop="{{ c.name }}"{% endif %}{% if c.playing %} data-state="playing"{% endif %}>
+      {% if c.name %}
+      {#- a click selects (slots.js posts /fragment/perform/slot/select);
+          ▶, a double-click or Enter on the selected slot launches -#}
+      <button type="button" class="sl-slot{% if c.gone %} is-gone{% endif %}"
+              draggable="true" tabindex="-1" data-menu="Select the slot"
+              aria-label="{{ 'playing: ' if c.playing else '' }}{{ c.title }} on {{ 'the drums' if lane.kind == 'beat' else 'lane ' ~ lane.label }}"
+              title="{{ c.title }}{% if c.bars %} · {{ c.bars | plural('bar') }}{% endif %}{% if c.gone %} — gone from the Loops{% endif %} — click: select it (the editor opens its lane); ▶, a double-click or Enter (selected): launch it at the next quantise point{% if c.playing %} (it plays; edits on the grid save to it){% endif %}; drag onto a slot: move it (Ctrl copies){% if lane.kind != 'beat' %}. Selected, ⏺ Rec overdubs or replaces it (the Rec group's choice); ⟲ Capture lands in the lane's next empty slot{% endif %}">{{ c.title }}</button>
+      <button type="button" class="sl-go" hx-post="/fragment/perform/slot/launch" hx-swap="none" hx-vals='{{ vs }}' tabindex="-1"
+              data-menu="Launch" aria-label="launch {{ c.title }}"
+              title="▶ launch “{{ c.title }}” at the next quantise point (or double-click the slot, or Enter on it selected){% if c.playing %} — it plays: ▶ only selects it{% endif %}">▶</button>
+      <button type="button" class="sl-x" hx-post="/fragment/perform/slot/clear" hx-swap="none" hx-vals='{{ v }}' tabindex="-1"
+              data-menu="Empty the slot" aria-label="empty the slot of {{ c.title }}" title="empty this slot (the loop stays in the Loops; Ctrl+Z puts it back)">✕</button>
+      {% else %}
+      {#- an empty slot's click SELECTS it (slots.js: per tab) —
+          where ⏺ Rec, ⟲ Capture and the keys arp's print land; ＋ keeps
+          what its lane plays as a loop here -#}
+      <button type="button" class="sl-slot sl-empty" tabindex="-1" data-menu="Select the slot"
+              aria-label="empty slot, {{ 'the drums' if lane.kind == 'beat' else 'lane ' ~ lane.label }}, scene {{ r + 1 }}: select it"
+              title="{% if lane.kind == 'beat' %}an empty slot of the drums: drag a beat from the Loops panel here, or ＋ keep what the drum grid plays{% else %}select this slot: ⏺ Rec (Alt+R), ⟲ Capture (Alt+T) and the keys arp's print land here as a new loop that plays from it — or drag a loop from the Loops panel here{% endif %}"></button>
+      <button type="button" class="sl-plus" hx-post="/fragment/perform/slot/keep" hx-swap="none" hx-vals='{{ vs }}' tabindex="-1"
+              data-menu="Keep what the lane plays here"
+              aria-label="keep what {{ 'the drums play' if lane.kind == 'beat' else 'lane ' ~ lane.label ~ ' plays' }} as a loop here"
+              title="＋ keep what {{ 'the drum grid plays' if lane.kind == 'beat' else 'lane ' ~ lane.label ~ ' plays' }} as a loop in this slot">＋</button>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% if row.filled %}
+    <span class="sl-acts">
+    {#- →§: the scene into the song as a section -#}
+    <button type="button" class="btn btn-ghost btn-icon btn-s sl-song" hx-post="/fragment/perform/scene/song" hx-swap="none"
+            hx-vals='{{ {"row": r} | tojson }}' data-cmd="Scene {{ r + 1 }} → Song" data-cmd-group="Launch"
+            aria-label="scene {{ r + 1 }} into the song" title="this scene into the song as a section: each slot's loop a pattern on a track with its sound, its beat on the drums, the tempo, key and meter (Ctrl+Z on Song undoes it)">→§</button>
+    <button type="button" class="btn btn-ghost btn-icon btn-s sl-keep" hx-post="/fragment/perform/scene/keep" hx-swap="none"
+            hx-vals='{{ {"row": r} | tojson }}' hx-prompt="Name the idea (blank: {{ row.name or 'Idea' }})"
+            data-cmd="Keep scene {{ r + 1 }} as an idea" data-cmd-group="Launch"
+            aria-label="keep scene {{ r + 1 }} as an idea" title="keep this scene as an idea in the Loops panel: its slots, the tempo, key and meter">⤓</button>
+    </span>
+    {% else %}
+    <span class="sl-keep" aria-hidden="true"></span>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <div class="sl-row sl-stops" role="row">
+    <span class="sl-corner caps" role="rowheader">stop</span>
+    {% for ln in sl.lanes %}
+    <button type="button" class="btn btn-s btn-stop sl-stop" hx-post="/fragment/perform/slot/stop" hx-swap="none"
+            hx-vals='{{ {"lane": ln.i} | tojson }}' aria-pressed="{{ 'true' if ln.stopped else 'false' }}"
+            data-cmd="{{ 'Stop the drums' if ln.kind == 'beat' else 'Stop lane ' ~ ln.label }}" data-cmd-group="Launch"
+            title="■ stop {{ 'the drums' if ln.kind == 'beat' else 'lane ' ~ ln.label }} at the next quantise point (its notes stay: a slot plays it again){{ ' — stopped' if ln.stopped else '' }}">■</button>
+    {% endfor %}
+    <span class="sl-corner" aria-hidden="true"></span>
+  </div>
+</div>

@@ -1,0 +1,111 @@
+{# synthlab/studio/templates/fragments/agent_drawer.html #}
+{# The Sound agent drawer on Synths (studio/agent/, routes/agent.py). A
+   manual popover — top layer, so it needs no grid area and stays open
+   while the panels are used; opened from the sound bar's "Agent" button.
+   No script: every action is an htmx POST that answers with the whole page
+   (hx-target body, innerMorph — the panels, layer strip, FX racks and this
+   log all move), or a 422 toast. While a request is out the drawer carries
+   `htmx-request` (hx-indicator) and CSS shows the busy line and holds the
+   buttons. `hx-config` lifts htmx's 60 s default timeout above the
+   server's own turn deadline, so the server always answers first.
+   Context: `agent` (AgentService.view()). #}
+{% set a = agent %}
+<aside id="agent-drawer" class="agent-drawer drawer" popover="manual" aria-labelledby="agent-title">
+  <header class="ad-head">
+    <h2 id="agent-title" class="is-ai">✦ Sound agent</h2>
+    <span class="ad-budget" title="What this budget has spent on {{ a.model }}; it is kept across restarts. The $ figure is an estimate from the listed price of the model that answered (none for a model without one).">
+      {{ "{:,}".format(a.tokens_used) }} / {{ "{:,}".format(a.token_budget) }} tokens{% if a.cost %} · {{ a.cost }}{% endif %} · {{ a.turns_used }}/{{ a.turn_budget }} turns
+    </span>
+    {% if a.tokens_used or a.turns_used %}
+    <button type="button" class="btn btn-s ad-new-budget" hx-post="/fragment/agent/budget"
+            hx-target="body" hx-swap="innerMorph" hx-indicator="#agent-drawer"
+            hx-confirm="Start a new agent budget? The spent count goes back to zero; the log stays."
+            title="zero the tokens, turns and $ spent (the log stays)">New budget</button>
+    {% endif %}
+    <button type="button" class="btn btn-ghost btn-icon btn-s ad-pin" id="agent-pin" aria-pressed="false"
+            aria-label="dock the sound agent beside the page" title="dock beside the page (wide windows)"
+            >⇥</button>
+    <button type="button" class="btn btn-ghost btn-icon btn-s ad-close" popovertarget="agent-drawer" popovertargetaction="hide"
+            aria-label="close the sound agent">✕</button>
+  </header>
+
+  {% if not a.available %}
+  <p class="ad-setup" role="note"><strong>Sound agent unavailable.</strong> {{ a.reason }}</p>
+  {% endif %}
+
+  <ol class="ad-log" aria-label="agent turns">
+    {% for t in a.turns %}
+    <li class="ad-turn{% if t.error %} failed{% endif %}{% if t.undone %} undone{% endif %}">
+      <p class="ad-you">{{ t.request }}</p>
+      {% if t.reply %}<p class="ad-reply">{{ t.reply }}</p>{% endif %}
+      {% if t.error %}<p class="ad-error">{{ t.error }}{% if t.changes %} — its changes so far were kept{% endif %}</p>{% endif %}
+      {% if t.changes %}
+      <details class="ad-changes"{% if loop.last %} open{% endif %}>
+        <summary>What changed ({{ t.changes | length }})</summary>
+        <ul>{% for c in t.changes %}<li>{{ c }}</li>{% endfor %}</ul>
+      </details>
+      {% elif not t.error %}
+      <p class="ad-none">No changes.</p>
+      {% endif %}
+      {% if t.before and t.after and t.changes %}
+      <p class="ad-meter" title="measured on the loop ▶ plays, before and after this turn">
+        {{ t.before.centroid_hz }}→{{ t.after.centroid_hz }} Hz ·
+        width {{ "%.2f" | format(t.before.width) }}→{{ "%.2f" | format(t.after.width) }} ·
+        movement {{ "%.2f" | format(t.before.movement) }}→{{ "%.2f" | format(t.after.movement) }} ·
+        sub {{ t.before.sub_pct }}→{{ t.after.sub_pct }}%
+      </p>
+      {% endif %}
+      {% if t.checks %}
+      <p class="ad-checks">{% for c in t.checks %}<span class="ad-check {{ 'met' if c.met else 'missed' }}">{{ '✓' if c.met else '✗' }} {{ c.feature | replace('_hz', '') | replace('_', ' ') }} {{ c.want }}</span>{% endfor %}</p>
+      {% endif %}
+      {% if t.notes %}
+      <details class="ad-notes"><summary>Notes ({{ t.notes | length }})</summary>
+        <ul>{% for n in t.notes[:12] %}<li>{{ n }}</li>{% endfor %}</ul></details>
+      {% endif %}
+      {% if t.undone %}<p class="ad-undone">Undone</p>{% endif %}
+      <p class="ad-cost">{{ "{:,}".format(t.tokens) }} tokens{% if t.tokens_cached %} ({{ "{:,}".format(t.tokens_cached) }} cached){% endif %}{% if t.tokens and t.cost_usd is not none %} · {{ a.money(t.cost_usd) }}{% endif %} · {{ t.rounds }} round{{ '' if t.rounds == 1 else 's' }}</p>
+    </li>
+    {% else %}
+    <li class="ad-empty empty-state">Say what you want the sound to do — "darker and wider", "more movement", "festival supersaw lead". It edits the layer you are editing; each request is one undo step. {% include "fragments/empty_play.html" %}</li>
+    {% endfor %}
+  </ol>
+
+  {% if a.last and a.last.undoable %}
+  <div class="ad-actions" role="group" aria-label="the last agent turn">
+    <button type="button" class="btn btn-s" data-cmd="Sound agent: undo the last turn" hx-post="/fragment/agent/undo"
+            hx-target="body" hx-swap="innerMorph" hx-indicator="#agent-drawer"
+            title="put back everything the last turn changed (layers, FX, curves too)">↶ Undo turn</button>
+    <button type="button" class="btn btn-s" data-cmd="Sound agent: store before / after as A/B" hx-post="/fragment/agent/ab"
+            hx-target="body" hx-swap="innerMorph" hx-indicator="#agent-drawer"
+            title="before the last turn into A, after it into B — then flip with Compare">Store as A/B</button>
+    <form class="ad-apply" hx-post="/fragment/agent/apply" hx-target="body" hx-swap="innerMorph"
+          hx-indicator="#agent-drawer">
+      <label><span class="visually-hidden">apply the result to</span>
+        <select class="field field-s" name="target" aria-label="apply the result to">
+          <option value="new">a new layer</option>
+          {% for r in strip if not r.editing %}
+          <option value="{{ r.index + 1 }}">layer {{ r.index + 1 }}{% if r.empty %} (empty){% endif %}</option>
+          {% endfor %}
+        </select></label>
+      <button type="submit" class="btn btn-s"
+              title="move the result onto that layer and put this layer back as it was">Apply to layer</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="ad-chips" role="group" aria-label="quick requests">
+    {% for label, message in a.chips %}
+    <button type="button" class="btn btn-s chip" hx-post="/fragment/agent/turn" hx-vals='{"message": "{{ message }}"}'
+            hx-target="body" hx-swap="innerMorph" hx-indicator="#agent-drawer" hx-config='{"timeout": 120000}'
+            {% if not a.available %}disabled{% endif %}>{{ label }}</button>
+    {% endfor %}
+  </div>
+  <form class="ad-form" hx-post="/fragment/agent/turn" hx-target="body" hx-swap="innerMorph"
+        hx-indicator="#agent-drawer" hx-config='{"timeout": 120000}'>
+    <label class="ad-input"><span class="visually-hidden">ask the sound agent</span>
+      <input type="text" class="field" name="message" id="agent-message" maxlength="400" autocomplete="off" required
+             placeholder="{{ 'darker and wider, more movement…' if a.available else 'unavailable: no Gemini key (above)' }}" {% if not a.available %}disabled{% endif %}></label>
+    <button type="submit" class="btn btn-ai" {% if not a.available %}disabled{% endif %}>Send</button>
+  </form>
+  <p class="ad-busy" aria-hidden="true">Listening, changing, re-measuring… (up to a minute)</p>
+</aside>

@@ -1,0 +1,11 @@
+{# synthlab/studio/templates/fragments/bass_sub.html #}
+{# Synths' Sub spectrum module (`synths.sub`: every block on the
+   page moves): a module of its own beside the Bass check, not
+   a card in it. views/editor.html draws it waiting ("measuring"); the
+   Bass check's #bass-panels answer (fragments/bass_panels.html, `split`)
+   carries it out of band (`oob`), morphed by id wherever it stands. #}
+<section class="sub-module panel module" id="bass-sub" data-module="synths.sub" aria-label="Sub spectrum"
+         {%- if oob %} hx-swap-oob="outerMorph"{% endif %}>
+  <h3 class="caps module-head" title="the sub spectrum of what ▶ plays: 10 to 120 Hz">Sub spectrum <span class="summary-sub">10–120 Hz</span></h3>
+  {% if oob %}{% include "fragments/sub_plot.html" %}{% else %}<p class="skel" aria-hidden="true">measuring</p>{% endif %}
+</section>

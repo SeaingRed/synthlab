@@ -1,0 +1,11 @@
+{# synthlab/studio/templates/fragments/empty_start.html — the next step
+   that makes sound, for a page that has nothing on it yet (song creation:
+   an empty state is never a dead end). One click lays down a whole
+   song in the style used last — melodic techno the first time — and plays
+   it (POST /song/start; song.js follows `song-autoplay` to the Song page).
+   It asks first only when there is a song to replace. Included inside an
+   `.empty-state`; the same command wherever it appears. #}
+<button type="button" class="btn btn-s empty-start" data-cmd="Start a song" data-cmd-group="Song"
+        hx-post="/song/start" hx-swap="none"
+        {% if song_live | default(false) %}hx-confirm="Replace the song with a new starter? Ctrl+Z on the Song page brings back the song you had before the starters."{% endif %}
+        title="Lay down a whole song in the style used last (melodic techno the first time) and play it: tracks, sections, a chord track. Ctrl+Z on the Song page takes it back">▶ Start a song</button>

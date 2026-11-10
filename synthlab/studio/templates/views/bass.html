@@ -1,0 +1,45 @@
+{# synthlab/studio/templates/views/bass.html
+   Two columns: the bench (the audition keys, the last render's read-outs,
+   then the mono and phone cards of #bass-panels) and the sub spectrum,
+   which takes the rest of the window. #bass-panels is `display: contents`
+   on a desktop window, so its three cards are cells of the page's own
+   grid (style.css section 17); it is still one element to swap. #}
+<main class="cockpit bass-view" id="view" hx-history-elt data-view="bass">
+  {#- (a page of its own, not folded into Synths' Bass check —
+      its quick keys move THIS view's render down to a low root
+      (`render_inputs("bass")`), which Synths' ▶ and its meters never
+      play; so the page got the bench's ▶ (Space), the root in force shown
+      pressed, and its name: Synths' "Bass check", which links here) -#}
+  <header class="view-head">
+    <h1>Bass check</h1>
+    <p class="view-sub">Will it translate? Sub weight, mono safety, phone survival.</p>
+    <div id="head-how" class="pop head-how" popover><p class="view-how">Play the low keys and watch the meters — green means it translates. The keys audition the current sound at low roots, where subs live or die.</p></div>
+    <div class="head-tools">{% include "fragments/head_help.html" %}{% include "fragments/reset_menu.html" %}</div>
+  </header>
+  {% set at = bass_root or arrangement.root %}
+  <div class="bass-keys module" data-module="bass.keys">
+    {#- ▶ / Space: the phrase at the root in force, as the keys left it
+        (the page's own render: audio.js plays it, transport.js names it) -#}
+    <div class="bass-play">
+    <button data-cmd="Play / stop the phrase at the bass root" data-cmd-group="Transport" data-keys="Space" type="button" id="play"
+            class="btn btn-play btn-toggle btn-icon btn-l play" aria-pressed="false"
+            data-player="loop" data-plays="the phrase at {{ at }}" aria-label="play or stop the phrase at {{ at }}">▶</button>
+    <output class="play-cue" data-cue-for="play">the phrase at {{ at }}</output>
+    </div>
+    <span class="quickkeys-hint caps" title="Audition the current sound at low roots — where subs live or die.">Audition at</span>
+    <div class="quickkeys" role="group" aria-label="Low-pitch quick keys">
+      {% for r in bass_roots %}
+      <button type="button" class="btn" hx-post="/fragment/bass/key" hx-swap="none" aria-pressed="{{ 'true' if r == at else 'false' }}"
+              hx-vals='{"root": "{{ r }}"}' data-cmd="Audition the sound at {{ r }}" data-cmd-group="Bass"
+              title="play the phrase with {{ r }} as its root">{{ r }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="bass-read module" data-module="bass.read">
+    <span class="caps" title="level, sub weight and brightness of the last render">Last render</span>
+    <div id="analysis" class="readouts" hidden></div>
+    <span class="ro-empty">press a key to measure level, sub weight and brightness</span>
+  </div>
+  <section id="bass-panels" aria-label="Bass panels"
+           hx-get="/fragment/bass" hx-trigger="load, preview-ready from:body" hx-swap="outerHTML"><p class="skel" aria-hidden="true">measuring</p></section>
+</main>

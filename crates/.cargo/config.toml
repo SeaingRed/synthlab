@@ -1,0 +1,6 @@
+# x86 builds assume AVX2/FMA: build for
+# x86-64-v3 so the kernels' loops vectorize 4 doubles wide. The extension
+# is built on each machine by `uv sync` and never shipped elsewhere. ARM64
+# needs nothing here: NEON is its baseline.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-cpu=x86-64-v3"]

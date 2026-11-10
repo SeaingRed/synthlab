@@ -1,0 +1,35 @@
+{# synthlab/studio/templates/fragments/curve.html #}
+{# Loaded into the .curve-slot under the row whose ⤳ was pressed
+   (param_row.html), so every action targets that slot, not an id. #}
+<div class="curve-box" id="curve-{{ param }}">
+  <h3>{{ label or param }} over each note
+    <button type="button" class="btn btn-ghost btn-s" hx-post="/fragment/curve/{{ param }}/clear"
+            hx-target="closest .curve-slot" hx-swap="innerHTML"
+            title="remove this automation curve">Clear</button>
+    <button type="button" class="btn btn-ghost btn-s" hx-get="/fragment/curve-close"
+            hx-target="closest .curve-slot" hx-swap="innerHTML"
+            aria-label="close the {{ label or param }} curve">Done</button>
+  </h3>
+  {# x/y/w/h come from the click event's offset + the element's own size —
+     audio.js's htmx:config:request listener fills them in (CSP's
+     script-src 'self' blocks htmx4's js: hx-vals, which ran this through
+     Function()) #}
+  <div class="curve-click" hx-post="/fragment/curve/{{ param }}"
+       hx-target="closest .curve-slot" hx-swap="innerHTML"
+       hx-trigger="click" role="img" aria-label="{{ label or param }} automation curve — click to add or remove a point"
+       title="Start of the note on the left, end on the right. Click to add a point, click a point to remove it.">
+    {{ svg | safe }}
+  </div>
+  {# keyboard path: the same endpoint, the point given as percentages #}
+  {# form="…" names no form, so these fields are not #patch's: a patch post
+     never carries them, and with two curves open neither's add/remove picks
+     up the other's point (hx-include takes only this .curve-add) #}
+  <div class="curve-add">
+    <label>time % <input class="field field-s" type="number" name="x" min="0" max="100" value="50" form="curve-{{ param }}-point"></label>
+    <label>value % <input class="field field-s" type="number" name="yv" min="0" max="100" value="50" form="curve-{{ param }}-point"></label>
+    <input type="hidden" name="y" value="50" form="curve-{{ param }}-point">
+    <button type="button" class="btn btn-s" hx-post="/fragment/curve/{{ param }}"
+            hx-include="closest .curve-add" hx-vals='{"w": 100, "h": 100}'
+            hx-target="closest .curve-slot" hx-swap="innerHTML">add / remove point</button>
+  </div>
+</div>

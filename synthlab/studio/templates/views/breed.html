@@ -1,0 +1,72 @@
+{# synthlab/studio/templates/views/breed.html
+   The board beside a rack: the eight cards tile the window (4 x 2 from
+   about 1100 px, style.css section 19), and what steers the next
+   generation — the parents, wildness and depth, the nine directions, the
+   history — is docked down the left instead of stacked above the cards.
+   ONE primary on the page: "Breed next generation". A card's Use is a
+   plain button (eight orange ones competed with it). #}
+<main class="cockpit breed-view" id="view" hx-history-elt data-view="breed">
+  <header class="view-head">
+    <h1>Breed</h1>
+    <p class="view-sub">Steer generations of offspring toward a sound you love.</p>
+    <div id="head-how" class="pop head-how" popover><p class="view-how">Tap a card to hear the sound on its own; ⟳ loops it in your mix, exactly as it will sound on Synths; ★ makes it a parent of the next generation; Use on Synths takes it there. With depth set to layered or deep a card is a whole sound — layers that play the main lane's notes, effects, curves — and Use offers it with its layers or the main sound alone. The meters on a card are measured on one A3 note: sub weight and the spectral centre. Right-click a card for its menu.</p></div>
+    <div class="head-tools">{% include "fragments/head_help.html" %}{% include "fragments/reset_menu.html" %}</div>
+  </header>
+  <aside class="breed-rack module" aria-label="Breeding controls" data-module="breed.rack" data-cmd-group="Breed">
+    <section class="rack-sec">
+      <h2 class="caps">Parents</h2>
+      {% include "fragments/breed_parent.html" %}
+      {# the signal path of a generation, as the patch it is: what goes in,
+         what it passes through, what comes out. Amber: control, not audio. #}
+      <div class="breed-path" aria-hidden="true">
+        <span class="bp-node"><span class="jack" data-plugged></span><span class="caps">parent</span></span>
+        <svg class="cable" data-signal="mod" viewBox="0 0 24 18" preserveAspectRatio="none"><path d="M2 4C7 15 17 15 22 4"/></svg>
+        <span class="bp-node"><span class="jack" data-plugged></span><span class="caps">stray</span></span>
+        <svg class="cable" data-signal="mod" viewBox="0 0 24 18" preserveAspectRatio="none"><path d="M2 4C7 15 17 15 22 4"/></svg>
+        <span class="bp-node"><span class="jack" data-plugged></span><span class="caps">depth</span></span>
+        <svg class="cable" data-signal="mod" viewBox="0 0 24 18" preserveAspectRatio="none"><path d="M2 4C7 15 17 15 22 4"/></svg>
+        <span class="bp-node"><span class="jack" data-plugged></span><span class="caps">8 cards</span></span>
+      </div>
+    </section>
+    <section class="rack-sec">
+      <h2 class="caps">Steer</h2>
+      <label class="wildness"><span class="caps">wildness</span>
+        <select class="field field-s" id="wildness" name="wildness" aria-label="how far each generation strays"
+                data-cmd="Set breeding wildness"
+                hx-post="/fragment/breed/wildness" hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+          {% for w, hint in [("tame", "small nudges"), ("normal", "jumps + crosses"), ("wild", "two jumps, big drifts"), ("feral", "anything goes")] %}
+          <option value="{{ w }}" {% if breed_wildness == w %}selected{% endif %}>{{ w }} · {{ hint }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="wildness"><span class="caps">depth</span>
+        <select class="field field-s" id="depth" name="depth" aria-label="how much of a sound each generation breeds"
+                data-cmd="Set breeding depth"
+                hx-post="/fragment/breed/depth" hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+          {% for d, hint in [("single", "one patch"), ("layered", "+ a layer, FX"), ("deep", "layers, FX, curves")] %}
+          <option value="{{ d }}" {% if breed_depth == d %}selected{% endif %}>{{ d }} · {{ hint }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button data-cmd="Breed the next generation" class="btn btn-primary breed-go" hx-post="/fragment/breed/generation" hx-include="#wildness, #depth"
+              hx-target="#breed-board" hx-swap="outerHTML" hx-indicator="#breed-board"
+              title="20 candidates, the 8 most different">Breed next generation</button>
+    </section>
+    <section class="rack-sec">
+      <h2 class="caps" title="the next generation, leaning one way">Direction</h2>
+      <div class="breed-dirs">
+        {% for d, label, hint in [("more_sub", "More sub", "weightier lows"), ("darker", "Darker", "duller top"), ("brighter", "Brighter", "more sparkle"), ("grittier", "Grittier", "more distortion"), ("cleaner", "Cleaner", "less noise"), ("melodic_techno", "Melodic techno", "wide, moving, echoes"), ("garage", "Garage", "warm, narrow, sub"), ("filter_house", "Filter house", "short, bright, phased"), ("trance", "Trance", "wide, dense, moving"), ("electro", "Electro", "noisy, moving, driven"), ("industrial", "Industrial", "spiky, narrow, gritty"), ("psych", "Psych", "low mids, phased, short"), ("sixties", "Sixties", "dry, mono, tape")] %}
+        <button class="btn btn-s" data-cmd="Breed a generation: {{ label | lower }}" title="the next generation, leaning {{ hint }}"
+                hx-post="/fragment/breed/generation" hx-vals='{"direction": "{{ d }}"}' hx-include="#wildness, #depth"
+                hx-target="#breed-board" hx-swap="outerHTML" hx-indicator="#breed-board">{{ label }} <small>{{ hint }}</small></button>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="rack-sec rack-history">
+      <h2 class="caps">History</h2>
+      {% include "fragments/gen_strip.html" %}
+    </section>
+  </aside>
+  {% include "fragments/breed_board.html" %}
+  <div id="analysis" class="readouts" hidden></div>
+</main>

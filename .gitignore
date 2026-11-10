@@ -1,0 +1,26 @@
+__pycache__/
+*.pyc
+.venv/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+out*.wav
+*.wav
+!tests/fixtures/*.wav
+*.jsonl
+bred_bass.json
+studio_data/
+.playwright-mcp/
+studio-*.png
+
+# local secrets (Gemini API key for the sound agent) - never commit
+.env
+node_modules/
+# Rust build output (crates/)
+crates/target/
+
+# editor settings stay per machine
+.vscode/
+# GSAP is fetched from npm on first launch, never committed (studio/vendor.py)
+synthlab/studio/static/gsap.min.js

@@ -1,0 +1,1219 @@
+{
+  "v": 2,
+  "patch": {
+    "name": "init",
+    "osc1": "saw",
+    "osc1_level": 0.8,
+    "osc1_octave": 0,
+    "osc1_detune": 0.0,
+    "osc2": null,
+    "osc2_level": 0.5,
+    "osc2_octave": -1,
+    "osc2_detune": 7.0,
+    "sub_level": 0.0,
+    "noise_level": 0.0,
+    "noise_color": "white",
+    "filter_type": "ladder",
+    "cutoff": 2200.0,
+    "resonance": 0.25,
+    "filter_env": 2500.0,
+    "filter_attack": 0.005,
+    "filter_decay": 0.25,
+    "filter_sustain": 0.3,
+    "filter_release": 0.2,
+    "key_track": 0.35,
+    "attack": 0.01,
+    "decay": 0.18,
+    "sustain": 0.7,
+    "release": 0.25,
+    "env_curve": 2.0,
+    "vibrato_rate": 5.0,
+    "vibrato_depth": 0.0,
+    "vibrato_delay": 0.25,
+    "pwm_rate": 0.3,
+    "pwm_depth": 0.0,
+    "tremolo_rate": 0.0,
+    "tremolo_depth": 0.0,
+    "filter_lfo_rate": 0.5,
+    "filter_lfo_depth": 0.0,
+    "filter_lfo_shape": "sine",
+    "filter_lfo_sync": "off",
+    "pitch_env": 0.0,
+    "pitch_env_decay": 0.15,
+    "fm_amount": 0.0,
+    "ring_mod": 0.0,
+    "fm_ratio": 2.0,
+    "fm_index": 2.0,
+    "fm_decay": 0.0,
+    "pluck_damping": 0.5,
+    "pluck_bright": 0.9,
+    "wt_table": "basic",
+    "wt_pos": 0.0,
+    "formant_amount": 0.0,
+    "formant_vowel": 0.0,
+    "formant_size": 1.0,
+    "mod_lfo_rate": 1.0,
+    "lfo_shape": "sine",
+    "lfo_sync": "off",
+    "mod1_src": "none",
+    "mod1_dst": "cutoff",
+    "mod1_amt": 0.0,
+    "mod2_src": "none",
+    "mod2_dst": "resonance",
+    "mod2_amt": 0.0,
+    "mod3_src": "none",
+    "mod3_dst": "drive",
+    "mod3_amt": 0.0,
+    "mod4_src": "none",
+    "mod4_dst": "filter_lfo_depth",
+    "mod4_amt": 0.0,
+    "drive": 1.0,
+    "glide": 0.0,
+    "unison": 1,
+    "unison_detune": 12.0,
+    "unison_spread": 0.7
+  },
+  "arrangement": {
+    "bpm": 124.0,
+    "root": "A1",
+    "scale_name": "pentatonic_minor",
+    "bars": 1,
+    "steps_per_bar": 4,
+    "swing": 0.0,
+    "arp_mode": "off",
+    "arp_octaves": 1,
+    "cells": [
+      [
+        "A1",
+        0
+      ],
+      [
+        "A1",
+        2
+      ]
+    ],
+    "velocities": {},
+    "slides": [],
+    "drums": [
+      [
+        "kick",
+        0
+      ],
+      [
+        "snare",
+        4
+      ],
+      [
+        "kick",
+        16
+      ],
+      [
+        "snare",
+        20
+      ]
+    ],
+    "drum_params": {},
+    "drum_bars": 2,
+    "drum_steps": 16,
+    "drum_swing": 0.0,
+    "drum_humanize": 0.0,
+    "drum_vel": {},
+    "drum_samples": {
+      "snare": "vox"
+    },
+    "drum_mix": {},
+    "clips": [
+      {
+        "clip": "outro",
+        "at_bar": 0,
+        "gain": 1.0
+      }
+    ]
+  },
+  "slot_a": null,
+  "slot_b": null,
+  "slot_prev": null,
+  "curves": {},
+  "breed_tiles": [],
+  "breed_starred": [],
+  "breed_history": [],
+  "breed_wildness": "normal",
+  "audition": "hold",
+  "vs_beat": false,
+  "macros": [
+    {
+      "name": "Macro 1",
+      "value": 0.0,
+      "targets": []
+    },
+    {
+      "name": "Macro 2",
+      "value": 0.0,
+      "targets": []
+    },
+    {
+      "name": "Macro 3",
+      "value": 0.0,
+      "targets": []
+    },
+    {
+      "name": "Macro 4",
+      "value": 0.0,
+      "targets": []
+    }
+  ],
+  "fx_drums": [],
+  "perform_parts": [
+    "synth",
+    "drums"
+  ],
+  "baselines": {
+    "sound": {
+      "label": "as opened",
+      "data": {
+        "patch": {
+          "name": "init",
+          "osc1": "saw",
+          "osc1_level": 0.8,
+          "osc1_octave": 0,
+          "osc1_detune": 0.0,
+          "osc2": null,
+          "osc2_level": 0.5,
+          "osc2_octave": -1,
+          "osc2_detune": 7.0,
+          "sub_level": 0.0,
+          "noise_level": 0.0,
+          "noise_color": "white",
+          "filter_type": "ladder",
+          "cutoff": 2200.0,
+          "resonance": 0.25,
+          "filter_env": 2500.0,
+          "filter_attack": 0.005,
+          "filter_decay": 0.25,
+          "filter_sustain": 0.3,
+          "filter_release": 0.2,
+          "key_track": 0.35,
+          "attack": 0.01,
+          "decay": 0.18,
+          "sustain": 0.7,
+          "release": 0.25,
+          "env_curve": 2.0,
+          "vibrato_rate": 5.0,
+          "vibrato_depth": 0.0,
+          "vibrato_delay": 0.25,
+          "pwm_rate": 0.3,
+          "pwm_depth": 0.0,
+          "tremolo_rate": 0.0,
+          "tremolo_depth": 0.0,
+          "filter_lfo_rate": 0.5,
+          "filter_lfo_depth": 0.0,
+          "filter_lfo_shape": "sine",
+          "filter_lfo_sync": "off",
+          "pitch_env": 0.0,
+          "pitch_env_decay": 0.15,
+          "fm_amount": 0.0,
+          "ring_mod": 0.0,
+          "fm_ratio": 2.0,
+          "fm_index": 2.0,
+          "fm_decay": 0.0,
+          "pluck_damping": 0.5,
+          "pluck_bright": 0.9,
+          "wt_table": "basic",
+          "wt_pos": 0.0,
+          "formant_amount": 0.0,
+          "formant_vowel": 0.0,
+          "formant_size": 1.0,
+          "mod_lfo_rate": 1.0,
+          "lfo_shape": "sine",
+          "lfo_sync": "off",
+          "mod1_src": "none",
+          "mod1_dst": "cutoff",
+          "mod1_amt": 0.0,
+          "mod2_src": "none",
+          "mod2_dst": "resonance",
+          "mod2_amt": 0.0,
+          "mod3_src": "none",
+          "mod3_dst": "drive",
+          "mod3_amt": 0.0,
+          "mod4_src": "none",
+          "mod4_dst": "filter_lfo_depth",
+          "mod4_amt": 0.0,
+          "drive": 1.0,
+          "glide": 0.0,
+          "unison": 1,
+          "unison_detune": 12.0,
+          "unison_spread": 0.7
+        },
+        "curves": {}
+      }
+    },
+    "sequence": {
+      "label": "as opened",
+      "data": {
+        "arr.cells": [
+          [
+            "A1",
+            0
+          ],
+          [
+            "A1",
+            2
+          ]
+        ],
+        "arr.velocities": {},
+        "arr.slides": [],
+        "arr.bars": 1,
+        "arr.steps_per_bar": 4,
+        "arr.swing": 0.0,
+        "arr.root": "A1",
+        "arr.scale_name": "pentatonic_minor",
+        "arr.arp_mode": "off",
+        "arr.arp_octaves": 1
+      }
+    },
+    "fx": {
+      "label": "as opened",
+      "data": {
+        "layer_fx": [],
+        "state.fx_master": []
+      }
+    },
+    "kit": {
+      "label": "as opened",
+      "data": {
+        "arr.drum_params": {},
+        "arr.drum_mix": {}
+      }
+    },
+    "pattern": {
+      "label": "as opened",
+      "data": {
+        "arr.drums": [],
+        "arr.drum_vel": {},
+        "arr.drum_bars": 1,
+        "arr.drum_steps": 16,
+        "arr.drum_swing": 0.0,
+        "arr.drum_humanize": 0.0
+      }
+    },
+    "fx_drums": {
+      "label": "as opened",
+      "data": {
+        "state.fx_drums": []
+      }
+    },
+    "macros": {
+      "label": "as opened",
+      "data": {
+        "state.macros": [
+          {
+            "name": "Macro 1",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 2",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 3",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 4",
+            "value": 0.0,
+            "targets": []
+          }
+        ]
+      }
+    },
+    "board": {
+      "label": "as opened",
+      "data": {
+        "state.breed_tiles": [],
+        "state.breed_starred": [],
+        "state.breed_history": []
+      }
+    },
+    "perform": {
+      "label": "as opened",
+      "data": {
+        "state.perform_parts": [
+          "synth",
+          "drums"
+        ]
+      }
+    }
+  },
+  "xy_axes": [
+    "cutoff",
+    "resonance"
+  ],
+  "xy_gesture": [],
+  "layers": [
+    {
+      "patch": {
+        "name": "init",
+        "osc1": "saw",
+        "osc1_level": 0.8,
+        "osc1_octave": 0,
+        "osc1_detune": 0.0,
+        "osc2": null,
+        "osc2_level": 0.5,
+        "osc2_octave": -1,
+        "osc2_detune": 7.0,
+        "sub_level": 0.0,
+        "noise_level": 0.0,
+        "noise_color": "white",
+        "filter_type": "ladder",
+        "cutoff": 2200.0,
+        "resonance": 0.25,
+        "filter_env": 2500.0,
+        "filter_attack": 0.005,
+        "filter_decay": 0.25,
+        "filter_sustain": 0.3,
+        "filter_release": 0.2,
+        "key_track": 0.35,
+        "attack": 0.01,
+        "decay": 0.18,
+        "sustain": 0.7,
+        "release": 0.25,
+        "env_curve": 2.0,
+        "vibrato_rate": 5.0,
+        "vibrato_depth": 0.0,
+        "vibrato_delay": 0.25,
+        "pwm_rate": 0.3,
+        "pwm_depth": 0.0,
+        "tremolo_rate": 0.0,
+        "tremolo_depth": 0.0,
+        "filter_lfo_rate": 0.5,
+        "filter_lfo_depth": 0.0,
+        "filter_lfo_shape": "sine",
+        "filter_lfo_sync": "off",
+        "pitch_env": 0.0,
+        "pitch_env_decay": 0.15,
+        "fm_amount": 0.0,
+        "ring_mod": 0.0,
+        "fm_ratio": 2.0,
+        "fm_index": 2.0,
+        "fm_decay": 0.0,
+        "pluck_damping": 0.5,
+        "pluck_bright": 0.9,
+        "wt_table": "basic",
+        "wt_pos": 0.0,
+        "formant_amount": 0.0,
+        "formant_vowel": 0.0,
+        "formant_size": 1.0,
+        "mod_lfo_rate": 1.0,
+        "lfo_shape": "sine",
+        "lfo_sync": "off",
+        "mod1_src": "none",
+        "mod1_dst": "cutoff",
+        "mod1_amt": 0.0,
+        "mod2_src": "none",
+        "mod2_dst": "resonance",
+        "mod2_amt": 0.0,
+        "mod3_src": "none",
+        "mod3_dst": "drive",
+        "mod3_amt": 0.0,
+        "mod4_src": "none",
+        "mod4_dst": "filter_lfo_depth",
+        "mod4_amt": 0.0,
+        "drive": 1.0,
+        "glide": 0.0,
+        "unison": 1,
+        "unison_detune": 12.0,
+        "unison_spread": 0.7
+      },
+      "cells": [
+        [
+          "A1",
+          0
+        ],
+        [
+          "A1",
+          2
+        ]
+      ],
+      "muted": false,
+      "gain": 1.0,
+      "fx": []
+    },
+    {
+      "patch": null,
+      "cells": [],
+      "muted": false,
+      "gain": 1.0,
+      "fx": []
+    },
+    {
+      "patch": null,
+      "cells": [],
+      "muted": false,
+      "gain": 1.0,
+      "fx": []
+    }
+  ],
+  "active_layer": 0,
+  "fx_master": [],
+  "scenes": [
+    {
+      "name": "build",
+      "patch": {
+        "name": "init",
+        "osc1": "saw",
+        "osc1_level": 0.8,
+        "osc1_octave": 0,
+        "osc1_detune": 0.0,
+        "osc2": null,
+        "osc2_level": 0.5,
+        "osc2_octave": -1,
+        "osc2_detune": 7.0,
+        "sub_level": 0.0,
+        "noise_level": 0.0,
+        "noise_color": "white",
+        "filter_type": "ladder",
+        "cutoff": 2200.0,
+        "resonance": 0.25,
+        "filter_env": 2500.0,
+        "filter_attack": 0.005,
+        "filter_decay": 0.25,
+        "filter_sustain": 0.3,
+        "filter_release": 0.2,
+        "key_track": 0.35,
+        "attack": 0.01,
+        "decay": 0.18,
+        "sustain": 0.7,
+        "release": 0.25,
+        "env_curve": 2.0,
+        "vibrato_rate": 5.0,
+        "vibrato_depth": 0.0,
+        "vibrato_delay": 0.25,
+        "pwm_rate": 0.3,
+        "pwm_depth": 0.0,
+        "tremolo_rate": 0.0,
+        "tremolo_depth": 0.0,
+        "filter_lfo_rate": 0.5,
+        "filter_lfo_depth": 0.0,
+        "filter_lfo_shape": "sine",
+        "filter_lfo_sync": "off",
+        "pitch_env": 0.0,
+        "pitch_env_decay": 0.15,
+        "fm_amount": 0.0,
+        "ring_mod": 0.0,
+        "fm_ratio": 2.0,
+        "fm_index": 2.0,
+        "fm_decay": 0.0,
+        "pluck_damping": 0.5,
+        "pluck_bright": 0.9,
+        "wt_table": "basic",
+        "wt_pos": 0.0,
+        "formant_amount": 0.0,
+        "formant_vowel": 0.0,
+        "formant_size": 1.0,
+        "mod_lfo_rate": 1.0,
+        "lfo_shape": "sine",
+        "lfo_sync": "off",
+        "mod1_src": "none",
+        "mod1_dst": "cutoff",
+        "mod1_amt": 0.0,
+        "mod2_src": "none",
+        "mod2_dst": "resonance",
+        "mod2_amt": 0.0,
+        "mod3_src": "none",
+        "mod3_dst": "drive",
+        "mod3_amt": 0.0,
+        "mod4_src": "none",
+        "mod4_dst": "filter_lfo_depth",
+        "mod4_amt": 0.0,
+        "drive": 1.0,
+        "glide": 0.0,
+        "unison": 1,
+        "unison_detune": 12.0,
+        "unison_spread": 0.7
+      },
+      "arr": {
+        "bpm": 124.0,
+        "root": "A1",
+        "scale_name": "pentatonic_minor",
+        "bars": 1,
+        "steps_per_bar": 4,
+        "swing": 0.0,
+        "arp_mode": "off",
+        "arp_octaves": 1,
+        "cells": [
+          [
+            "A1",
+            0
+          ],
+          [
+            "A1",
+            2
+          ]
+        ],
+        "velocities": {},
+        "slides": [],
+        "drums": [
+          [
+            "kick",
+            0
+          ],
+          [
+            "snare",
+            4
+          ],
+          [
+            "kick",
+            16
+          ],
+          [
+            "snare",
+            20
+          ]
+        ],
+        "drum_params": {},
+        "drum_bars": 2,
+        "drum_steps": 16,
+        "drum_swing": 0.0,
+        "drum_humanize": 0.0,
+        "drum_vel": {},
+        "drum_samples": {
+          "snare": "vox"
+        },
+        "drum_mix": {},
+        "clips": [
+          {
+            "clip": "riser",
+            "at_bar": 1,
+            "gain": 0.8
+          }
+        ]
+      },
+      "curves": {},
+      "layers": [],
+      "main_muted": false,
+      "main_fx": [],
+      "master_fx": [],
+      "fx_drums": []
+    },
+    {
+      "name": "drop",
+      "patch": {
+        "name": "init",
+        "osc1": "saw",
+        "osc1_level": 0.8,
+        "osc1_octave": 0,
+        "osc1_detune": 0.0,
+        "osc2": null,
+        "osc2_level": 0.5,
+        "osc2_octave": -1,
+        "osc2_detune": 7.0,
+        "sub_level": 0.0,
+        "noise_level": 0.0,
+        "noise_color": "white",
+        "filter_type": "ladder",
+        "cutoff": 2200.0,
+        "resonance": 0.25,
+        "filter_env": 2500.0,
+        "filter_attack": 0.005,
+        "filter_decay": 0.25,
+        "filter_sustain": 0.3,
+        "filter_release": 0.2,
+        "key_track": 0.35,
+        "attack": 0.01,
+        "decay": 0.18,
+        "sustain": 0.7,
+        "release": 0.25,
+        "env_curve": 2.0,
+        "vibrato_rate": 5.0,
+        "vibrato_depth": 0.0,
+        "vibrato_delay": 0.25,
+        "pwm_rate": 0.3,
+        "pwm_depth": 0.0,
+        "tremolo_rate": 0.0,
+        "tremolo_depth": 0.0,
+        "filter_lfo_rate": 0.5,
+        "filter_lfo_depth": 0.0,
+        "filter_lfo_shape": "sine",
+        "filter_lfo_sync": "off",
+        "pitch_env": 0.0,
+        "pitch_env_decay": 0.15,
+        "fm_amount": 0.0,
+        "ring_mod": 0.0,
+        "fm_ratio": 2.0,
+        "fm_index": 2.0,
+        "fm_decay": 0.0,
+        "pluck_damping": 0.5,
+        "pluck_bright": 0.9,
+        "wt_table": "basic",
+        "wt_pos": 0.0,
+        "formant_amount": 0.0,
+        "formant_vowel": 0.0,
+        "formant_size": 1.0,
+        "mod_lfo_rate": 1.0,
+        "lfo_shape": "sine",
+        "lfo_sync": "off",
+        "mod1_src": "none",
+        "mod1_dst": "cutoff",
+        "mod1_amt": 0.0,
+        "mod2_src": "none",
+        "mod2_dst": "resonance",
+        "mod2_amt": 0.0,
+        "mod3_src": "none",
+        "mod3_dst": "drive",
+        "mod3_amt": 0.0,
+        "mod4_src": "none",
+        "mod4_dst": "filter_lfo_depth",
+        "mod4_amt": 0.0,
+        "drive": 1.0,
+        "glide": 0.0,
+        "unison": 1,
+        "unison_detune": 12.0,
+        "unison_spread": 0.7
+      },
+      "arr": {
+        "bpm": 124.0,
+        "root": "A1",
+        "scale_name": "pentatonic_minor",
+        "bars": 1,
+        "steps_per_bar": 4,
+        "swing": 0.0,
+        "arp_mode": "off",
+        "arp_octaves": 1,
+        "cells": [
+          [
+            "A1",
+            0
+          ],
+          [
+            "A1",
+            2
+          ]
+        ],
+        "velocities": {},
+        "slides": [],
+        "drums": [
+          [
+            "kick",
+            0
+          ],
+          [
+            "snare",
+            4
+          ],
+          [
+            "kick",
+            16
+          ],
+          [
+            "snare",
+            20
+          ]
+        ],
+        "drum_params": {},
+        "drum_bars": 2,
+        "drum_steps": 16,
+        "drum_swing": 0.0,
+        "drum_humanize": 0.0,
+        "drum_vel": {},
+        "drum_samples": {
+          "snare": "vox"
+        },
+        "drum_mix": {},
+        "clips": [
+          {
+            "clip": "vox",
+            "at_bar": 0,
+            "gain": 1.0
+          },
+          {
+            "clip": "riser",
+            "at_bar": 1,
+            "gain": 1.2
+          }
+        ]
+      },
+      "curves": {},
+      "layers": [],
+      "main_muted": false,
+      "main_fx": [],
+      "master_fx": [],
+      "fx_drums": []
+    }
+  ],
+  "song": [
+    {
+      "scene": 0,
+      "repeats": 1
+    },
+    {
+      "scene": 1,
+      "repeats": 1
+    }
+  ],
+  "drum_bank": [
+    {
+      "name": "House",
+      "steps": [
+        [
+          "clap",
+          4
+        ],
+        [
+          "clap",
+          12
+        ],
+        [
+          "hat",
+          2
+        ],
+        [
+          "hat",
+          6
+        ],
+        [
+          "hat",
+          10
+        ],
+        [
+          "hat",
+          14
+        ],
+        [
+          "kick",
+          0
+        ],
+        [
+          "kick",
+          4
+        ],
+        [
+          "kick",
+          8
+        ],
+        [
+          "kick",
+          12
+        ]
+      ],
+      "bars": 1,
+      "steps_per_bar": 16,
+      "swing": 0.0
+    },
+    {
+      "name": "Deep",
+      "steps": [
+        [
+          "clap",
+          4
+        ],
+        [
+          "clap",
+          12
+        ],
+        [
+          "hat",
+          2
+        ],
+        [
+          "hat",
+          6
+        ],
+        [
+          "hat",
+          10
+        ],
+        [
+          "hat",
+          12
+        ],
+        [
+          "hat",
+          14
+        ],
+        [
+          "kick",
+          0
+        ],
+        [
+          "kick",
+          4
+        ],
+        [
+          "kick",
+          8
+        ],
+        [
+          "kick",
+          12
+        ],
+        [
+          "snare",
+          15
+        ]
+      ],
+      "bars": 1,
+      "steps_per_bar": 16,
+      "swing": 0.0
+    },
+    {
+      "name": "Techno",
+      "steps": [
+        [
+          "clap",
+          4
+        ],
+        [
+          "clap",
+          12
+        ],
+        [
+          "hat",
+          0
+        ],
+        [
+          "hat",
+          1
+        ],
+        [
+          "hat",
+          2
+        ],
+        [
+          "hat",
+          3
+        ],
+        [
+          "hat",
+          4
+        ],
+        [
+          "hat",
+          5
+        ],
+        [
+          "hat",
+          6
+        ],
+        [
+          "hat",
+          7
+        ],
+        [
+          "hat",
+          8
+        ],
+        [
+          "hat",
+          9
+        ],
+        [
+          "hat",
+          10
+        ],
+        [
+          "hat",
+          11
+        ],
+        [
+          "hat",
+          12
+        ],
+        [
+          "hat",
+          13
+        ],
+        [
+          "hat",
+          14
+        ],
+        [
+          "hat",
+          15
+        ],
+        [
+          "kick",
+          0
+        ],
+        [
+          "kick",
+          4
+        ],
+        [
+          "kick",
+          8
+        ],
+        [
+          "kick",
+          12
+        ]
+      ],
+      "bars": 1,
+      "steps_per_bar": 16,
+      "swing": 0.0
+    },
+    {
+      "name": "Breaks",
+      "steps": [
+        [
+          "hat",
+          0
+        ],
+        [
+          "hat",
+          2
+        ],
+        [
+          "hat",
+          4
+        ],
+        [
+          "hat",
+          6
+        ],
+        [
+          "hat",
+          8
+        ],
+        [
+          "hat",
+          10
+        ],
+        [
+          "hat",
+          12
+        ],
+        [
+          "hat",
+          14
+        ],
+        [
+          "kick",
+          0
+        ],
+        [
+          "kick",
+          10
+        ],
+        [
+          "snare",
+          4
+        ],
+        [
+          "snare",
+          12
+        ]
+      ],
+      "bars": 1,
+      "steps_per_bar": 16,
+      "swing": 0.0
+    },
+    {
+      "name": "Trap",
+      "steps": [
+        [
+          "clap",
+          8
+        ],
+        [
+          "hat",
+          0
+        ],
+        [
+          "hat",
+          2
+        ],
+        [
+          "hat",
+          3
+        ],
+        [
+          "hat",
+          4
+        ],
+        [
+          "hat",
+          6
+        ],
+        [
+          "hat",
+          7
+        ],
+        [
+          "hat",
+          8
+        ],
+        [
+          "hat",
+          10
+        ],
+        [
+          "hat",
+          11
+        ],
+        [
+          "hat",
+          12
+        ],
+        [
+          "hat",
+          14
+        ],
+        [
+          "hat",
+          15
+        ],
+        [
+          "kick",
+          0
+        ],
+        [
+          "kick",
+          6
+        ],
+        [
+          "kick",
+          10
+        ],
+        [
+          "snare",
+          8
+        ]
+      ],
+      "bars": 1,
+      "steps_per_bar": 16,
+      "swing": 0.0
+    },
+    {
+      "name": "Garage",
+      "steps": [
+        [
+          "clap",
+          4
+        ],
+        [
+          "clap",
+          11
+        ],
+        [
+          "hat",
+          2
+        ],
+        [
+          "hat",
+          6
+        ],
+        [
+          "hat",
+          10
+        ],
+        [
+          "hat",
+          14
+        ],
+        [
+          "kick",
+          0
+        ],
+        [
+          "kick",
+          6
+        ],
+        [
+          "kick",
+          10
+        ],
+        [
+          "snare",
+          4
+        ],
+        [
+          "snare",
+          12
+        ]
+      ],
+      "bars": 1,
+      "steps_per_bar": 16,
+      "swing": 0.0
+    },
+    {
+      "name": "Half-time",
+      "steps": [
+        [
+          "hat",
+          0
+        ],
+        [
+          "hat",
+          3
+        ],
+        [
+          "hat",
+          6
+        ],
+        [
+          "hat",
+          10
+        ],
+        [
+          "hat",
+          13
+        ],
+        [
+          "kick",
+          0
+        ],
+        [
+          "kick",
+          8
+        ],
+        [
+          "kick",
+          10
+        ],
+        [
+          "snare",
+          8
+        ]
+      ],
+      "bars": 1,
+      "steps_per_bar": 16,
+      "swing": 0.0
+    },
+    {
+      "name": "Minimal",
+      "steps": [
+        [
+          "hat",
+          6
+        ],
+        [
+          "hat",
+          14
+        ],
+        [
+          "kick",
+          0
+        ],
+        [
+          "kick",
+          4
+        ],
+        [
+          "kick",
+          8
+        ],
+        [
+          "kick",
+          12
+        ]
+      ],
+      "bars": 1,
+      "steps_per_bar": 16,
+      "swing": 0.0
+    }
+  ],
+  "active_slot": null
+}

@@ -1,0 +1,47 @@
+{# synthlab/studio/templates/fragments/hub_list.html
+   The clip hub's list (region `hub-list`: watch `regions._w_hub`). One row
+   an item: ▶ (the .audition[data-note] one-shot the drawer uses: audio.js
+   plays it), its waveform, name, kind, source, length, tempo / key where
+   known (`~` = measured here) and where the session uses it; the row
+   opens the item on the bench. A stem has no ▶ (minutes long: the bench's
+   player streams it). The hub's ↶ Undo sits in its head. Every redraw
+   morphs, so the scroll and the keyboard's place survive. #}
+{% set h = hub %}
+<section class="hub-list module" id="hub-list" data-module="clips.list" aria-label="Clips and samples" {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  <header class="hub-list-head">
+    <span class="caps">{{ h['items'] | length }} of {{ h.counts.all }}</span>
+    {% if h.undo %}
+    <button type="button" class="btn btn-s hub-undo" id="hub-undo" hx-post="/hub/undo" hx-swap="none"
+            data-cmd="Undo the last clip hub edit" data-cmd-group="Clip hub" data-keys="Ctrl+Z"
+            title="take back: {{ h.undo }}">↶ Undo <small>{{ h.undo }}</small></button>
+    {% endif %}
+  </header>
+  <ul class="hub-rows">
+    {% for it in h['items'] %}
+    <li class="row hub-row" id="{{ it.id }}" data-ref="{{ it.ref }}" data-kind="{{ it.kind }}" data-ctx="{{ it.name }}"
+        {% if it.ref == h.selected %}aria-selected="true"{% endif %}>
+      {% if it.kind != "stem" %}
+      <button type="button" class="btn btn-icon btn-s audition sc-play" data-note="{{ it.audio }}"
+              data-menu="Hear" aria-label="hear {{ it.name }}">▶</button>
+      {% else %}<span class="hub-nohear" title="a whole stem: open it to hear it">♪</span>{% endif %}
+      <a class="hub-open" href="/view/clips?item={{ it.ref | urlencode }}"
+         hx-get="/fragment/hub/bench?item={{ it.ref | urlencode }}" hx-target="#hub-bench" hx-swap="outerMorph"
+         data-menu="Open on the bench" aria-label="open {{ it.name }}">
+        {% if it.wave %}<svg class="hub-wave" viewBox="0 0 64 2" preserveAspectRatio="none" aria-hidden="true"><path d="{{ it.wave }}"/></svg>{% else %}<span class="hub-wave hub-wave-none" aria-hidden="true"></span>{% endif %}
+        <span class="hub-name">{{ it.name }}</span>
+        {#- a table: the kind in its own dim column, the source,
+            then the facts as read-out cells (the Loops lists' `.lp-facts`) -#}
+        <span class="hub-meta"><span class="hub-kind">{{ it.kind_label }}</span><span class="hub-src">{{ it.source }}</span>
+          <small class="lp-facts hub-cells"><span class="fc c-sec">{% if it.seconds %}{{ "%.2f" | format(it.seconds) }}<i>s</i>{% endif %}</span><span class="fc c-bpm">{% if it.bpm %}{{ it.bpm }}<i>bpm</i>{% endif %}</span><span class="fc c-key">{{ it.key or "" }}</span></small></span>
+        {% if it.used %}<span class="hub-used" title="{{ it.used }}">in use · {{ it.used }}</span>{% endif %}
+      </a>
+    </li>
+    {% else %}
+    <li class="empty-state hub-empty">
+      {% if h.params.find or h.params.show != "all" %}<h3>No match</h3><p>Nothing here matches that filter.</p>
+      {% else %}<h3>No clips yet</h3><p>⏺ Bounce on Synths, ⏺ resample on the Loops page, keep a take in Voice or a chop in the Lab: it lands here.</p>{% endif %}
+      {% include "fragments/empty_play.html" %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>

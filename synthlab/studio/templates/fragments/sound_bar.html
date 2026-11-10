@@ -1,0 +1,205 @@
+{# synthlab/studio/templates/fragments/sound_bar.html #}
+{# The Synths bench strip, two rows. Identity: play, which sound this is, undo,
+   compare A/B, bounce, save. Listening (the rail): the reference phrase, the
+   beat and the key the pads and keyboard work in — one labelled cell each,
+   which views/editor.html's strip lays out with the read-outs at the rail's
+   end (style.css 7a2: the form and the rail are drawn as contents). The
+   layers have their own strip below it
+   (fragments/layer_strip.html) — outside this form, which posts on every input. No note grid — that is Perform's job
+   (fragments/transport.html). The listening level and live-key room live with
+   the keyboard ("Monitor"): they are not part of the sound.
+
+   It carries id="sound-bar" because the patch form hx-includes it: the key and
+   tempo must ride along with every patch post, or _merge_arrangement would see
+   no root/scale at all. #}
+<form id="sound-bar" class="sound-bar module" data-module="synths.sound"
+      hx-post="/fragment/arrangement" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last"
+      hx-include="#patch, [form=patch], #sound-bar" hx-swap="none"
+      {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+
+  {#- the identity row: ▶, which sound this is (its name, the layer, what ▶
+      will start), then its actions in groups that wrap whole, never apart:
+      edit (Undo) · compare (A/B, ⇄, Morph) · take it further (Bounce,
+      Resample, → Song) · the page's outcome (Agent, Save sound…) last -#}
+  <div class="sb-row sb-identity">
+    {# data-player / data-plays / the cue: what ▶ (and Space) will start,
+       written by transport.js (the track-edit banner's data-plays-now wins) #}
+    <button data-cmd="Play / stop the phrase" data-cmd-group="Transport" data-keys="Space" type="button" id="play" class="btn btn-play btn-toggle btn-icon btn-l play" aria-pressed="false"
+            data-player="loop" data-plays="the phrase" aria-label="play or stop the reference phrase">▶</button>
+    {#- the name over its facts: the layer, then the cue -#}
+    <div class="sb-title">
+      {# its own region (service.REGIONS "sound-id"): never OOB in here #}
+      {% with oob = false %}{% include "fragments/sound_id.html" %}{% endwith %}
+      <output class="play-cue" data-cue-for="play">{% if audition == "none" %}{{ beat_pick.label }}{% else %}the phrase{% endif %}{% if phrases is defined and audition in phrases %} · {{ phrases[audition].label }} · {{ (beat_pick.bars if vs_beat else 1) | plural("bar") }}{{ " + the beat" if vs_beat }}{% endif %}</output>
+    </div>
+    {#- two halves, each kept whole: when the line is short they stand one
+        over the other, right-aligned, never three and one -#}
+    <div class="sb-acts">
+    <span class="sb-half">
+    <span class="sb-group">
+    <button data-cmd="Undo the last tweak" data-keys="Ctrl+Z" type="button" class="btn btn-s sb-btn" hx-post="/fragment/undo"
+            hx-target="body" hx-swap="innerMorph"
+            title="undo the last tweak (Ctrl+Z)" aria-label="undo the last tweak">↶ Undo</button>
+    </span>
+    <div class="compare sb-group" role="group" aria-label="compare two versions">
+      <span class="caps">A/B</span>
+      {% include "fragments/ab_slots.html" %}
+    </div>
+    </span>
+    <span class="sb-half">
+    <span class="sb-group" role="group" aria-label="take the sound further">
+    <button data-cmd="Bounce the phrase to a clip" type="button" class="btn btn-s sb-btn" hx-post="/clip/bounce"
+            hx-prompt="Clip name" data-name-from="#sound-id .sid-name" hx-target="#clip-library" hx-swap="outerMorph"
+            title="record this phrase to the clip library as audio (Clips, in the bar)"
+            aria-label="bounce the current phrase to a clip">⏺ Bounce</button>
+    <button data-cmd="Resample the loop into a sampler" type="button" class="btn btn-s sb-btn" hx-post="/fragment/sampler/resample"
+            hx-vals='{"source": "loop"}' hx-target="body" hx-swap="innerMorph"
+            title="resample the working loop into a sampler sound you play from the keys (chop it in Source)"
+            aria-label="resample the loop into a sampler">⤷ Resample loop</button>
+    {#- → Song: the Perform loop (its notes and beat, with this sound) as the
+        song's new last section — Perform's button, here too. Its answer
+        opens under it (a popover: the row never reflows round it) -#}
+    <button type="button" class="btn btn-s sb-btn to-song" hx-post="/song/from-loop" hx-target="next .to-song-note" hx-swap="innerHTML"
+            data-cmd="Add this loop to the song" data-cmd-group="Song"
+            title="Add the Perform loop to the song as its new last section: its notes and beat (other variations go to the song's pool), with this sound">→ Song</button>
+    <span class="to-song-note pop" popover></span>
+    </span>
+    {#- the row's end, kept together: Save sound… (the page's one outcome)
+        stays last and never wraps away from the agent -#}
+    <span class="sb-end sb-group">
+    <button type="button" class="sb-sounds btn btn-s sb-btn" popovertarget="sound-dock"
+            aria-label="open the sound list">Sounds</button>
+    <button data-cmd="Open the sound agent" data-cmd-group="AI" type="button" class="btn btn-s btn-ai sb-btn sb-agent" popovertarget="agent-drawer"
+            title="ask the sound agent to change the sound"
+            aria-label="open the sound agent">✦ Agent</button>
+    <button data-cmd="Save sound…" type="button" class="btn btn-s btn-primary sb-save" popovertarget="save-dialog"
+            title="save this sound to Yours (the layer's patch, or everything: layers, FX and curves)"
+            aria-label="save the current sound">Save sound…</button>
+    </span>
+    </span>
+    </div>
+  </div>
+
+  <div class="sb-row sb-listen">
+    {# The phrase exists so a patch can be judged against something constant:
+       swapping sounds must not also swap what you are hearing them play.
+
+       Radio pills, not buttons with hx-post. An OOB swap of this form would
+       detach the clicked button before htmx dispatched the response's
+       HX-Trigger, so the new phrase never reached audio.js — the pill state
+       updated and the sound did not. As radios they ride the form's own
+       input->post->preview-ready path, which already works. #}
+    {# A song track's sound on Synths (`track_hear`): ▶ plays the track's
+       section at the song's level, in the mix or alone
+       (`StudioService.track_heard`), at the song's tempo and key — so the
+       loop's phrase, bpm and key, which it does not play, give way to them.
+       The radios ride this form's post like the phrase pills
+       (`fragment_arrangement` reads `edit_hear`). The loop's root and scale
+       still ride along, hidden: a post without them would reset the loop's
+       key (`_merge_arrangement` keeps an absent bpm, not an absent key).
+       #t-bpm carries the song's tempo, unnamed (never posted): audio.js
+       swaps a re-rendered section on its bar line. #}
+    {% if track_hear and track_hear.section %}
+    <fieldset class="tcluster" title="▶ plays the block you last opened on the Song page ({{ track_hear.pattern }} in {{ track_hear.section }}) at its level in the song — on its own, or with every other track"><legend>Hear</legend>
+      <div class="seg" role="radiogroup" aria-label="what ▶ plays">
+        <label>
+          <input type="radio" name="edit_hear" value="alone" {% if track_hear.hear != "mix" %}checked{% endif %}>
+          <span>this pattern</span>
+        </label>
+        <label>
+          <input type="radio" name="edit_hear" value="mix" {% if track_hear.hear == "mix" %}checked{% endif %}>
+          <span>in the mix</span>
+        </label>
+      </div>
+      <span class="sb-heard">{{ track_hear.pattern }} · {{ track_hear.section }}</span>
+    </fieldset>
+    {% else %}
+    <fieldset class="tcluster"><legend>Phrase</legend>
+      <div class="seg" role="radiogroup" aria-label="reference phrase">
+        {% for key, spec in phrases.items() %}
+        <label>
+          <input type="radio" name="phrase" value="{{ key }}"
+                 {% if key == audition %}checked{% endif %}>
+          <span>{{ spec.label }}</span>
+        </label>
+        {% endfor %}
+        {#- no phrase (audition.NO_PHRASE): ▶ and Space play the beat alone,
+            the render ▶ beat plays, so the keys go over just the drums -#}
+        <label title="{{ 'No beat yet: pick one under Beat' if beat_pick.empty else 'No phrase: ▶ and Space play just the beat, to play the keys over it' }}">
+          <input type="radio" name="phrase" value="none"
+                 {% if audition == "none" %}checked{% endif %}{% if beat_pick.empty %} disabled{% endif %}>
+          <span>beat only</span>
+        </label>
+      </div>
+      {#- data-bars: the phrase is one bar, so over the beat it loops the
+          beat's bars (transport.js names the length in ▶'s cue) -#}
+      <span class="seg vsbeat"><label title="play the phrase over the loop's beat (Beat picks which)">
+        <input type="checkbox" name="vs_beat" data-bars="{{ beat_pick.bars }}" {% if vs_beat %}checked{% endif %}>
+        <i class="led" aria-hidden="true"></i><span>over the beat</span>
+      </label></span>
+    </fieldset>
+    {#- Beat ▾ (beatpick.py): which beat the phrase plays over — the loop's
+        own beat, the one Perform's rack and Drums show, so a pick changes
+        it there too. Each select posts itself (POST /fragment/beat/pick,
+        the other's value blanked by hx-vals) and `consume`s its input, so
+        this form's own post never fires with it; their first option ("")
+        is the beat as it is, and the bar comes back by its watch with it
+        chosen again. ▶ beat plays the beat alone (GET /beat.wav: the Drums
+        view's render), to play the keys over just the drums: audio.js
+        plays it, transport.js names it. -#}
+    <fieldset class="tcluster beat-pick"><legend>Beat</legend>
+      <label><span class="visually-hidden">beat</span><select class="field field-s bp-beat" name="beat_pick"
+              hx-post="/fragment/beat/pick" hx-trigger="input consume" hx-sync="this:queue last" hx-swap="none"
+              hx-vals='{"beat_kit": ""}'
+              data-cmd="Pick the beat" data-cmd-group="Beats" aria-label="the loop's beat"
+              title="The loop's beat — the same one the Loops page and Kit play, so a pick here changes it there too (Ctrl+Z on the Loops page takes it back). Picking one turns “over the beat” on">
+        <option value="" selected>{{ beat_pick.name }}{% if not beat_pick.empty %} · {{ beat_pick.bars | plural("bar") }}{% endif %}</option>
+        {% for group, opts in beat_pick.options %}
+        <optgroup label="{{ group }}">
+          {% for value, text, tip in opts %}<option value="{{ value }}" title="{{ tip }}">{{ text }}</option>{% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select></label>
+      <label><span class="visually-hidden">kit</span><select class="field field-s bp-kit" name="beat_kit"
+              hx-post="/fragment/beat/pick" hx-trigger="input consume" hx-sync="this:queue last" hx-swap="none"
+              hx-vals='{"beat_pick": ""}'
+              data-cmd="Put a kit under the beat" data-cmd-group="Beats" aria-label="the beat's kit"
+              title="The kit the beat plays through: a kit's voices under the same beat (the Kit page's “Swap kit, keep beat”)">
+        <option value="" selected>{{ beat_pick.kit or "kit" }}</option>
+        {% for k in beat_pick.kits %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+      </select></label>
+      {# data-beat-key: the beat's render key (svc.beat_key, in this bar's
+         watch) — while ▶ beat plays, audio.js asks /beat.wav again only when it moves #}
+      <button type="button" id="play-beat" class="btn btn-s btn-play btn-toggle" data-player="beat"
+              data-plays="{{ beat_pick.label }}" data-beat-key="{{ beat_pick.key or '' }}" aria-pressed="false" {% if beat_pick.empty %}disabled{% endif %}
+              data-cmd="Play the beat alone" data-cmd-group="Transport"
+              aria-label="play the beat alone"><span class="when-off">▶ beat</span><span class="when-on">■ beat</span></button>
+      <output class="play-cue" data-cue-for="play-beat">{{ beat_pick.label }}</output>
+    </fieldset>
+    {% endif %}
+
+    {% if track_hear %}
+    <fieldset class="tcluster" title="the song's tempo and key — change them on the Song page"><legend>Song</legend>
+      <span class="sb-heard"><input type="hidden" id="t-bpm" value="{{ track_hear.bpm | round | int }}">{{ track_hear.bpm | round | int }} bpm · {{ track_hear.root }} {{ track_hear.scale }}</span>
+      <input type="hidden" name="root" value="{{ arrangement.root }}">
+      <input type="hidden" name="scale_name" value="{{ arrangement.scale_name }}">
+    </fieldset>
+    {% else %}
+    <fieldset class="tcluster" title="shared with Perform and the chord pads"><legend>Key</legend>
+      <label>bpm <input type="number" id="t-bpm" name="bpm" min="{{ limits.BPM_RANGE[0]|int }}" max="{{ limits.BPM_RANGE[1]|int }}"
+                        value="{{ arrangement.bpm|int }}"></label>
+      <label><span class="visually-hidden">root</span><select class="field field-s" name="root" aria-label="root">
+        {% for r in roots %}
+        <option {% if arrangement.root == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select></label>
+      <label><span class="visually-hidden">scale</span><select class="field field-s" name="scale_name" aria-label="scale">
+        {% for sc in scales %}
+        <option {% if arrangement.scale_name == sc %}selected{% endif %}>{{ sc }}</option>
+        {% endfor %}
+      </select></label>
+    </fieldset>
+    {% endif %}
+
+  </div>
+</form>

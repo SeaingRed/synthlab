@@ -1,0 +1,43 @@
+{# synthlab/studio/templates/fragments/keys_dock.html #}
+{# The keyboard dock, on every page: the key layout and sound set on
+   Synths carry through to every other page. base.html draws it once, after
+   #view and outside it, like the top dock and #vox-pop: a view swap never
+   redraws it, so held notes, the layout, Play, strum, octave, hold / latch,
+   the typing rows, Rec, the talkbox and the Monitor carry across pages, and
+   it plays the sound Synths edits (the live voice: piano.js). It sticks to
+   the window's foot; its height is --keys-h (keysbar.js measures it), which
+   a window-high view leaves it. On Synths it stands where its grid area was
+   (#keys-slot), elsewhere the window's width. In a frame (the Song page's
+   sound dock) it is there but not drawn: typing in the frame still plays.
+
+   Folds to its first row (layout.js `data-fold`, remembered per browser and
+   per page: `data-fold-page`): the keys and pads go, the bar stays at the
+   bottom to bring them back, and beside it what the keys play (#kbd-sum:
+   the chord or note sounding, else Play's choice · the layout · the
+   octave); typing still plays while it is folded. Until it is pressed it
+   starts folded on a window under 900 px tall or under a finger
+   (`data-fold-auto`): at 1366 x 768 it took 150 px of the 430 the panels
+   had, on the Surface the whole first screen.
+
+   Not a workspace module any more (it was Synths' `synths.keys`): it left
+   #view, where workspace.js lays modules out; its own fold is the one that
+   stays. #}
+<section class="keys-dock module" id="keys-dock" aria-label="Keyboard">
+  <div class="kbd-head">
+    <button type="button" class="fold keys-fold" data-fold="keys-dock" data-fold-page aria-expanded="true"
+            data-fold-auto="(max-height: 899px), (pointer: coarse)"
+            data-cmd="Show / hide the keyboard" data-cmd-group="View"
+            aria-label="keyboard"
+            title="Hide or show the keyboard and the chord pads, on this page (typing still plays while it is hidden)">⌨<span class="kbd-head-word"> keyboard</span></button>
+    {#- what the keys play, while folded (keysbar.js): the toolbar says it when open -#}
+    <output class="kbd-sum" id="kbd-sum" title="What the keys play: the chord or note sounding (else Play's choice) · the typing layout · the octave"></output>
+  </div>
+  {#- the Loops strip: this session's loops ⏺ Rec made (region key-takes).
+      At the dock's head, above the keys: the dock is stuck to the
+      window's foot, so a strip that appears grows it upward — under the
+      keys it lifted the toolbar out from under the hand that pressed ⏺ -#}
+  {% include "fragments/key_takes.html" %}
+  {#- the bend, octave, keys and Monitor, then one toolbar under the keys
+      whose last item is Play tools (the chord-bar region) -#}
+  {% include "fragments/piano.html" %}
+</section>

@@ -1,0 +1,87 @@
+{# synthlab/studio/templates/views/visuals.html
+   The Visuals page: every scope / spectrum variation (studio/visuals.py's
+   list; static/visuals.js draws them) live side by side at about the top
+   dock's size, a big preview, and the choice of what the dock's two slots
+   draw — kept per browser, on every page at once. Something has to sound
+   to see them move: the page's ▶ plays the working loop, and "Demo
+   signal" a quiet test pattern (vispage.js) when nothing is loaded. The
+   gallery is grouped by family (visuals.py FAMILIES); a ♥ card moves up
+   into Favourites (vispage.js, per browser), and Shuffle deals the dock a
+   random pair. #}
+<main class="cockpit visuals-view" id="view" hx-history-elt data-view="visuals">
+  <header class="view-head">
+    <div>
+      <h1>Visuals</h1>
+      <p class="view-sub">Scopes and spectrums for the top dock — pick one for each slot.</p>
+      <div id="head-how" class="pop head-how" popover><p class="view-how">Every variation draws the studio's output live. Play the loop (▶) or switch on the demo signal to see them move. "Use for scope" and "Use for spectrum" put one in the top dock on every page, remembered in this browser; ⤢ shows one big, and the big view goes full screen. ♥ lists a favourite first; Shuffle deals the dock a random pair — from your favourites once you have two. The number on each card is what it costs to draw a frame.</p></div>
+    </div>
+    <div class="head-tools">
+      <button data-cmd="Play / stop the loop" data-cmd-group="Transport" type="button" id="play"
+              class="btn btn-primary btn-play btn-toggle btn-icon play" data-keys="Space" aria-pressed="false"
+              data-player="loop" data-plays="the loop: its parts that are on" aria-label="play or stop the loop">▶</button>
+      <output class="play-cue" data-cue-for="play">the loop: its parts that are on</output>
+      <button type="button" id="vis-demo" class="btn btn-s" aria-pressed="false"
+              data-cmd="Demo signal: on / off" data-cmd-group="Visuals"
+              title="a quiet test pattern through the output — a kick, a hat and a chord — so the visuals move with nothing loaded">
+        <i class="led" aria-hidden="true"></i>Demo signal</button>
+      <button type="button" id="vis-shuffle" class="btn btn-s"
+              data-cmd="Visuals: shuffle the dock" data-cmd-group="Visuals"
+              title="a random pair for the dock's scope and spectrum — from your ♥ favourites once you have two">⤨ Shuffle</button>
+      {% include "fragments/head_help.html" %}
+      {% include "fragments/reset_menu.html" %}
+    </div>
+  </header>
+
+  <section class="vis-stage" aria-label="Big preview">
+    <canvas id="vis-big" class="vis-canvas" aria-hidden="true"></canvas>
+    <div class="vis-stage-bar">
+      <span class="caps">big</span>
+      <output id="vis-big-name" class="vis-name"></output>
+      <output id="vis-big-cost" class="vis-cost" title="what one frame costs to draw at this size"></output>
+      <span class="vis-dock caps">in the dock</span>
+      <span class="badge badge-signal" title="the dock's scope slot">scope · <output id="vis-in-scope"></output></span>
+      <span class="badge badge-signal" title="the dock's spectrum slot">spectrum · <output id="vis-in-spectrum"></output></span>
+      <button type="button" id="vis-full" class="btn btn-ghost btn-s"
+              data-cmd="Visuals: full screen" data-cmd-group="Visuals"
+              title="the big preview full screen — Esc comes back">⛶ Full screen</button>
+    </div>
+  </section>
+
+  <section class="vis-gallery" aria-label="Variations">
+    {# a ♥ card is moved up here (vispage.js), hidden while there is none #}
+    <div class="vis-family" data-family="favourites" hidden>
+      <h2 class="vis-fam-head caps">♥ Favourites</h2>
+      <div class="vis-grid"></div>
+    </div>
+    {% for fam in visual_families %}
+    <div class="vis-family" data-family="{{ fam | lower }}">
+      <h2 class="vis-fam-head caps">{{ fam }}</h2>
+      <div class="vis-grid">
+        {% for v in visuals if v.family == fam %}
+        <article class="vis-card" data-vis="{{ v.id }}" data-kind="{{ v.kind }}" data-family="{{ fam | lower }}" data-menu-section="{{ v.name }}">
+          <canvas class="vis-canvas" aria-hidden="true"></canvas>
+          <div class="vis-meta">
+            <h3 class="vis-name">{{ v.name }}</h3>
+            <span class="caps vis-kind">{{ v.kind }}</span>
+            <output class="vis-cost" title="what one frame costs to draw at this size">–</output>
+          </div>
+          <p class="vis-note">{{ v.note }}</p>
+          <div class="vis-use">
+            <button type="button" class="btn btn-s" data-use="scope" aria-pressed="false"
+                    data-cmd="Dock scope: {{ v.name }}" data-cmd-group="Visuals"
+                    title="draw {{ v.name }} in the top dock's scope slot, on every page">Use for scope</button>
+            <button type="button" class="btn btn-s" data-use="spectrum" aria-pressed="false"
+                    data-cmd="Dock spectrum: {{ v.name }}" data-cmd-group="Visuals"
+                    title="draw {{ v.name }} in the top dock's spectrum slot, on every page">Use for spectrum</button>
+            <button type="button" class="btn btn-ghost btn-icon btn-s vis-fav" data-fav aria-pressed="false" data-menu="Favourite"
+                    aria-label="favourite {{ v.name }}" title="a favourite: listed first, and Shuffle deals from your favourites">♥</button>
+            <button type="button" class="btn btn-ghost btn-icon btn-s" data-big aria-pressed="false" data-menu="Show it big"
+                    aria-label="show {{ v.name }} big" title="show it big">⤢</button>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+</main>

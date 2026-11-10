@@ -1,0 +1,90 @@
+{# synthlab/studio/templates/fragments/vocal_panel.html
+   The live vocal chain (vocal.py, routes/vocal.py; static/vocal.js sings
+   through it): drawn into #vox-pop (base.html, on every page) when it
+   opens, and by every post here — morphed, so a knob keeps its focus. The
+   mic, the monitor, the input gain and the high-pass are this browser's
+   (vocal.js, localStorage); the chain is the server's (voice_lab.json's
+   `live`), built from the shared rack. #}
+{% from "fragments/fx_units.html" import units %}
+<div id="vox-panel" class="vox-panel">
+  <div class="vox-head">
+    <h3 class="caps" id="vox-title">Live vocal</h3>
+    <button type="button" id="vox-btn" class="btn btn-s" aria-pressed="false"
+            data-cmd="Live vocal: the mic through the chain, on / off" data-cmd-group="Voice"
+            title="Sing into the mic and hear it through the chain below, over whatever plays — wear headphones (speakers feed back into the mic)"><i class="led" aria-hidden="true"></i>🎙 mic</button>
+    <button type="button" id="vox-monitor" class="btn btn-s" aria-pressed="true"
+            data-cmd="Live vocal: hear it in the headphones, on / off" data-cmd-group="Voice"
+            title="Monitor (lit): the processed voice in your headphones. Unlit, it is only recorded — for when the room is your monitor"><i class="led" aria-hidden="true"></i>monitor</button>
+    <output id="vox-status" class="voice-status" role="status" aria-live="polite">off</output>
+  </div>
+  <div class="vox-in" role="group" aria-label="the mic's input">
+    <label title="the mic's level into the chain">in gain
+      <input type="range" data-vox="gain" min="0" max="4" step="0.05" value="1" aria-label="input gain"></label>
+    <label title="cuts the rumble, the handling and the pops under this">high-pass
+      <input type="range" data-vox="hp" min="20" max="300" step="5" value="80" aria-label="high-pass, Hz"></label>
+    <span class="vox-meter" aria-hidden="true"><i></i></span>
+  </div>
+  <p class="vox-styles" role="group" aria-label="Vocal styles"><span class="caps">Style</span>
+    {% for key, label, title in vx.styles %}
+    <button type="button" class="btn btn-s" hx-post="/voice/live/style" hx-vals='{{ {"name": key} | tojson }}'
+            hx-target="#vox-panel" hx-swap="outerMorph" aria-pressed="{{ 'true' if key == vx.style else 'false' }}"
+            data-cmd="Live vocal style: {{ label }}" data-cmd-group="Voice" title="{{ title }}">{{ label }}</button>
+    {% endfor %}
+  </p>
+  <fieldset class="fx-scope vox-rack" aria-label="The live vocal chain">
+    <legend><span class="panel-name" title="the mic runs through these, in order, live">{{ vx.label }}</span>
+      <select data-cmd="Add effect to the live vocal chain" data-cmd-group="Voice" class="field field-s fx-adder" name="kind"
+              aria-label="add effect to the live vocal chain" hx-post="/voice/live/fx" hx-vals='{"op": "add"}' hx-include="this"
+              hx-trigger="change" hx-sync="this:queue all" hx-target="#vox-panel" hx-swap="outerMorph"{{ ' disabled title="The rack is full"' if vx.rack_full }}>
+        <option value="" selected disabled>+ add…</option>
+        {% for kind, label in vx.units %}<option value="{{ kind }}">{{ label }}</option>{% endfor %}
+      </select>
+      {#- back to defaults (otherwise the only way back is to press the
+          style again, unsaid): the style's chain as it ships,
+          and the mic's in gain and high-pass (vocal.js, this browser's) -#}
+      <button type="button" id="vox-reset" class="btn btn-ghost btn-s" hx-post="/voice/live/style"
+              hx-vals='{{ {"name": vx.reset_to} | tojson }}' hx-target="#vox-panel" hx-swap="outerMorph"
+              data-cmd="Live vocal: reset to defaults" data-cmd-group="Voice"
+              title="Back to defaults: the {{ vx.reset_label }} chain as it ships, in gain 1 and high-pass 80 Hz">↺ reset</button>
+    </legend>
+    {% set r = {"url": "/voice/live/fx", "vals": {}, "id": "vox", "title": "the live vocal chain", "group": "Voice",
+                "value": 'hx-target="#vox-panel" hx-swap="outerMorph"',
+                "shape": 'hx-target="#vox-panel" hx-swap="outerMorph"', "out": "monitor", "edges": true} %}
+    {% call units(vx.rack, r) %}<p class="empty-state fx-none">No effects: the mic is heard as it is. Pick a style, or + add….</p>{% endcall %}
+  </fieldset>
+  <div class="vox-rec" role="group" aria-labelledby="vox-rec-cap">
+    <span class="caps" id="vox-rec-cap">Rec</span>
+    <button type="button" id="vox-rec" class="btn btn-s btn-rec key-rec" aria-pressed="false" data-max-clip-seconds="{{ limits.MAX_CLIP_SECONDS | int }}"
+            data-cmd="Live vocal: record a take" data-cmd-group="Voice"
+            title="Record what you sing through the chain — and the dry voice beside it — from the loop's next bar line (with a bar counted in when lit), until pressed again; at most {{ limits.MAX_CLIP_SECONDS | int }} s. It lands in Clips → Voice takes">⏺ Rec</button>
+    <button type="button" id="vox-count" class="btn btn-s" aria-pressed="true" data-cmd="Live vocal: count one bar in first, on / off" data-cmd-group="Voice"
+            title="Count one bar in before ⏺ records (lit): the loop's bar when it plays, else four blips at the tempo"><i class="led" aria-hidden="true"></i>count-in</button>
+  </div>
+  {% if vx.takes %}
+  <ul class="vox-takes" aria-label="Vocal takes, newest first">
+    {% for t in vx.takes %}
+    <li>
+      <button type="button" class="btn btn-icon btn-s kt-play" data-take-url="/clip/{{ t.name | urlencode }}.wav"
+              title="hear “{{ t.name }}” (on the loop's next bar line when it plays)" aria-label="hear {{ t.name }}">▶</button>
+      <span class="vox-take-name">{{ t.name }} <small>{{ t.seconds }}s</small></span>
+      {% if t.dry %}
+      <button type="button" class="btn btn-s btn-ghost" hx-post="/voice/take/clip" hx-vals='{{ {"name": t.dry, "booth": "1"} | tojson }}' hx-swap="none"
+              data-cmd="Live vocal: the dry take to the booth" data-cmd-group="Voice"
+              title="make the dry voice (“{{ t.dry }}”) the Voice page's take, to treat again in 4 · Treat">→ booth</button>
+      {% endif %}
+      {% if vx.sections %}
+      <button type="button" class="btn btn-s btn-ghost" hx-post="/take/vocal/song" hx-vals='{{ {"name": t.name} | tojson }}' hx-include="#vox-section" hx-swap="none"
+              data-cmd="Live vocal: the take to the Song" data-cmd-group="Voice"
+              title="place “{{ t.name }}” as a take at the first bar of the section below, on the song's first audio track (Ctrl+Z on Song undoes it)">→ Song</button>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% if vx.sections %}
+  <label class="vox-place" title="the section a take goes to with → Song">in section
+    <select class="field field-s" name="section_id" id="vox-section" aria-label="the song section a take lands in">
+      {% for sec in vx.sections %}<option value="{{ sec.id }}">{{ sec.name }}</option>{% endfor %}
+    </select></label>
+  {% endif %}
+  {% endif %}
+</div>

@@ -1,0 +1,31 @@
+{# synthlab/studio/templates/fragments/perform_drums.html #}
+{# The drum grid on Perform, under the note grid: the loop is made in one
+   place, like a channel rack — synth notes above, the kit below — instead
+   of a trip to Drums for every hit. The same `drum_grid` macro and routes
+   as Drums; its tools answer with hx-swap none and this region comes back
+   by its watch (service.REGIONS "perform-drums"). The kit's sounds, the
+   bank and the beat library stay on Drums. #}
+{% from "drumgrid.html" import beat_bar, drum_grid, drum_tools %}
+<section id="perform-drums" class="transport perform-drums module" data-module="perform.drums" aria-label="Drum pattern"
+         {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  <div class="pattern-tools" role="toolbar" aria-label="Drum pattern tools">
+    <button type="button" class="caps pt-title fold" data-fold="perform-drums" aria-expanded="true" title="fold the drum grid">drums</button>
+    <div class="seg barchips" role="group" aria-label="drum bars">
+      {% for b in limits.BAR_CHOICES %}
+      <button type="button" class="barchip {% if b <= arrangement.drum_bars %}on{% endif %}"
+              hx-post="/fragment/drums/transport" hx-vals='{"bars": "{{ b }}"}' hx-swap="none"
+              aria-pressed="{{ 'true' if b == arrangement.drum_bars else 'false' }}"
+              title="{{ b }} bar{{ 's' if b > 1 else '' }} of drums">{{ b }}</button>
+      {% endfor %}
+    </div>
+    {{ drum_tools(can_double_drums, beat_style, target=none, extras=true) }}
+    {{ beat_bar(beat_variants, beat_style, target=none) }}
+    {#- the grid's beat into the Loops panel, a beat loop named from what it
+        is (POST /loop/beat/keep) -#}
+    <button type="button" class="btn btn-s lp-keep-beat" hx-post="/loop/beat/keep" hx-swap="none"
+            data-cmd="Keep this beat in the Loops" data-cmd-group="Loops"
+            title="keep this beat in the Loops panel as a beat (named from what it is: rename it there) — Open brings it back to the grid">✚ Keep</button>
+    <a class="btn btn-s btn-ghost pt-link" {{ view_link("/view/drums") }} data-cmd="Open the kit and the bank on Kit" data-cmd-group="Go to" title="the kit's sounds, the bank, notation and the beat library">kit &amp; bank ▸</a>
+  </div>
+  {{ drum_grid("/fragment/drums/grid", arrangement.drums, arrangement.drum_vel, arrangement.drum_bars, arrangement.drum_steps, drum_rows, form_id="perform-drum-grid", form_class="fold-body", mix=arrangement.drum_mix, samples=arrangement.drum_samples, clips=clips, target=none, hits=arrangement.drum_hits, row_swing=arrangement.drum_row_swing, swing=arrangement.drum_swing, row_tool="/fragment/drums/row/VOICE/OP", bar_meter=arrangement.meter) }}
+</section>

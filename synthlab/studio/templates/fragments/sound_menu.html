@@ -1,0 +1,17 @@
+{# synthlab/studio/templates/fragments/sound_menu.html #}
+{# The one sound menu (`sounds.menu`): every sound there is, by the name
+   `sounds.find` knows it under — yours (★ first), the factory set, the
+   recipes, the core library's categories, the library's families. Drawn
+   once a page by base.html, outside every region; a Song lane's <select>
+   takes a copy as it is reached for, Perform's lane heads search it
+   (soundmenu.js), which also asks GET /fragment/sound-menu for it again
+   as its menu opens — a sound saved since the page loaded is in it.
+   `data-layered`: the sound brings layers (a load asks what it replaces);
+   `data-star`: a ★ of yours (the menu's ★ filter). #}
+<template id="lane-sounds">
+  {% for label, items in sound_menu %}
+  <optgroup label="{{ label }}">
+    {% for source, name, layered, star in items %}<option value="{{ source }}:{{ name }}"{% if layered %} data-layered{% endif %}{% if star %} data-star{% endif %}>{{ name }}</option>{% endfor %}
+  </optgroup>
+  {% endfor %}
+</template>

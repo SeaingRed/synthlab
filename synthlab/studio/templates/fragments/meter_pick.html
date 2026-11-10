@@ -1,0 +1,16 @@
+{# synthlab/studio/templates/fragments/meter_pick.html — the loop's meter,
+   by its bpm (Perform's live strip, the Drums transport): POST
+   /fragment/meter fits every grid bar by bar (meter.py; one Ctrl+Z).
+   `consume`: the form around it posts its own fields on `change`, and must
+   not post the tempo again for a meter. `arrangement` is the loop's. On
+   Perform it is a region of its own (`meter-pick`: an undo moves it); on
+   Drums the transport's region draws it. #}
+<label id="meter-pick" class="meter-pick"{% if oob %} hx-swap-oob="outerHTML"{% endif %} title="The loop's bar: 3/4 is three beats of four sixteenths, 6/8 two groups of three eighths. A change keeps each bar's first beats (Ctrl+Z undoes it)">bar
+  <select class="field field-s" name="meter" aria-label="the loop's meter"
+          hx-post="/fragment/meter" hx-trigger="change consume" hx-sync="this:queue last" hx-swap="none"
+          data-clicks="{{ meter.clicks_attr(arrangement.meter) }}" data-bar-beats="{{ meter.bar_beats(arrangement.meter) }}"
+          data-cmd="Change the loop's meter" data-cmd-group="Transport">
+    {%- for m in meter.METERS %}
+    <option value="{{ m }}"{% if arrangement.meter == m %} selected{% endif %}>{{ meter.parse(m).label }}</option>
+    {%- endfor %}
+  </select></label>

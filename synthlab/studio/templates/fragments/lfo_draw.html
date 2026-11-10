@@ -1,0 +1,28 @@
+{# synthlab/studio/templates/fragments/lfo_draw.html #}
+{# A general LFO's drawn shape, under its shape row (`lfo` is
+   "lfo", "lfo2" or "lfo3"; editor.html shows it while the shape is
+   "drawn"). The hidden field is the Patch's `<lfo>_draw` ("x:y,..." —
+   core.clean_draw), posted with the form like any control; the drawing is
+   a view of it (oscfaces.draw_face) that panelfaces.js edits: press to add
+   a point and drag it, double-click one to remove it, a shape from the
+   menu to start from. One cycle across, -1..1 up. #}
+{% set field = lfo ~ "_draw" %}
+{% set face = osc_faces.draw_face(patch_values[field]) %}
+{% set vw, vh = osc_faces.DRAW_VIEW %}
+{% set label = "LFO " ~ (lfo[3:] or "1") %}
+<div class="lfo-draw module-well" id="draw-{{ lfo }}" data-ctx="{{ label }} drawing">
+  <input type="hidden" name="{{ field }}" value="{{ patch_values[field] }}">
+  <svg class="lfo-draw-svg" viewBox="0 0 {{ vw }} {{ vh }}" preserveAspectRatio="none"
+       role="img" aria-label="{{ label }}'s drawn shape: press to add a point and drag it, double-click a point to remove it">
+    <path class="lfo-draw-grid" d="M0 {{ vh / 2 }}H{{ vw }}M{{ vw / 4 }} 0V{{ vh }}M{{ vw / 2 }} 0V{{ vh }}M{{ vw * 3 / 4 }} 0V{{ vh }}"/>
+    <polyline class="lfo-draw-line" points="{{ face.line }}"/>
+    {% for x, y in face.pts %}<circle class="lfo-draw-pt" cx="{{ x }}" cy="{{ y }}" r="2.4"/>{% endfor %}
+  </svg>
+  <span class="lfo-draw-tools">
+    {% for name, value in osc_faces.DRAW_PRESETS %}
+    <button type="button" class="btn btn-ghost btn-s" data-draw="{{ value }}"
+            data-cmd="{{ label }}: draw a {{ name | lower }}" data-cmd-group="Panels"
+            title="start {{ label }}'s drawing from a {{ name | lower }}">{{ name }}</button>
+    {% endfor %}
+  </span>
+</div>

@@ -1,0 +1,8 @@
+{# synthlab/studio/templates/fragments/sub_plot.html #}
+{# The sub spectrum's plot (bassview.bass_panels: `svg`, `quiet`, `db_top`):
+   the Bass page's wide card and Synths' Sub spectrum module draw it. #}
+<div class="sub-spectrum-wrap"><div class="sub-plot" style="--db0: {{ db_top(0) }}%; --db20: {{ db_top(0) - db_top(-20) }}%">{{ svg | safe }}
+  {% for hz in (10, 20, 40, 60, 80, 100, 120) %}<span class="sub-tick hz{{ ' first' if loop.first }}{{ ' last' if loop.last }}" style="left: {{ ((hz - 10) / 110 * 100) | round(2) }}%" aria-hidden="true">{{ hz }}{{ " Hz" if loop.last }}</span>{% endfor %}
+  {% for db in (-20, -40, -60) %}<span class="sub-tick db" style="top: {{ db_top(db) }}%" aria-hidden="true">{{ db }} dB</span>{% endfor %}
+  {% if quiet %}<p class="empty-state sub-quiet">Nothing below 120 Hz yet: press a root, or {% include "fragments/empty_play.html" %}</p>{% endif %}
+</div></div>

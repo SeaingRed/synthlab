@@ -1,0 +1,14 @@
+{
+  "name": "synthlab-voice-dsp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The live voice's DSP inner loops (static/voice-worklet.js) as WebAssembly + SIMD, built to ../static/voice-dsp.wasm",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "assemblyscript": "0.28.20"
+  }
+}

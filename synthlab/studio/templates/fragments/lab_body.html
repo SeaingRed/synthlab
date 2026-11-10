@@ -1,0 +1,14 @@
+{# synthlab/studio/templates/fragments/lab_body.html
+   Everything a Lab post redraws: the job's status line, the songs
+   (lab_sources.html), and the selected song's panel. Each of the three is
+   its own element so the status line can poll without redrawing (and
+   stopping) the audition under it.
+   On the desktop tier this element is `display: contents`: its children
+   are tiles of the page's own grid (style.css section 19). #}
+<div id="lab-body" class="lab-body">
+  {% include "fragments/lab_job.html" %}
+  {# "Open in Lab" on a song or a chop that is gone (/view/lab?source=&chop=) #}
+  {% if lab.notice %}<p class="lab-error" id="lab-notice" role="status">{{ lab.notice }}</p>{% endif %}
+  {% include "fragments/lab_sources.html" %}
+  {% include "fragments/lab_panel.html" %}
+</div>

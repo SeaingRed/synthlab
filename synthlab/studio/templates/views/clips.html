@@ -1,0 +1,51 @@
+{# synthlab/studio/templates/views/clips.html
+   The clip hub: every clip and sample in one place (studio/cliphub.py,
+   service/hubpage.py, routes/cliphub.py). The list down the left (region
+   `hub-list`, filtered by the bar above it), the selected item's bench on
+   the right: its facts, the player (the shared .player, bench.js, with the
+   waveform as its bar), Tune, Send to and Make from it. The hub's choices
+   (the item, the filter) are its URL — no session state; the island
+   (cliphub.js) only keeps the loop toggle, the row highlight and Ctrl+Z.
+   The clip library drawer stays the quick picker on every page. #}
+{% set h = hub %}
+<main class="cockpit hub-view" id="view" hx-history-elt data-view="clips" data-ws-dock="clips">
+  <header class="view-head">
+    <div>
+      <h1>Clips</h1>
+      <p class="view-sub">Every clip and sample: listen, tune, send it anywhere, make a beat or a part from it.</p>
+      <div id="head-how" class="pop head-how" popover><p class="view-how">Pick a clip on the left to
+        open it on the bench. ▶ plays it (⟲ loops it; click the waveform to jump). Tune pitches, trims,
+        reverses and speeds it up or down — heard at once, kept only when you press Keep (a new clip)
+        or Update (written over this one: ↶ Undo puts it back). Send to puts it on a drum row, in the
+        song, on Synths as a sampler, in the Voice lab or the Sample Lab. Make from it listens to the
+        clip and writes a beat on Kit or a part on Perform's note grid, played by the kit or sound
+        you pick — Preview first, then Apply; ↶ Undo takes an Apply back whole. ✦ Describe asks
+        Gemini to choose for you: it hears the first seconds of the clip.</p></div>
+    </div>
+    <div class="head-tools">{% include "fragments/head_help.html" %}{% with ws_view = "clips" %}{% include "fragments/ws_menu.html" %}{% endwith %}{% include "fragments/reset_menu.html" %}</div>
+  </header>
+
+  {# the filter: answers the LIST only, so the box being typed in is never
+     redrawn; what it holds rides the page's URL (`HX-Replace-Url`) #}
+  <form class="hub-filter module" id="hub-filter" data-module="clips.filter" role="search" aria-label="filter the clips"
+        hx-get="/fragment/hub/list" hx-target="#hub-list" hx-swap="outerMorph"
+        hx-trigger="input delay:200ms, change" hx-sync="this:queue last">
+    <input type="text" role="searchbox" inputmode="search" enterkeyhint="search" class="field field-s"
+           name="find" value="{{ h.params.find }}" maxlength="60" placeholder="search by name"
+           autocomplete="off" spellcheck="false" aria-label="search clips and samples by name">
+    <select name="show" class="field field-s" aria-label="show which kind">
+      {% for key, label in h.kinds %}
+      <option value="{{ key }}" {% if key == h.params.show %}selected{% endif %}>{{ label }} ({{ h.counts.get(key, 0) }})</option>
+      {% endfor %}
+    </select>
+    <select name="order" class="field field-s" aria-label="sort by">
+      {% for key, label in h.sorts %}
+      <option value="{{ key }}" {% if key == h.params.order %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {% with oob = false %}{% include "fragments/hub_list.html" %}{% endwith %}
+  {% include "fragments/hub_bench.html" %}
+  <div id="analysis" class="readouts" hidden></div>
+</main>

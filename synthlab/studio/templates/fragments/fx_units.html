@@ -1,0 +1,166 @@
+{# synthlab/studio/templates/fragments/fx_units.html #}
+{# THE rack: every FX rack draws its units with `units(rows, r)` — the
+   Synths / Drums / Mix / Voice racks (fx_rack.html, the session's scopes),
+   a Song audio track's (song_drawer.html) and the vocal booth's
+   (voice_panel.html). `rows` is `fxrack.rack_rows(chain)`; what differs is
+   where a rack posts and what its answer replaces, so `r` says:
+     r.url    one url taking `op` (add / remove / move / set: fxrack.edit_chain
+              behind it), or a mapping op -> url (routes/fx.py: one route an op)
+     r.vals   what every post carries besides (the scope)
+     r.value  the swap attributes of a value's post (a knob, a step, a preset):
+              a morph, so the control under the keyboard keeps its node
+     r.shape  the swap attributes of a move / remove (a new shape)
+     r.id     the popovers' and the parameters' id part (unique on the page:
+              a knob is `fx-<r.id>-<index>-<param>`, the name a deck dial or
+              a MIDI CC binds — every one's `name` is "value"), r.title the rack's
+              name in each command, r.group the commands' group
+     r.out    the out jack's label; r.edges: ‹ / › disabled at the ends (a
+              rack that gives the keyboard back with `autofocus` keeps them,
+              so the button pressed at an end keeps its focus)
+     r.focus  (r.scope, index, which): the control drawn `autofocus`
+              (routes/fx.py, "Where the keyboard goes"), or none
+   The caller's block (`{% call %}`) is the empty rack's line.
+
+   Drawn as a pedalboard: the in jack, each unit a module of knobs (every
+   parameter a `.knob` with its value under it — the same range input, so
+   the post, the keyboard and a hardware dial are unchanged; double-click,
+   a middle click or the eraser is the knob's default; ★ the unit's presets
+   and ↺ its defaults), a patch lead from module to module in chain order
+   (fxcables.js draws them where the modules are), and the out jack. A
+   right click (the pen's barrel) on a module lists its actions: each row a
+   `data-menu` (menu.js). #}
+{% from "macros.html" import fill %}
+{% macro lead(off=false) %}<svg class="cable{{ ' off' if off }}" viewBox="0 0 24 14" aria-hidden="true"><path d="M2 4C7 15 17 15 22 4"/><circle cx="2" cy="4" r="1.7"/><circle cx="22" cy="4" r="1.7"/></svg>{% endmacro %}
+
+{#- the post of `op` with `vals`: its url and its hx-vals (`op` in them
+    when the rack has one url) -#}
+{% macro post(r, op, vals) -%}
+{%- set one = r.url is string -%}
+{%- set all = dict(r.vals, **vals) -%}
+{%- if one %}{% set _ = all.update({"op": op}) %}{% endif -%}
+hx-post="{{ r.url if one else r.url[op] }}" hx-vals='{{ all | tojson }}'
+{%- endmacro %}
+
+{% macro units(rows, r) %}
+{%- set group = r.group or "Effects" -%}
+{%- set focus = r.focus -%}
+<div class="fx-units">
+  <span class="fx-io" aria-hidden="true"><i class="jack" data-plugged></i><b>in</b></span>
+  {% if not rows %}{{ lead(true) }}{{ caller() }}{% endif %}
+  {% for u in rows %}
+  {% set idx = u.index %}
+  {% set cmd = u.name ~ " " ~ (idx + 1) %}
+  {{ lead() }}
+  <div class="fx-unit module" data-unit="{{ u.kind }}" data-ctx="{{ u.label }} · {{ r.title }}">
+    <header class="module-head">
+      <strong>{{ u.label }}</strong>
+      <span class="fx-acts">
+        {#- ★ the unit's presets (fxrack.FX_PRESETS) and ↺ its defaults: a
+            popover menu, and — each row a `data-menu` — the module's
+            right-click rows too (menu.js) -#}
+        {% set pid = "fxp-" ~ r.id ~ "-" ~ idx %}
+        <button type="button" class="btn btn-ghost btn-icon btn-s pp-open" popovertarget="{{ pid }}"
+                aria-label="{{ u.label }} presets"
+                title="{{ u.label }}: presets, defaults (or right-click the module)">★</button>
+        <div popover id="{{ pid }}" class="panel-presets pop menu"
+             aria-label="{{ u.label }} presets">
+          {% for pname in u.presets %}
+          <button type="button" class="menu-item" data-menu="Preset: {{ pname }}" popovertarget="{{ pid }}" popovertargetaction="hide"
+                  data-cmd="{{ cmd }}: {{ pname }} ({{ r.title }})" data-cmd-group="{{ group }}"
+                  {{ post(r, "set", {"index": idx | string, "name": "recall", "value": pname}) }}
+                  {{ r.value | safe }}>{{ pname }}</button>
+          {% endfor %}
+          {% if u.presets %}<hr class="menu-sep">{% endif %}
+          <button type="button" class="menu-item" data-menu="Defaults: every setting back" popovertarget="{{ pid }}" popovertargetaction="hide"
+                  data-cmd="{{ cmd }}: defaults ({{ r.title }})" data-cmd-group="{{ group }}"
+                  {{ post(r, "set", {"index": idx | string, "name": "recall", "value": "defaults"}) }}
+                  {{ r.value | safe }}>↺ Defaults</button>
+        </div>
+        <button type="button" class="btn btn-ghost btn-icon btn-s" data-menu="Move earlier in the chain" title="earlier in chain"
+                {% if focus == (r.scope, idx, "earlier") %}autofocus{% endif %}
+                {{ post(r, "move", {"index": idx | string, "dir": "-1"}) }}
+                {{ r.shape | safe }} aria-label="move {{ u.kind }} earlier"{{ ' disabled' if r.edges and u.first }}>‹</button>
+        <button type="button" class="btn btn-ghost btn-icon btn-s" data-menu="Move later in the chain" title="later in chain"
+                {% if focus == (r.scope, idx, "later") %}autofocus{% endif %}
+                {{ post(r, "move", {"index": idx | string, "dir": "1"}) }}
+                {{ r.shape | safe }} aria-label="move {{ u.kind }} later"{{ ' disabled' if r.edges and u.last }}>›</button>
+        <button type="button" class="btn btn-ghost btn-icon btn-s" data-menu="Remove from the chain" title="remove from chain"
+                {% if focus == (r.scope, idx, "remove") %}autofocus{% endif %}
+                {{ post(r, "remove", {"index": idx | string}) }}
+                {{ r.shape | safe }} aria-label="remove {{ u.kind }}">✕</button>
+      </span>
+    </header>
+    <div class="fx-knobs">
+    {% for p in u.params %}
+    {% set says = p.name | replace("_", " ") %}
+    {% if p.choices %}
+    {#- a parameter that is a choice (`FX_UNITS[kind]["choices"]`): its
+        index is the stored value, the menu names it -#}
+    <label class="fx-param fx-choice">{{ says }}
+      <select class="field field-s" name="value" id="fx-{{ r.id }}-{{ idx }}-{{ p.name }}" aria-label="{{ u.label }} {{ says }}"
+              data-cmd="{{ cmd }}: {{ p.name }} ({{ r.title }})" data-cmd-group="{{ group }}"
+              {% if loop.first and focus == (r.scope, idx, "param") %}autofocus{% endif %}
+              {{ post(r, "set", {"index": idx | string, "name": p.name}) }} hx-include="this"
+              {{ r.value | safe }} hx-trigger="change" hx-sync="this:queue last">
+        {% for choice in p.choices %}<option value="{{ loop.index0 }}" {% if p.value | int == loop.index0 %}selected{% endif %}>{{ choice }}</option>{% endfor %}
+      </select>
+    </label>
+    {% else %}
+    <label class="fx-param">{{ says }}
+      <input type="range" class="knob" name="value" id="fx-{{ r.id }}-{{ idx }}-{{ p.name }}" min="{{ p.lo }}" max="{{ p.hi }}"
+             step="{{ ((p.hi - p.lo) / 100) | round(4) }}" value="{{ p.value }}" data-default="{{ p.default }}"
+             style="--fill: {{ fill(p.value, p.lo, p.hi) }}" aria-label="{{ u.label }} {{ says }}"
+             {% if loop.first and focus == (r.scope, idx, "param") %}autofocus{% endif %}
+             {{ post(r, "set", {"index": idx | string, "name": p.name}) }} hx-include="this"
+             {{ r.value | safe }} hx-trigger="change" hx-sync="this:queue last">
+      <output>{{ p.value | round(2) }}</output>
+    </label>
+    {% endif %}
+    {% endfor %}
+    {% if u.pattern is not none %}
+    <label class="fx-param fx-pattern">pattern
+      <input type="text" class="field field-s" name="value" value="{{ u.pattern }}" maxlength="32"
+             pattern="[x.]+" spellcheck="false" aria-label="{{ u.label }} pattern"
+             {{ post(r, "set", {"index": idx | string, "name": "pattern"}) }} hx-include="this"
+             {{ r.value | safe }} hx-trigger="change" hx-sync="this:queue last">
+    </label>
+    {#- the same pattern as steps (song creation, G6): one check a 16th, a
+        beat marked every fourth; a tick toggles that character
+        (`name=step`), 16 / 32 sets the length (`name=steps`: the pattern
+        repeated or cut), and a gate takes a named rhythm
+        (`fxrack.GATE_PATTERNS`, `name=preset`). The rack morphs, so the
+        check under the keyboard keeps its place. -#}
+    <div class="fx-steps" role="group" aria-label="{{ u.label }} pattern, one step a 16th">
+      {% for ch in u.pattern %}
+      <input type="checkbox" class="check fx-step{{ ' beat' if loop.index0 % 4 == 0 }}" name="value" value="{{ loop.index0 }}" {% if ch == "x" %}checked{% endif %}
+             {{ post(r, "set", {"index": idx | string, "name": "step", "value": loop.index0 | string}) }}
+             {{ r.value | safe }} hx-trigger="change" hx-sync="this:queue last"
+             aria-label="16th {{ loop.index }}" title="16th {{ loop.index }}">
+      {% endfor %}
+    </div>
+    <div class="fx-step-tools" role="group" aria-label="{{ u.label }} pattern length and rhythm">
+      {% for n in (16, 32) %}
+      <button type="button" class="btn btn-s btn-ghost" aria-pressed="{{ 'true' if u.pattern | length == n else 'false' }}"
+              {{ post(r, "set", {"index": idx | string, "name": "steps", "value": n | string}) }}
+              {{ r.value | safe }} data-menu="{{ n }} steps"
+              data-cmd="{{ cmd }}: {{ n }} steps ({{ r.title }})" data-cmd-group="{{ group }}"
+              aria-label="{{ n }} steps" title="{{ n }} sixteenths: the pattern repeated or cut to {{ 'one bar' if n == 16 else 'two bars' }}">{{ n }}</button>
+      {% endfor %}
+      {% if u.rhythms %}
+      <select class="field field-s" name="value" aria-label="{{ u.label }} rhythm" title="A named rhythm, written into the pattern"
+              data-cmd="{{ cmd }}: rhythm ({{ r.title }})" data-cmd-group="{{ group }}"
+              {{ post(r, "set", {"index": idx | string, "name": "preset"}) }} hx-include="this"
+              {{ r.value | safe }} hx-trigger="change" hx-sync="this:queue last">
+        <option value="" disabled {% if u.pattern not in u.rhythms | map(attribute=2) | list %}selected{% endif %}>rhythm…</option>
+        {% for key, label, pattern in u.rhythms %}<option value="{{ key }}" {% if pattern == u.pattern %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      {% endif %}
+    </div>
+    {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {{ lead(not rows) }}
+  <span class="fx-io" aria-hidden="true"><i class="jack" data-plugged></i><b>{{ r.out or "out" }}</b></span>
+</div>
+{% endmacro %}

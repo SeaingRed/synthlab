@@ -1,0 +1,3147 @@
+<section id="drum-bank" class="drum-bank module" data-module="drums.bank" aria-label="The beat"
+         >
+  <div class="pattern-tools" role="toolbar" aria-label="Drum pattern tools">
+    <div class="pt-group" role="group" aria-label="move the beat">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/drums/shift_left" hx-target="#drum-bank" hx-swap="outerMorph"
+              data-anim="left" title="Shift the beat a step earlier (wraps round)" aria-label="shift the beat left" data-cmd="Shift the beat left" data-cmd-group="Pattern">◀</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/drums/shift_right" hx-target="#drum-bank" hx-swap="outerMorph"
+              data-anim="right" title="Shift the beat a step later (wraps round)" aria-label="shift the beat right" data-cmd="Shift the beat right" data-cmd-group="Pattern">▶</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/drums/reverse" hx-target="#drum-bank" hx-swap="outerMorph"
+              data-anim="flip" title="Reverse the beat" aria-label="reverse the beat" data-cmd="Reverse the beat" data-cmd-group="Pattern">⇆</button>
+    </div>
+    <div class="pt-group" role="group" aria-label="length, feel and velocity">
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/drums/duplicate" hx-target="#drum-bank" hx-swap="outerMorph"
+              data-anim="grow" 
+              title="Double the beat: the bars you have, twice"
+              aria-label="duplicate the beat" data-cmd="Duplicate the beat" data-cmd-group="Pattern">×2</button>
+      <span class="pt-menu">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-dvel-drum-bank" title="Velocity tools" aria-label="drum velocity tools">vel</button>
+        <div popover id="ptm-dvel-drum-bank" class="pop menu pt-menu-panel" role="group" aria-label="drum velocity tools">
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvel-drum-bank" popovertargetaction="hide" hx-post="/fragment/pattern/drums/vel_humanise" hx-target="#drum-bank" hx-swap="outerMorph"
+                  title="Nudge each hit's velocity a little, at random">humanise</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvel-drum-bank" popovertargetaction="hide" hx-post="/fragment/pattern/drums/vel_ramp" hx-target="#drum-bank" hx-swap="outerMorph"
+                  title="Quiet to loud across the loop: a build">ramp ↗</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvel-drum-bank" popovertargetaction="hide" hx-post="/fragment/pattern/drums/vel_accent" hx-target="#drum-bank" hx-swap="outerMorph"
+                  title="Loud on the beat, softer between">accent</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvel-drum-bank" popovertargetaction="hide" hx-post="/fragment/pattern/drums/vel_reset" hx-target="#drum-bank" hx-swap="outerMorph"
+                  title="Every step back to full">reset</button>
+        </div>
+      </span>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/undo" hx-target="#drum-bank" hx-swap="outerMorph"
+              title="Undo the last pattern edit (Ctrl+Z)" aria-label="undo the last pattern edit" data-cmd="Undo the last pattern edit" data-cmd-group="Pattern">↶</button>
+    </div>
+    <div class="beat-bar" role="toolbar" aria-label="Beat variations and generators">
+      <span class="caps">beat</span>
+      <div class="seg var-pick" role="group" aria-label="beat variation">
+        <button type="button" data-var="A" class="" aria-pressed="true"
+                hx-post="/fragment/drums/var" hx-vals='{"var": "A"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                data-cmd="Beat variation A" data-keys="Alt+1" data-cmd-group="Pattern"
+                title="variation A (on the grid)">A</button>
+        <button type="button" data-var="B" class="empty" aria-pressed="false"
+                hx-post="/fragment/drums/var" hx-vals='{"var": "B"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                data-cmd="Beat variation B" data-keys="Alt+2" data-cmd-group="Pattern"
+                title="variation B: empty — a press copies this beat into it">B</button>
+        <button type="button" data-var="C" class="empty" aria-pressed="false"
+                hx-post="/fragment/drums/var" hx-vals='{"var": "C"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                data-cmd="Beat variation C" data-keys="Alt+3" data-cmd-group="Pattern"
+                title="variation C: empty — a press copies this beat into it">C</button>
+        <button type="button" data-var="D" class="empty" aria-pressed="false"
+                hx-post="/fragment/drums/var" hx-vals='{"var": "D"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                data-cmd="Beat variation D" data-keys="Alt+4" data-cmd-group="Pattern"
+                title="variation D: empty — a press copies this beat into it">D</button>
+      </div>
+      <span class="pt-menu">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-copy-drum-bank" title="Copy the beat on the grid into another variation" aria-label="copy this beat to a variation">copy ▸</button>
+        <div popover id="ptm-copy-drum-bank" class="pop menu pt-menu-panel" role="group" aria-label="copy this beat to">
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-copy-drum-bank" popovertargetaction="hide" hx-post="/fragment/drums/var" hx-vals='{"var": "B", "copy": "A"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                  title="A over B, and switch to it">A → B</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-copy-drum-bank" popovertargetaction="hide" hx-post="/fragment/drums/var" hx-vals='{"var": "C", "copy": "A"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                  title="A over C, and switch to it">A → C</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-copy-drum-bank" popovertargetaction="hide" hx-post="/fragment/drums/var" hx-vals='{"var": "D", "copy": "A"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                  title="A over D, and switch to it">A → D</button>
+        </div>
+      </span>
+      <div class="pt-group" role="group" aria-label="generate">
+        <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "fill"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                data-anim="roll" data-cmd="Add a fill" data-cmd-group="Pattern"
+                title="A fill in the last bar, in the four-floor style — press again for another (one Ctrl+Z takes them all back)">⚄ fill</button>
+        <span class="pt-menu">
+          <button type="button" class="btn btn-s btn-icon pt" popovertarget="ptm-fill-drum-bank" title="Fill lengths, and a fill every few bars" aria-label="fill options">▾</button>
+          <div popover id="ptm-fill-drum-bank" class="pop menu pt-menu-panel" role="group" aria-label="fill options">
+            <button type="button" class="menu-item rowtool" popovertarget="ptm-fill-drum-bank" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{&#34;kind&#34;: &#34;fill&#34;, &#34;len&#34;: &#34;0.5&#34;}' hx-target="#drum-bank" hx-swap="outerMorph">the last half bar</button>
+            <button type="button" class="menu-item rowtool" popovertarget="ptm-fill-drum-bank" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{&#34;kind&#34;: &#34;fill&#34;, &#34;len&#34;: &#34;1&#34;}' hx-target="#drum-bank" hx-swap="outerMorph">the last bar</button>
+            <button type="button" class="menu-item rowtool" popovertarget="ptm-fill-drum-bank" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{&#34;kind&#34;: &#34;fill&#34;, &#34;len&#34;: &#34;2&#34;}' hx-target="#drum-bank" hx-swap="outerMorph">the last two bars</button>
+            <button type="button" class="menu-item rowtool" popovertarget="ptm-fill-drum-bank" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{&#34;kind&#34;: &#34;fill&#34;, &#34;every&#34;: &#34;1&#34;, &#34;len&#34;: &#34;0.5&#34;}' hx-target="#drum-bank" hx-swap="outerMorph">every bar</button>
+            <button type="button" class="menu-item rowtool" popovertarget="ptm-fill-drum-bank" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{&#34;kind&#34;: &#34;fill&#34;, &#34;every&#34;: &#34;2&#34;}' hx-target="#drum-bank" hx-swap="outerMorph">every 2 bars</button>
+            <button type="button" class="menu-item rowtool" popovertarget="ptm-fill-drum-bank" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{&#34;kind&#34;: &#34;fill&#34;, &#34;every&#34;: &#34;4&#34;}' hx-target="#drum-bank" hx-swap="outerMorph">every 4 bars</button>
+          </div>
+        </span>
+        <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "sparser"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                data-cmd="Make it sparser" data-cmd-group="Pattern"
+                title="The weakest hits out: ghosts first, then what sits between the eighths — never a kick on the beat, never the backbeat">sparser</button>
+        <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "busier"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                data-cmd="Make it busier" data-cmd-group="Pattern"
+                title="Hits in: quiet ghosts beside the backbeat, then offbeat hats, then the sixteenths between — never a kick">busier</button>
+        <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "build"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                data-anim="roll" data-cmd="Add a build" data-cmd-group="Pattern"
+                title="The beat becomes a roll over the grid's bars (two at least): quarters, eighths, sixteenths, 32nds — the snare getting louder and higher. Ctrl+Z brings the beat back">⚄ build</button>
+      </div>
+    </div>
+    <button type="button" class="btn btn-icon btn-s btn-ghost pt-hint" aria-label="How to draw in the drum grid"
+            title="drag across to paint · right-click erases · a row's name selects it: its hits take the lane under the grid (vel / chance / ratchet / nudge / tune) · arrows move, Space toggles, 1-4 ratchet, + − the lane's value, Alt+← → nudge, PageUp / PageDown the lane, Alt+1-4 variation · a row's ⋯ (or a right click on its name) fills, Euclids and shifts it · Ctrl+Z undoes">?</button>
+  </div>
+  <form id="drum-grid" class="drum-grid"
+        hx-post="/fragment/drums/grid" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last" hx-swap="none">
+    
+    
+    <input type="hidden" name="bars" value="2">
+    <input type="hidden" name="steps" value="16">
+    <input type="hidden" name="hits" value="{&#34;clap.20&#34;: {&#34;r&#34;: 2, &#34;t&#34;: -3.0}, &#34;hat.2&#34;: {&#34;p&#34;: 0.5, &#34;r&#34;: 3}, &#34;kick.0&#34;: {&#34;n&#34;: -0.25, &#34;v&#34;: 0.6}, &#34;kick.16&#34;: {&#34;n&#34;: 0.1, &#34;p&#34;: 0.0, &#34;t&#34;: 5.0}}">
+    <input type="hidden" name="rswing" value="{&#34;hat&#34;: 0.2}">
+    <input type="hidden" name="rlevel" value="{}">
+    <div class="grid drum-grid-8" aria-label="Drum grid" data-bars="2" style="--steps: 32; --rows: 8">
+      <i class="playhead" aria-hidden="true" style="grid-row: 1 / span 9"></i>
+      
+      
+      
+      
+      
+      
+      <div class="gridrow drumrow silent" role="group" aria-label="kick row" data-voice="kick">
+        
+        <span class="rowhead" data-ctx-pop="rowmenu-drum-grid-kick">
+          <button type="button" class="btn btn-s btn-ghost rowlabel" data-voice="kick" aria-pressed="false" tabindex="0"
+                  aria-label="select the kick row" title="kick: hear it · its hits take the lane under the grid (again: every row)">kick</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="false" tabindex="0"
+                  hx-post="/fragment/drums/row/kick/mute" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="mute kick">M</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn solo" aria-pressed="false" tabindex="0"
+                  hx-post="/fragment/drums/row/kick/solo" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="solo kick">S</button>
+          <span class="row-menu">
+            <button type="button" class="btn btn-s btn-icon rowbtn" tabindex="0" popovertarget="rowmenu-drum-grid-kick" aria-label="kick row tools" title="row tools">⋯</button>
+            <div popover id="rowmenu-drum-grid-kick" class="pop row-menu-panel" role="group" aria-label="kick row tools">
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/kick/randomise"
+                      hx-include="#drum-bank select[name=style]" hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="randomise kick row">⚄ randomise</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/kick/mutate"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="mutate kick row">± mutate</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/kick/clear"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="clear kick row">✕ clear</button>
+              
+              <span class="rowtool-group" role="group" aria-label="fill the kick row">fill
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/kick/fill1"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a kick hit every 1 step"
+                        aria-label="fill the kick row every 1 steps">1</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/kick/fill2"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a kick hit every 2 steps"
+                        aria-label="fill the kick row every 2 steps">2</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/kick/fill4"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a kick hit every 4 steps"
+                        aria-label="fill the kick row every 4 steps">4</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/kick/fill8"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a kick hit every 8 steps"
+                        aria-label="fill the kick row every 8 steps">8</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/kick/shift_left"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the kick row a step earlier" title="shift a step earlier (wraps)">◀</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/kick/shift_right"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the kick row a step later" title="shift a step later (wraps)">▶</button>
+              
+              <span class="rowtool-group euclid" role="group" aria-label="Euclid the kick row" title="hits spread evenly over steps, then turned: 3 in 8, 5 in 16 …">euclid
+                <input class="field field-s" type="number" name="hits" form="euclid-drum-grid-kick" min="0" max="32" value="3" aria-label="kick: Euclid hits">
+                in <input class="field field-s" type="number" name="of" form="euclid-drum-grid-kick" min="1" max="32" value="8" aria-label="kick: Euclid steps">
+                ↻ <input class="field field-s" type="number" name="rotate" form="euclid-drum-grid-kick" min="0" max="32" value="0" aria-label="kick: Euclid turn">
+                <button type="submit" class="btn btn-s rowtool" form="euclid-drum-grid-kick"
+                        aria-label="apply Euclid to the kick row">apply</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/kick/hitclear"
+                      hx-vals='{"voice": "kick"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="every kick hit back to plain: no ratchet, chance, nudge, tune or velocity of its own"
+                      aria-label="clear the kick row's hit data">plain hits</button>
+              
+              <select class="field field-s row-sample" name="clip.kick" hx-post="/fragment/drums/sample"
+                      hx-vals='{"voice": "kick"}' hx-trigger="change" hx-sync="this:queue last"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="play a clip instead of the synthesized kick"
+                      aria-label="sample for the kick row">
+                <option value="">synth kick</option><optgroup label="Percussion">
+                  
+                  <option value="perc:cowbell" >cowbell</option>
+                  
+                  <option value="perc:shaker" >shaker</option>
+                  
+                  <option value="perc:conga" >conga</option>
+                  
+                  <option value="perc:tambourine" >tambourine</option>
+                  
+                  <option value="perc:clank" >clank</option>
+                  
+                </optgroup><optgroup label="Clips">
+                
+                <option value="hit" >hit</option>
+                
+                </optgroup>
+              </select>
+              
+            </div>
+          </span>
+          
+          <span class="row-knobs">
+            <input type="range" id="drum-grid-kick-level" style="--fill: 53.33%" class="knob knob-s" data-row="level" min="0" max="1.5" step="0.01" value="0.8" data-default="1" tabindex="0"
+                   aria-label="kick level" title="kick level">
+            <input type="range" id="drum-grid-kick-swing" style="--fill: 0.0%" class="knob knob-s" data-row="swing" min="0" max="0.6" step="0.01" value="0.0" data-default="0.0" tabindex="0"
+                   aria-label="kick swing" title="kick swing: this row's own, over the kit's (double-click: follow the kit again)">
+          </span>
+        </span>
+        
+        
+        <input type="checkbox" name="drum.kick.0"
+               class="cell beat "
+               checked data-n="-" style="--hv: 0.6"
+               aria-label="kick step 1" tabindex="0">
+        
+        
+        <input type="checkbox" name="drum.kick.1"
+               class="cell  "
+               
+               aria-label="kick step 2" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.2"
+               class="cell  "
+               
+               aria-label="kick step 3" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.3"
+               class="cell  "
+               
+               aria-label="kick step 4" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.4"
+               class="cell beat "
+               
+               aria-label="kick step 5" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.5"
+               class="cell  "
+               
+               aria-label="kick step 6" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.6"
+               class="cell  "
+               
+               aria-label="kick step 7" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.7"
+               class="cell  "
+               
+               aria-label="kick step 8" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.8"
+               class="cell beat "
+               
+               aria-label="kick step 9" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.9"
+               class="cell  "
+               
+               aria-label="kick step 10" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.10"
+               class="cell  "
+               
+               aria-label="kick step 11" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.11"
+               class="cell  "
+               
+               aria-label="kick step 12" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.12"
+               class="cell beat "
+               
+               aria-label="kick step 13" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.13"
+               class="cell  "
+               
+               aria-label="kick step 14" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.14"
+               class="cell  "
+               
+               aria-label="kick step 15" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.15"
+               class="cell  "
+               
+               aria-label="kick step 16" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.16"
+               class="cell beat bar"
+               checked data-p="0" data-n="+" data-t="+"
+               aria-label="kick step 17" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.17"
+               class="cell  "
+               
+               aria-label="kick step 18" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.18"
+               class="cell  "
+               
+               aria-label="kick step 19" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.19"
+               class="cell  "
+               
+               aria-label="kick step 20" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.20"
+               class="cell beat "
+               
+               aria-label="kick step 21" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.21"
+               class="cell  "
+               
+               aria-label="kick step 22" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.22"
+               class="cell  "
+               
+               aria-label="kick step 23" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.23"
+               class="cell  "
+               
+               aria-label="kick step 24" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.24"
+               class="cell beat "
+               
+               aria-label="kick step 25" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.25"
+               class="cell  "
+               
+               aria-label="kick step 26" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.26"
+               class="cell  "
+               
+               aria-label="kick step 27" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.27"
+               class="cell  "
+               
+               aria-label="kick step 28" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.28"
+               class="cell beat "
+               
+               aria-label="kick step 29" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.29"
+               class="cell  "
+               
+               aria-label="kick step 30" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.30"
+               class="cell  "
+               
+               aria-label="kick step 31" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.kick.31"
+               class="cell  "
+               
+               aria-label="kick step 32" tabindex="-1">
+        
+      </div>
+      
+      
+      
+      
+      
+      
+      <div class="gridrow drumrow silent" role="group" aria-label="snare row" data-voice="snare">
+        
+        <span class="rowhead" data-ctx-pop="rowmenu-drum-grid-snare">
+          <button type="button" class="btn btn-s btn-ghost rowlabel" data-voice="snare" aria-pressed="false" tabindex="-1"
+                  aria-label="select the snare row" title="snare: hear it · its hits take the lane under the grid (again: every row)">snare</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="true" tabindex="-1"
+                  hx-post="/fragment/drums/row/snare/mute" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="mute snare">M</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn solo" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/snare/solo" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="solo snare">S</button>
+          <span class="row-menu">
+            <button type="button" class="btn btn-s btn-icon rowbtn" tabindex="-1" popovertarget="rowmenu-drum-grid-snare" aria-label="snare row tools" title="row tools">⋯</button>
+            <div popover id="rowmenu-drum-grid-snare" class="pop row-menu-panel" role="group" aria-label="snare row tools">
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/snare/randomise"
+                      hx-include="#drum-bank select[name=style]" hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="randomise snare row">⚄ randomise</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/snare/mutate"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="mutate snare row">± mutate</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/snare/clear"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="clear snare row">✕ clear</button>
+              
+              <span class="rowtool-group" role="group" aria-label="fill the snare row">fill
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/snare/fill1"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a snare hit every 1 step"
+                        aria-label="fill the snare row every 1 steps">1</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/snare/fill2"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a snare hit every 2 steps"
+                        aria-label="fill the snare row every 2 steps">2</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/snare/fill4"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a snare hit every 4 steps"
+                        aria-label="fill the snare row every 4 steps">4</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/snare/fill8"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a snare hit every 8 steps"
+                        aria-label="fill the snare row every 8 steps">8</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/snare/shift_left"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the snare row a step earlier" title="shift a step earlier (wraps)">◀</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/snare/shift_right"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the snare row a step later" title="shift a step later (wraps)">▶</button>
+              
+              <span class="rowtool-group euclid" role="group" aria-label="Euclid the snare row" title="hits spread evenly over steps, then turned: 3 in 8, 5 in 16 …">euclid
+                <input class="field field-s" type="number" name="hits" form="euclid-drum-grid-snare" min="0" max="32" value="3" aria-label="snare: Euclid hits">
+                in <input class="field field-s" type="number" name="of" form="euclid-drum-grid-snare" min="1" max="32" value="8" aria-label="snare: Euclid steps">
+                ↻ <input class="field field-s" type="number" name="rotate" form="euclid-drum-grid-snare" min="0" max="32" value="0" aria-label="snare: Euclid turn">
+                <button type="submit" class="btn btn-s rowtool" form="euclid-drum-grid-snare"
+                        aria-label="apply Euclid to the snare row">apply</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/snare/hitclear"
+                      hx-vals='{"voice": "snare"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="every snare hit back to plain: no ratchet, chance, nudge, tune or velocity of its own"
+                      aria-label="clear the snare row's hit data">plain hits</button>
+              
+              <select class="field field-s row-sample" name="clip.snare" hx-post="/fragment/drums/sample"
+                      hx-vals='{"voice": "snare"}' hx-trigger="change" hx-sync="this:queue last"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="play a clip instead of the synthesized snare"
+                      aria-label="sample for the snare row">
+                <option value="">synth snare</option><optgroup label="Percussion">
+                  
+                  <option value="perc:cowbell" >cowbell</option>
+                  
+                  <option value="perc:shaker" >shaker</option>
+                  
+                  <option value="perc:conga" >conga</option>
+                  
+                  <option value="perc:tambourine" >tambourine</option>
+                  
+                  <option value="perc:clank" >clank</option>
+                  
+                </optgroup><optgroup label="Clips">
+                
+                <option value="hit" >hit</option>
+                
+                </optgroup>
+              </select>
+              
+            </div>
+          </span>
+          
+          <span class="row-knobs">
+            <input type="range" id="drum-grid-snare-level" style="--fill: 66.67%" class="knob knob-s" data-row="level" min="0" max="1.5" step="0.01" value="1.0" data-default="1" tabindex="-1"
+                   aria-label="snare level" title="snare level">
+            <input type="range" id="drum-grid-snare-swing" style="--fill: 0.0%" class="knob knob-s" data-row="swing" min="0" max="0.6" step="0.01" value="0.0" data-default="0.0" tabindex="-1"
+                   aria-label="snare swing" title="snare swing: this row's own, over the kit's (double-click: follow the kit again)">
+          </span>
+        </span>
+        
+        
+        <input type="checkbox" name="drum.snare.0"
+               class="cell beat "
+               
+               aria-label="snare step 1" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.1"
+               class="cell  "
+               
+               aria-label="snare step 2" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.2"
+               class="cell  "
+               
+               aria-label="snare step 3" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.3"
+               class="cell  "
+               
+               aria-label="snare step 4" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.4"
+               class="cell beat "
+               checked
+               aria-label="snare step 5" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.5"
+               class="cell  "
+               
+               aria-label="snare step 6" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.6"
+               class="cell  "
+               
+               aria-label="snare step 7" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.7"
+               class="cell  "
+               
+               aria-label="snare step 8" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.8"
+               class="cell beat "
+               
+               aria-label="snare step 9" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.9"
+               class="cell  "
+               
+               aria-label="snare step 10" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.10"
+               class="cell  "
+               
+               aria-label="snare step 11" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.11"
+               class="cell  "
+               
+               aria-label="snare step 12" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.12"
+               class="cell beat "
+               
+               aria-label="snare step 13" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.13"
+               class="cell  "
+               
+               aria-label="snare step 14" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.14"
+               class="cell  "
+               
+               aria-label="snare step 15" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.15"
+               class="cell  "
+               
+               aria-label="snare step 16" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.16"
+               class="cell beat bar"
+               
+               aria-label="snare step 17" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.17"
+               class="cell  "
+               
+               aria-label="snare step 18" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.18"
+               class="cell  "
+               
+               aria-label="snare step 19" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.19"
+               class="cell  "
+               
+               aria-label="snare step 20" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.20"
+               class="cell beat "
+               
+               aria-label="snare step 21" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.21"
+               class="cell  "
+               
+               aria-label="snare step 22" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.22"
+               class="cell  "
+               
+               aria-label="snare step 23" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.23"
+               class="cell  "
+               
+               aria-label="snare step 24" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.24"
+               class="cell beat "
+               
+               aria-label="snare step 25" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.25"
+               class="cell  "
+               
+               aria-label="snare step 26" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.26"
+               class="cell  "
+               
+               aria-label="snare step 27" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.27"
+               class="cell  "
+               
+               aria-label="snare step 28" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.28"
+               class="cell beat "
+               
+               aria-label="snare step 29" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.29"
+               class="cell  "
+               
+               aria-label="snare step 30" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.30"
+               class="cell  "
+               
+               aria-label="snare step 31" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.snare.31"
+               class="cell  "
+               
+               aria-label="snare step 32" tabindex="-1">
+        
+      </div>
+      
+      
+      
+      
+      
+      
+      <div class="gridrow drumrow " role="group" aria-label="hat row" data-voice="hat">
+        
+        <span class="rowhead" data-ctx-pop="rowmenu-drum-grid-hat">
+          <button type="button" class="btn btn-s btn-ghost rowlabel" data-voice="hat" aria-pressed="false" tabindex="-1"
+                  aria-label="select the hat row" title="hat: hear it · its hits take the lane under the grid (again: every row)">hat</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/hat/mute" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="mute hat">M</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn solo" aria-pressed="true" tabindex="-1"
+                  hx-post="/fragment/drums/row/hat/solo" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="solo hat">S</button>
+          <span class="row-menu">
+            <button type="button" class="btn btn-s btn-icon rowbtn" tabindex="-1" popovertarget="rowmenu-drum-grid-hat" aria-label="hat row tools" title="row tools">⋯</button>
+            <div popover id="rowmenu-drum-grid-hat" class="pop row-menu-panel" role="group" aria-label="hat row tools">
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/hat/randomise"
+                      hx-include="#drum-bank select[name=style]" hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="randomise hat row">⚄ randomise</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/hat/mutate"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="mutate hat row">± mutate</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/hat/clear"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="clear hat row">✕ clear</button>
+              
+              <span class="rowtool-group" role="group" aria-label="fill the hat row">fill
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/hat/fill1"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a hat hit every 1 step"
+                        aria-label="fill the hat row every 1 steps">1</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/hat/fill2"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a hat hit every 2 steps"
+                        aria-label="fill the hat row every 2 steps">2</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/hat/fill4"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a hat hit every 4 steps"
+                        aria-label="fill the hat row every 4 steps">4</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/hat/fill8"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a hat hit every 8 steps"
+                        aria-label="fill the hat row every 8 steps">8</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/hat/shift_left"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the hat row a step earlier" title="shift a step earlier (wraps)">◀</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/hat/shift_right"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the hat row a step later" title="shift a step later (wraps)">▶</button>
+              
+              <span class="rowtool-group euclid" role="group" aria-label="Euclid the hat row" title="hits spread evenly over steps, then turned: 3 in 8, 5 in 16 …">euclid
+                <input class="field field-s" type="number" name="hits" form="euclid-drum-grid-hat" min="0" max="32" value="3" aria-label="hat: Euclid hits">
+                in <input class="field field-s" type="number" name="of" form="euclid-drum-grid-hat" min="1" max="32" value="8" aria-label="hat: Euclid steps">
+                ↻ <input class="field field-s" type="number" name="rotate" form="euclid-drum-grid-hat" min="0" max="32" value="0" aria-label="hat: Euclid turn">
+                <button type="submit" class="btn btn-s rowtool" form="euclid-drum-grid-hat"
+                        aria-label="apply Euclid to the hat row">apply</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/hat/hitclear"
+                      hx-vals='{"voice": "hat"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="every hat hit back to plain: no ratchet, chance, nudge, tune or velocity of its own"
+                      aria-label="clear the hat row's hit data">plain hits</button>
+              
+              <select class="field field-s row-sample" name="clip.hat" hx-post="/fragment/drums/sample"
+                      hx-vals='{"voice": "hat"}' hx-trigger="change" hx-sync="this:queue last"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="play a clip instead of the synthesized hat"
+                      aria-label="sample for the hat row">
+                <option value="">synth hat</option><optgroup label="Percussion">
+                  
+                  <option value="perc:cowbell" >cowbell</option>
+                  
+                  <option value="perc:shaker" >shaker</option>
+                  
+                  <option value="perc:conga" >conga</option>
+                  
+                  <option value="perc:tambourine" >tambourine</option>
+                  
+                  <option value="perc:clank" >clank</option>
+                  
+                </optgroup><optgroup label="Clips">
+                
+                <option value="hit" >hit</option>
+                
+                </optgroup>
+              </select>
+              
+            </div>
+          </span>
+          
+          <span class="row-knobs">
+            <input type="range" id="drum-grid-hat-level" style="--fill: 66.67%" class="knob knob-s" data-row="level" min="0" max="1.5" step="0.01" value="1.0" data-default="1" tabindex="-1"
+                   aria-label="hat level" title="hat level">
+            <input type="range" id="drum-grid-hat-swing" style="--fill: 33.33%" class="knob knob-s own" data-row="swing" min="0" max="0.6" step="0.01" value="0.2" data-default="0.0" tabindex="-1"
+                   aria-label="hat swing" title="hat swing: this row's own, over the kit's (double-click: follow the kit again)">
+          </span>
+        </span>
+        
+        
+        <input type="checkbox" name="drum.hat.0"
+               class="cell beat "
+               
+               aria-label="hat step 1" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.1"
+               class="cell  "
+               
+               aria-label="hat step 2" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.2"
+               class="cell  "
+               checked data-r="3" data-p="50"
+               aria-label="hat step 3" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.3"
+               class="cell  "
+               
+               aria-label="hat step 4" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.4"
+               class="cell beat "
+               
+               aria-label="hat step 5" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.5"
+               class="cell  "
+               
+               aria-label="hat step 6" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.6"
+               class="cell  "
+               
+               aria-label="hat step 7" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.7"
+               class="cell  "
+               
+               aria-label="hat step 8" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.8"
+               class="cell beat "
+               
+               aria-label="hat step 9" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.9"
+               class="cell  "
+               
+               aria-label="hat step 10" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.10"
+               class="cell  "
+               
+               aria-label="hat step 11" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.11"
+               class="cell  "
+               
+               aria-label="hat step 12" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.12"
+               class="cell beat "
+               
+               aria-label="hat step 13" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.13"
+               class="cell  "
+               
+               aria-label="hat step 14" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.14"
+               class="cell  "
+               
+               aria-label="hat step 15" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.15"
+               class="cell  "
+               
+               aria-label="hat step 16" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.16"
+               class="cell beat bar"
+               
+               aria-label="hat step 17" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.17"
+               class="cell  "
+               
+               aria-label="hat step 18" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.18"
+               class="cell  "
+               
+               aria-label="hat step 19" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.19"
+               class="cell  "
+               
+               aria-label="hat step 20" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.20"
+               class="cell beat "
+               
+               aria-label="hat step 21" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.21"
+               class="cell  "
+               
+               aria-label="hat step 22" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.22"
+               class="cell  "
+               
+               aria-label="hat step 23" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.23"
+               class="cell  "
+               
+               aria-label="hat step 24" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.24"
+               class="cell beat "
+               
+               aria-label="hat step 25" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.25"
+               class="cell  "
+               
+               aria-label="hat step 26" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.26"
+               class="cell  "
+               
+               aria-label="hat step 27" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.27"
+               class="cell  "
+               
+               aria-label="hat step 28" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.28"
+               class="cell beat "
+               
+               aria-label="hat step 29" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.29"
+               class="cell  "
+               
+               aria-label="hat step 30" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.30"
+               class="cell  "
+               
+               aria-label="hat step 31" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.hat.31"
+               class="cell  "
+               
+               aria-label="hat step 32" tabindex="-1">
+        
+      </div>
+      
+      
+      
+      
+      
+      
+      <div class="gridrow drumrow silent" role="group" aria-label="ohat row" data-voice="ohat">
+        
+        <span class="rowhead" data-ctx-pop="rowmenu-drum-grid-ohat">
+          <button type="button" class="btn btn-s btn-ghost rowlabel" data-voice="ohat" aria-pressed="false" tabindex="-1"
+                  aria-label="select the ohat row" title="ohat: hear it · its hits take the lane under the grid (again: every row)">ohat</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/ohat/mute" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="mute ohat">M</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn solo" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/ohat/solo" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="solo ohat">S</button>
+          <span class="row-menu">
+            <button type="button" class="btn btn-s btn-icon rowbtn" tabindex="-1" popovertarget="rowmenu-drum-grid-ohat" aria-label="ohat row tools" title="row tools">⋯</button>
+            <div popover id="rowmenu-drum-grid-ohat" class="pop row-menu-panel" role="group" aria-label="ohat row tools">
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/ohat/randomise"
+                      hx-include="#drum-bank select[name=style]" hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="randomise ohat row">⚄ randomise</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/ohat/mutate"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="mutate ohat row">± mutate</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/ohat/clear"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="clear ohat row">✕ clear</button>
+              
+              <span class="rowtool-group" role="group" aria-label="fill the ohat row">fill
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/ohat/fill1"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a ohat hit every 1 step"
+                        aria-label="fill the ohat row every 1 steps">1</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/ohat/fill2"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a ohat hit every 2 steps"
+                        aria-label="fill the ohat row every 2 steps">2</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/ohat/fill4"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a ohat hit every 4 steps"
+                        aria-label="fill the ohat row every 4 steps">4</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/ohat/fill8"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a ohat hit every 8 steps"
+                        aria-label="fill the ohat row every 8 steps">8</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/ohat/shift_left"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the ohat row a step earlier" title="shift a step earlier (wraps)">◀</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/ohat/shift_right"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the ohat row a step later" title="shift a step later (wraps)">▶</button>
+              
+              <span class="rowtool-group euclid" role="group" aria-label="Euclid the ohat row" title="hits spread evenly over steps, then turned: 3 in 8, 5 in 16 …">euclid
+                <input class="field field-s" type="number" name="hits" form="euclid-drum-grid-ohat" min="0" max="32" value="3" aria-label="ohat: Euclid hits">
+                in <input class="field field-s" type="number" name="of" form="euclid-drum-grid-ohat" min="1" max="32" value="8" aria-label="ohat: Euclid steps">
+                ↻ <input class="field field-s" type="number" name="rotate" form="euclid-drum-grid-ohat" min="0" max="32" value="0" aria-label="ohat: Euclid turn">
+                <button type="submit" class="btn btn-s rowtool" form="euclid-drum-grid-ohat"
+                        aria-label="apply Euclid to the ohat row">apply</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/ohat/hitclear"
+                      hx-vals='{"voice": "ohat"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="every ohat hit back to plain: no ratchet, chance, nudge, tune or velocity of its own"
+                      aria-label="clear the ohat row's hit data">plain hits</button>
+              
+              <select class="field field-s row-sample" name="clip.ohat" hx-post="/fragment/drums/sample"
+                      hx-vals='{"voice": "ohat"}' hx-trigger="change" hx-sync="this:queue last"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="play a clip instead of the synthesized ohat"
+                      aria-label="sample for the ohat row">
+                <option value="">synth ohat</option><optgroup label="Percussion">
+                  
+                  <option value="perc:cowbell" >cowbell</option>
+                  
+                  <option value="perc:shaker" >shaker</option>
+                  
+                  <option value="perc:conga" >conga</option>
+                  
+                  <option value="perc:tambourine" >tambourine</option>
+                  
+                  <option value="perc:clank" >clank</option>
+                  
+                </optgroup><optgroup label="Clips">
+                
+                <option value="hit" >hit</option>
+                
+                </optgroup>
+              </select>
+              
+            </div>
+          </span>
+          
+          <span class="row-knobs">
+            <input type="range" id="drum-grid-ohat-level" style="--fill: 66.67%" class="knob knob-s" data-row="level" min="0" max="1.5" step="0.01" value="1.0" data-default="1" tabindex="-1"
+                   aria-label="ohat level" title="ohat level">
+            <input type="range" id="drum-grid-ohat-swing" style="--fill: 0.0%" class="knob knob-s" data-row="swing" min="0" max="0.6" step="0.01" value="0.0" data-default="0.0" tabindex="-1"
+                   aria-label="ohat swing" title="ohat swing: this row's own, over the kit's (double-click: follow the kit again)">
+          </span>
+        </span>
+        
+        
+        <input type="checkbox" name="drum.ohat.0"
+               class="cell beat "
+               
+               aria-label="ohat step 1" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.1"
+               class="cell  "
+               
+               aria-label="ohat step 2" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.2"
+               class="cell  "
+               
+               aria-label="ohat step 3" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.3"
+               class="cell  "
+               
+               aria-label="ohat step 4" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.4"
+               class="cell beat "
+               
+               aria-label="ohat step 5" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.5"
+               class="cell  "
+               
+               aria-label="ohat step 6" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.6"
+               class="cell  "
+               
+               aria-label="ohat step 7" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.7"
+               class="cell  "
+               
+               aria-label="ohat step 8" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.8"
+               class="cell beat "
+               
+               aria-label="ohat step 9" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.9"
+               class="cell  "
+               
+               aria-label="ohat step 10" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.10"
+               class="cell  "
+               
+               aria-label="ohat step 11" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.11"
+               class="cell  "
+               
+               aria-label="ohat step 12" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.12"
+               class="cell beat "
+               
+               aria-label="ohat step 13" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.13"
+               class="cell  "
+               
+               aria-label="ohat step 14" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.14"
+               class="cell  "
+               
+               aria-label="ohat step 15" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.15"
+               class="cell  "
+               
+               aria-label="ohat step 16" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.16"
+               class="cell beat bar"
+               
+               aria-label="ohat step 17" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.17"
+               class="cell  "
+               
+               aria-label="ohat step 18" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.18"
+               class="cell  "
+               
+               aria-label="ohat step 19" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.19"
+               class="cell  "
+               
+               aria-label="ohat step 20" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.20"
+               class="cell beat "
+               
+               aria-label="ohat step 21" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.21"
+               class="cell  "
+               
+               aria-label="ohat step 22" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.22"
+               class="cell  "
+               
+               aria-label="ohat step 23" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.23"
+               class="cell  "
+               
+               aria-label="ohat step 24" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.24"
+               class="cell beat "
+               
+               aria-label="ohat step 25" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.25"
+               class="cell  "
+               
+               aria-label="ohat step 26" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.26"
+               class="cell  "
+               
+               aria-label="ohat step 27" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.27"
+               class="cell  "
+               
+               aria-label="ohat step 28" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.28"
+               class="cell beat "
+               
+               aria-label="ohat step 29" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.29"
+               class="cell  "
+               
+               aria-label="ohat step 30" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.30"
+               class="cell  "
+               
+               aria-label="ohat step 31" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.ohat.31"
+               class="cell  "
+               
+               aria-label="ohat step 32" tabindex="-1">
+        
+      </div>
+      
+      
+      
+      
+      
+      
+      <div class="gridrow drumrow silent" role="group" aria-label="clap row" data-voice="clap">
+        
+        <span class="rowhead" data-ctx-pop="rowmenu-drum-grid-clap">
+          <button type="button" class="btn btn-s btn-ghost rowlabel" data-voice="clap" aria-pressed="false" tabindex="-1"
+                  aria-label="select the clap row" title="clap: hear it · its hits take the lane under the grid (again: every row)">clap<i class="row-src" title="plays clip hit">◆</i></button>
+          <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/clap/mute" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="mute clap">M</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn solo" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/clap/solo" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="solo clap">S</button>
+          <span class="row-menu">
+            <button type="button" class="btn btn-s btn-icon rowbtn" tabindex="-1" popovertarget="rowmenu-drum-grid-clap" aria-label="clap row tools" title="row tools">⋯</button>
+            <div popover id="rowmenu-drum-grid-clap" class="pop row-menu-panel" role="group" aria-label="clap row tools">
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/clap/randomise"
+                      hx-include="#drum-bank select[name=style]" hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="randomise clap row">⚄ randomise</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/clap/mutate"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="mutate clap row">± mutate</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/clap/clear"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="clear clap row">✕ clear</button>
+              
+              <span class="rowtool-group" role="group" aria-label="fill the clap row">fill
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/clap/fill1"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a clap hit every 1 step"
+                        aria-label="fill the clap row every 1 steps">1</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/clap/fill2"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a clap hit every 2 steps"
+                        aria-label="fill the clap row every 2 steps">2</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/clap/fill4"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a clap hit every 4 steps"
+                        aria-label="fill the clap row every 4 steps">4</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/clap/fill8"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a clap hit every 8 steps"
+                        aria-label="fill the clap row every 8 steps">8</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/clap/shift_left"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the clap row a step earlier" title="shift a step earlier (wraps)">◀</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/clap/shift_right"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the clap row a step later" title="shift a step later (wraps)">▶</button>
+              
+              <span class="rowtool-group euclid" role="group" aria-label="Euclid the clap row" title="hits spread evenly over steps, then turned: 3 in 8, 5 in 16 …">euclid
+                <input class="field field-s" type="number" name="hits" form="euclid-drum-grid-clap" min="0" max="32" value="3" aria-label="clap: Euclid hits">
+                in <input class="field field-s" type="number" name="of" form="euclid-drum-grid-clap" min="1" max="32" value="8" aria-label="clap: Euclid steps">
+                ↻ <input class="field field-s" type="number" name="rotate" form="euclid-drum-grid-clap" min="0" max="32" value="0" aria-label="clap: Euclid turn">
+                <button type="submit" class="btn btn-s rowtool" form="euclid-drum-grid-clap"
+                        aria-label="apply Euclid to the clap row">apply</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/clap/hitclear"
+                      hx-vals='{"voice": "clap"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="every clap hit back to plain: no ratchet, chance, nudge, tune or velocity of its own"
+                      aria-label="clear the clap row's hit data">plain hits</button>
+              
+              <select class="field field-s row-sample" name="clip.clap" hx-post="/fragment/drums/sample"
+                      hx-vals='{"voice": "clap"}' hx-trigger="change" hx-sync="this:queue last"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="play a clip instead of the synthesized clap"
+                      aria-label="sample for the clap row">
+                <option value="">synth clap</option><optgroup label="Percussion">
+                  
+                  <option value="perc:cowbell" >cowbell</option>
+                  
+                  <option value="perc:shaker" >shaker</option>
+                  
+                  <option value="perc:conga" >conga</option>
+                  
+                  <option value="perc:tambourine" >tambourine</option>
+                  
+                  <option value="perc:clank" >clank</option>
+                  
+                </optgroup><optgroup label="Clips">
+                
+                <option value="hit" selected>hit</option>
+                
+                </optgroup>
+              </select>
+              
+            </div>
+          </span>
+          
+          <span class="row-knobs">
+            <input type="range" id="drum-grid-clap-level" style="--fill: 66.67%" class="knob knob-s" data-row="level" min="0" max="1.5" step="0.01" value="1.0" data-default="1" tabindex="-1"
+                   aria-label="clap level" title="clap level">
+            <input type="range" id="drum-grid-clap-swing" style="--fill: 0.0%" class="knob knob-s" data-row="swing" min="0" max="0.6" step="0.01" value="0.0" data-default="0.0" tabindex="-1"
+                   aria-label="clap swing" title="clap swing: this row's own, over the kit's (double-click: follow the kit again)">
+          </span>
+        </span>
+        
+        
+        <input type="checkbox" name="drum.clap.0"
+               class="cell beat "
+               
+               aria-label="clap step 1" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.1"
+               class="cell  "
+               
+               aria-label="clap step 2" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.2"
+               class="cell  "
+               
+               aria-label="clap step 3" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.3"
+               class="cell  "
+               
+               aria-label="clap step 4" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.4"
+               class="cell beat "
+               
+               aria-label="clap step 5" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.5"
+               class="cell  "
+               
+               aria-label="clap step 6" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.6"
+               class="cell  "
+               
+               aria-label="clap step 7" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.7"
+               class="cell  "
+               
+               aria-label="clap step 8" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.8"
+               class="cell beat "
+               
+               aria-label="clap step 9" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.9"
+               class="cell  "
+               
+               aria-label="clap step 10" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.10"
+               class="cell  "
+               
+               aria-label="clap step 11" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.11"
+               class="cell  "
+               
+               aria-label="clap step 12" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.12"
+               class="cell beat "
+               
+               aria-label="clap step 13" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.13"
+               class="cell  "
+               
+               aria-label="clap step 14" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.14"
+               class="cell  "
+               
+               aria-label="clap step 15" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.15"
+               class="cell  "
+               
+               aria-label="clap step 16" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.16"
+               class="cell beat bar"
+               
+               aria-label="clap step 17" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.17"
+               class="cell  "
+               
+               aria-label="clap step 18" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.18"
+               class="cell  "
+               
+               aria-label="clap step 19" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.19"
+               class="cell  "
+               
+               aria-label="clap step 20" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.20"
+               class="cell beat "
+               checked data-r="2" data-t="-"
+               aria-label="clap step 21" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.21"
+               class="cell  "
+               
+               aria-label="clap step 22" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.22"
+               class="cell  "
+               
+               aria-label="clap step 23" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.23"
+               class="cell  "
+               
+               aria-label="clap step 24" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.24"
+               class="cell beat "
+               
+               aria-label="clap step 25" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.25"
+               class="cell  "
+               
+               aria-label="clap step 26" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.26"
+               class="cell  "
+               
+               aria-label="clap step 27" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.27"
+               class="cell  "
+               
+               aria-label="clap step 28" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.28"
+               class="cell beat "
+               
+               aria-label="clap step 29" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.29"
+               class="cell  "
+               
+               aria-label="clap step 30" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.30"
+               class="cell  "
+               
+               aria-label="clap step 31" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.clap.31"
+               class="cell  "
+               
+               aria-label="clap step 32" tabindex="-1">
+        
+      </div>
+      
+      
+      
+      
+      
+      
+      <div class="gridrow drumrow silent" role="group" aria-label="tom row" data-voice="tom">
+        
+        <span class="rowhead" data-ctx-pop="rowmenu-drum-grid-tom">
+          <button type="button" class="btn btn-s btn-ghost rowlabel" data-voice="tom" aria-pressed="false" tabindex="-1"
+                  aria-label="select the tom row" title="tom: hear it · its hits take the lane under the grid (again: every row)">tom</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/tom/mute" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="mute tom">M</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn solo" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/tom/solo" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="solo tom">S</button>
+          <span class="row-menu">
+            <button type="button" class="btn btn-s btn-icon rowbtn" tabindex="-1" popovertarget="rowmenu-drum-grid-tom" aria-label="tom row tools" title="row tools">⋯</button>
+            <div popover id="rowmenu-drum-grid-tom" class="pop row-menu-panel" role="group" aria-label="tom row tools">
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/tom/randomise"
+                      hx-include="#drum-bank select[name=style]" hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="randomise tom row">⚄ randomise</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/tom/mutate"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="mutate tom row">± mutate</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/tom/clear"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="clear tom row">✕ clear</button>
+              
+              <span class="rowtool-group" role="group" aria-label="fill the tom row">fill
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/tom/fill1"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a tom hit every 1 step"
+                        aria-label="fill the tom row every 1 steps">1</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/tom/fill2"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a tom hit every 2 steps"
+                        aria-label="fill the tom row every 2 steps">2</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/tom/fill4"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a tom hit every 4 steps"
+                        aria-label="fill the tom row every 4 steps">4</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/tom/fill8"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a tom hit every 8 steps"
+                        aria-label="fill the tom row every 8 steps">8</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/tom/shift_left"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the tom row a step earlier" title="shift a step earlier (wraps)">◀</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/tom/shift_right"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the tom row a step later" title="shift a step later (wraps)">▶</button>
+              
+              <span class="rowtool-group euclid" role="group" aria-label="Euclid the tom row" title="hits spread evenly over steps, then turned: 3 in 8, 5 in 16 …">euclid
+                <input class="field field-s" type="number" name="hits" form="euclid-drum-grid-tom" min="0" max="32" value="3" aria-label="tom: Euclid hits">
+                in <input class="field field-s" type="number" name="of" form="euclid-drum-grid-tom" min="1" max="32" value="8" aria-label="tom: Euclid steps">
+                ↻ <input class="field field-s" type="number" name="rotate" form="euclid-drum-grid-tom" min="0" max="32" value="0" aria-label="tom: Euclid turn">
+                <button type="submit" class="btn btn-s rowtool" form="euclid-drum-grid-tom"
+                        aria-label="apply Euclid to the tom row">apply</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/tom/hitclear"
+                      hx-vals='{"voice": "tom"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="every tom hit back to plain: no ratchet, chance, nudge, tune or velocity of its own"
+                      aria-label="clear the tom row's hit data">plain hits</button>
+              
+              <select class="field field-s row-sample" name="clip.tom" hx-post="/fragment/drums/sample"
+                      hx-vals='{"voice": "tom"}' hx-trigger="change" hx-sync="this:queue last"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="play a clip instead of the synthesized tom"
+                      aria-label="sample for the tom row">
+                <option value="">synth tom</option><optgroup label="Percussion">
+                  
+                  <option value="perc:cowbell" >cowbell</option>
+                  
+                  <option value="perc:shaker" >shaker</option>
+                  
+                  <option value="perc:conga" >conga</option>
+                  
+                  <option value="perc:tambourine" >tambourine</option>
+                  
+                  <option value="perc:clank" >clank</option>
+                  
+                </optgroup><optgroup label="Clips">
+                
+                <option value="hit" >hit</option>
+                
+                </optgroup>
+              </select>
+              
+            </div>
+          </span>
+          
+          <span class="row-knobs">
+            <input type="range" id="drum-grid-tom-level" style="--fill: 66.67%" class="knob knob-s" data-row="level" min="0" max="1.5" step="0.01" value="1.0" data-default="1" tabindex="-1"
+                   aria-label="tom level" title="tom level">
+            <input type="range" id="drum-grid-tom-swing" style="--fill: 0.0%" class="knob knob-s" data-row="swing" min="0" max="0.6" step="0.01" value="0.0" data-default="0.0" tabindex="-1"
+                   aria-label="tom swing" title="tom swing: this row's own, over the kit's (double-click: follow the kit again)">
+          </span>
+        </span>
+        
+        
+        <input type="checkbox" name="drum.tom.0"
+               class="cell beat "
+               
+               aria-label="tom step 1" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.1"
+               class="cell  "
+               
+               aria-label="tom step 2" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.2"
+               class="cell  "
+               
+               aria-label="tom step 3" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.3"
+               class="cell  "
+               
+               aria-label="tom step 4" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.4"
+               class="cell beat "
+               
+               aria-label="tom step 5" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.5"
+               class="cell  "
+               
+               aria-label="tom step 6" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.6"
+               class="cell  "
+               
+               aria-label="tom step 7" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.7"
+               class="cell  "
+               
+               aria-label="tom step 8" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.8"
+               class="cell beat "
+               
+               aria-label="tom step 9" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.9"
+               class="cell  "
+               
+               aria-label="tom step 10" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.10"
+               class="cell  "
+               
+               aria-label="tom step 11" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.11"
+               class="cell  "
+               
+               aria-label="tom step 12" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.12"
+               class="cell beat "
+               
+               aria-label="tom step 13" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.13"
+               class="cell  "
+               
+               aria-label="tom step 14" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.14"
+               class="cell  "
+               
+               aria-label="tom step 15" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.15"
+               class="cell  "
+               
+               aria-label="tom step 16" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.16"
+               class="cell beat bar"
+               
+               aria-label="tom step 17" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.17"
+               class="cell  "
+               
+               aria-label="tom step 18" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.18"
+               class="cell  "
+               
+               aria-label="tom step 19" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.19"
+               class="cell  "
+               
+               aria-label="tom step 20" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.20"
+               class="cell beat "
+               
+               aria-label="tom step 21" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.21"
+               class="cell  "
+               
+               aria-label="tom step 22" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.22"
+               class="cell  "
+               
+               aria-label="tom step 23" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.23"
+               class="cell  "
+               
+               aria-label="tom step 24" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.24"
+               class="cell beat "
+               
+               aria-label="tom step 25" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.25"
+               class="cell  "
+               
+               aria-label="tom step 26" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.26"
+               class="cell  "
+               
+               aria-label="tom step 27" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.27"
+               class="cell  "
+               
+               aria-label="tom step 28" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.28"
+               class="cell beat "
+               
+               aria-label="tom step 29" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.29"
+               class="cell  "
+               
+               aria-label="tom step 30" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.30"
+               class="cell  "
+               
+               aria-label="tom step 31" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.tom.31"
+               class="cell  "
+               
+               aria-label="tom step 32" tabindex="-1">
+        
+      </div>
+      
+      
+      
+      
+      
+      
+      <div class="gridrow drumrow silent" role="group" aria-label="rim row" data-voice="rim">
+        
+        <span class="rowhead" data-ctx-pop="rowmenu-drum-grid-rim">
+          <button type="button" class="btn btn-s btn-ghost rowlabel" data-voice="rim" aria-pressed="false" tabindex="-1"
+                  aria-label="select the rim row" title="rim: hear it · its hits take the lane under the grid (again: every row)">rim</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/rim/mute" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="mute rim">M</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn solo" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/rim/solo" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="solo rim">S</button>
+          <span class="row-menu">
+            <button type="button" class="btn btn-s btn-icon rowbtn" tabindex="-1" popovertarget="rowmenu-drum-grid-rim" aria-label="rim row tools" title="row tools">⋯</button>
+            <div popover id="rowmenu-drum-grid-rim" class="pop row-menu-panel" role="group" aria-label="rim row tools">
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/rim/randomise"
+                      hx-include="#drum-bank select[name=style]" hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="randomise rim row">⚄ randomise</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/rim/mutate"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="mutate rim row">± mutate</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/rim/clear"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="clear rim row">✕ clear</button>
+              
+              <span class="rowtool-group" role="group" aria-label="fill the rim row">fill
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/rim/fill1"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a rim hit every 1 step"
+                        aria-label="fill the rim row every 1 steps">1</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/rim/fill2"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a rim hit every 2 steps"
+                        aria-label="fill the rim row every 2 steps">2</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/rim/fill4"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a rim hit every 4 steps"
+                        aria-label="fill the rim row every 4 steps">4</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/rim/fill8"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a rim hit every 8 steps"
+                        aria-label="fill the rim row every 8 steps">8</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/rim/shift_left"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the rim row a step earlier" title="shift a step earlier (wraps)">◀</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/rim/shift_right"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the rim row a step later" title="shift a step later (wraps)">▶</button>
+              
+              <span class="rowtool-group euclid" role="group" aria-label="Euclid the rim row" title="hits spread evenly over steps, then turned: 3 in 8, 5 in 16 …">euclid
+                <input class="field field-s" type="number" name="hits" form="euclid-drum-grid-rim" min="0" max="32" value="3" aria-label="rim: Euclid hits">
+                in <input class="field field-s" type="number" name="of" form="euclid-drum-grid-rim" min="1" max="32" value="8" aria-label="rim: Euclid steps">
+                ↻ <input class="field field-s" type="number" name="rotate" form="euclid-drum-grid-rim" min="0" max="32" value="0" aria-label="rim: Euclid turn">
+                <button type="submit" class="btn btn-s rowtool" form="euclid-drum-grid-rim"
+                        aria-label="apply Euclid to the rim row">apply</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/rim/hitclear"
+                      hx-vals='{"voice": "rim"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="every rim hit back to plain: no ratchet, chance, nudge, tune or velocity of its own"
+                      aria-label="clear the rim row's hit data">plain hits</button>
+              
+              <select class="field field-s row-sample" name="clip.rim" hx-post="/fragment/drums/sample"
+                      hx-vals='{"voice": "rim"}' hx-trigger="change" hx-sync="this:queue last"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="play a clip instead of the synthesized rim"
+                      aria-label="sample for the rim row">
+                <option value="">synth rim</option><optgroup label="Percussion">
+                  
+                  <option value="perc:cowbell" >cowbell</option>
+                  
+                  <option value="perc:shaker" >shaker</option>
+                  
+                  <option value="perc:conga" >conga</option>
+                  
+                  <option value="perc:tambourine" >tambourine</option>
+                  
+                  <option value="perc:clank" >clank</option>
+                  
+                </optgroup><optgroup label="Clips">
+                
+                <option value="hit" >hit</option>
+                
+                </optgroup>
+              </select>
+              
+            </div>
+          </span>
+          
+          <span class="row-knobs">
+            <input type="range" id="drum-grid-rim-level" style="--fill: 66.67%" class="knob knob-s" data-row="level" min="0" max="1.5" step="0.01" value="1.0" data-default="1" tabindex="-1"
+                   aria-label="rim level" title="rim level">
+            <input type="range" id="drum-grid-rim-swing" style="--fill: 0.0%" class="knob knob-s" data-row="swing" min="0" max="0.6" step="0.01" value="0.0" data-default="0.0" tabindex="-1"
+                   aria-label="rim swing" title="rim swing: this row's own, over the kit's (double-click: follow the kit again)">
+          </span>
+        </span>
+        
+        
+        <input type="checkbox" name="drum.rim.0"
+               class="cell beat "
+               
+               aria-label="rim step 1" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.1"
+               class="cell  "
+               
+               aria-label="rim step 2" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.2"
+               class="cell  "
+               
+               aria-label="rim step 3" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.3"
+               class="cell  "
+               
+               aria-label="rim step 4" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.4"
+               class="cell beat "
+               
+               aria-label="rim step 5" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.5"
+               class="cell  "
+               
+               aria-label="rim step 6" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.6"
+               class="cell  "
+               
+               aria-label="rim step 7" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.7"
+               class="cell  "
+               
+               aria-label="rim step 8" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.8"
+               class="cell beat "
+               
+               aria-label="rim step 9" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.9"
+               class="cell  "
+               
+               aria-label="rim step 10" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.10"
+               class="cell  "
+               
+               aria-label="rim step 11" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.11"
+               class="cell  "
+               
+               aria-label="rim step 12" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.12"
+               class="cell beat "
+               
+               aria-label="rim step 13" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.13"
+               class="cell  "
+               
+               aria-label="rim step 14" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.14"
+               class="cell  "
+               
+               aria-label="rim step 15" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.15"
+               class="cell  "
+               
+               aria-label="rim step 16" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.16"
+               class="cell beat bar"
+               
+               aria-label="rim step 17" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.17"
+               class="cell  "
+               
+               aria-label="rim step 18" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.18"
+               class="cell  "
+               
+               aria-label="rim step 19" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.19"
+               class="cell  "
+               
+               aria-label="rim step 20" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.20"
+               class="cell beat "
+               
+               aria-label="rim step 21" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.21"
+               class="cell  "
+               
+               aria-label="rim step 22" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.22"
+               class="cell  "
+               
+               aria-label="rim step 23" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.23"
+               class="cell  "
+               
+               aria-label="rim step 24" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.24"
+               class="cell beat "
+               
+               aria-label="rim step 25" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.25"
+               class="cell  "
+               
+               aria-label="rim step 26" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.26"
+               class="cell  "
+               
+               aria-label="rim step 27" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.27"
+               class="cell  "
+               
+               aria-label="rim step 28" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.28"
+               class="cell beat "
+               
+               aria-label="rim step 29" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.29"
+               class="cell  "
+               
+               aria-label="rim step 30" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.30"
+               class="cell  "
+               
+               aria-label="rim step 31" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.rim.31"
+               class="cell  "
+               
+               aria-label="rim step 32" tabindex="-1">
+        
+      </div>
+      
+      
+      
+      
+      
+      
+      <div class="gridrow drumrow silent" role="group" aria-label="crash row" data-voice="crash">
+        
+        <span class="rowhead" data-ctx-pop="rowmenu-drum-grid-crash">
+          <button type="button" class="btn btn-s btn-ghost rowlabel" data-voice="crash" aria-pressed="false" tabindex="-1"
+                  aria-label="select the crash row" title="crash: hear it · its hits take the lane under the grid (again: every row)">crash</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/crash/mute" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="mute crash">M</button>
+          <button type="button" class="btn btn-s btn-icon rowbtn solo" aria-pressed="false" tabindex="-1"
+                  hx-post="/fragment/drums/row/crash/solo" hx-target="#drum-bank" hx-swap="outerMorph"
+                  aria-label="solo crash">S</button>
+          <span class="row-menu">
+            <button type="button" class="btn btn-s btn-icon rowbtn" tabindex="-1" popovertarget="rowmenu-drum-grid-crash" aria-label="crash row tools" title="row tools">⋯</button>
+            <div popover id="rowmenu-drum-grid-crash" class="pop row-menu-panel" role="group" aria-label="crash row tools">
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/crash/randomise"
+                      hx-include="#drum-bank select[name=style]" hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="randomise crash row">⚄ randomise</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/crash/mutate"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="mutate crash row">± mutate</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/crash/clear"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      aria-label="clear crash row">✕ clear</button>
+              
+              <span class="rowtool-group" role="group" aria-label="fill the crash row">fill
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/crash/fill1"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a crash hit every 1 step"
+                        aria-label="fill the crash row every 1 steps">1</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/crash/fill2"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a crash hit every 2 steps"
+                        aria-label="fill the crash row every 2 steps">2</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/crash/fill4"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a crash hit every 4 steps"
+                        aria-label="fill the crash row every 4 steps">4</button>
+                <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/crash/fill8"
+                        hx-target="#drum-bank" hx-swap="outerMorph" title="a crash hit every 8 steps"
+                        aria-label="fill the crash row every 8 steps">8</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/crash/shift_left"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the crash row a step earlier" title="shift a step earlier (wraps)">◀</button>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/crash/shift_right"
+                      hx-target="#drum-bank" hx-swap="outerMorph" aria-label="shift the crash row a step later" title="shift a step later (wraps)">▶</button>
+              
+              <span class="rowtool-group euclid" role="group" aria-label="Euclid the crash row" title="hits spread evenly over steps, then turned: 3 in 8, 5 in 16 …">euclid
+                <input class="field field-s" type="number" name="hits" form="euclid-drum-grid-crash" min="0" max="32" value="3" aria-label="crash: Euclid hits">
+                in <input class="field field-s" type="number" name="of" form="euclid-drum-grid-crash" min="1" max="32" value="8" aria-label="crash: Euclid steps">
+                ↻ <input class="field field-s" type="number" name="rotate" form="euclid-drum-grid-crash" min="0" max="32" value="0" aria-label="crash: Euclid turn">
+                <button type="submit" class="btn btn-s rowtool" form="euclid-drum-grid-crash"
+                        aria-label="apply Euclid to the crash row">apply</button>
+              </span>
+              <button type="button" class="btn btn-s rowtool" hx-post="/fragment/drums/row/crash/hitclear"
+                      hx-vals='{"voice": "crash"}' hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="every crash hit back to plain: no ratchet, chance, nudge, tune or velocity of its own"
+                      aria-label="clear the crash row's hit data">plain hits</button>
+              
+              <select class="field field-s row-sample" name="clip.crash" hx-post="/fragment/drums/sample"
+                      hx-vals='{"voice": "crash"}' hx-trigger="change" hx-sync="this:queue last"
+                      hx-target="#drum-bank" hx-swap="outerMorph"
+                      title="play a clip instead of the synthesized crash"
+                      aria-label="sample for the crash row">
+                <option value="">synth crash</option><optgroup label="Percussion">
+                  
+                  <option value="perc:cowbell" >cowbell</option>
+                  
+                  <option value="perc:shaker" >shaker</option>
+                  
+                  <option value="perc:conga" >conga</option>
+                  
+                  <option value="perc:tambourine" >tambourine</option>
+                  
+                  <option value="perc:clank" >clank</option>
+                  
+                </optgroup><optgroup label="Clips">
+                
+                <option value="hit" >hit</option>
+                
+                </optgroup>
+              </select>
+              
+            </div>
+          </span>
+          
+          <span class="row-knobs">
+            <input type="range" id="drum-grid-crash-level" style="--fill: 66.67%" class="knob knob-s" data-row="level" min="0" max="1.5" step="0.01" value="1.0" data-default="1" tabindex="-1"
+                   aria-label="crash level" title="crash level">
+            <input type="range" id="drum-grid-crash-swing" style="--fill: 0.0%" class="knob knob-s" data-row="swing" min="0" max="0.6" step="0.01" value="0.0" data-default="0.0" tabindex="-1"
+                   aria-label="crash swing" title="crash swing: this row's own, over the kit's (double-click: follow the kit again)">
+          </span>
+        </span>
+        
+        
+        <input type="checkbox" name="drum.crash.0"
+               class="cell beat "
+               
+               aria-label="crash step 1" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.1"
+               class="cell  "
+               
+               aria-label="crash step 2" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.2"
+               class="cell  "
+               
+               aria-label="crash step 3" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.3"
+               class="cell  "
+               
+               aria-label="crash step 4" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.4"
+               class="cell beat "
+               
+               aria-label="crash step 5" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.5"
+               class="cell  "
+               
+               aria-label="crash step 6" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.6"
+               class="cell  "
+               
+               aria-label="crash step 7" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.7"
+               class="cell  "
+               
+               aria-label="crash step 8" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.8"
+               class="cell beat "
+               
+               aria-label="crash step 9" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.9"
+               class="cell  "
+               
+               aria-label="crash step 10" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.10"
+               class="cell  "
+               
+               aria-label="crash step 11" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.11"
+               class="cell  "
+               
+               aria-label="crash step 12" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.12"
+               class="cell beat "
+               
+               aria-label="crash step 13" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.13"
+               class="cell  "
+               
+               aria-label="crash step 14" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.14"
+               class="cell  "
+               
+               aria-label="crash step 15" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.15"
+               class="cell  "
+               
+               aria-label="crash step 16" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.16"
+               class="cell beat bar"
+               
+               aria-label="crash step 17" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.17"
+               class="cell  "
+               
+               aria-label="crash step 18" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.18"
+               class="cell  "
+               
+               aria-label="crash step 19" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.19"
+               class="cell  "
+               
+               aria-label="crash step 20" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.20"
+               class="cell beat "
+               
+               aria-label="crash step 21" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.21"
+               class="cell  "
+               
+               aria-label="crash step 22" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.22"
+               class="cell  "
+               
+               aria-label="crash step 23" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.23"
+               class="cell  "
+               
+               aria-label="crash step 24" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.24"
+               class="cell beat "
+               
+               aria-label="crash step 25" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.25"
+               class="cell  "
+               
+               aria-label="crash step 26" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.26"
+               class="cell  "
+               
+               aria-label="crash step 27" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.27"
+               class="cell  "
+               
+               aria-label="crash step 28" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.28"
+               class="cell beat "
+               
+               aria-label="crash step 29" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.29"
+               class="cell  "
+               
+               aria-label="crash step 30" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.30"
+               class="cell  "
+               
+               aria-label="crash step 31" tabindex="-1">
+        
+        
+        <input type="checkbox" name="drum.crash.31"
+               class="cell  "
+               
+               aria-label="crash step 32" tabindex="-1">
+        
+      </div>
+      
+      <div class="velrow" role="group" aria-label="drum velocity row" data-lane="v"><span class="rowhead"><span class="rowlabel lane-name" aria-hidden="true">vel</span>
+          <span class="row-knobs row-knob-caps" aria-hidden="true"><span title="each row's level (the kit's mixer)">lvl</span><span title="each row's swing, over the kit's">sw</span></span></span>
+        
+        
+        
+        
+        <div class="vel-lane" data-step="0" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="0"
+             aria-label="drum velocity step 1"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.5">
+          <div class="vel-bar" style="--v: 0.5"></div>
+          <input type="hidden" name="dvel.0" value="0.5">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="1" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 2"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.1" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane" data-step="2" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 3"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.2" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="3" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 4"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.3" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane" data-step="4" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 5"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.4" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="5" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 6"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.5" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="6" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 7"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.6" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="7" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 8"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.7" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="8" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 9"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.8" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="9" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 10"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.9" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="10" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 11"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.10" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="11" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 12"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.11" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="12" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 13"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.12" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="13" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 14"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.13" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="14" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 15"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.14" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="15" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 16"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.15" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane" data-step="16" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 17"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.16" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="17" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 18"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.17" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="18" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 19"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.18" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="19" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 20"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.19" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane" data-step="20" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 21"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.25">
+          <div class="vel-bar" style="--v: 0.25"></div>
+          <input type="hidden" name="dvel.20" value="0.25">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="21" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 22"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.21" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="22" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 23"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.22" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="23" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 24"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.23" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="24" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 25"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.24" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="25" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 26"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.25" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="26" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 27"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.26" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="27" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 28"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.27" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="28" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 29"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.28" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="29" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 30"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.29" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="30" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 31"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.30" value="1.0">
+        </div>
+        
+        
+        
+        
+        <div class="vel-lane idle" data-step="31" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="drum velocity step 32"
+             aria-valuemin="0" aria-valuemax="1" aria-valuenow="1.0">
+          <div class="vel-bar" style="--v: 1.0"></div>
+          <input type="hidden" name="dvel.31" value="1.0">
+        </div>
+        
+      </div>
+      <div class="velrow hitrow" role="group" aria-label="the chance lane" data-lane="p">
+        <span class="rowhead"><span class="rowlabel lane-name" aria-hidden="true">chance</span><span class="lane-who" aria-hidden="true"></span></span>
+        <div class="vel-lane idle" data-step="0" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 1" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="1" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 2" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="2" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 3" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="3" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 4" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="4" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 5" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="5" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 6" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="6" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 7" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="7" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 8" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="8" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 9" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="9" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 10" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="10" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 11" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="11" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 12" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="12" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 13" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="13" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 14" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="14" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 15" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="15" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 16" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="16" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 17" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="17" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 18" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="18" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 19" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="19" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 20" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="20" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 21" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="21" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 22" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="22" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 23" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="23" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 24" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="24" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 25" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="25" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 26" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="26" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 27" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="27" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 28" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="28" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 29" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="29" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 30" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="30" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 31" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="31" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="chance step 32" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+      </div>
+      <div class="velrow hitrow" role="group" aria-label="the ratchet lane" data-lane="r">
+        <span class="rowhead"><span class="rowlabel lane-name" aria-hidden="true">ratchet</span><span class="lane-who" aria-hidden="true"></span></span>
+        <div class="vel-lane idle" data-step="0" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 1" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="1" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 2" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="2" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 3" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="3" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 4" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="4" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 5" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="5" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 6" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="6" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 7" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="7" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 8" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="8" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 9" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="9" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 10" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="10" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 11" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="11" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 12" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="12" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 13" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="13" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 14" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="14" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 15" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="15" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 16" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="16" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 17" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="17" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 18" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="18" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 19" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="19" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 20" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="20" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 21" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="21" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 22" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="22" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 23" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="23" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 24" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="24" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 25" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="25" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 26" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="26" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 27" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="27" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 28" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="28" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 29" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="29" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 30" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="30" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 31" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="31" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="ratchet step 32" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+      </div>
+      <div class="velrow hitrow" role="group" aria-label="the nudge lane" data-lane="n">
+        <span class="rowhead"><span class="rowlabel lane-name" aria-hidden="true">nudge</span><span class="lane-who" aria-hidden="true"></span></span>
+        <div class="vel-lane idle" data-step="0" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 1" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="1" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 2" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="2" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 3" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="3" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 4" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="4" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 5" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="5" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 6" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="6" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 7" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="7" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 8" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="8" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 9" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="9" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 10" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="10" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 11" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="11" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 12" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="12" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 13" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="13" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 14" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="14" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 15" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="15" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 16" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="16" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 17" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="17" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 18" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="18" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 19" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="19" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 20" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="20" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 21" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="21" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 22" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="22" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 23" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="23" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 24" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="24" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 25" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="25" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 26" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="26" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 27" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="27" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 28" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="28" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 29" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="29" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 30" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="30" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 31" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="31" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="nudge step 32" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+      </div>
+      <div class="velrow hitrow" role="group" aria-label="the tune lane" data-lane="t">
+        <span class="rowhead"><span class="rowlabel lane-name" aria-hidden="true">tune</span><span class="lane-who" aria-hidden="true"></span></span>
+        <div class="vel-lane idle" data-step="0" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 1" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="1" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 2" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="2" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 3" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="3" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 4" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="4" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 5" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="5" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 6" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="6" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 7" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="7" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 8" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="8" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 9" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="9" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 10" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="10" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 11" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="11" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 12" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="12" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 13" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="13" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 14" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="14" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 15" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="15" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 16" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="16" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 17" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="17" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 18" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="18" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 19" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="19" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 20" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="20" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 21" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="21" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 22" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="22" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 23" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="23" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 24" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="24" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 25" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="25" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 26" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="26" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 27" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="27" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 28" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="28" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 29" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="29" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 30" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="30" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 31" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+        <div class="vel-lane idle" data-step="31" data-ctx-pop="hitmenu-drum-grid" role="slider" tabindex="-1"
+             aria-label="tune step 32" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="vel-bar"></div></div>
+      </div>
+    </div>
+    
+    <div class="lane-bar" role="toolbar" aria-label="the lane under the grid, and the hit under the cursor">
+      <span class="caps">lane</span>
+      <div class="seg lane-pick" role="group" aria-label="the lane under the grid">
+        <button type="button" data-lane="v" aria-pressed="true"
+                data-cmd="Lane: velocity" data-cmd-group="Pattern" data-keys="PageUp / PageDown" title="how hard each hit of the selected row plays (no row selected: the step&#39;s, for every voice on it)">vel</button>
+        <button type="button" data-lane="p" aria-pressed="false"
+                data-cmd="Lane: chance" data-cmd-group="Pattern" data-keys="PageUp / PageDown" title="how often each hit plays: 100 % always, 50 % half the passes — rolled once a pattern, the same every time">chance</button>
+        <button type="button" data-lane="r" aria-pressed="false"
+                data-cmd="Lane: ratchet" data-cmd-group="Pattern" data-keys="PageUp / PageDown" title="1 to 4 hits inside the step, each a little quieter">ratchet</button>
+        <button type="button" data-lane="n" aria-pressed="false"
+                data-cmd="Lane: nudge" data-cmd-group="Pattern" data-keys="PageUp / PageDown" title="each hit early or late, up to half a step">nudge</button>
+        <button type="button" data-lane="t" aria-pressed="false"
+                data-cmd="Lane: tune" data-cmd-group="Pattern" data-keys="PageUp / PageDown" title="each hit up or down, to an octave (kick, snare, tom, rim and sampled rows)">tune</button>
+      </div>
+      <button type="button" class="btn btn-s btn-ghost lane-of" data-row-all aria-label="the lane's row"
+              title="the row whose hits the lane shows — press for every row (the steps' shared velocity)">every row</button>
+      <fieldset class="hit-insp" aria-label="the selected row and the hit under the cursor">
+        <label title="the selected row's level (the kit's mixer)">level <input type="range" id="drum-grid-row-level" style="--fill: 66.67%" class="knob" data-row="level" min="0" max="1.5" step="0.01" value="1" data-default="1" disabled
+               aria-label="selected row: level"><output>1</output></label>
+        <label title="the selected row's own swing, over the kit's (double-click: follow the kit again)">swing <input type="range" id="drum-grid-row-swing" style="--fill: 0.0%" class="knob" data-row="swing" min="0" max="0.6" step="0.01" value="0.0" data-default="0.0" disabled
+               aria-label="selected row: swing"><output data-pct class="hit-val">0%</output></label>
+        <output class="hit-at caps" aria-label="the hit under the cursor" title="the hit these five belong to: the step the cursor is on">no hit</output>
+        <label title="this hit's own velocity, in place of its step's">vel <input type="range" id="drum-grid-hit-v" style="--fill: 100.0%" class="knob" data-hit="v" min="0.05" max="1" step="0.05" value="1" data-default="1" disabled
+               aria-label="hit: velocity"><output data-pct class="hit-val">100%</output></label>
+        <label title="how often this hit plays">chance <input type="range" id="drum-grid-hit-p" style="--fill: 100.0%" class="knob" data-hit="p" min="0" max="1" step="0.05" value="1" data-default="1" disabled
+               aria-label="hit: chance"><output data-pct class="hit-val">100%</output></label>
+        <label title="hits inside the step">ratchet <input type="range" id="drum-grid-hit-r" style="--fill: 0.0%" class="knob" data-hit="r" min="1" max="4" step="1" value="1" data-default="1" disabled
+               aria-label="hit: ratchet"><output>1</output></label>
+        <label title="early (left) or late (right), in steps">nudge <input type="range" id="drum-grid-hit-n" style="--fill: 50.0%" class="knob" data-hit="n" min="-0.5" max="0.5" step="0.05" value="0" data-default="0" disabled
+               aria-label="hit: nudge"><output>0</output></label>
+        <label title="semitones on this hit">tune <input type="range" id="drum-grid-hit-t" style="--fill: 50.0%" class="knob" data-hit="t" min="-12" max="12" step="1" value="0" data-default="0" disabled
+               aria-label="hit: tune"><output>0</output></label>
+      </fieldset>
+      <button type="button" class="btn btn-s btn-icon hit-menu-btn" popovertarget="hitmenu-drum-grid"
+              data-cmd="Hit menu" data-cmd-group="Pattern" data-keys="Menu"
+              aria-label="hit menu: ratchet, chance, nudge, clear" title="the hit under the cursor: ratchet ×2 ×3 ×4, chance 25 / 50 / 75, nudge, clear (Menu key on a step; a long press on a hit)">⋯</button>
+    </div>
+    
+    <div id="hitmenu-drum-grid" class="pop menu menu-pop hit-menu" popover role="menu" aria-label="this hit">
+      <input type="hidden" data-from="step" value="">
+      <div class="caps ctx-title hit-menu-title" role="presentation">hit</div>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="r=2">ratchet ×2</button>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="r=3">ratchet ×3</button>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="r=4">ratchet ×4</button>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="r=1">no ratchet</button>
+      <hr class="menu-sep">
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="p=0.25">chance 25 %</button>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="p=0.5">chance 50 %</button>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="p=0.75">chance 75 %</button>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="p=1">always</button>
+      <hr class="menu-sep">
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="n-">nudge earlier <kbd>Alt+←</kbd></button>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="n+">nudge later <kbd>Alt+→</kbd></button>
+      <button type="button" class="menu-item" role="menuitem" data-hit-set="n=0">on the grid</button>
+      <hr class="menu-sep">
+      <button type="button" class="menu-item danger" role="menuitem" data-hit-set="clear">clear hit data <kbd>Del</kbd></button>
+    </div>
+  </form>
+  <form id="euclid-drum-grid-kick" class="euclid-form" hx-post="/fragment/drums/row/kick/euclid"
+        hx-vals='{"voice": "kick"}' hx-target="#drum-bank" hx-swap="outerMorph" hidden></form>
+  <form id="euclid-drum-grid-snare" class="euclid-form" hx-post="/fragment/drums/row/snare/euclid"
+        hx-vals='{"voice": "snare"}' hx-target="#drum-bank" hx-swap="outerMorph" hidden></form>
+  <form id="euclid-drum-grid-hat" class="euclid-form" hx-post="/fragment/drums/row/hat/euclid"
+        hx-vals='{"voice": "hat"}' hx-target="#drum-bank" hx-swap="outerMorph" hidden></form>
+  <form id="euclid-drum-grid-ohat" class="euclid-form" hx-post="/fragment/drums/row/ohat/euclid"
+        hx-vals='{"voice": "ohat"}' hx-target="#drum-bank" hx-swap="outerMorph" hidden></form>
+  <form id="euclid-drum-grid-clap" class="euclid-form" hx-post="/fragment/drums/row/clap/euclid"
+        hx-vals='{"voice": "clap"}' hx-target="#drum-bank" hx-swap="outerMorph" hidden></form>
+  <form id="euclid-drum-grid-tom" class="euclid-form" hx-post="/fragment/drums/row/tom/euclid"
+        hx-vals='{"voice": "tom"}' hx-target="#drum-bank" hx-swap="outerMorph" hidden></form>
+  <form id="euclid-drum-grid-rim" class="euclid-form" hx-post="/fragment/drums/row/rim/euclid"
+        hx-vals='{"voice": "rim"}' hx-target="#drum-bank" hx-swap="outerMorph" hidden></form>
+  <form id="euclid-drum-grid-crash" class="euclid-form" hx-post="/fragment/drums/row/crash/euclid"
+        hx-vals='{"voice": "crash"}' hx-target="#drum-bank" hx-swap="outerMorph" hidden></form>
+
+  <form class="bank-notation" aria-label="Notation" hx-post="/fragment/drums/notation" hx-target="#drum-bank" hx-swap="outerHTML">
+    <label>pattern <input class="field field-s" name="notation" value="[bd ~ ~ ~] [~ ~ ~ ~] [~ ~ ~ ~] [~ ~ ~ ~], [~ ~ ~ ~] [sn ~ ~ ~] [~ ~ ~ ~] [~ ~ ~ ~], [~ ~ hh ~] [~ ~ ~ ~] [~ ~ ~ ~] [~ ~ ~ ~]" placeholder="bd*4 [~ sn] hh*8"
+                          autocomplete="off" spellcheck="false" title="bd sn hh cp · ~ rest · [a b] subdivide · x*n repeat · , layers"></label>
+    <button type="submit" class="btn btn-s" data-cmd="Apply the beat notation">Apply</button>
+  </form>
+  <div class="bank-tools">
+    <form class="bank-gen" aria-label="Generate" hx-post="/fragment/drums/randomise" hx-target="#drum-bank" hx-swap="outerHTML">
+      <label>style <select class="field field-s" name="style">
+        <optgroup label="House &amp; techno">
+          <option value="four-floor" selected>Four on the floor</option><option value="techno" >Techno</option><option value="melodic-techno" >Melodic techno</option><option value="filter-house" >Filter house</option><option value="filter-house-break" >Filter house break</option><option value="hypnotic-perc" >Hypnotic percussion</option>
+        </optgroup><optgroup label="Breaks &amp; garage">
+          <option value="breaks" >Breaks</option><option value="two-step" >2-step</option><option value="garage-rim" >Garage rim</option><option value="garage-4x4" >Garage 4×4</option>
+        </optgroup><optgroup label="Trance">
+          <option value="trance" >Trance</option><option value="trance-climax" >Trance climax</option><option value="trance-break" >Trance break</option>
+        </optgroup><optgroup label="Electro &amp; industrial">
+          <option value="electro" >Electro</option><option value="electro-stomp" >Electro stomp</option><option value="electro-break" >Electro break</option><option value="industrial" >Industrial</option><option value="industrial-march" >Industrial march</option><option value="industrial-pulse" >Industrial pulse</option>
+        </optgroup><optgroup label="Psych &amp; sixties">
+          <option value="psych" >Psych</option><option value="psych-disco" >Psych disco</option><option value="psych-haze" >Psych haze</option><option value="sixties" >Sixties</option><option value="sixties-toms" >Sixties toms</option><option value="sixties-break" >Sixties break</option>
+        </optgroup><optgroup label="Hip-hop &amp; trap">
+          <option value="trap-808" >Trap 808</option><option value="boom-bap" >Boom bap</option>
+        </optgroup><optgroup label="Drum &amp; bass">
+          <option value="dnb" >Drum &amp; bass</option><option value="dnb-roller" >Drum &amp; bass roller</option><option value="jungle" >Jungle</option>
+        </optgroup><optgroup label="Bass music">
+          <option value="dubstep" >Dubstep</option><option value="riddim" >Riddim</option><option value="future-bass" >Future bass</option><option value="future-build" >Future build</option>
+        </optgroup><optgroup label="Synthwave">
+          <option value="synthwave" >Synthwave</option><option value="synthpop" >Synthpop</option>
+        </optgroup><optgroup label="Lo-fi &amp; phonk">
+          <option value="lofi" >Lo-fi</option><option value="lofi-chill" >Lo-fi chill</option><option value="drift-phonk" >Drift phonk</option><option value="memphis" >Memphis</option>
+        </optgroup><optgroup label="Ambient &amp; cinematic">
+          <option value="ambient-pulse" >Ambient pulse</option><option value="cinematic-toms" >Cinematic toms</option>
+        </optgroup><optgroup label="Chiptune &amp; hardstyle">
+          <option value="chiptune" >Chiptune</option><option value="chip-chase" >Chip chase</option><option value="hardstyle" >Hardstyle</option><option value="rawstyle" >Rawstyle</option>
+        </optgroup><optgroup label="Trap &amp; sparse">
+          <option value="trap" >Trap</option><option value="sparse" >Sparse</option><option value="roll" >Roll</option>
+        </optgroup><optgroup label="Other meters">
+          <option value="waltz" >Waltz (3/4)</option><option value="jazz-waltz" >Jazz waltz (3/4)</option><option value="six-eight" >6/8 shuffle</option><option value="afro-68" >Afro 6/8</option><option value="seven-eight" >7/8 (2+2+3)</option>
+        </optgroup>
+      </select></label>
+      <label>seed <input class="field field-s" type="number" name="seed" min="0" max="999999" value="1"></label>
+      <button type="submit" class="btn btn-s" data-cmd="Randomise the beat">Randomise</button>
+      <button data-cmd="Mutate the beat" type="button" class="btn btn-s" hx-post="/fragment/drums/mutate" hx-target="#drum-bank" hx-swap="outerHTML">Mutate</button>
+      <button data-cmd="Clear the beat" type="button" class="btn btn-s btn-danger bank-clear" hx-post="/fragment/drums/clear" hx-target="#drum-bank" hx-swap="outerHTML">Clear</button>
+    </form>
+    
+    <form class="bank-kit" aria-label="Kit" hx-post="/fragment/drums/kit" hx-target="body" hx-swap="innerMorph">
+      <label>genre kit <select class="field field-s" name="kit">
+        <option value="Melodic Techno" >Melodic Techno</option><option value="Garage Rim" >Garage Rim</option><option value="Filter House" >Filter House</option><option value="Two-Step" >Two-Step</option><option value="Trance" >Trance</option><option value="Just Ice" >Just Ice</option><option value="Nine Inch Wails" >Nine Inch Wails</option><option value="Psych Haze" >Psych Haze</option><option value="Sixties Studio" >Sixties Studio</option><option value="Hip-Hop 808" >Hip-Hop 808</option><option value="Drum and Bass" >Drum and Bass</option><option value="Dubstep" >Dubstep</option><option value="Synthwave" >Synthwave</option><option value="Future Bass" >Future Bass</option><option value="Lo-Fi" >Lo-Fi</option><option value="Cinematic" >Cinematic</option><option value="Chiptune" >Chiptune</option><option value="Hardstyle" >Hardstyle</option><option value="Phonk" >Phonk</option>
+      </select></label>
+      <button type="submit" class="btn btn-s" data-cmd="Load the genre kit" title="load the kit's pattern, swing, velocities and voice shaping">Load kit</button>
+      <button type="submit" class="btn btn-s" name="keep" value="pattern" data-cmd="Swap the kit, keep the beat" title="only the kit's voices: the beat on the grid, its swing, velocities, hit data and the rows' samples stay">Swap kit, keep beat</button>
+    </form><form class="bank-save" aria-label="Save the beat" hx-post="/loop/beat/keep" hx-swap="none" hx-sync="this:drop">
+      <label>name <input class="field field-s" name="name" maxlength="40" autocomplete="off" placeholder="Four on the floor beat…"
+                         title="its name in the Loops (blank: named from what it is — style, tempo, bars)"></label>
+      <button type="submit" class="btn btn-s" data-cmd="Save the beat to the Loops" data-cmd-group="Beats"
+              title="keep this beat as a loop in the Loops panel (and the drawer): open it again from there, launch it in a slot, drag it onto the song">✚ Save beat</button>
+      <button type="button" class="btn btn-s" popovertarget="clip-drawer"
+              hx-get="/fragment/clips?whole=1&amp;q=beat" hx-target="#clip-library" hx-swap="outerMorph"
+              data-cmd="Open a beat from the Loops" data-cmd-group="Beats"
+              title="your beats — kept, saved, the bank's 8 slots and the old beat library — in the drawer: Open puts one on this grid (Ctrl+Z takes it back)">Beats ▸</button>
+    </form>
+  </div>
+</section>

@@ -1,0 +1,62 @@
+{# synthlab/studio/templates/fragments/hub_result.html
+   What a make made (`routes/cliphub._result`): what was heard and done,
+   Gemini's summary and reasons when ✦ was asked, the names it gave that
+   the studio refused, a beat's rows as notation, the preview (the render
+   `/preview/<key>.wav`, in the shared player) — then Apply (the plan,
+   posted back and checked again, with its seed), ↻ another take (a new
+   seed), ✦ ask again. After Apply: where it is now. #}
+<section class="hub-sec hub-result" id="hub-result" aria-live="polite" aria-label="what it makes">
+  {% if r %}{% set c = r.c %}
+  <header class="hub-result-head">
+    <span class="badge badge-accent">{{ r.plan.target }}</span>
+    {% if r.ai.summary %}<span class="is-ai hub-summary">✦ {{ r.ai.summary }}</span>{% endif %}
+    {% if r.ai.tokens %}<small class="hub-tokens">{{ "{:,}".format(r.ai.tokens) }} tokens</small>{% endif %}
+  </header>
+  <ul class="hub-said">
+    {% for line in c.said %}<li>{{ line }}</li>{% endfor %}
+  </ul>
+  {% if r.ai.why %}<ul class="hub-why is-ai">{% for w in r.ai.why %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+  {% if r.notes %}<p class="hub-refused" title="what the plan named that the studio does not have">{{ r.notes | join(" ") }}</p>{% endif %}
+  {% if c.rows %}
+  <pre class="hub-notation" aria-label="the beat as notation">{% for lane, row in c.rows %}{{ "%-6s" | format(lane) }}{{ row }}
+{% endfor %}</pre>
+  {% endif %}
+  {% if r.key %}
+  <div class="player hub-preview">
+    <button type="button" class="btn btn-icon player-play" aria-pressed="false" aria-label="play the preview"
+            data-cmd="Play the preview" data-cmd-group="Clip hub">▶</button>
+    <span class="player-bar" role="slider" tabindex="0" aria-label="position in the preview" aria-valuemin="0"
+          aria-valuemax="0" aria-valuenow="0" title="click to seek · ← → step"><i></i></span>
+    <output class="player-time">0:00</output>
+    <audio preload="auto" src="/preview/{{ r.key }}.wav" aria-label="the preview" data-hub-preview></audio>
+  </div>
+  {% endif %}
+  {% if not r.applied %}
+  <div class="hub-apply">
+    <form hx-post="/hub/apply" hx-target="#hub-result" hx-swap="outerMorph" hx-sync="this:queue all">
+      <input type="hidden" name="item" value="{{ r['item'] }}">
+      <input type="hidden" name="plan" value="{{ r.plan_json }}">
+      <input type="hidden" name="seed" value="{{ r.seed }}">
+      <button type="submit" class="btn btn-primary" data-cmd="Apply what the clip made" data-cmd-group="Clip hub"
+              title="write it: one step, ↶ Undo (in the list's head) takes it all back">Apply</button>
+    </form>
+    <button type="button" class="btn btn-s" hx-post="/hub/make" hx-include="#hub-make"
+            hx-vals='{{ {"seed": r.next_seed, "plan": r.plan_json} | tojson }}' hx-target="#hub-result" hx-swap="outerMorph"
+            hx-sync="#hub-make:queue all" data-cmd="Another take" data-cmd-group="Clip hub"
+            title="the same plan, another roll (seed {{ r.next_seed }})">↻ another take</button>
+    {% if r.ai.summary or r.ai.tokens %}
+    <button type="button" class="btn btn-s btn-ai" hx-post="/hub/make" hx-include="#hub-make"
+            hx-vals='{{ {"seed": r.next_seed, "ai": "1", "again": "1"} | tojson }}' hx-target="#hub-result"
+            hx-swap="outerMorph" hx-sync="#hub-make:queue all" data-cmd="Ask Gemini again" data-cmd-group="AI"
+            title="ask Gemini for another take on your words (it hears the clip again)">✦ ask again</button>
+    {% endif %}
+    <small class="hub-seed">seed {{ r.seed }}</small>
+  </div>
+  {% else %}
+  <p class="hub-applied">Applied — on {{ r.applied }} now.
+    <a class="btn btn-s" {{ view_link("/view/" ~ ('drums' if r.applied == 'Kit' else 'perform')) }}>open {{ r.applied }} →</a></p>
+  {% endif %}
+  {% else %}
+  <p class="hub-hint">▶ Preview to hear what it makes before anything is written.</p>
+  {% endif %}
+</section>

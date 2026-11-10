@@ -1,0 +1,17 @@
+{# synthlab/studio/templates/fragments/status_bar.html #}
+{# The status strip's server facts (region `status-bar`, on every page, in
+   base.html's top dock beside the scope): the sound being edited and
+   whether it has moved since it was loaded or saved, and the tempo and
+   key of what the page plays (the song's on Song and Mix, the loop's
+   elsewhere: one tempo on a screen). They were scattered — tempo in four transports, the sound's name on
+   Synths only, "edited" a 6px dot in the Reset pill — and absent on half
+   the pages. Morphed, never replaced: it sits outside #view. The meter,
+   the live voice's CPU and the running render beside it are the client's
+   (base.html) and stay out of this root, or a morph would blank them. #}
+<div class="status-facts" id="status-bar" {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  <span class="st st-sound" title="the sound being edited{{ ' — changed since it was loaded or saved (Reset can revert it)' if sound_dirty }}"><b>{{ patch.name or "Untitled" }}</b>{% if sound_dirty %}<i class="st-dirty">edited</i>{% endif %}</span>
+  {#- the tempo and key of what this page plays: the song's on Song and
+     Mix, the loop's elsewhere (service.status_context) #}
+  <span class="st st-tempo" data-of="{{ st_of }}" title="the {{ st_of }}'s tempo"><b>{{ "%g" | format(st_bpm) }}</b> bpm{% if st_meter and st_meter != "4/4" %} · {{ meter.parse(st_meter).label }}{% endif %}</span>
+  <span class="st st-key" title="the {{ st_of }}'s key">{{ st_key }}</span>
+</div>

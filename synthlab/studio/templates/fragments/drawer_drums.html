@@ -1,0 +1,65 @@
+{# synthlab/studio/templates/fragments/drawer_drums.html — the Song
+   drawer's step sequencer (included by song_drawer.html, which sets `d`
+   and `p`). It carries the beat's family: its variations
+   A-D and its fill by letter (a press on one the family has is `POST
+   /song/cell` — this section picks it; on one it has not, `POST
+   /song/cell/variation` makes it), and the generators that act on THIS
+   pattern (`/song/pattern/{id}/tool/…`: every section sharing it follows).
+   The grid is the macro Drums and Perform draw; its rows keep their swing
+   knob and their Euclid, and have no mute / solo / level (a song's are its
+   drums track's). The family rides at the end of the bar under the grid
+   (the macro's `caller`): the drawer has no row to spare — at 1440 x 900
+   the lanes above it must still fit their pane. #}
+{% from "drumgrid.html" import drum_grid %}
+    {% set tool = "/song/pattern/" ~ p.id ~ "/tool/" %}
+    {% call drum_grid("/song/pattern/" ~ p.id ~ "/grid", p.drums, p.drum_vel, p.bars, p.steps, drum_rows,
+                      form_id="drawer-grid", tools=false, target=none, hits=p.get("hits") or {}, row_swing=p.get("swing") or {},
+                      swing=song.drum_swing, row_tool=tool ~ "OP", bar_meter=p.get("meter") or "4/4") %}
+      <span class="beat-bar drawer-beat" role="group" aria-label="Beat variations and generators">
+      <span class="caps">beat</span>
+      {% if d.section %}
+      {#- the palette's and the deck's names, spelt out (a key is bound to a
+          command by its name: tests/browser/test_palette_reach.py) -#}
+      {% set cmds = {"A": 'data-cmd="Beat variation A" data-keys="Alt+1"', "B": 'data-cmd="Beat variation B" data-keys="Alt+2"',
+                     "C": 'data-cmd="Beat variation C" data-keys="Alt+3"', "D": 'data-cmd="Beat variation D" data-keys="Alt+4"',
+                     "fill": 'data-cmd="Add a fill"'} %}
+      <span class="seg var-pick" role="group" aria-label="beat variation">
+        {%- for x in d.variants %}
+        {%- set name = "the fill" if x.var == "fill" else "variation " ~ x.var %}
+        {%- if x.id and not x.on %}
+        {%- set pick = {"section_id": d.section.id, "track_id": d.track.id, "pattern_id": x.id} %}
+        <button type="button" data-var="{{ x.var }}" aria-pressed="false" hx-post="/song/cell" hx-vals='{{ pick | tojson }}' hx-swap="none"
+                {% if x.var != "fill" %}{{ cmds[x.var] | safe }} data-cmd-group="Pattern"{% else %}data-cmd="Use the beat's fill here" data-cmd-group="Pattern"{% endif %}
+                title="{{ d.section.name }} plays {{ name }}">{{ x.var }}</button>
+        {%- else %}
+        {%- set make = {"section_id": d.section.id, "track_id": d.track.id, "var": x.var, "copy": "1"} if x.var != "fill" else {"section_id": d.section.id, "track_id": d.track.id, "fill": "1"} %}
+        <button type="button" data-var="{{ x.var }}" class="{{ '' if x.id else 'empty' }}" aria-pressed="{{ 'true' if x.on else 'false' }}"
+                hx-post="/song/cell/variation" hx-vals='{{ make | tojson }}' hx-swap="none"
+                {% if x.on and x.var != "fill" %}disabled{% endif %}
+                {{ cmds[x.var] | safe }} data-cmd-group="Pattern"
+                title="{% if x.var == 'fill' %}{{ 'Roll the fill again (one Ctrl+Z takes every roll back)' if x.id else 'Make this beat’s fill: the beat with a fill in its last bar, for this cell' }}{% elif x.on %}{{ name }} (this cell’s){% else %}{{ name }}: empty — a press copies this beat into it, for this cell{% endif %}">{{ "⚄ fill" if x.var == "fill" else x.var }}</button>
+        {%- endif %}
+        {%- endfor %}
+      </span>
+      {% endif %}
+      <span class="pt-menu drawer-beat-menu">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-dvary" title="A varied copy in another letter; a fill, fewer or more hits in THIS pattern" aria-label="vary or thin this beat">vary ▸</button>
+        <div popover id="ptm-dvary" class="pop menu pt-menu-panel" role="group" aria-label="vary or thin this beat">
+          {%- if d.section %}
+          {%- for x in d.variants if not x.id and x.var != "fill" %}
+          {%- set into = {"section_id": d.section.id, "track_id": d.track.id, "var": x.var} %}
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvary" popovertargetaction="hide" hx-post="/song/cell/variation" hx-vals='{{ into | tojson }}' hx-swap="none"
+                  title="a few of its light hits traded, the groove kept: variation {{ x.var }}, for this cell">a varied {{ x.var }}</button>
+          {%- endfor %}
+          <hr class="menu-sep">
+          {%- endif %}
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvary" popovertargetaction="hide" hx-post="{{ tool }}fill" hx-swap="none" data-anim="roll"
+                  title="A fill in THIS pattern's last bar (every section playing it follows)">a fill in this pattern</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvary" popovertargetaction="hide" hx-post="{{ tool }}sparser" hx-swap="none"
+                  title="This pattern's weakest hits out — never a kick on the beat, never the backbeat">this pattern, sparser</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-dvary" popovertargetaction="hide" hx-post="{{ tool }}busier" hx-swap="none"
+                  title="Ghosts and offbeats into this pattern — never a kick">this pattern, busier</button>
+        </div>
+      </span>
+      </span>
+    {% endcall %}

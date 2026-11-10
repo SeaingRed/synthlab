@@ -1,0 +1,88 @@
+{# synthlab/studio/templates/fragments/song_start.html — the starter sheet
+   (song creation): a card a
+   style, each a Start that lays down the whole song (POST /song/start) and
+   plays it, and "From my loop" (POST /song/arrange). The empty playlist IS
+   this sheet (song_arranger.html); with a song it is the topbar's
+   "Start…" popover (song_topbar.html) — never both on one page, so each
+   command is declared once. `sheet` names the copy (its options' id).
+
+   No script: every card is an htmx post that carries the options row
+   beside it (hx-include). A Start asks first only when the song has
+   sections (it replaces them: one undo step). The style offered first is
+   the song's own, else the last one started here, else melodic techno.
+   Each Start's palette hint is its blurb: a nod label hides
+   the genre, the blurb names it first, so "start a song trance" finds
+   Arm In Arm. #}
+{% set first = song_style or song_style_last or song_styles[0].key %}
+<div class="start-sheet" role="group" aria-label="Start a song" data-default="{{ first }}">
+  <div class="start-head">
+    <h3 class="caps">start a song</h3>
+    <span class="start-opts" id="start-opts-{{ sheet }}" role="group" aria-label="Key, tempo and seed for the next start">
+      <label class="song-field" title="The key the song is written in. Left alone, each style picks one of its own">key
+        <select class="field field-s" name="root" aria-label="key of the next song">
+          <option value="" selected>style’s</option>
+          {% for r, name in start_keys %}<option value="{{ r }}">{{ name }}</option>{% endfor %}
+        </select></label>
+      <label class="song-field" title="The scale. Left alone, the style's own">scale
+        <select class="field field-s" name="scale_name" aria-label="scale of the next song">
+          <option value="" selected>style’s</option>
+          {% for sc in song_scales %}<option value="{{ sc }}">{{ sc | replace("_", " ") }}</option>{% endfor %}
+        </select></label>
+      <label class="song-field" title="Beats a minute. Left empty, the style's own">tempo
+        <input class="field field-s num-s" type="number" name="bpm" min="{{ limits.BPM_RANGE[0] | int }}" max="{{ limits.BPM_RANGE[1] | int }}"
+               step="1" placeholder="style’s" aria-label="tempo of the next song"></label>
+      <label class="song-field" title="The same seed lays down the same song. Left empty, a new one is drawn each time">seed
+        <input class="field field-s num-s" type="number" name="seed" min="0" max="{{ limits.SEED_MODULO - 1 }}" step="1"
+               placeholder="⚄" aria-label="seed of the next song"></label>
+    </span>
+  </div>
+  <div class="start-cards">
+    {% for c in (song_styles | selectattr("key", "equalto", first) | list) + (song_styles | rejectattr("key", "equalto", first) | list) %}
+    <article class="start-card{% if c.key == first %} start-first{% endif %}" data-style="{{ c.key }}" aria-label="{{ c.label }}">
+      <h4 class="start-name">{{ c.label }}</h4>
+      {#- a style draws its key from several (the seed picks): the card names
+          them all, never one it may not play -#}
+      <p class="start-facts">{{ c.bpm | int }} bpm ·
+        {% if c.key_names | length > 1 %}<abbr title="the seed picks one of: {{ c.key_names | join(', ') }} — or choose the key above">one of {{ c.key_names | length }} keys</abbr>{% else %}{{ c.key_names[0] }}{% endif %}</p>
+      {#- the shape: the song's energy as one smooth line, level across a
+          section and easing into the next (the one signal graphic,
+          sigdraw.py); each section's span stays a hover target with its name -#}
+      {% set x = namespace(at=0, pts=[]) %}
+      {% for s in c.sections %}{% set x.pts = x.pts + [(x.at + s.bars * 0.2, s.energy), (x.at + s.bars * 0.8, s.energy)] %}{% set x.at = x.at + s.bars %}{% endfor %}
+      <svg class="start-shape sig" viewBox="0 0 {{ c.bars }} 10" preserveAspectRatio="none" role="img"
+           aria-label="{{ c.sections | map(attribute='name') | join(', ') }}">
+        <path d="{{ x.pts | smooth_path(c.bars) }}"/>
+        {% set x.at = 0 %}
+        {% for s in c.sections %}<rect class="start-sec" x="{{ x.at }}" y="0" width="{{ s.bars }}" height="10"><title>{{ s.name }} · {{ s.bars }} bars</title></rect>{% set x.at = x.at + s.bars %}{% endfor %}
+      </svg>
+      <p class="start-facts">{{ c.bars }} bars · {{ c.time }} · {{ c.tracks | length }} tracks</p>
+      <span class="start-go">
+        <button type="button" class="btn start-btn" data-cmd="Start a song: {{ c.label }}" data-cmd-group="Song" data-cmd-hint="{{ c.blurb }}"
+                hx-post="/song/start" hx-vals='{"style": "{{ c.key }}"}' hx-include="#start-opts-{{ sheet }}" hx-swap="none"
+                {% if song.sections %}hx-confirm="Replace the song with a {{ c.label | lower }} starter? Ctrl+Z brings back the song you had before the starters."{% endif %}
+                title="{{ c.blurb }}. Lays down the whole song — {{ c.tracks | join(', ') }} — and plays it from bar 1">▶ Start</button>
+        {% if c.long %}
+        <button type="button" class="btn btn-s start-btn-long" data-cmd="Start a long song: {{ c.label }}" data-cmd-group="Song"
+                hx-post="/song/start" hx-vals='{"style": "{{ c.key }}", "variant": "long"}' hx-include="#start-opts-{{ sheet }}" hx-swap="none"
+                {% if song.sections %}hx-confirm="Replace the song with a long {{ c.label | lower }} starter? Ctrl+Z brings back the song you had before the starters."{% endif %}
+                title="The long form: both intros and the climax twice as long">long</button>
+        {% endif %}
+      </span>
+    </article>
+    {% endfor %}
+  </div>
+  {#- the loop arranged: a line of its own under the cards, never a card
+      stretched to their height for three lines of text -#}
+  <article class="start-card start-loop" aria-label="From my loop">
+    <h4 class="start-name">From my loop</h4>
+    <p class="start-facts">{{ loop_info.bars }} bar{{ "" if loop_info.bars == 1 else "s" }} · {{ loop_info.lanes }} lane{{ "" if loop_info.lanes == 1 else "s" }}{% if loop_info.drums %} + beat{% endif %}</p>
+    <p class="start-facts start-what">what plays on the Loops page, arranged: intro, verse, build, drop, break, drop, outro</p>
+    <span class="start-go">
+      <button type="button" class="btn start-btn" data-cmd="Make this loop a song" data-cmd-group="Song"
+              hx-post="/song/arrange" hx-vals='{"source": "loop"}' hx-include="#start-opts-{{ sheet }} [name=seed]" hx-swap="none"
+              {% if song.sections %}hx-confirm="Replace the song with the loop, arranged? Ctrl+Z brings back the song you had before the starters."{% endif %}
+              title="Lay the working loop down as a whole song — by muting, thinning and filtering its lanes, with a fill, a riser and an impact — and play it">▶ Arrange</button>
+    </span>
+  </article>
+  <p class="start-foot">Each part can be rolled again afterwards (a track’s ⋯ menu) · Ctrl+Z takes the whole song back</p>
+</div>

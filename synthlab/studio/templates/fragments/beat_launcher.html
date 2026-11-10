@@ -1,0 +1,31 @@
+{# synthlab/studio/templates/fragments/beat_launcher.html #}
+{# Perform's Beats launcher: the song pool's drum patterns (the bank is the
+   pool) — or, while the pool holds none (a fresh studio), the
+   Drums bank's filled slots, launched through the bank's own load. Its own
+   fragment so a section launch can refresh the playing marker OOB;
+   the heading is inside it because it names which of the two it shows. #}
+    <section id="launcher" class="launcher" aria-label="Beat launcher"
+             {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+      <h2 class="caps launch-title">Beats <small>{{ "from the bank" if beat_source == "bank" else "the song's pool" }}</small></h2>
+      {% for p in pool_beats %}
+      {% if beat_source == "bank" %}
+      <button type="button" class="launch" data-bank-slot="{{ p.id }}"
+              {% if p.id == beat_playing %}data-state="playing"{% endif %}
+              hx-post="/fragment/perform/bank/{{ p.id }}" hx-swap="none"
+              data-cmd="Launch beat {{ p.name }}" data-cmd-group="Launch"
+              aria-label="launch beat {{ p.name }} from the bank">
+      {% else %}
+      <button type="button" class="launch" data-pattern-id="{{ p.id }}"
+              {% if p.id == beat_playing %}data-state="playing"{% endif %}
+              hx-post="/fragment/perform/launch/{{ p.id }}" hx-swap="none"
+              data-cmd="Launch beat {{ p.name }}" data-cmd-group="Launch"
+              aria-label="launch beat {{ p.name }}">
+      {% endif %}
+        <span class="slot-num">{{ loop.index }}</span>
+        <span class="slot-name">{{ p.name }}</span>
+        <span class="launch-state" aria-hidden="true"></span>
+      </button>
+      {% else %}
+      <p class="empty-state">No beats in the pool or the bank yet — save one on <a {{ view_link("/view/drums") }}>Kit</a> or add one on the <a {{ view_link("/view/song") }}>Song</a> page. {% include "fragments/empty_start.html" %}</p>
+      {% endfor %}
+    </section>

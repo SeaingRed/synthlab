@@ -1,0 +1,17 @@
+{# synthlab/studio/templates/views/drums.html #}
+<main class="cockpit drums-view" id="view" hx-history-elt data-view="drums" data-ws-dock="drums">
+  <header class="view-head">
+    <h1>Kit</h1>
+    <p class="view-sub">The drum kit: eight voices, each synthesised or a sample — shape them here; your beats live in the Loops.</p>
+    <div id="head-how" class="pop head-how" popover><p class="view-how">Tap a pad to hear a voice on its own; drag its knobs to shape it — the loop follows. The grid is the loop's beat: edit it here or on the Loops page, Save beat keeps it in the Loops panel, and Beats ▸ opens one (the drawer, with the bank's old slots).</p></div>
+    <div class="head-tools">{% include "fragments/head_help.html" %}{% with ws_view = "drums" %}{% include "fragments/ws_menu.html" %}{% endwith %}{% include "fragments/reset_menu.html" %}</div>
+  </header>
+  {# the song's drums track's kit, edited here (state.song_edit_track on a
+     drums track): the same banner Synths shows for a synth track #}
+  {% include "fragments/track_edit_banner.html" %}
+  {% include "fragments/drum_transport.html" %}
+  {% include "fragments/drum_bank.html" %}
+  {% include "fragments/drum_panels.html" %}
+  {% include "fragments/fx_rack.html" %}
+  <div id="analysis" class="readouts" hidden></div>
+</main>

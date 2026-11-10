@@ -1,0 +1,401 @@
+{# synthlab/studio/templates/fragments/song_drawer.html #}
+{# The editor drawer: the pattern of the open cell, or a pool
+   pattern, bound to its id — never the working loop. The grid is the same
+   macro Drums / Perform draw (drawer_drums / drawer_notes), posting the same field names to
+   /song/pattern/{id}/grid with hx-swap="none"; the route sends the drawer
+   back only when the pattern's shape changed, so a step click never
+   rebuilds the grid under the pointer. Opening a cell is POST /song/drawer;
+   the ✕ posts it with no ids, which closes it. It comes back as a morph
+   (outerMorph, like the layer strip): an automation slider's change
+   redraws the drawer, and replaced, the slider under the keyboard lost
+   its focus on every step (tests/browser/test_song.py). #}
+{% from "macros.html" import fill %}
+{% from "fragments/fx_units.html" import units %}
+{% set d = song_drawer %}
+{% set p = d.pattern if d else none %}
+<section id="song-drawer" class="song-drawer module" data-module="song.editor" aria-label="Pattern editor"
+         {% if p %}data-pattern-id="{{ p.id }}" data-kind="{{ p.kind }}" style="--pattern-color: {{ p.color }}"{% endif %}
+         {% if d and d.section %}data-section-id="{{ d.section.id }}" data-track-id="{{ d.track.id }}"{% endif %}
+         {#- a trimmed block: where its pattern starts and how long it plays,
+             in bars — the two playheads count the pattern from there -#}
+         {% if d and d.trimmed %}data-at="{{ d.block[0] }}" data-len="{{ d.block[1] }}"{% endif %}
+         {% if not d %}hidden{% endif %}
+         {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  {% if d %}
+  {% set cell = {"section_id": d.section.id, "track_id": d.track.id} if d.section else none %}
+  <header class="drawer-head">
+    <div class="drawer-title">
+      <span class="drawer-swatch" aria-hidden="true"></span>
+      <h2 class="drawer-pattern">{{ p.name if p else ("Effects and lanes" if d.audio else "Empty cell") }}</h2>
+      {% if d.section %}
+      <span class="drawer-cell">{{ d.track.name }} in {{ d.section.name }}</span>
+      {% else %}
+      <span class="drawer-cell">from the pool</span>
+      {% endif %}
+      {% set st = d.sound_track %}
+      {% if st %}
+      {#- the sound the pattern plays with — its TRACK's, so a pick changes
+          it in every section (POST /song/track/{id}/sound, one undo step):
+          the one sound menu, searchable (soundmenu.js; Alt+S); ↑ ↓ or the
+          wheel on the button step through it, heard as they go while ▶ Play
+          or the song plays (`song-changed` {now}); ✎ shapes it in the dock -#}
+      {% set sname = st.patch.name or "unnamed" %}
+      <span class="drawer-sound" role="group" aria-label="the sound of {{ st.name }}">
+        <span class="drawer-sound-label caps" aria-hidden="true">sound</span>
+        <button type="button" id="drawer-sound" class="btn btn-s drawer-sound-pick" aria-haspopup="dialog"
+                data-track-sound="{{ st.id }}" data-track-name="{{ st.name }}" data-sound-name="{{ st.patch.name }}"
+                aria-label="sound: {{ sname }} — pick another for {{ st.name }}"
+                data-cmd="Pick the sound this pattern plays with" data-cmd-group="Pattern" data-keys="Alt+S"
+                title="{{ st.name }}'s sound: {{ sname }} — pick another (Alt+S): it changes {{ st.name }}'s sound in every section · ↑ ↓ or the wheel step through the sounds, each heard as you go while ▶ Play or the song plays · Ctrl+Z puts back the one before"><span class="ds-name">{{ sname }}</span> ▾</button>
+        <button type="button" class="btn btn-icon btn-s btn-ghost drawer-sound-edit" hx-post="/song/track/{{ st.id }}/edit-sound" hx-vals='{"dock": "1"}' hx-swap="none"
+                data-cmd="Shape the sound this pattern plays with" data-cmd-group="Pattern" aria-label="shape the sound of {{ st.name }} here"
+                title="Shape {{ st.name }}'s sound here: Synths opens across the bottom of the page — its synth, FX and curves; what plays follows">✎</button>
+      </span>
+      {% endif %}
+      {% set used = d.shared_in | length %}
+      {% if p %}
+      {#- a shared pattern says so, and where: an edit here changes every
+          section named ("Make unique" below gives this cell its own) -#}
+      <span class="drawer-used{% if used > 1 %} shared{% endif %}" data-used="{{ used }}"
+            {% if used %}title="{{ d.shared_in | join(', ') }}"{% endif %}>
+        {%- if used > 1 %}shared · edits change {{ used }} sections{% elif used %}used in 1 section{% else %}not in the song yet{% endif -%}
+      </span>
+      {% endif %}
+      {% if d.hidden_count %}
+      <span class="drawer-hidden" data-hidden-count="{{ d.hidden_count }}"
+            title="Written under another key: kept and played, but not drawn on this key's rows">{{ d.hidden_count }} note{{ "" if d.hidden_count == 1 else "s" }} outside the key</span>
+      {% endif %}
+    </div>
+    {% if p and d.section %}
+    {#- "solo this cell" (songedit.js; GET /song/cell/<section>/<track>.wav):
+        just this track's pattern, looping, through its sound and FX. The
+        island keeps aria-pressed across the drawer's morphs, renders it
+        again after every edit (a sound designed in the dock is heard on
+        the next bar) and stops it when the drawer closes or shows another
+        cell. -#}
+    <button type="button" class="btn btn-play btn-toggle menu-btn drawer-solo" data-cmd="Solo this cell" aria-pressed="false"
+            data-cell-solo="/song/cell/{{ d.section.id | urlencode }}/{{ d.track.id | urlencode }}.wav"
+            data-cycle-bars="{{ d.cycle_bars }}" data-solo-label="{{ d.track.name }} in {{ d.section.name }}"
+            title="Loop {{ d.track.name }} alone in {{ d.section.name }}: its pattern through its own sound and FX, at its level in the mix — every edit, and every sound change in the dock, is heard as it lands"><span class="when-off">▶ Play</span><span class="when-on">■ Stop</span></button>
+    {% elif p and d.through %}
+    {#- a pool pattern: ▶ Play loops it through a lane's sound
+        (GET /song/pattern/<id>/play.wav?track=<lane>), the same machinery;
+        the lane is the drawer's ("through", POST /song/drawer) and the
+        dock follows it, so a sound designed there plays this pattern -#}
+    {% set through = d.through_choices | selectattr("id", "equalto", d.through) | first %}
+    <form class="drawer-through" hx-post="/song/drawer" hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+      <input type="hidden" name="pattern_id" value="{{ p.id }}">
+      <label class="song-field" title="The lane whose sound ▶ Play uses for this pattern (it is in no section of that lane yet)">through
+        <select class="field field-s" name="through">
+          {% for t in d.through_choices %}<option value="{{ t.id }}" {% if t.id == d.through %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+        </select></label>
+    </form>
+    <button type="button" class="btn btn-play btn-toggle menu-btn drawer-solo" data-cmd="Play this pattern" aria-pressed="false"
+            data-cell-solo="/song/pattern/{{ p.id | urlencode }}/play.wav?track={{ d.through | urlencode }}"
+            data-solo-pattern="{{ p.id }}" data-cycle-bars="{{ p.bars }}" data-solo-label="{{ p.name }} through {{ through.name }}"
+            title="Loop {{ p.name }} through {{ through.name }}'s sound, alone, at its level in the song — every edit, and every sound change in the dock, is heard as it lands"><span class="when-off">▶ Play</span><span class="when-on">■ Stop</span></button>
+    {% elif p and d.stand_in %}
+    {#- no lane of its kind in the song yet: ▶ Play hears the working
+        loop's kit (a beat) or Synths' sound (notes) -#}
+    <button type="button" class="btn btn-play btn-toggle menu-btn drawer-solo" data-cmd="Play this pattern" aria-pressed="false"
+            data-cell-solo="/song/pattern/{{ p.id | urlencode }}/play.wav"
+            data-solo-pattern="{{ p.id }}" data-cycle-bars="{{ p.bars }}" data-solo-label="{{ p.name }}"
+            title="Loop {{ p.name }} through {{ 'the Drum Lab’s kit' if p.kind == 'drums' else 'the sound on Synths' }} — the song has no {{ 'drums' if p.kind == 'drums' else 'synth' }} lane yet (add one, or place the pattern in a section, to hear it through the song’s)"><span class="when-off">▶ Play</span><span class="when-on">■ Stop</span></button>
+    {% endif %}
+    {#- where the open editor stands, from 2200 px (dense.css): under the
+        playlist (the default) or beside it — layout.js's tabs, `data-tab`
+        on #view, kept per browser -#}
+    <span class="seg drawer-place" role="group" aria-label="where the pattern editor stands">
+      <button type="button" class="btn btn-s btn-icon" data-tab-of="view" data-tab-pick="under" aria-selected="true"
+              data-cmd="Pattern editor: under the playlist" data-cmd-group="Pattern" title="The editor under the playlist, across the page">⬓</button>
+      <button type="button" class="btn btn-s btn-icon" data-tab-of="view" data-tab-pick="beside" aria-selected="false"
+              data-cmd="Pattern editor: beside the playlist" data-cmd-group="Pattern" title="The editor beside the playlist, the window's height">◨</button>
+    </span>
+    <button type="button" class="btn btn-icon btn-s btn-ghost drawer-close" data-cmd="Close the pattern editor" data-keys="Esc" hx-post="/song/drawer" hx-swap="none"
+            aria-label="Close the pattern editor" title="Close (Esc)">✕</button>
+  </header>
+
+  <div class="drawer-tools">
+    {% if cell and not d.audio %}
+    {% set kind = "drums" if d.track.kind == "drums" else "notes" %}
+    {% set choices = song.patterns.values() | selectattr("kind", "equalto", kind) | list %}
+    <form class="drawer-assign" hx-post="/song/cell" hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+      <input type="hidden" name="section_id" value="{{ d.section.id }}">
+      <input type="hidden" name="track_id" value="{{ d.track.id }}">
+      <label>pattern <select class="field field-s" name="pattern_id">
+        <option value="" {% if not p %}selected{% endif %}>— empty —</option>
+        {% for c in choices %}<option value="{{ c.id }}" {% if p and p.id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select></label>
+    </form>
+    {% if p %}
+    <button type="button" class="btn btn-s menu-btn" hx-post="/song/cell/new" hx-vals='{{ cell | tojson }}' hx-swap="none"
+            title="A new empty pattern for this cell ({{ p.name }} stays in the pool) · N on the arranger"
+            aria-label="New empty pattern for this cell">+ New</button>
+    <button type="button" class="btn btn-s menu-btn{% if used > 1 %} primary{% endif %}" data-cmd="Make this cell's pattern unique" hx-post="/song/cell/unique" hx-vals='{{ cell | tojson }}' hx-swap="none"
+            {% if used <= 1 %}disabled title="Only this section plays {{ p.name }}: it is this cell's own already"
+            {% else %}title="Copy the pattern for this cell only; the other sections keep the original"{% endif %}>Make unique</button>
+    <button type="button" class="btn btn-s menu-btn" hx-post="/song/cell/variation" hx-vals='{{ cell | tojson }}' hx-swap="none"
+            title="A mutated copy for this cell only">Variation</button>
+    {% set none_here = {"section_id": d.section.id, "track_id": d.track.id, "pattern_id": ""} %}
+    <button type="button" class="btn btn-s menu-btn" hx-post="/song/cell" hx-vals='{{ none_here | tojson }}' hx-swap="none"
+            title="Empty this cell; {{ p.name }} stays in the pool · Delete on the arranger"
+            aria-label="Empty this cell">Clear cell</button>
+    {#- where the block sits in its section (its span): the form for the
+        block's edge drags on the playlist. `from` / `to` are bars of the
+        section, 1-based and inclusive (`base=1`) -#}
+    <form class="drawer-span" hx-post="/song/cell/span" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+          aria-label="Where {{ p.name }} plays in {{ d.section.name }}">
+      <input type="hidden" name="section_id" value="{{ d.section.id }}">
+      <input type="hidden" name="track_id" value="{{ d.track.id }}">
+      <input type="hidden" name="base" value="1">
+      <span class="drawer-plays" role="status">
+        {%- if d.trimmed %}plays bars {{ d.block[0] + 1 }}–{{ d.block[0] + d.block[1] }} of {{ d.section.name }}
+        {%- else %}plays all of {{ d.section.name }}{% endif -%}
+      </span>
+      <label>from <input class="field field-s" type="number" name="from" min="1" max="{{ d.section.bars }}" step="1" value="{{ d.block[0] + 1 }}"
+             aria-label="first bar of {{ d.section.name }} the block plays"></label>
+      <label>to <input class="field field-s" type="number" name="to" min="1" max="{{ d.section.bars }}" step="1" value="{{ d.block[0] + d.block[1] }}"
+             aria-label="last bar of {{ d.section.name }} the block plays"></label>
+    </form>
+    {% set whole = {"section_id": d.section.id, "track_id": d.track.id, "at": "0", "len": d.section.bars | string} %}
+    {#- song creation: this cell's part by its generator (POST /song/gen: one
+        undo step however often it is rolled, and the result plays). The
+        drawer is where a part is open, so these are the page's commands
+        for "this part" -#}
+    <span class="drawer-gen" role="group" aria-label="Generate {{ d.track.name }}">
+      <button type="button" class="btn btn-s menu-btn" data-cmd="Roll this part again" data-cmd-group="Song"
+              hx-post="/song/gen" hx-vals='{{ {"track_id": d.track.id, "kind": "again"} | tojson }}' hx-swap="none"
+              {% if not p.get("gen") %}disabled title="Nothing here was generated: write it with a generator from the track's ⋯ menu first"
+              {% else %}title="Another {{ d.track.name }} from its generator ({{ p.gen.kind | replace('_', ' ') }}): nothing else in the song moves"{% endif %}>⚄ Again</button>
+      <button type="button" class="btn btn-s menu-btn" data-cmd="Make it busier" data-cmd-group="Song"
+              hx-post="/song/gen" hx-vals='{{ {"track_id": d.track.id, "kind": "busier"} | tojson }}' hx-swap="none"
+              title="More notes or hits in every pattern {{ d.track.name }} plays">busier</button>
+      <button type="button" class="btn btn-s menu-btn" data-cmd="Make it sparser" data-cmd-group="Song"
+              hx-post="/song/gen" hx-vals='{{ {"track_id": d.track.id, "kind": "sparser"} | tojson }}' hx-swap="none"
+              title="The weakest notes or hits out of every pattern {{ d.track.name }} plays">sparser</button>
+      {% if kind == "drums" %}
+      <button type="button" class="btn btn-s menu-btn" data-cmd="Add a fill" data-cmd-group="Song"
+              hx-post="/song/gen" hx-vals='{{ {"track_id": d.track.id, "kind": "fill"} | tojson }}' hx-swap="none"
+              title="Every beat becomes eight bars of itself with a fill in bar 8">+ fill</button>
+      {% set here = {"track_id": d.track.id, "kind": "build", "section_id": d.section.id} %}
+      <button type="button" class="btn btn-s menu-btn" data-cmd="Add a build" data-cmd-group="Song"
+              hx-post="/song/gen" hx-vals='{{ here | tojson }}' hx-swap="none"
+              title="{{ d.section.name }}'s beat becomes a roll that speeds up into the next section">+ build</button>
+      {% endif %}
+    </span>
+    <button type="button" class="btn btn-s menu-btn drawer-fill" hx-post="/song/cell/span" hx-vals='{{ whole | tojson }}' hx-swap="none"
+            title="The block plays through the whole section again">Fill section</button>
+    {% endif %}
+    {% endif %}
+    {% if p %}
+    <form class="drawer-rename" hx-post="/song/pattern/{{ p.id }}/rename" hx-swap="none">
+      <label>name <input class="field field-s" name="name" value="{{ p.name }}" maxlength="40" autocomplete="off" required></label>
+      <button type="submit" class="btn btn-s menu-btn">Rename</button>
+    </form>
+    {% if not d.section %}
+    <button type="button" class="btn btn-s menu-btn" hx-post="/song/pattern/{{ p.id }}/duplicate" hx-swap="none"
+            title="A copy of this pattern in the pool, to change and place">Duplicate</button>
+    <button type="button" class="btn btn-s btn-danger menu-btn danger" hx-post="/song/pattern/{{ p.id }}/delete" hx-swap="none"
+            hx-confirm="Delete the pattern {{ p.name }}?">Delete pattern</button>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  {% if p %}
+  {% set steps = p.steps if p.kind == "drums" else p.steps_per_bar %}
+  {% set step_choices = limits.DRUM_STEP_CHOICES if p.kind == "drums" else limits.STEP_CHOICES %}
+  {#- one rack: the pattern's length, then its tools, wrapping as one row so
+      the grid starts right under it -#}
+  <div class="drawer-rack">
+  <div class="drawer-shape" role="group" aria-label="Pattern length">
+    <span class="caps label-text">bars</span>
+    <div class="seg barchips">
+      {% for b in d.bar_choices %}
+      <button type="button" class="barchip {% if b <= p.bars %}on{% endif %}"
+              hx-post="/song/pattern/{{ p.id }}/grid" hx-include="#drawer-grid" hx-vals='{"bars": "{{ b }}"}'
+              hx-swap="none" aria-pressed="{{ 'true' if b == p.bars else 'false' }}">{{ b }}</button>
+      {% endfor %}
+    </div>
+    <span class="caps label-text">steps</span>
+    <div class="seg barchips">
+      {% for st in step_choices %}
+      <button type="button" class="barchip {% if st == steps %}on{% endif %}"
+              hx-post="/song/pattern/{{ p.id }}/grid" hx-include="#drawer-grid" hx-vals='{"steps": "{{ st }}"}'
+              hx-swap="none" aria-pressed="{{ 'true' if st == steps else 'false' }}">{{ st }}</button>
+      {% endfor %}
+    </div>
+  </div>
+
+  {#- the pattern tools (patternops, routes/song.pattern_tool): the same
+      edits as Perform's grids, on this pool pattern — every section using
+      it follows. The drawer comes back by its region watch. -#}
+  {% set tool = "/song/pattern/" ~ p.id ~ "/tool/" %}
+  <div class="pattern-tools drawer-tools" role="toolbar" aria-label="Pattern tools">
+    <div class="pt-group" role="group" aria-label="move">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="{{ tool }}shift_left" hx-swap="none" data-anim="left"
+              title="Shift a step earlier (wraps round)" aria-label="shift the pattern left">◀</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="{{ tool }}shift_right" hx-swap="none" data-anim="right"
+              title="Shift a step later (wraps round)" aria-label="shift the pattern right">▶</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="{{ tool }}reverse" hx-swap="none" data-anim="flip"
+              title="Reverse the pattern" aria-label="reverse the pattern">⇆</button>
+    </div>
+    {% if p.kind == "notes" %}
+    <div class="pt-group" role="group" aria-label="transpose">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="{{ tool }}up" hx-swap="none" data-anim="up"
+              title="Every note up one tone of the song's key" aria-label="transpose up a scale tone">▲</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="{{ tool }}down" hx-swap="none" data-anim="down"
+              title="Every note down one tone of the song's key" aria-label="transpose down a scale tone">▼</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}oct_up" hx-swap="none" data-anim="up"
+              title="Every note up an octave" aria-label="transpose up an octave">+8va</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}oct_down" hx-swap="none" data-anim="down"
+              title="Every note down an octave" aria-label="transpose down an octave">−8va</button>
+    </div>
+    {% endif %}
+    <div class="pt-group" role="group" aria-label="length and velocity">
+      <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}duplicate" hx-swap="none" data-anim="grow"
+              {% if p.bars * 2 not in d.bar_choices %}disabled{% endif %}
+              title="Double the pattern: the bars it has, twice (sections using it grow to fit)"
+              aria-label="duplicate the pattern">×2</button>
+      <span class="pt-menu">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-svel" title="Velocity tools" aria-label="velocity tools">vel</button>
+        <div popover id="ptm-svel" class="pop menu pt-menu-panel" role="group" aria-label="velocity tools">
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-svel" popovertargetaction="hide" hx-post="{{ tool }}vel_humanise" hx-swap="none">humanise</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-svel" popovertargetaction="hide" hx-post="{{ tool }}vel_ramp" hx-swap="none">ramp ↗</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-svel" popovertargetaction="hide" hx-post="{{ tool }}vel_accent" hx-swap="none">accent</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-svel" popovertargetaction="hide" hx-post="{{ tool }}vel_reset" hx-swap="none">reset</button>
+        </div>
+      </span>
+      {#- (a notes pattern's rows — six, the key, all — and its octave window
+          are the piano roll's own bar: drawer_notes.html) -#}
+      <button type="button" class="btn btn-s btn-icon btn-danger pt danger" hx-post="{{ tool }}clear" hx-swap="none" data-anim="clear"
+              title="Clear the pattern (Ctrl+Z brings it back)" aria-label="clear the pattern">✕</button>
+    </div>
+    <button type="button" class="btn btn-icon btn-s btn-ghost pt-hint drawer-hint" aria-label="How to draw in this grid"
+            title="{% if p.kind == "notes" %}drag across to draw · right-click erases · a run of steps is one held note — Shift-click a step to start a new note there · Shift+arrows move the pattern{% else %}drag across to draw · right-click erases · Shift+←/→ on a step shifts the beat{% endif %}">?</button>
+  </div>
+  </div>
+
+  <div class="drawer-grid-wrap">
+    {% if p.kind == "drums" %}
+    {% include "fragments/drawer_drums.html" %}
+    {% else %}
+    {% include "fragments/drawer_notes.html" %}
+    {% endif %}
+  </div>
+
+  {% elif d.audio %}
+  {#- an audio track's row in a section: its RACK (the track's, so every
+      section's takes go through it; POST /song/track/{id}/fx, one song
+      edit each, a slider's drag one undo step) and, below, its lanes in
+      this section. Drawn with THE rack (fragments/fx_units.html: ★
+      presets, jacks and leads, step editors, choice menus), every post
+      to the track's route; the drawer comes back as a morph, so a knob
+      keeps its focus. -#}
+  {% set rack = "/song/track/" ~ d.track.id ~ "/fx" %}
+  <fieldset class="fx-scope drawer-fx" aria-label="{{ d.track.name }} effects">
+    <legend><span class="panel-name" title="Every take on {{ d.track.name }} plays through these, in every section">{{ d.track.name }} FX</span>
+      <select data-cmd="Add effect to {{ d.track.name }}" data-cmd-group="Effects" class="field field-s fx-adder" name="kind"
+              aria-label="add effect to {{ d.track.name }}" hx-post="/song/track/{{ d.track.id }}/fx" hx-vals='{"op": "add"}' hx-include="this"
+              hx-trigger="change" hx-sync="this:queue all" hx-swap="none"{{ ' disabled title="The rack is full"' if d.rack_full }}>
+        <option value="" selected disabled>+ add…</option>
+        {% for kind, label in d.rack_units %}<option value="{{ kind }}">{{ label }}</option>{% endfor %}
+      </select>
+    </legend>
+    {% set r = {"url": rack, "vals": {}, "id": "trk-" ~ d.track.id, "title": d.track.name ~ " FX",
+                "value": 'hx-swap="none"', "shape": 'hx-swap="none"', "out": "mix", "edges": true} %}
+    {% call units(d.rack, r) %}<p class="empty-state fx-none">No effects: the takes play dry.
+      <button type="button" class="btn btn-s empty-fx" data-cmd="Add a reverb to {{ d.track.name }} and play" data-cmd-group="Effects"
+              hx-post="{{ rack }}" hx-vals='{{ {"op": "add", "kind": "reverb", "play": "1", "section_id": d.section.id if d.section else ""} | tojson }}' hx-swap="none"
+              title="Put a reverb on this track and loop the section through it">＋ Reverb ▶</button></p>{% endcall %}
+  </fieldset>
+  {% endif %}
+
+  {% if cell and (p or d.audio) %}
+  {#- section automation (song_model.set_lane): this cell's lanes, drawn
+      over ONE PASS of the section — the level, or a curvable field of the
+      track's sound (an audio track's row: its level and its rack's units).
+      Each row is a form posting /song/cell/auto on change;
+      the drawer comes back by its region watch, readouts and thumbnail
+      redrawn. No script: the sliders are the editor. -#}
+  <div class="drawer-lanes" role="group" aria-label="Automation of {{ d.track.name }} in {{ d.section.name }}">
+    <span class="caps label-text" title="Each lane runs once across {{ d.section.name }}, start to end, and again on every repeat">automation</span>
+    {% for ln in d.lanes %}
+    {% if ln.missing %}
+    {#- an FX lane whose unit left the track's chain: it plays nothing and
+        is never handed to another unit; all it offers is its removal -#}
+    <div class="lane-row lane-missing" data-target="{{ ln.target }}" data-missing>
+      <span class="lane-name">{{ ln.label }}</span>
+      <span class="lane-gone" title="{{ d.track.name }} no longer has this effect: the lane plays nothing">missing — its effect is gone</span>
+    {% else %}
+    <div class="lane-row" data-target="{{ ln.target }}">
+      <form class="lane-form" hx-post="/song/cell/auto" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+            aria-label="{{ ln.label }} over {{ d.section.name }}">
+        <input type="hidden" name="op" value="set">
+        <input type="hidden" name="section_id" value="{{ d.section.id }}">
+        <input type="hidden" name="track_id" value="{{ d.track.id }}">
+        <input type="hidden" name="target" value="{{ ln.target }}">
+        <span class="lane-name">{{ ln.label }}</span>
+        <svg class="lane-shape" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ ln.shape }}" fill="none"></polyline></svg>
+        <label>start <input type="range" class="knob knob-s" name="start" min="0" max="1" step="0.01" value="{{ ln.start }}"
+                            aria-label="{{ ln.label }} at the start of {{ d.section.name }}">
+          <output data-untyped>{{ ln.start_text }}</output></label>
+        <label class="lane-mid" title="A third point between the start and the end"><input type="checkbox" class="check" name="mid_on" {% if ln.mid %}checked{% endif %}> mid</label>
+        {% if ln.mid %}
+        <label>at <input type="range" class="knob knob-s" name="mid_at" min="0.05" max="0.95" step="0.05" value="{{ ln.mid[0] }}"
+                         aria-label="where the mid point sits in {{ d.section.name }}">
+          <output data-pct>{{ (ln.mid[0] * 100) | round | int }}%</output></label>
+        <label>value <input type="range" class="knob knob-s" name="mid" min="0" max="1" step="0.01" value="{{ ln.mid[1] }}"
+                            aria-label="{{ ln.label }} at the mid point">
+          <output data-untyped>{{ ln.mid_text }}</output></label>
+        {% endif %}
+        <label>end <input type="range" class="knob knob-s" name="end" min="0" max="1" step="0.01" value="{{ ln.end }}"
+                          aria-label="{{ ln.label }} at the end of {{ d.section.name }}">
+          <output data-untyped>{{ ln.end_text }}</output></label>
+      </form>
+    {% endif %}
+      {% set gone = {"op": "remove", "section_id": d.section.id, "track_id": d.track.id, "target": ln.target} %}
+      <button type="button" class="btn btn-s btn-icon btn-danger pt danger" hx-post="/song/cell/auto" hx-vals='{{ gone | tojson }}' hx-swap="none"
+              title="Remove this lane" aria-label="remove the {{ ln.label }} lane">✕</button>
+    </div>
+    {% endfor %}
+    {% if d.lane_choices or d.lane_fx_choices %}
+    <form class="lane-add" hx-post="/song/cell/auto" hx-swap="none">
+      <input type="hidden" name="op" value="add">
+      <input type="hidden" name="section_id" value="{{ d.section.id }}">
+      <input type="hidden" name="track_id" value="{{ d.track.id }}">
+      <label>automate <select class="field field-s" name="target">
+        {% for t, label in d.lane_choices %}<option value="{{ t }}">{{ label }}</option>{% endfor %}
+        {#- the track's FX units, a group each: the parameters a lane can move -#}
+        {% for unit, params in d.lane_fx_choices %}
+        <optgroup label="{{ unit }}">
+          {% for t, name in params %}<option value="{{ t }}">{{ unit }} {{ name | replace("_", " ") }}</option>{% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select></label>
+      <button type="submit" class="btn btn-s menu-btn" title="Add a lane: it starts flat, where the sound rests">+ Lane</button>
+    </form>
+    {% elif d.audio and not d.takes %}
+    <span class="drawer-plays" title="An audio track's lanes move its takes in this section">no take of {{ d.track.name }} in {{ d.section.name }} to automate</span>
+    {% endif %}
+  </div>
+  {% elif cell %}
+  {#- an empty cell: make a pattern here in one step, or pick one of the
+      pool's by its thumbnail (song_thumbs.html) -#}
+  <div class="drawer-empty">
+    <p>Nothing plays in this cell yet.</p>
+    <div class="drawer-pick" role="group" aria-label="Fill this cell"{% if choices %} title="Or drag one in from the pool · on the arranger: N new, Ctrl+C / Ctrl+V copy a cell's pattern to another, or drag a cell onto one (Alt-drag moves it)"{% endif %}>
+      <button type="button" class="pick pick-new" hx-post="/song/cell/new" hx-vals='{{ cell | tojson }}' hx-swap="none"
+              title="A new empty {{ 'beat' if kind == 'drums' else 'note pattern' }} in this cell, ready to draw">+ New {{ "beat" if kind == "drums" else "note pattern" }}</button>
+      {% for c in choices %}
+      {% set pick = {"section_id": d.section.id, "track_id": d.track.id, "pattern_id": c.id} %}
+      <button type="button" class="pick" hx-post="/song/cell" hx-vals='{{ pick | tojson }}' hx-swap="none"
+              style="--pattern-color: {{ c.color }}" aria-label="Use {{ c.name }} here ({{ c.bars }} bar{{ '' if c.bars == 1 else 's' }})">
+        <svg class="pick-thumb cell-thumb-{{ c.kind }}" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true" focusable="false"><use href="#thumb-{{ c.id }}" width="1" height="1"/></svg>
+        <span class="pick-name">{{ c.name }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+</section>

@@ -1,0 +1,13 @@
+# The native DSP core. `dsp` is plain Rust with no Python in it, so the same
+# code can later build to wasm32 for the live voice; `dsp-py` is its PyO3
+# binding, built by maturin into the `synthlab_dsp` extension module that
+# synthlab imports (see crates/README.md).
+[workspace]
+resolver = "3"
+members = ["dsp", "dsp-py"]
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

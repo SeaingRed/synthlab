@@ -1,0 +1,63 @@
+{# synthlab/studio/templates/fragments/song_pool.html #}
+{# The pattern pool: drum and note patterns, each with a mini
+   thumbnail (a hit grid / a note strip, from `song_thumbs`) and how many
+   sections use it. Clicking a pattern opens it in the drawer, where it is
+   renamed or deleted. Each .pool-pattern is a drag source for song.js
+   (Task 7: HTML5 DnD carrying data-pattern-id onto an .arr-cell, or
+   select-then-Enter).
+
+   Desktop: a column beside the arranger. At <= 900px #pool-sheet is a
+   bottom sheet opened by .pool-open — a declarative popover, so it opens
+   and light-dismisses with no script; above 900px the CSS shows the sheet
+   in place and the popover attribute does nothing. #}
+{% macro pattern_list(kind, title, add_label) %}
+{% set items = song.patterns.values() | selectattr("kind", "equalto", kind) | list %}
+<section class="pool-group" aria-label="{{ title }}">
+  <h3 class="caps pool-title">{{ title }} <small>{{ items | length }}</small></h3>
+  <ul class="pool-list" role="list">
+    {% for p in items %}
+    {% set used = song_usage.get(p.id, []) | length %}
+    {% set th = song_thumbs[p.id] %}
+    <li class="pool-pattern" id="pool-{{ p.id }}"
+        data-pattern-id="{{ p.id }}" data-kind="{{ p.kind }}" draggable="true"
+        style="--pattern-color: {{ p.color }}">
+      <button type="button" class="pool-open-pattern" hx-post="/song/drawer"
+              hx-vals='{"pattern_id": "{{ p.id }}"}' hx-swap="none">
+        <svg class="pool-thumb pool-thumb-{{ p.kind }}" viewBox="0 0 {{ th.w }} {{ th.h }}"
+             preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          {% for x, y in th.marks %}<rect x="{{ x }}" y="{{ y }}" width="1" height="1"/>{% endfor %}
+        </svg>
+        <span class="pool-name">{{ p.name }}</span>
+        <span class="pool-meta">{{ p.bars }} bar{{ "" if p.bars == 1 else "s" }}
+          · <span class="pool-used" data-used="{{ used }}">{% if used %}used in {{ used }}{% else %}unused{% endif %}</span></span>
+      </button>
+    </li>
+    {% else %}
+    {#- nothing of this kind yet: one click writes one and plays it -#}
+    <li class="pool-empty empty-state"><p>None yet: add one below, or click an empty cell.</p>
+      <button type="button" class="btn btn-s" hx-post="/song/gen" hx-swap="none"
+              hx-vals='{"add": "{{ "beat" if kind == "drums" else "riff" }}"}'
+              data-cmd="{{ "Write a beat" if kind == "drums" else "Write a riff on the chords" }}" data-cmd-group="Song"
+              title="{{ "A beat in the song's style, on the drums track, in a section: it plays" if kind == "drums" else "A line that follows the chord track, on a track of its own: it plays" }}">⚄ {{ "a beat" if kind == "drums" else "a riff on the chords" }}</button></li>
+    {% endfor %}
+  </ul>
+  <button type="button" class="btn btn-s pool-add" data-cmd="Add a {{ add_label }}" hx-post="/song/pattern/add"
+          hx-vals='{"kind": "{{ kind }}"}' hx-swap="none">+ {{ add_label }}</button>
+</section>
+{% endmacro %}
+<aside id="song-pool" class="song-pool" aria-label="Pattern pool"
+       {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  <div class="splitter" data-var="--pool-w" data-scope=".song-view" data-min="180" data-max="520" role="separator" aria-orientation="vertical" aria-label="resize the pattern pool" title="drag to resize · double-click resets" tabindex="0"></div>
+  <button type="button" class="pool-open" popovertarget="pool-sheet">
+    Patterns <small>{{ song.patterns | length }}</small>
+  </button>
+  <div id="pool-sheet" class="pool-sheet module" data-module="song.pool" popover>
+    <header class="pool-head">
+      <h2 class="caps">Patterns</h2>
+      <button type="button" class="btn btn-icon btn-ghost pool-close" popovertarget="pool-sheet"
+              popovertargetaction="hide" aria-label="Close patterns">✕</button>
+    </header>
+    {{ pattern_list("drums", "Beats", "drum pattern") }}
+    {{ pattern_list("notes", "Note patterns", "note pattern") }}
+  </div>
+</aside>

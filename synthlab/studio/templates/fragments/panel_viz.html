@@ -1,0 +1,5 @@
+{# synthlab/studio/templates/fragments/panel_viz.html #}
+{# One of the Synths panels' drawings (the filter response, the two
+   envelopes): `svg` in a wrap whose id is the region's (service.REGIONS),
+   so a patch post that moves it re-sends it out of band. #}
+<div id="{{ viz_id }}" class="panel-viz" aria-hidden="true"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>{{ svg | safe }}</div>

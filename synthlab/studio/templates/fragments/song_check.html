@@ -1,0 +1,41 @@
+{# synthlab/studio/templates/fragments/song_check.html — "what is missing"
+   (song creation;
+   studio/gen/checklist.py): each finding a fact and, where there is one,
+   the button that fixes it — a route the page already has. Under it, for
+   a song started in a style, that style's signature: what the grammar
+   needs, lit when the song shows it. Read off the model: nothing renders.
+
+   The topbar's "✓ N" opens it (a popover inside the topbar's region, so it
+   follows every edit and stays open across the topbar's morph);
+   GET /fragment/song/check answers with it alone. #}
+{% set ck = song_check %}
+<div id="song-check" class="pop song-check" popover aria-label="What the song is missing">
+  <h3 class="caps">what is missing</h3>
+  {% if not ck.found %}
+  <p class="check-none">Nothing: it starts, it ends, it has a bass, something changes and something leads into the fullest section.</p>
+  {% endif %}
+  <ul class="check-list">
+    {% for f in ck.found %}
+    <li class="check-item{% if f.info %} check-info{% endif %}" data-check="{{ f.key }}">
+      <span class="led" {% if not f.info %}data-on="armed"{% endif %} aria-hidden="true"></span>
+      <span class="check-text">{{ f.text }}</span>
+      {% if f.fix %}
+      <button type="button" class="btn btn-s check-fix" hx-post="{{ f.fix.post }}" hx-vals='{{ f.fix.vals | tojson }}' hx-swap="none"
+              data-cmd="Fix the song: {{ f.fix.label }}"
+              title="{{ f.fix.label }} · one undo step">{{ f.fix.label }}</button>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% if ck.signature %}
+  <h3 class="caps" title="What makes the style the style, checked against the song as it stands. Present is not the same as good: only ears settle that">signature</h3>
+  <ul class="check-list check-sig">
+    {% for s in ck.signature %}
+    <li class="check-item">
+      <span class="led" {% if s.ok %}data-on{% else %}data-on="clip"{% endif %} aria-hidden="true"></span>
+      <span class="check-text">{{ s.text }}{% if not s.ok %} <b>missing</b>{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

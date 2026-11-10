@@ -1,0 +1,181 @@
+{# synthlab/studio/templates/fragments/transport.html #}
+{# The note grid and everything that shapes the pattern. This lives in
+   Perform: Synths is a sound bench and does not sequence. Play, tempo,
+   layers, A/B and the meter moved to fragments/sound_bar.html. #}
+{% from "macros.html" import fill, fmt %}
+{% from "grids.html" import note_grid, roll_tools %}
+{% from "fragments/loop_rows.html" import quantise_menu %}
+<form id="transport" class="transport module" data-module="perform.notes" data-ctx="Piano roll"
+      hx-post="/fragment/arrangement" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last"
+      hx-include="#patch, #transport" hx-swap="none"
+      {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  {%- if lane_follow %}
+  {# the edited layer follows (StudioService.lane_follow): what plays is the
+     main lane's notes, not this grid — say so rather than let edits vanish #}
+  <p class="lane-follow-note" role="note">Layer {{ lane_follow.layer }} follows Layer {{ lane_follow.main }}'s notes{% if lane_follow.octave %} {{ lane_follow.octave | octave_label }}{% endif %}: this grid is its own and plays only with Follow off.
+    <button type="button" class="btn btn-s" hx-post="/fragment/layer/follow" hx-swap="none"
+            hx-vals='{"index": "{{ lane_follow.layer - 1 }}", "on": "0"}'
+            title="Follow off: this lane plays the notes drawn on this grid" data-cmd="Draw this lane's own notes" data-cmd-group="Pattern">draw its own</button></p>
+  {%- endif %}
+  {%- if loop_edit %}
+  {#- a saved loop is open on this grid (loops.py, `StudioState.loop_edit`):
+      every change to its lane's notes saves to it. Done, another loop or
+      section on the grid, or Ctrl+Z past its opening end it -#}
+  <div class="lp-edit-note" role="note"><span class="lp-on">✎ editing</span>
+    {% if loop_edit.here -%}
+    the loop “{{ loop_edit.title }}” — every change to these notes saves to it.
+    {%- else -%}
+    the loop “{{ loop_edit.title }}” on lane {{ loop_edit.lane }}: this lane's notes are not the loop's.
+    {%- endif %}
+    {%- if loop_edit.here and loop_edit.row and loop_edit.row.played %}
+    {{ quantise_menu(loop_edit.row) }}
+    {%- endif %}
+    <button type="button" class="btn btn-s lp-done" hx-post="/loop/edit/done" hx-swap="none"
+            title="stop editing the loop: it keeps every change, and the notes stay on the grid as the working loop"
+            data-cmd="Done editing the loop" data-cmd-group="Loops">Done</button></div>
+  {%- endif %}
+  <div class="transport-controls">
+    {#- which lane this grid edits (the lane heads are in the lane
+        inspector at the right; a slot selected in the launcher, or a
+        head there, picks it) -#}
+    <fieldset class="tcluster ed-lane"><legend>editing</legend>
+      <span class="ed-lane-name" title="This grid edits lane {{ active_layer + 1 }}: {{ patch.name }} — pick another lane in the lane inspector (at the right) or select a slot in the launcher"><b>{{ active_layer + 1 }}</b> {{ patch.name }}</span>
+    </fieldset>
+    <fieldset class="tcluster"><legend>length</legend>
+      <span class="label-text">bars</span>
+      <div class="seg barchips">
+        {% for b in limits.BAR_CHOICES %}
+        <button type="button" class="barchip {% if b <= arrangement.bars %}on{% endif %}"
+                hx-post="/fragment/arrangement" hx-include="#transport"
+                hx-vals='{"bars": "{{ b }}"}' hx-swap="none"
+                aria-pressed="{{ 'true' if b == arrangement.bars else 'false' }}">{{ b }}</button>
+        {% endfor %}
+      </div>
+      <input type="hidden" name="bars" value="{{ arrangement.bars }}">
+    </fieldset>
+    <fieldset class="tcluster"><legend>pattern</legend>
+      <label>steps <select class="field field-s" name="steps">
+        {% for s in meter.step_choices(arrangement.meter) %}
+        <option {% if arrangement.steps_per_bar == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select></label>
+      <label>root <select class="field field-s" name="root">
+        {% for r in roots %}
+        <option {% if arrangement.root == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select></label>
+      <label>scale <select class="field field-s" name="scale_name">
+        {% for sc in scales %}
+        <option {% if arrangement.scale_name == sc %}selected{% endif %}>{{ sc }}</option>
+        {% endfor %}
+      </select></label>
+    </fieldset>
+    <fieldset class="tcluster"><legend>feel</legend>
+      <label>swing <input type="range" id="t-swing" class="knob knob-s" name="swing" min="0" max="0.6" step="0.05" data-default="0"
+                          value="{{ arrangement.swing }}"
+                          style="--fill: {{ fill(arrangement.swing, 0, 0.6) }}"></label>
+      <output for="t-swing">{{ fmt(arrangement.swing) }}</output>
+      {#- "grid arp": the note grid's, in the render — not the dock's "keys
+          arp" (live), as the strums are named apart #}
+      <label>grid arp <select class="field field-s" name="arp_mode" title="Grid arp: arpeggiate the checked notes at step rate — in the loop and the song. The live keys have their own: “keys arp”, on the keyboard dock">
+        {% for m in ["off", "up", "down", "updown"] %}
+        <option {% if arrangement.arp_mode == m %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select></label>
+      <label>oct <select class="field field-s" name="arp_octaves">
+        {% for o in [1, 2, 3] %}
+        <option {% if arrangement.arp_octaves == o %}selected{% endif %}>{{ o }}</option>
+        {% endfor %}
+      </select></label>
+      {#- G2: the notes of a chord apart (arrange._strummed); the loop, a
+          section and the MIDI file read the one schedule -#}
+      <label>grid strum <input type="range" id="t-strum" class="knob knob-s" name="strum" min="-60" max="60" step="5" data-default="0"
+                          value="{{ arrangement.strum | round | int }}"
+                          style="--fill: {{ fill(arrangement.strum, -60, 60) }}"
+                          title="Grid strum: a chord's notes in the note grid start this many ms apart, low to high (negative: high to low) — in the loop and the song. 0 = together. An arp plays one note a step, so it has nothing to strum. The live keys have their own: “keys strum”, on the keyboard dock"></label>
+      <output for="t-strum" data-unit="ms">{{ arrangement.strum | round | int }} ms</output>
+    </fieldset>
+  </div>
+  {#- the pattern tools (routes/pattern.py): each edits what the grid
+      shows, keeps what it hides, and is one Ctrl+Z (pattern undo). They
+      post nothing of the form's: hx-swap none, the grid returns by its
+      region watch. -#}
+  <input type="hidden" name="span" value="{{ grid_span }}">
+  <input type="hidden" name="oct" value="{{ grid_oct }}">
+  <div class="pattern-tools" role="toolbar" aria-label="Note pattern tools">
+    <div class="pt-group" role="group" aria-label="move">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/shift_left" hx-swap="none"
+              data-anim="left" title="Shift every note a step earlier (wraps round)" aria-label="shift notes left" data-cmd="Shift notes left" data-cmd-group="Pattern">◀</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/shift_right" hx-swap="none"
+              data-anim="right" title="Shift every note a step later (wraps round)" aria-label="shift notes right" data-cmd="Shift notes right" data-cmd-group="Pattern">▶</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/reverse" hx-swap="none"
+              data-anim="flip" title="Reverse the pattern" aria-label="reverse the pattern" data-cmd="Reverse the pattern" data-cmd-group="Pattern">⇆</button>
+    </div>
+    <div class="pt-group" role="group" aria-label="transpose">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/up" hx-swap="none"
+              data-anim="up" title="Every note up one tone of the key" aria-label="transpose up a scale tone" data-cmd="Transpose up a scale tone" data-cmd-group="Pattern">▲</button>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/down" hx-swap="none"
+              data-anim="down" title="Every note down one tone of the key" aria-label="transpose down a scale tone" data-cmd="Transpose down a scale tone" data-cmd-group="Pattern">▼</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/oct_up" hx-swap="none"
+              data-anim="up" title="Every note up an octave" aria-label="transpose up an octave" data-cmd="Transpose up an octave" data-cmd-group="Pattern">+8va</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/oct_down" hx-swap="none"
+              data-anim="down" title="Every note down an octave" aria-label="transpose down an octave" data-cmd="Transpose down an octave" data-cmd-group="Pattern">−8va</button>
+    </div>
+    <div class="pt-group" role="group" aria-label="length and velocity">
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/duplicate" hx-swap="none"
+              data-anim="grow" {% if not can_double %}disabled{% endif %}
+              title="{{ 'Double the pattern: the bars you have, twice' if can_double else 'The grid is at its longest' }}" aria-label="duplicate the pattern" data-cmd="Duplicate the pattern" data-cmd-group="Pattern">×2</button>
+      <span class="pt-menu">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-nvel" title="Velocity tools" aria-label="velocity tools">vel</button>
+        <div popover id="ptm-nvel" class="pop menu pt-menu-panel" role="group" aria-label="velocity tools">
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-nvel" popovertargetaction="hide" hx-post="/fragment/pattern/notes/vel_humanise" hx-swap="none"
+                  title="Nudge each note's velocity a little, at random">humanise</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-nvel" popovertargetaction="hide" hx-post="/fragment/pattern/notes/vel_ramp" hx-swap="none"
+                  title="Quiet to loud across the loop">ramp ↗</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-nvel" popovertargetaction="hide" hx-post="/fragment/pattern/notes/vel_accent" hx-swap="none"
+                  title="Loud on the beat, softer between">accent</button>
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-nvel" popovertargetaction="hide" hx-post="/fragment/pattern/notes/vel_reset" hx-swap="none"
+                  title="Every step back to the default">reset</button>
+        </div>
+      </span>
+      <button type="button" class="btn btn-s btn-icon btn-danger pt danger" hx-post="/fragment/pattern/notes/clear" hx-swap="none"
+              data-anim="clear" title="Clear every note the grid shows (Ctrl+Z brings them back)" aria-label="clear the notes" data-cmd="Clear the notes" data-cmd-group="Pattern">✕</button>
+      <button type="button" class="btn btn-s btn-icon pt" id="pattern-undo" data-keys="Ctrl+Z" hx-post="/fragment/pattern/undo" hx-swap="none"
+              title="Undo the last pattern edit (Ctrl+Z)" aria-label="undo the last pattern edit" data-cmd="Undo the last pattern edit" data-cmd-group="Pattern">↶</button>
+    </div>
+    {#- the note generators on the working loop (gen/loop.py; the Song
+        page's are /song/gen): a part written into the octaves the roll
+        shows, following the loop's own chords (the chord lane over the
+        roll), else the song's in its key, else a progression the seed
+        picks. A roll again joins the same Ctrl+Z step. BEFORE
+        the roll's own tools, whose last button is the stop before the
+        grid (the keyboard's way in). -#}
+    <div class="pt-group roll-gen" role="group" aria-label="generators">
+      <span class="pt-menu">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-write" title="Write a part over what the grid shows: it follows the chords, plays at once, and Ctrl+Z takes it back" aria-label="write a part with a generator">⚄ write</button>
+        <div popover id="ptm-write" class="pop menu pt-menu-panel" role="group" aria-label="write a part">
+          {% for kind, label in gen_loop_kinds %}
+          <button type="button" class="menu-item rowtool" popovertarget="ptm-write" popovertargetaction="hide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "{{ kind }}"}' hx-swap="none"
+                  title="Write a {{ label }} over the notes the grid shows" data-cmd="Write a {{ label }}" data-cmd-group="Pattern">{{ label }}</button>
+          {% endfor %}
+        </div>
+      </span>
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "again"}' hx-swap="none"
+              title="Roll again: the part last written, with another seed (the same Ctrl+Z step)" aria-label="roll the written part again" data-cmd="Roll the part again" data-cmd-group="Pattern">⚄</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "busier"}' hx-swap="none"
+              title="Busier: chord tones on the silent offbeats" aria-label="busier notes" data-cmd="Busier notes" data-cmd-group="Pattern">busier</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"lane": "notes", "kind": "sparser"}' hx-swap="none"
+              title="Sparser: the weakest notes out — off the beat and off the chord first" aria-label="sparser notes" data-cmd="Sparser notes" data-cmd-group="Pattern">sparser</button>
+    </div>
+    {{ roll_tools("/fragment/pattern/notes/", grid_span, grid_oct, "perform", arrangement.steps_per_bar, roll, oct_range) }}
+    {% if hidden_notes %}
+    <button type="button" class="btn btn-s pt-hidden" hx-post="/fragment/pattern/notes/tidy" hx-swap="none"
+            hx-confirm="Remove {{ hidden_notes }} note{{ 's' if hidden_notes != 1 else '' }} the grid keeps but can't show?"
+            title="Notes written under another key play but aren't drawn on these rows; notes past the grid's end are kept silent. Click to remove them.">{{ hidden_notes }} hidden note{{ "s" if hidden_notes != 1 else "" }} · tidy</button>
+    {% endif %}
+    <button type="button" class="btn btn-icon btn-s btn-ghost pt-hint" aria-label="How to draw in the note grid"
+            title="draw: drag across to paint, drag a note's right end to change its length · right-click erases · a run of steps is one held note — Shift-click a step to start a new note there · select: drag a box, drag the notes, Ctrl-drag copies · wheel scrolls, Shift+wheel sideways, Ctrl+wheel zooms · keys: arrows move, Space toggles, Shift+arrows select, Alt+arrows move, Ctrl+← → length, Ctrl+↑ ↓ velocity, Ctrl+C V D, Delete · the lanes under the grid: drag a bar, or ↑ ↓ its value, ← → the steps, PageUp / PageDown velocity ↔ chance (a step under 100 % may rest: each pass rolls afresh, a re-render plays the same rolls)" data-cmd="How to draw in the note grid" data-cmd-group="Pattern">?</button>
+  </div>
+  {{ note_grid(pitch_rows, total_steps, arrangement.cells, arrangement.slides, velocities, root_rows=root_rows, steps_per_bar=arrangement.steps_per_bar, cuts=arrangement.cuts, roll=roll, zoom="perform", span=grid_span, oct=grid_oct, bar_meter=arrangement.meter, chords=chord_lane, chance=arrangement.note_chance, nudge=arrangement.note_nudge) }}
+  {% include "fragments/loop_chords.html" %}
+</form>

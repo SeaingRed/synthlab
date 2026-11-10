@@ -1,0 +1,28 @@
+{# synthlab/studio/templates/fragments/chord_library.html #}
+{# Split out of chord_bar.html so the ~500 pads load on first open instead of
+   riding along with every page render. #}
+{% for cat in chord_library %}
+<div class="chord-lib-row" data-cat="{{ cat.key }}" role="group" aria-label="{{ cat.label }} chords">
+  <div class="lib-head">
+    <span class="pads-label" aria-hidden="true">{{ cat.label }}</span>
+    {% if cat.qualities | length > 1 %}
+    <div class="seg lib-q" role="group" aria-label="{{ cat.label }} quality">
+      {% for q in cat.qualities %}
+      <button type="button" class="lib-q-btn" data-q="{{ loop.index0 }}"
+              aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ q.label }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% for q in cat.qualities %}
+  {% set qi = loop.index0 %}
+  <div class="chord-pads lib lib-row" data-q="{{ qi }}" {% if not loop.first %}hidden{% endif %}>
+    {% for c in q.pads %}
+    <button type="button" class="chord-pad lib {% if c.in_key %}in-key{% endif %}" data-cat="{{ cat.key }}"
+            data-degree="{{ cat.key }}-{{ qi }}-{{ loop.index0 }}" data-notes='{{ c.notes | tojson }}'
+            aria-label="play {{ c.name }}{% if c.in_key %} (in key){% endif %}">{{ c.name }}<span class="khint" aria-hidden="true"></span></button>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}

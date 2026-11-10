@@ -1,0 +1,30 @@
+{# synthlab/studio/templates/fragments/ws_menu.html #}
+{# The page's Layout menu (the workspace: static/workspace.js; frontend.md,
+   "Workspace: modules you can move"). `ws_view` names the page; its presets
+   and what it can add are studio/workspace.py's. A declarative popover like
+   the panels' ⋯: no script opens it, and its rows stay commands (the
+   palette's "Layout: …") while it is shut. A row is a `data-ws` button
+   workspace.js runs; a module's own place — collapse, pop out, focus,
+   move — is in its right-click menu. #}
+{% set ws = workspace_menu(ws_view) %}
+<button type="button" class="btn btn-ghost btn-s ws-open" popovertarget="ws-menu"
+        aria-label="Layout: presets, reset, add a module" title="Layout: drag a module by its head to move it; presets, reset, + a module">⊞ Layout</button>
+<div popover id="ws-menu" class="pop menu ws-menu" aria-label="Layout">
+  {% for name, spec in ws.presets %}
+  <button type="button" class="menu-item" data-ws="preset" data-ws-preset='{{ spec | tojson }}'
+          data-cmd="Layout: {{ name }}" data-cmd-group="View" title="lay this page out for {{ name | lower }}">{{ name }}</button>
+  {% endfor %}
+  <button type="button" class="menu-item" data-ws="reset" data-cmd="Reset the layout" data-cmd-group="View"
+          title="back to the page as the studio draws it: every module home, none folded, floating or added">↺ Reset layout</button>
+  {% if ws.add %}
+  <hr class="menu-sep">
+  {% for a in ws.add %}
+  <button type="button" class="menu-item" data-ws="{{ 'pin' if a.pin else 'add' }}" data-ws-add="{{ a.id }}" data-ws-name="{{ a.label.split(',')[0] }}"
+          {% if a.vis %}data-ws-vis="{{ a.vis }}"{% endif %}{% if a.url %} data-ws-url="{{ a.url }}" data-ws-el="{{ a.el }}"{% endif %}
+          data-cmd="Add module: {{ a.label }}" data-cmd-group="View">+ {{ a.label }}</button>
+  {% endfor %}
+  {% endif %}
+  <hr class="menu-sep">
+  <button type="button" class="menu-item" data-ws="next" data-cmd="Focus the next module" data-cmd-group="View" data-keys="F6">Next module <kbd>F6</kbd></button>
+  <button type="button" class="menu-item" data-ws="prev" data-cmd="Focus the previous module" data-cmd-group="View" data-keys="Shift+F6">Previous module <kbd>Shift+F6</kbd></button>
+</div>

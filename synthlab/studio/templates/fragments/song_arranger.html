@@ -1,0 +1,840 @@
+{# synthlab/studio/templates/fragments/song_arranger.html #}
+{# The playlist: the
+   arranger on a true time axis. Sections are columns in song order, each
+   as wide as its bars x its repeats x --bar-w (px a bar, on .song-view);
+   tracks are rows. Over them a bar ruler; in a cell the pattern's block
+   (`.blk`, the button that opens the drawer) across the section's first
+   pass and an `.echo` of it for each later pass; a take's chip at its bar,
+   as long as its clip; a whole stem's strip through every section it
+   crosses. One <col> a section carries the width (the table is
+   table-layout: fixed, so a bar is the same width everywhere).
+
+   Everything here works with htmx alone: a block opens the drawer (POST
+   /song/drawer), the section and track menus post their routes, and every
+   route answers with the regions out of band (hx-swap="none"). The
+   islands add the rest and read these ids and data-*: song.js (the roving
+   cell cursor, the section select, the playhead), songcell.js, songrec.js,
+   songdrag.js (drags onto a lane) and songline.js (zoom, the ruler's start
+   marker, the edges). #}
+{% set nsec = song.sections | length %}
+<section id="song-arranger" class="song-arranger module" data-module="song.playlist" aria-label="Arranger"
+         data-sections="{{ nsec }}" data-song-bars="{{ song_ruler.width if song_time else song_bars }}" data-max-range="{{ limits.MAX_RANGE_CELLS }}"
+         style="--tracks: {{ [song.tracks | length, 1] | max }}"
+         {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  {#- the playlist's tools: the chord track's own, the range
+      select mode, and the edits at the ruler's marker — its bar rides
+      every post as the hidden #mark-bar (songline.js keeps it). Each is a
+      command (the palette, a Stream Deck key) and has its key on the
+      focused grid (songsel.js) -#}
+  {% if song.sections %}
+  {% set stems = long_names | length %}
+  {% set stays = (" " ~ stems ~ " whole stem" ~ ("" if stems == 1 else "s") ~ " (" ~ long_names[:3] | join(", ") ~ ") stay" ~ ("s" if stems == 1 else "") ~ " at " ~ ("its" if stems == 1 else "their") ~ " bar: the arrangement moves under.") if stems else "" %}
+  <div id="arr-tools" class="arr-tools" role="toolbar" aria-label="Playlist tools">
+    {% with cs = chord_strip %}{% include "fragments/chord_strip.html" %}{% endwith %}
+    <span class="arr-tool-group" role="group" aria-label="Range">
+      <button type="button" id="arr-select" class="btn btn-s" aria-pressed="false" data-cmd="Select cells: range mode on / off" data-cmd-group="Song"
+              title="Range mode (the touch and pen path): a tap selects a cell, a drag a box of cells · with a mouse, Shift+click or drag from an empty cell · Shift+arrows on the grid">▭<span class="tool-word"> Select</span></button>
+      <output id="range-says" class="range-says" aria-live="polite"></output>
+      <button type="button" class="btn btn-s btn-icon" popovertarget="range-menu" aria-label="what to do with the selected cells"
+              title="The selection's menu: duplicate, make unique, variation, ⚄ again, write a part, loop, clear">⋯</button>
+    </span>
+    <span class="arr-tool-group" role="group" aria-label="At the marker">
+      <input type="hidden" id="mark-bar" name="bar" value="1">
+      <button type="button" id="arr-split" class="btn btn-s" hx-post="/song/bars" hx-vals='{"op": "cut"}' hx-include="#mark-bar" hx-swap="none"
+              data-cmd="Split at the marker" data-cmd-group="Song" data-keys="S"
+              title="Cut the section under the ruler's marker in two at that bar (S on the playlist) · both halves keep what they played">✂ Split</button>
+      <button type="button" id="arr-insert" class="btn btn-s" hx-post="/song/bars" hx-vals='{"op": "insert", "bars": "4"}' hx-include="#mark-bar" hx-swap="none"
+              data-cmd="Insert 4 bars at the marker" data-cmd-group="Song" data-keys="I"
+              {% if stems %}hx-confirm="Insert 4 empty bars at the marker?{{ stays }}"{% endif %}
+              title="Four empty bars at the ruler's marker (I on the playlist): everything after it plays four bars later">＋4 bars</button>
+      <button type="button" id="arr-trans" class="btn btn-s" data-cmd="Add a transition before the selected section" data-cmd-group="Song" data-keys="T"
+              title="A riser, an impact, a sweep… on the boundary before the selected section (T on the playlist): the + on a section's head">＋ transition</button>
+    </span>
+    <span class="arr-tool-group" role="group" aria-label="Sections">
+      <button type="button" class="btn btn-s btn-icon" data-song-jump="-1" data-cmd="Previous section" data-cmd-group="Song" data-keys="Ctrl+←"
+              aria-label="previous section" title="To the section before (Ctrl+←) · while playing: at the next pass start">⏮</button>
+      <button type="button" class="btn btn-s btn-icon" data-song-jump="1" data-cmd="Next section" data-cmd-group="Song" data-keys="Ctrl+→"
+              aria-label="next section" title="To the next section (Ctrl+→) · while playing: at the next pass start">⏭</button>
+      <button type="button" class="btn btn-s" data-song-action="loop" data-cmd="Loop the selected range" data-cmd-group="Song"
+              title="Loop the sections the selection spans (or the heads Shift+click marked): L · one section selected: that section">⟳<span class="tool-word"> range</span></button>
+      <button type="button" class="btn btn-s" hx-post="/song/energy" hx-vals='{"op": "arrange"}' hx-swap="none"
+              data-cmd="Arrange by energy" data-cmd-group="Song"
+              hx-confirm="Arrange by energy? Every section with an energy is made from the fullest one — thinned, muted and filtered to its bar of the energy lane — and loses its own blocks and lanes. Ctrl+Z takes it back."
+              title="Make each section as full as its bar of the energy lane, from the fullest section's parts: nothing new is written">≋<span class="tool-word"> by energy</span></button>
+    </span>
+  </div>
+  {% endif %}
+  <div class="arr-scroll" id="arr-scroll" data-zoom="song" data-zoom-own>
+    <table class="arranger-grid" style="--song-bars: {{ song_ruler.width if song_time else song_bars }}">
+      <colgroup>
+        <col class="col-head">
+        {% for sec in song.sections %}<col class="col-sec" id="col-{{ sec.id }}" style="--bars: {{ sec.bars }}; --reps: {{ sec.repeats }}{% if song_time %}; --bs: {{ song_time[sec.id].bs }}{% endif %}">{% endfor %}
+        <col class="col-add">
+      </colgroup>
+      <thead>
+        <tr class="arr-ruler">
+          <th scope="col" class="arr-corner" rowspan="2"><span class="visually-hidden">Tracks</span>
+            {#- zoom (songline.js): px a bar, per browser -#}
+            <div class="arr-zoom" role="group" aria-label="Zoom the timeline">
+              <button type="button" class="btn btn-s menu-btn" data-zoom-to="-1" aria-label="zoom out" title="Zoom out (Ctrl+wheel)">−</button>
+              <button type="button" class="btn btn-s menu-btn" data-zoom-to="fit" title="Fit the song in the window">fit</button>
+              <button type="button" class="btn btn-s menu-btn" data-zoom-to="1" aria-label="zoom in" title="Zoom in (Ctrl+wheel)">+</button>
+            </div>
+          </th>
+          {% if nsec %}
+          <th class="ruler-cell" colspan="{{ nsec }}">
+            {#- the bar ruler: its ticks are a CSS gradient (a line a bar, a
+                stronger one every 4), its numbers every `step` bars -#}
+            {#- a time-true axis (a section in its own meter or tempo:
+                `songpage.time_true`) draws each section's own ticks -#}
+            <div id="song-ruler" class="song-ruler" data-bars="{{ song_ruler.bars }}"{% if song_time %} data-timed{% endif %}
+                 role="slider" tabindex="0" aria-label="Start marker: where Play starts"
+                 aria-valuemin="1" aria-valuemax="{{ song_ruler.bars }}" aria-valuenow="1"
+                 title="Click a bar to start from it · ← → move the marker, Home bar 1, Enter plays">
+              {% if song_time %}{% for g in song_ruler.segs %}<i class="ruler-seg" style="--x: {{ g.x }}; --n: {{ g.n }}; --bs: {{ g.bs }}"></i>{% endfor %}{% endif %}
+              {% for n in song_ruler.numbers %}<span class="ruler-n" style="--b: {{ song_ruler.at[n] if song_time else n }}">{{ n }}</span>{% endfor %}
+              {% if song_ruler.cap is not none %}
+              <i class="ruler-cap" style="--b: {{ song_ruler.cap }}"
+                 data-cap="{{ (limits.MAX_SONG_SECONDS // 60) | int }}:{{ '%02d' | format((limits.MAX_SONG_SECONDS % 60) | int) }}"
+                 title="The song's length cap: {{ limits.MAX_SONG_SECONDS | int }} s at {{ song.bpm | round(2) }} bpm ends after bar {{ song_ruler.cap | int }}"></i>
+              {% endif %}
+            </div>
+          </th>
+          {% endif %}
+          <th scope="col" class="arr-add-col" rowspan="2">
+            <button data-cmd="Add a section" type="button" class="btn btn-s arr-add-section" hx-post="/song/section/add" hx-swap="none"
+                    {% if nsec >= limits.MAX_SECTIONS %}disabled{% endif %}>+ Section</button>
+          </th>
+        </tr>
+        <tr class="arr-heads">
+          {% set at = namespace(bar=1) %}
+          {% for sec in song.sections %}
+          <th scope="col" class="arr-section" id="sec-{{ sec.id }}"
+              data-section-id="{{ sec.id }}" data-index="{{ loop.index0 }}"
+              data-bars="{{ sec.bars }}" data-repeats="{{ sec.repeats }}"
+              data-start-bar="{{ at.bar }}" data-ctx-pop="secmenu-{{ sec.id }}"{% if song_time %}
+              data-x0="{{ song_time[sec.id].x0 }}" data-bs="{{ song_time[sec.id].bs }}"{% endif %}
+              title="{{ sec.name }} · bars {{ at.bar }}–{{ at.bar + sec.bars * sec.repeats - 1 }}"
+              style="--section-color: {{ sec.color }}; --bars: {{ sec.bars }}; --reps: {{ sec.repeats }}{% if song_time %}; --bs: {{ song_time[sec.id].bs }}{% endif %}">
+            <div class="sec-block">
+              {#- one pass wide: the name and the menu stay in the first pass -#}
+              <div class="sec-main">
+              {#- the + on the boundary before it: a transition, picked from
+                  the two sections' energy (#bound-menu; T on the grid) -#}
+              {% if not loop.first %}<button type="button" class="sec-plus" tabindex="-1" data-ctx-pop="bound-menu" data-section-id="{{ sec.id }}" data-ctx-state="{{ bound_trends[sec.id] }}"
+                      aria-label="add a transition into {{ sec.name }}" title="A transition on this boundary ({{ bound_trends[sec.id] }} energy): a riser, an impact, a sweep…">+</button>{% endif %}
+              <span class="sec-text">
+                <span class="section-name">{{ sec.name }}{% if sec.id in song_twins %}<i class="sec-twin" title="Every block here is shared with {{ song_twins[sec.id] | join(', ') }}: an edit changes them all. “Duplicate as a variation” (or Make unique on a selection) gives it patterns of its own"> ⧉</i>{% endif %}</span>
+                <span class="section-len">{{ sec.bars }} bar{{ "" if sec.bars == 1 else "s" }}{% if sec.repeats > 1 %} <b>×{{ sec.repeats }}</b>{% endif %}
+                {#- its own bar and tempo (POST /song/section/{id}/time) -#}
+                {% if sec.get('meter') or sec.get('bpm') or sec.get('ramp') %}<span class="sec-time" title="{{ sec.name }} keeps its own {{ 'meter, ' if sec.get('meter') }}tempo{{ ' and a ramp' if sec.get('ramp') }}">{{ meter.parse(sec.get('meter')).label if sec.get('meter') }}{% if sec.get('bpm') or sec.get('ramp') %} {{ '%g' | format(sec.get('bpm') or song.bpm) }}{% if sec.get('ramp') %}→{{ '%g' | format(sec.get('ramp')) }}{% endif %}{% endif %}</span>{% endif %}</span>
+                {#- the chords in force here (its own, starred, else the song's) -#}
+                <span class="sec-chords{% if sec.id in chord_strip.own %} own{% endif %}" title="Chords in {{ sec.name }}{% if sec.id in chord_strip.own %} (its own){% endif %}">{{ chord_strip.by_section[sec.id] }}</span>
+              </span>
+              <button type="button" class="btn btn-icon btn-s btn-ghost sec-menu-btn" popovertarget="secmenu-{{ sec.id }}"
+                      aria-label="{{ sec.name }} section options" title="Section options">⋯</button>
+              <div id="secmenu-{{ sec.id }}" class="pop menu-pop" popover role="group" aria-label="{{ sec.name }} section options">
+                  <form class="menu-row" hx-post="/song/section/{{ sec.id }}/rename" hx-swap="none">
+                    <label>name <input class="field field-s" name="name" value="{{ sec.name }}" maxlength="40" autocomplete="off" required></label>
+                    <button type="submit" class="btn btn-s menu-btn">Rename</button>
+                  </form>
+                  <form class="menu-row" hx-post="/song/section/{{ sec.id }}/bars" hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+                    <label>bars <input class="field field-s" type="number" name="bars" min="1" max="{{ limits.MAX_SECTION_BARS }}" value="{{ sec.bars }}"></label>
+                  </form>
+                  {#- its own bar and tempo (meter.py; routes/song.py
+                      `section_time`): empty is the song's. A ramp moves the
+                      tempo across each pass, to `ramp` at its end -#}
+                  <form class="menu-row sec-time-row" hx-post="/song/section/{{ sec.id }}/time" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+                        aria-label="{{ sec.name }}'s meter and tempo">
+                    <label>bar <select class="field field-s" name="meter" aria-label="{{ sec.name }}'s meter"
+                                       title="Its own meter: its patterns play fitted bar by bar (a 4/4 beat in 3/4 keeps its first three beats)">
+                      <option value="">the song's ({{ meter.parse(song.get('meter')).label }})</option>
+                      {%- for m in meter.METERS %}
+                      <option value="{{ m }}"{% if sec.get('meter') == m %} selected{% endif %}>{{ meter.parse(m).label }}</option>
+                      {%- endfor %}
+                    </select></label>
+                    <label>bpm <input class="field field-s" type="number" name="bpm" min="{{ limits.BPM_RANGE[0] | int }}" max="{{ limits.BPM_RANGE[1] | int }}" step="0.1"
+                                      value="{{ sec.get('bpm') if sec.get('bpm') else '' }}" placeholder="{{ song.bpm | round(1) }}" aria-label="{{ sec.name }}'s tempo"
+                                      title="Its own tempo (empty: the song's): a slower section is a wider stretch of the playlist"></label>
+                    <button type="button" class="btn btn-s menu-btn btn-toggle" aria-pressed="{{ 'true' if sec.get('ramp') else 'false' }}"
+                            hx-post="/song/section/{{ sec.id }}/time" hx-swap="none" hx-include="this"
+                            hx-vals='{"ramp": "{{ 'off' if sec.get('ramp') else ((sec.get('bpm') or song.bpm) * 1.1) | round(1) }}"}'
+                            data-cmd="Ramp the tempo of {{ sec.name }}" data-cmd-group="Song"
+                            title="{{ 'The tempo ramps to ' ~ (sec.get('ramp') | round(1)) ~ ' bpm across each pass: press to hold it' if sec.get('ramp') else 'Ramp the tempo across each pass (an accelerando: 10 % faster by its end; set where it ends beside)' }}">ramp</button>
+                    {% if sec.get('ramp') %}<label>to <input class="field field-s" type="number" name="ramp" min="{{ limits.BPM_RANGE[0] | int }}" max="{{ limits.BPM_RANGE[1] | int }}" step="0.1"
+                                      value="{{ sec.get('ramp') }}" aria-label="the tempo {{ sec.name }} ramps to"
+                                      title="The tempo at the end of each pass: higher speeds up, lower slows down"></label>{% endif %}
+                  </form>
+                  <div class="menu-row" role="group" aria-label="repeats">
+                    <span class="menu-label">plays</span>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/repeats" data-stay
+                            hx-vals='{"delta": "-1"}' hx-swap="none" aria-label="fewer repeats"
+                            {% if sec.repeats <= 1 %}disabled{% endif %}>−</button>
+                    <span class="menu-value">×{{ sec.repeats }}</span>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/repeats" data-stay
+                            hx-vals='{"delta": "1"}' hx-swap="none" aria-label="more repeats"
+                            {% if sec.repeats >= limits.MAX_SECTION_REPEATS %}disabled{% endif %}>+</button>
+                  </div>
+                  <div class="menu-row" role="group" aria-label="order">
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/move"
+                            hx-vals='{"delta": "-1"}' hx-swap="none" {% if loop.first %}disabled{% endif %}>← Move left</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/move"
+                            hx-vals='{"delta": "1"}' hx-swap="none" {% if loop.last %}disabled{% endif %}>Move right →</button>
+                  </div>
+                  {#- the section's own chords, overriding the song's (chord_strip.html) -#}
+                  <div class="menu-row sec-chord-row" role="group" aria-label="Chords of {{ sec.name }}">
+                    {% if sec.id in chord_strip.own %}
+                    {% with cs = chord_strip.own[sec.id] %}{% include "fragments/chord_strip.html" %}{% endwith %}
+                    {% else %}
+                    <span class="menu-label">chords</span>
+                    <span class="chord-says">the song’s: {{ chord_strip.by_section[sec.id] }}</span>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/chords" hx-vals='{"scope": "{{ sec.id }}", "op": "own"}' hx-swap="none"
+                            title="Copy the song's progression onto {{ sec.name }}, to change it there alone">Own chords</button>
+                    {% endif %}
+                  </div>
+                  <form class="menu-row trans-form" hx-post="/song/section/{{ sec.id }}/transition" hx-swap="none"
+                        aria-label="Add a transition to {{ sec.name }}">
+                    <span class="menu-label">add</span>
+                    <select class="field field-s" name="kind" aria-label="transition"
+                            title="riser · impact · sweep (noise alone) · swell (a reversed burst) · subdrop (a sine fall) · bed (room tone)">
+                      {% for k in transition_kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+                    </select>
+                    {#- "auto" posts no direction: the route takes the kind's own (a
+                        riser up, an impact down). It used to start on "up", so an
+                        impact was placed reversed, before the bar line -#}
+                    <select class="field field-s" name="direction" aria-label="direction"
+                            title="auto: the kind's own way (a riser leads in, an impact comes off the bar line) · up: leads into the next section · down: comes off this one's">
+                      <option value="" selected>auto</option>
+                      <option value="up">up ↗</option>
+                      <option value="down">down ↘</option>
+                    </select>
+                    <select class="field field-s" name="bars" aria-label="length in bars">
+                      {% for b in (1, 2, 4, 8) if b <= sec.bars or b == 1 %}
+                      <option value="{{ b }}"{% if b == [2, sec.bars] | min %} selected{% endif %}>{{ b }} bar{{ "" if b == 1 else "s" }}</option>
+                      {% endfor %}
+                    </select>
+                    {% set audio_tracks = song.tracks | selectattr("kind", "equalto", "audio") | list %}
+                    {% if audio_tracks | length > 1 %}
+                    <select class="field field-s" name="track_id" aria-label="onto audio track">
+                      {% for t in audio_tracks %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+                    </select>
+                    {% endif %}
+                    <label>bright <input type="range" name="brightness" min="0" max="1" step="0.05" value="0.6"></label>
+                    <label>tail <input type="range" name="tail" min="0" max="1" step="0.05" value="0.4"></label>
+                    <button type="submit" class="btn btn-s menu-btn"
+                            title="Render it into the clip store and place it as a take on {{ 'an audio track' if audio_tracks else 'a new FX audio track' }}">Add transition</button>
+                  </form>
+                  {#- structure (routes/song_arr.py): cut it at the
+                      ruler's marker, a pass a section, bars before or after it,
+                      a copy with patterns of its own -#}
+                  <div class="menu-row" role="group" aria-label="structure of {{ sec.name }}">
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/op" hx-vals='{"op": "split"}' hx-include="#mark-bar" hx-swap="none"
+                            title="Cut {{ sec.name }} in two at the ruler's marker: both halves keep what they played">✂ Split at the marker</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/op" hx-vals='{"op": "split", "unique": "1"}' hx-include="#mark-bar" hx-swap="none"
+                            title="The same, and the right half plays copies of the patterns: an edit there leaves the left alone">… with its own patterns</button>
+                    {% if sec.repeats > 1 %}
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/op" hx-vals='{"op": "unroll"}' hx-swap="none"
+                            title="{{ sec.repeats }} sections that play once instead of one that plays {{ sec.repeats }} times: each can then differ">Unroll ×{{ sec.repeats }}</button>
+                    {% endif %}
+                  </div>
+                  <div class="menu-row" role="group" aria-label="insert bars around {{ sec.name }}">
+                    <span class="menu-label">4 bars</span>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/op" hx-vals='{"op": "insert", "where": "before"}' hx-swap="none"
+                            {% if stems %}hx-confirm="Insert 4 empty bars before {{ sec.name }}?{{ stays }}"{% endif %}>← before</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/op" hx-vals='{"op": "insert", "where": "after"}' hx-swap="none"
+                            {% if stems %}hx-confirm="Insert 4 empty bars after {{ sec.name }}?{{ stays }}"{% endif %}>after →</button>
+                  </div>
+                  <div class="menu-row">
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/duplicate"
+                            hx-swap="none" title="A copy after it that SHARES every pattern: an edit in one changes both">Duplicate</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/op" hx-vals='{"op": "duplicate", "unique": "1"}'
+                            hx-swap="none" title="A copy after it with patterns of its own: change it freely">Duplicate as a variation</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/to-loop"
+                            hx-swap="none" title="Load this section into the loop and go to the Loops page">Open in Loops</button>
+                    <button type="button" class="btn btn-s btn-danger menu-btn danger" hx-post="/song/section/{{ sec.id }}/delete"
+                            hx-swap="none" hx-confirm="Delete the section {{ sec.name }}? Its patterns stay in the pool.">Delete</button>
+                  </div>
+              </div>
+              </div>
+              {#- a repeat's pass: where it starts, and which it is -#}
+              {% for k in range(1, sec.repeats) %}<i class="sec-pass" style="--pass: {{ k }}" aria-hidden="true">{{ k + 1 }}</i>{% endfor %}
+              <span class="sec-resize" data-resize="{{ sec.id }}" aria-hidden="true"></span>
+            </div>
+          </th>
+          {% set at.bar = at.bar + sec.bars * sec.repeats %}
+          {% endfor %}
+        </tr>
+        {#- the energy lane: how full each section is meant to be. It
+            renders nothing; a boundary's + defaults from it, the checklist
+            reads it, "≋ by energy" plays it. A native range a section: drag,
+            arrows, the wheel when focused (tweak.js), a typed value
+            (tweaktype.js). One tab stop: the selected section's -#}
+        {% if nsec %}
+        <tr class="arr-energy">
+          <th scope="row" class="arr-rowhead"><span class="caps" title="How full each section is meant to be (0–100). It makes no sound: a boundary's + picks its transition from it, the checklist reads it, and “≋ by energy” thins each section to it">energy</span></th>
+          {% for sec in song.sections %}
+          {% set e = sec.get("energy") %}
+          <td class="energy-cell{% if e is none %} unset{% endif %}" data-section-id="{{ sec.id }}" style="--bars: {{ sec.bars }}; --reps: {{ sec.repeats }}{% if song_time %}; --bs: {{ song_time[sec.id].bs }}{% endif %}">
+            <input type="range" class="energy" name="energy" min="0" max="1" step="0.01" value="{{ e if e is not none else 0 }}" data-default="0.5"
+                   tabindex="{{ 0 if loop.first else -1 }}"
+                   hx-post="/song/energy" hx-vals='{"section_id": "{{ sec.id }}"}' hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+                   style="--fill: {{ ((e or 0) * 100) | round(1) }}%"
+                   aria-label="energy of {{ sec.name }}" title="Energy of {{ sec.name }}{% if e is none %}: not drawn yet{% endif %} · drag, arrows, or click the number to type">
+            <output class="energy-val" data-pct>{{ ((e or 0) * 100) | round | int }}</output>
+          </td>
+          {% endfor %}
+          <td class="arr-add-col" aria-hidden="true"></td>
+        </tr>
+        {#- the chord track on the time axis: a tile a chord at its true
+            place and width over the section's first pass (its repeats echo
+            the line). A click (Enter) opens the chord's menu, 1-7 on a
+            focused tile set its degree, Delete removes it, ← → move
+            between tiles; a tile's left edge drags where it starts
+            (songline.js). The song's progression unless the section has
+            its own -#}
+        <tr class="arr-chords">
+          <th scope="row" class="arr-rowhead"><span class="caps" title="The chord track: what the generators follow. A tile a chord · click: its menu · 1–7: its degree · drag its left edge: where it starts">chords</span></th>
+          {% set first_tile = namespace(done=false) %}
+          {% for sec in song.sections %}
+          {% set ctile = chord_tiles[sec.id] %}
+          <td class="chord-cell{% if ctile.own %} own{% endif %}" data-section-id="{{ sec.id }}" style="--bars: {{ sec.bars }}; --reps: {{ sec.repeats }}{% if song_time %}; --bs: {{ song_time[sec.id].bs }}{% endif %}"
+              title="{{ sec.name }}: {{ ctile.label }}{{ ' (its own chords)' if ctile.own else ' (the song’s)' }}">
+            {% if ctile.tiles is none %}<span class="ctile-line">{{ ctile.label }}</span>{% else %}
+            {% for t in ctile.tiles %}
+            <button type="button" class="chord-slot ctile{% if not t.first %} ctile-again{% endif %}" style="--at: {{ t.at }}; --len: {{ t.len }}"
+                    data-ctx-pop="chord-menu" data-scope="{{ ctile.scope }}" data-slot="{{ t.index }}" data-deg="{{ t.deg }}"
+                    data-ctx-state="deg-{{ t.deg }} q-{{ t.q }} inv-{{ t.inv }}"
+                    tabindex="{{ -1 if first_tile.done else 0 }}"
+                    aria-label="chord {{ t.roman }}, {{ t.name }}, bar {{ (t.at | int) + 1 }} of {{ sec.name }}">{{ t.roman }}<small>{{ t.name }}</small></button>
+            {% set first_tile.done = true %}
+            {% if t.first and t.index > 0 %}<span class="ctile-edge" style="--at: {{ t.at }}" data-scope="{{ ctile.scope }}" data-slot="{{ t.index }}" data-beat="{{ t.beat }}" aria-hidden="true"
+                  title="Drag: where {{ t.roman }} starts"></span>{% endif %}
+            {% endfor %}
+            {% for k in range(1, sec.repeats) %}<i class="echo ctile-echo" style="--pass: {{ k }}" aria-hidden="true">{{ ctile.label }}</i>{% endfor %}
+            {% endif %}
+          </td>
+          {% endfor %}
+          <td class="arr-add-col" aria-hidden="true"></td>
+        </tr>
+        {% endif %}
+      </thead>
+      <tbody>
+        {% for t in song.tracks %}
+        <tr class="arr-track{% if t.mute %} muted{% endif %}" id="trk-{{ t.id }}"
+            data-track-id="{{ t.id }}" data-kind="{{ t.kind }}" data-index="{{ loop.index0 }}">
+          <th scope="row" class="track-head" data-ctx-pop="trkmenu-{{ t.id }}">
+            <div class="track-top">
+              <span class="track-kind track-kind-{{ t.kind }}" aria-hidden="true"></span>
+              {#- The lane's sound is edited HERE first: its name and ✎ open
+                  the page that edits it in the bar across the bottom (Synths
+                  for a synth lane, the Drum Lab for the drums' kit); the
+                  whole page is the other choice, in the ⋯ menu and on the
+                  bar itself ("↗"). -#}
+              {% if t.kind == "synth" %}
+              <button type="button" class="track-name" hx-post="/song/track/{{ t.id }}/edit-sound" hx-vals='{"dock": "1"}' hx-swap="none"
+                      title="{{ t.name }}: edit this track's sound here, in the bar across the bottom">{{ t.name }}</button>
+              {#- the lane's sound, swapped in place (POST /song/track/{id}/sound:
+                  one undo step, the playing song follows at its next pass) -#}
+              <select class="field field-s track-sound-pick" name="sound" aria-label="sound of {{ t.name }}"
+                      hx-post="/song/track/{{ t.id }}/sound" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+                      title="This lane's sound: {{ t.patch.name or 'unnamed' }} — pick another; its notes, level and mix stay · ✎ shapes it">
+                <option value="" selected disabled>{{ t.patch.name or "sound" }}</option>
+                {#- the list itself is #lane-sounds (fragments/sound_menu.html,
+                    base.html's: once a page): soundmenu.js fills a menu as it
+                    is reached for. Here it was ~150 options a lane in a
+                    region every edit redraws -#}
+              </select>
+              {#- shape it: Synths itself, docked across the bottom of the page -#}
+              <button type="button" class="btn btn-icon btn-s btn-ghost track-sound" hx-post="/song/track/{{ t.id }}/edit-sound" hx-vals='{"dock": "1"}' hx-swap="none"
+                      data-menu="Edit sound here" data-cmd="Edit the sound of {{ t.name }}" data-cmd-group="Tracks" aria-label="edit the sound of {{ t.name }}"
+                      title="Shape this track's sound here: Synths opens across the bottom of the page — its synth, FX and curves; the playing song follows">✎</button>
+              {% elif t.kind == "drums" %}
+              <button type="button" class="track-name" hx-post="/song/track/{{ t.id }}/edit-sound" hx-vals='{"dock": "1"}' hx-swap="none"
+                      title="Edit the song's kit here, in the bar across the bottom">{{ t.name }}</button>
+              <button type="button" class="btn btn-icon btn-s btn-ghost track-sound" hx-post="/song/track/{{ t.id }}/edit-sound" hx-vals='{"dock": "1"}' hx-swap="none"
+                      data-menu="Edit kit here" data-cmd="Edit the kit of {{ t.name }}" data-cmd-group="Tracks" aria-label="edit the kit of {{ t.name }}"
+                      title="Shape the song's kit here: the Drum Lab opens across the bottom of the page — every voice and the drum-bus FX; the playing song follows">✎</button>
+              {% else %}
+              <span class="track-name">{{ t.name }}</span>
+              {% endif %}
+              <button type="button" class="btn btn-icon btn-s btn-ghost sec-menu-btn" popovertarget="trkmenu-{{ t.id }}"
+                      aria-label="{{ t.name }} track options" title="Track options">⋯</button>
+              <div id="trkmenu-{{ t.id }}" class="pop menu-pop" popover role="group" aria-label="{{ t.name }} track options">
+                  <form class="menu-row" hx-post="/song/track/{{ t.id }}/rename" hx-swap="none">
+                    <label>name <input class="field field-s" name="name" value="{{ t.name }}" maxlength="40" autocomplete="off" required></label>
+                    <button type="submit" class="btn btn-s menu-btn">Rename</button>
+                  </form>
+                  {% if t.kind != "audio" %}
+                  {#- the other choice: the same edit on its own page -#}
+                  <div class="menu-row">
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/track/{{ t.id }}/edit-sound" hx-vals='{"dock": "1"}' hx-swap="none"
+                            title="The {{ 'Drum Lab' if t.kind == 'drums' else 'Synths' }} page in the bar across the bottom of this page">Edit {{ "kit" if t.kind == "drums" else "sound" }} here</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/track/{{ t.id }}/edit-sound" hx-swap="none"
+                            title="Leave the Song page for the {{ 'Drum Lab' if t.kind == 'drums' else 'Synths' }} page, editing this track">Open on the {{ "Drum Lab" if t.kind == "drums" else "Synths" }} page ↗</button>
+                  </div>
+                  {% else %}
+                  {#- an audio track's rack and its lanes: the drawer on its
+                      row, in the first section that holds one of its takes -#}
+                  {% set ns = namespace(at=none) %}
+                  {% for sec in song.sections if ns.at is none and sec.audio | selectattr("track_id", "equalto", t.id) | list %}{% set ns.at = sec.id %}{% endfor %}
+                  {% set ns.at = ns.at or (song.sections[0].id if song.sections else none) %}
+                  {% if ns.at %}
+                  <div class="menu-row">
+                    <button type="button" class="btn btn-s menu-btn track-fx" data-cmd="{{ t.name }}: effects and lanes" data-cmd-group="Song"
+                            hx-post="/song/drawer" hx-vals='{{ {"section_id": ns.at, "track_id": t.id} | tojson }}' hx-swap="none"
+                            title="The rack every take on {{ t.name }} plays through, and its automation lanes, in the drawer">Effects and lanes…</button>
+                  </div>
+                  {% endif %}
+                  {% endif %}
+                  {#- <= 900px the track head is 96px: its level lives here -#}
+                  <label class="menu-row menu-gain">level
+                    <input type="range" class="track-gain" name="gain" min="0" max="1.5" step="0.05" value="{{ t.gain }}"
+                           hx-post="/song/track/{{ t.id }}/mix" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+                           style="--fill: {{ (t.gain / 1.5 * 100) | round(1) }}%"
+                           title="Level {{ (t.gain * 100) | round | int }}%"></label>
+                  {% if t.kind != "audio" %}
+                  {#- song creation: what the track is for, and its part rolled
+                      again / made busier / written by a generator (POST /song/gen:
+                      one undo step however often, and the result plays) -#}
+                  <div class="menu-row gen-row" role="group" aria-label="Generate {{ t.name }}">
+                    <button type="button" class="btn btn-s menu-btn gen-again" hx-post="/song/gen" hx-vals='{"track_id": "{{ t.id }}", "kind": "again"}' hx-swap="none"
+                            title="Another {{ t.name }} from its generator: nothing else in the song moves · rolls are one undo step">⚄ Again</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/gen" hx-vals='{"track_id": "{{ t.id }}", "kind": "busier"}' hx-swap="none"
+                            title="More notes or hits in every pattern {{ t.name }} plays">busier</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/gen" hx-vals='{"track_id": "{{ t.id }}", "kind": "sparser"}' hx-swap="none"
+                            title="The weakest notes or hits out of every pattern {{ t.name }} plays">sparser</button>
+                  </div>
+                  <form class="menu-row" hx-post="/song/gen" hx-trigger="change" hx-sync="this:queue all" hx-swap="none">
+                    <input type="hidden" name="track_id" value="{{ t.id }}">
+                    <label>write <select class="field field-s" name="kind" aria-label="write {{ t.name }} with a generator"
+                                         title="Rewrite what {{ t.name }} plays, following the chord track">
+                      <option value="" selected disabled>a part…</option>
+                      {% if t.kind == "drums" %}<option value="fill">a fill every 8 bars</option>
+                      {% else %}{% for k, label in gen_kinds %}<option value="{{ k }}">{{ label }}</option>{% endfor %}{% endif %}
+                    </select></label>
+                  </form>
+                  {% endif %}
+                  <form class="menu-row" hx-post="/song/track/{{ t.id }}/mix" hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+                    <label>role <select class="field field-s" name="role" aria-label="{{ t.name }} role"
+                                        title="What the track is for: auto-arrange and the checklist read it">
+                      <option value="" {% if not t.get("role") %}selected{% endif %}>—</option>
+                      {% for r, label in song_roles %}<option value="{{ r }}" {% if t.get("role") == r %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select></label>
+                  </form>
+                  <div class="menu-row">
+                    <button type="button" class="btn btn-s btn-danger menu-btn danger" hx-post="/song/track/{{ t.id }}/delete"
+                            hx-swap="none" hx-confirm="Delete the track {{ t.name }}?">Delete track</button>
+                  </div>
+              </div>
+            </div>
+            <div class="track-mix" role="group" aria-label="{{ t.name }} mix">
+              <button type="button" class="btn btn-s btn-icon rowbtn mute" data-mix="mute" aria-pressed="{{ 'true' if t.mute else 'false' }}"
+                      hx-post="/song/track/{{ t.id }}/mix" hx-vals='{"mute": "{{ 'off' if t.mute else 'on' }}"}' hx-swap="none"
+                      aria-label="mute {{ t.name }}" title="Mute">M</button>
+              <button type="button" class="btn btn-s btn-icon rowbtn solo" data-mix="solo" aria-pressed="{{ 'true' if t.solo else 'false' }}"
+                      hx-post="/song/track/{{ t.id }}/mix" hx-vals='{"solo": "{{ 'off' if t.solo else 'on' }}"}' hx-swap="none"
+                      aria-label="solo {{ t.name }}" title="Solo">S</button>
+              <button type="button" class="btn btn-s btn-icon rowbtn arm" data-arm="{{ t.id }}" aria-pressed="false"
+                      title="Arm for recording ({{ {'synth': 'notes', 'drums': 'finger drums: keys A–K / Z–M, MIDI pads or the on-screen pads', 'audio': 'microphone'}[t.kind] }})"
+                      aria-label="arm {{ t.name }} for recording">●</button>
+              <input type="range" class="track-gain knob knob-s" name="gain" min="0" max="1.5" step="0.05" value="{{ t.gain }}"
+                     data-default="1" hx-post="/song/track/{{ t.id }}/mix" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+                     style="--fill: {{ (t.gain / 1.5 * 100) | round(1) }}%"
+                     aria-label="{{ t.name }} level" title="Level {{ (t.gain * 100) | round | int }}%">
+              <output class="track-val" data-pct aria-hidden="true">{{ (t.gain * 100) | round | int }}</output>
+              {#- the signal path, as a patch lead: the lane, its effects, the
+                  master strip (`.song-master`, beside the lanes) -#}
+              {#- "fx N" opens where those effects are edited: a synth's or
+                  the kit's in the sound dock (they are the sound's chain), an
+                  audio track's in the drawer (its own rack) -#}
+              {% set tfx = t.get("fx") or [] %}
+              <span class="track-path"
+                    title="{{ t.name }} → {% for u in tfx %}{{ u.kind | replace('_', ' ') }} → {% endfor %}master">
+                {% if tfx %}
+                {% if t.kind == "audio" %}
+                {% set ns2 = namespace(at=none) %}
+                {% for sec in song.sections if ns2.at is none and sec.audio | selectattr("track_id", "equalto", t.id) | list %}{% set ns2.at = sec.id %}{% endfor %}
+                <button type="button" class="btn btn-s btn-ghost track-fx-n" hx-post="/song/drawer" hx-swap="none"
+                        hx-vals='{{ {"section_id": ns2.at or (song.sections[0].id if song.sections else ""), "track_id": t.id} | tojson }}'
+                        aria-label="{{ t.name }}: {{ tfx | length }} effect{{ '' if tfx | length == 1 else 's' }} — open its rack">fx {{ tfx | length }}</button>
+                {% else %}
+                <button type="button" class="btn btn-s btn-ghost track-fx-n" hx-post="/song/track/{{ t.id }}/edit-sound" hx-vals='{"dock": "1"}' hx-swap="none"
+                        aria-label="{{ t.name }}: {{ tfx | length }} effect{{ '' if tfx | length == 1 else 's' }} — edit them in the sound dock">fx {{ tfx | length }}</button>
+                {% endif %}
+                {% endif %}
+                <svg class="cable live{% if t.mute %} off{% endif %}" aria-hidden="true" viewBox="0 0 24 14" width="24" height="14"><path d="M2 4C7 15 17 15 22 4"/><circle cx="2" cy="4" r="2"/><circle cx="22" cy="4" r="2"/></svg>
+              </span>
+            </div>
+          </th>
+          {% for sec in song.sections %}
+          {% if t.kind == "audio" %}
+          {#- an audio track's lanes sit on its row in a section (the drawer:
+              a take's menu, or the track's ⋯ "Effects and lanes…") -#}
+          {% set lanes = sec.get("auto", {}).get(t.id) %}
+          <td class="arr-cell arr-takes" id="cell-{{ sec.id }}-{{ t.id }}"
+              data-section-id="{{ sec.id }}" data-track-id="{{ t.id }}"
+              {% if lanes %}title="Automated: {% for ln in lanes %}{{ lane_labels[ln.target] }}{{ '' if loop.last else ', ' }}{% endfor %}"{% endif %}
+              style="--bars: {{ sec.bars }}; --reps: {{ sec.repeats }}{% if song_time %}; --bs: {{ song_time[sec.id].bs }}{% endif %}">
+            {% if lanes %}<span class="cell-auto" data-lanes="{{ lanes | length }}" aria-hidden="true">∿</span>{% endif %}
+            {#- whole stems on the timeline (long audio): this section's share
+                of each, over ALL its repeats — it runs on through them, so
+                the strips of neighbouring sections join into one region -#}
+            {% for part in song_long.parts.get((sec.id, t.id), []) %}
+            {#- dragged along the timeline (songdrag.js posts /song/long, set
+                bar); its first strip's left edge trims its head, its last
+                strip's right edge sets how long it plays (songline.js). The
+                rows under the arranger are the form for all three -#}
+            <div class="long-part{% if part.status %} missing{% endif %}{% if part.mute %} muted{% endif %}" draggable="true"
+                 data-long="{{ part.id }}" data-at="{{ part.at }}" data-bars="{{ part.bars }}" data-skip="{{ part.skip }}"
+                 style="--left: {{ part.left }}%; --w: {{ part.width }}%"
+                 title="{{ part.name }}{% if part.status %} — {{ part.status }}{% endif %}: a whole stem, playing on through this section{% if sec.repeats > 1 %} and its repeats{% endif %} · drag to move it">
+              {% if part.path %}<svg viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><path d="{{ part.path }}"/></svg>{% endif %}
+              {% if part.head %}<span class="long-name">{{ part.name }}</span>{% endif %}
+              {% if part.head %}<span class="long-edge long-edge-l" aria-hidden="true" title="Drag: trim its start (what still plays stays where it is)"></span>{% endif %}
+              {% if part.tail %}<span class="long-edge long-edge-r" aria-hidden="true" title="Drag: how many bars of it play"></span>{% endif %}
+            </div>
+            {% endfor %}
+            {#- a take: at its bar, as long as its clip (cut at the section's
+                end, where the render cuts it), echoed in each later pass -#}
+            {% for a in sec.audio if a.track_id == t.id %}
+            {% set own = take_bars.get(a.clip, 0) %}
+            {% set room = sec.bars - a.at_bar %}
+            {% set tlen = [[own, 0.25] | max, room] | min %}
+            {% set take = {"section_id": sec.id, "track_id": t.id, "clip": a.clip, "at_bar": a.at_bar | string} %}
+            <div class="take-chip{% if own > room %} take-cut{% endif %}" draggable="true" data-at-bar="{{ a.at_bar }}" data-clip="{{ a.clip }}"
+                 data-bars="{{ own }}" style="--at: {{ a.at_bar }}; --len: {{ tlen }}">
+              <button type="button" class="take-name" popovertarget="takemenu-{{ sec.id }}-{{ t.id }}-{{ loop.index0 }}"
+                      title="{{ a.clip }} · bar {{ a.at_bar + 1 }} of {{ sec.name }}{% if own > room %} · cut at the section's end{% endif %} · drag to move it (Ctrl: copy), Delete removes it"
+                      aria-label="take {{ a.clip }}, bar {{ a.at_bar + 1 }} of {{ sec.name }}: options">{{ a.clip }}</button>
+              <div id="takemenu-{{ sec.id }}-{{ t.id }}-{{ loop.index0 }}" class="pop menu-pop take-menu" popover role="group"
+                   aria-label="take {{ a.clip }} options">
+                <form class="menu-row take-rename" hx-post="/song/take/{{ a.clip | urlencode }}/rename" hx-swap="none">
+                  <label>name <input class="field field-s" name="name" value="{{ a.clip }}" maxlength="60" autocomplete="off" spellcheck="false"
+                         aria-label="new name for take {{ a.clip }}"></label>
+                  <button type="submit" class="btn btn-s menu-btn">Rename</button>
+                </form>
+                {#- the form path for the take's drag: its bar, and Remove
+                    (POST /song/take/edit names the take as it is drawn) -#}
+                <form class="menu-row take-move" hx-post="/song/take/edit" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+                      hx-vals='{{ dict(take, op="move", bar_base="1") | tojson }}'>
+                  <label>starts at bar <input class="field field-s" type="number" name="to_bar" min="1" max="{{ sec.bars }}" step="1" value="{{ a.at_bar + 1 }}"
+                         aria-label="bar of {{ sec.name }} the take {{ a.clip }} starts at"></label>
+                </form>
+                <div class="menu-row">
+                  <button type="button" class="btn btn-s menu-btn take-sample" hx-post="/fragment/sampler/clip"
+                          hx-vals='{{ {"name": a.clip} | tojson }}' hx-target="body" hx-swap="innerMorph"
+                          title="play this take from the keys: a sampler sound on Synths"
+                          aria-label="use take {{ a.clip }} as a sampler">Use as sampler</button>
+                  <button type="button" class="btn btn-s menu-btn take-fx" hx-post="/song/drawer"
+                          hx-vals='{{ {"section_id": sec.id, "track_id": t.id} | tojson }}' hx-swap="none"
+                          title="{{ t.name }}'s rack (every take on it plays through it) and its lanes in {{ sec.name }}, in the drawer"
+                          aria-label="effects and lanes of {{ t.name }} in {{ sec.name }}">Effects and lanes</button>
+                  <button type="button" class="btn btn-s btn-danger menu-btn danger take-remove" hx-post="/song/take/edit" hx-swap="none"
+                          hx-vals='{{ dict(take, op="remove") | tojson }}'
+                          title="Take it off the song (Ctrl+Z brings it back; the clip stays in the library)"
+                          aria-label="remove take {{ a.clip }} from {{ sec.name }}">Remove</button>
+                </div>
+              </div>
+            </div>
+            {% for k in range(1, sec.repeats) %}<i class="echo take-echo" style="--at: {{ a.at_bar }}; --len: {{ tlen }}; --pass: {{ k }}" aria-hidden="true"></i>{% endfor %}
+            {% else %}<span class="cell-empty" aria-label="{{ sec.name }}, {{ t.name }}: no takes">—</span>{% endfor %}
+          </td>
+          {% else %}
+          {% set pid = sec.cells.get(t.id) %}
+          {% set p = song.patterns.get(pid) if pid else none %}
+          {#- a cell carrying automation lanes (song_model.set_lane) says so:
+              a mark in its corner, the targets in its tooltip -#}
+          {% set lanes = sec.get("auto", {}).get(t.id) if p else none %}
+          {#- a pattern more than one section plays is shared: the cell says
+              in how many (songcell.js lights the others up with it) -#}
+          {% set used = song_usage.get(pid, []) | length if p else 0 %}
+          {#- the block: where it starts in a pass and how long it is, in
+              bars (`song_blocks`); the whole section until a block is
+              trimmed. A filled cell drags onto another (songdrag.js) -#}
+          {% set blk = song_blocks.get((sec.id, t.id)) if p else none %}
+          <td class="arr-cell{% if p %} filled{% endif %}{% if p and blk.len < sec.bars %} trimmed{% endif %}" id="cell-{{ sec.id }}-{{ t.id }}"{% if p %} draggable="true"
+              data-at="{{ blk.at }}" data-len="{{ blk.len }}"{% endif %}
+              data-section-id="{{ sec.id }}" data-track-id="{{ t.id }}"
+              data-pattern-id="{{ pid or '' }}" data-kind="{{ 'drums' if t.kind == 'drums' else 'notes' }}"
+              data-ctx-pop="cell-menu" data-ctx-state="{{ 'filled' if p else 'empty' }}" data-sec-bars="{{ sec.bars }}"
+              {% if lanes %}title="Automated: {% for ln in lanes %}{{ lane_labels[ln.target] }}{{ '' if loop.last else ', ' }}{% endfor %}"{% endif %}
+              style="--bars: {{ sec.bars }}; --reps: {{ sec.repeats }}{% if song_time %}; --bs: {{ song_time[sec.id].bs }}{% endif %}{% if p %}; --at: {{ blk.at }}; --len: {{ blk.len }}; --pattern-color: {{ p.color }}{% endif %}">
+            <button type="button" class="cell-btn{% if p %} blk{% endif %}" hx-post="/song/drawer"
+                    hx-vals='{"section_id": "{{ sec.id }}", "track_id": "{{ t.id }}"}' hx-swap="none"
+                    aria-label="{{ sec.name }}, {{ t.name }}: {{ p.name if p else 'empty' }}{% if p and blk.len < sec.bars %}, bars {{ blk.at + 1 }} to {{ blk.at + blk.len }}{% endif %}{{ ', automated' if lanes else '' }}{% if used > 1 %}, shared by {{ used }} sections{% endif %}">
+              {%- if p -%}
+              <span class="cell-top"><span class="cell-name">{{ p.name }}</span>
+                {%- if used > 1 %}<span class="cell-shared" title="Shared: {{ used }} sections play this pattern, an edit changes them all">×{{ used }}</span>{% endif %}</span>
+              {#- the pattern's thumbnail (song_thumbs.html), once per time
+                  it plays across the block's bars; none past the
+                  fragment's tile bound (limits.MAX_PLAYLIST_TILES) -#}
+              {% set reps = blk.len / p.bars %}
+              {% if blk.tiles %}
+              <svg class="cell-thumb cell-thumb-{{ p.kind }}" viewBox="0 0 {{ reps | round(3) }} 1" preserveAspectRatio="none"
+                   aria-hidden="true" focusable="false"><g id="tiles-{{ sec.id }}-{{ t.id }}">
+                {%- for i in range(blk.tiles) %}<use href="#thumb-{{ pid }}" x="{{ i }}" y="0" width="1" height="1"/>{% endfor -%}
+              </g></svg>
+              {% endif %}
+              {%- else %}<span class="cell-name cell-add">+</span>{% endif -%}
+            </button>
+            {#- the block's own edges (songline.js; POST /song/cell/span): the
+                left one moves where it starts, the right one trims or
+                extends it — past the section's end it carries the pattern
+                into the next sections. Double-click: fill the section.
+                The drawer's from / to fields and Alt+arrows on the grid
+                are the same edit without a drag -#}
+            {% if p %}<span class="blk-edge blk-edge-l" aria-hidden="true" title="Drag: where {{ p.name }} starts · double-click: fill the section"></span>
+            <span class="blk-edge blk-edge-r" aria-hidden="true" title="Drag: where {{ p.name }} ends (past the section: on into the next) · double-click: fill the section"></span>{% endif %}
+            {#- an echo a later pass: the same block again, without text -#}
+            {% if p %}{% for k in range(1, sec.repeats) %}<i class="echo" style="--pass: {{ k }}" aria-hidden="true">
+              {%- if blk.tiles %}<svg class="cell-thumb cell-thumb-{{ p.kind }}" viewBox="0 0 {{ reps | round(3) }} 1" preserveAspectRatio="none" focusable="false"><use href="#tiles-{{ sec.id }}-{{ t.id }}"/></svg>{% endif -%}
+            </i>{% endfor %}{% endif %}
+            {% if lanes %}<span class="cell-auto" data-lanes="{{ lanes | length }}" aria-hidden="true">∿</span>{% endif %}
+          </td>
+          {% endif %}
+          {% endfor %}
+          <td class="arr-add-col" aria-hidden="true"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if nsec and "audio" not in song.tracks | map(attribute="kind") | list %}
+      {#- no audio track yet: while a clip or a stem is dragged this strip
+          shows under the lanes, and a drop on it makes the track -#}
+      <tfoot>
+        <tr class="arr-new-audio">
+          <th scope="row" class="track-head"><span class="track-name">+ audio</span></th>
+          {% for sec in song.sections %}
+          <td class="arr-cell arr-takes" data-section-id="{{ sec.id }}" data-track-id=""
+              style="--bars: {{ sec.bars }}; --reps: {{ sec.repeats }}{% if song_time %}; --bs: {{ song_time[sec.id].bs }}{% endif %}"
+              aria-label="{{ sec.name }}: drop a clip here to add an audio track"></td>
+          {% endfor %}
+          <td class="arr-add-col" aria-hidden="true"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+  {#- The master strip: where every lane's lead lands. One input a track
+      (its level as a bar: the Song player schedules whole mixed passes, so
+      there is no live level per track to meter), a red lead from the kick
+      to a track its pump / sidechain ducks, and the output meter — lit by
+      motion.js's `--live`, which it already writes on every `.panel`
+      (style.css section 18 hands it to the meter; no script, no new
+      analysis). The leads are one server-drawn SVG: a row is 18 units. -#}
+  {% if song.tracks %}
+  {% set n = song.tracks | length %}
+  {% set kick = namespace(i=none) %}
+  {% for t in song.tracks if t.kind == "drums" and kick.i is none %}{% set kick.i = loop.index0 %}{% endfor %}
+  <aside class="panel song-master module" id="song-master" data-module="song.master" aria-label="Master" style="--n: {{ n }}">
+    <h3 class="caps">Master</h3>
+    <div class="master-bus">
+      <ol class="master-ins" role="list">
+        {% for t in song.tracks %}
+        <li class="master-in{% if t.mute %} muted{% endif %}" title="{{ t.name }}: level {{ (t.gain * 100) | round | int }}%{{ ', muted' if t.mute else '' }}{{ ', solo' if t.solo else '' }}">
+          <span class="led"{% if t.solo %} data-on="armed"{% elif not t.mute %} data-on{% endif %}></span>
+          <span class="master-name">{{ t.name }}</span>
+          <i class="master-gain" style="--fill: {{ ([t.gain / 1.5, 1] | min * 100) | round(1) }}%"></i>
+        </li>
+        {% endfor %}
+      </ol>
+      <svg class="cable live master-leads" viewBox="0 0 28 {{ n * 18 }}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        {% for t in song.tracks %}
+        {% set y = loop.index0 * 18 + 9 %}
+        <path{% if t.mute %} class="off"{% endif %} d="M2 {{ y }}C14 {{ y + 7 }} 14 {{ n * 9 + 7 }} 26 {{ n * 9 }}"/>
+        {% endfor %}
+        {#- sidechain: the kick keys what ducks under it -#}
+        {% if kick.i is not none %}
+        {% for t in song.tracks if (t.get("fx") or []) | selectattr("kind", "in", ["sidechain", "pump"]) | list %}
+        {% set y = loop.index0 * 18 + 9 %}{% set y0 = kick.i * 18 + 9 %}
+        <path class="side" d="M2 {{ y0 }}C-9 {{ y0 + 4 }} -9 {{ y - 4 }} 2 {{ y }}"><title>the kick ducks {{ t.name }}</title></path>
+        {% endfor %}
+        {% endif %}
+      </svg>
+      <span class="meter meter-v master-meter" role="img" aria-label="output level"><i></i><b></b></span>
+    </div>
+    <dl class="master-facts">
+      <div><dt class="caps">in</dt><dd>{{ n }}</dd></div>
+      <div><dt class="caps">out</dt><dd>L R</dd></div>
+    </dl>
+  </aside>
+  {% endif %}
+  {#- a cell's menu (right click, a pen's barrel button, the Menu key:
+      menu.js opens the `data-ctx-pop` of what was pressed and fills these
+      fields from its data-*). Every row is a route the drawer or the keyboard already
+      posts. -#}
+  <div id="cell-menu" class="pop menu ctx-menu" popover role="group" aria-label="Block options">
+    <input type="hidden" name="section_id" data-from="sectionId">
+    <input type="hidden" name="track_id" data-from="trackId">
+    <input type="hidden" name="len" data-from="secBars">
+    <button type="button" class="menu-item" hx-post="/song/drawer" hx-include="#cell-menu [name$=_id]" hx-swap="none" popovertarget="cell-menu" popovertargetaction="hide">Open in the editor <kbd>Enter</kbd></button>
+    <button type="button" class="menu-item" hx-post="/song/cell/new" hx-include="#cell-menu [name$=_id]" hx-swap="none" popovertarget="cell-menu" popovertargetaction="hide">New pattern here <kbd>N</kbd></button>
+    <button type="button" class="menu-item if-filled" hx-post="/song/cell/unique" hx-include="#cell-menu [name$=_id]" hx-swap="none" popovertarget="cell-menu" popovertargetaction="hide">Make unique</button>
+    <button type="button" class="menu-item if-filled" hx-post="/song/cell/variation" hx-include="#cell-menu [name$=_id]" hx-swap="none" popovertarget="cell-menu" popovertargetaction="hide">Variation</button>
+    <button type="button" class="menu-item if-filled" hx-post="/song/cell/span" hx-include="#cell-menu input" hx-vals='{"at": "0"}' hx-swap="none" popovertarget="cell-menu" popovertargetaction="hide">Fill the section</button>
+    <hr class="menu-sep if-filled">
+    <button type="button" class="menu-item danger if-filled" hx-post="/song/cell" hx-include="#cell-menu [name$=_id]" hx-vals='{"pattern_id": ""}' hx-swap="none" popovertarget="cell-menu" popovertargetaction="hide">Clear the cell <kbd>Del</kbd></button>
+  </div>
+  {#- the playlist tools' three shared menus (menu.js opens the one a
+      pressed thing names in `data-ctx-pop` and fills its hidden fields
+      from the thing's data-*): a boundary's transitions, a chord tile's
+      edits, the selected cells' -#}
+  <div id="bound-menu" class="pop menu ctx-menu" popover role="group" aria-label="A transition on this boundary">
+    <input type="hidden" name="section_id" data-from="sectionId">
+    <button type="button" class="menu-item bound-auto" hx-post="/song/boundary" hx-include="#bound-menu input" hx-swap="none" popovertarget="bound-menu" popovertargetaction="hide"
+            title="What the two sections' energy suggests: one undo step, and it plays from two bars before the boundary">
+      <span class="if-rising">★ riser into it + impact on its first bar</span><span class="if-falling">★ downlifter off its first bar</span><span class="if-level">★ impact on its first bar</span>
+      <span class="menu-hint">from the energy</span></button>
+    <hr class="menu-sep">
+    {% for kind, direction, label in bound_kinds %}
+    <button type="button" class="menu-item" hx-post="/song/boundary" hx-include="#bound-menu input" hx-vals='{"kind": "{{ kind }}", "direction": "{{ direction }}"}' hx-swap="none" popovertarget="bound-menu" popovertargetaction="hide">{{ label }}</button>
+    {% endfor %}
+  </div>
+  {#- the chord a tile is: its name and bar captioned (.menu-now), its
+      degree, quality and inversion pressed (data-is: menu.js) -#}
+  <div id="chord-menu" class="pop menu ctx-menu" popover role="group" aria-label="This chord">
+    <input type="hidden" name="scope" data-from="scope">
+    <input type="hidden" name="slot" data-from="slot">
+    <p class="menu-label menu-now"></p>
+    <div class="menu-row chord-degs" role="group" aria-label="degree">
+      {% for d in chord_strip.degrees %}<button type="button" class="btn btn-s menu-btn" data-is="deg-{{ d.deg }}" hx-post="/song/chords" hx-include="#chord-menu input" hx-vals='{"op": "set", "deg": "{{ d.deg }}"}' hx-swap="none" popovertarget="chord-menu" popovertargetaction="hide"
+              aria-label="{{ d.roman }}, {{ d.name }}" title="{{ d.name }} ({{ d.deg }} on the keys)">{{ d.roman }}</button>{% endfor %}
+    </div>
+    <div class="menu-row" role="group" aria-label="quality">
+      {% for q in chord_strip.qualities %}<button type="button" class="btn btn-s menu-btn" data-is="q-{{ q }}" hx-post="/song/chords" hx-include="#chord-menu input" hx-vals='{"op": "set", "q": "{{ q }}"}' hx-swap="none" popovertarget="chord-menu" popovertargetaction="hide">{{ q }}</button>{% endfor %}
+    </div>
+    <div class="menu-row" role="group" aria-label="inversion">
+      <span class="menu-label">inversion</span>
+      {% for name in ("root", "1st", "2nd") %}<button type="button" class="btn btn-s menu-btn" data-is="inv-{{ loop.index0 }}" hx-post="/song/chords" hx-include="#chord-menu input" hx-vals='{"op": "set", "inv": "{{ loop.index0 }}"}' hx-swap="none" popovertarget="chord-menu" popovertargetaction="hide">{{ name }}</button>{% endfor %}
+    </div>
+    <hr class="menu-sep">
+    <button type="button" class="menu-item" hx-post="/song/chords" hx-include="#chord-menu input" hx-vals='{"op": "split"}' hx-swap="none" popovertarget="chord-menu" popovertargetaction="hide">Split in two</button>
+    <button type="button" class="menu-item danger" hx-post="/song/chords" hx-include="#chord-menu input" hx-vals='{"op": "remove"}' hx-swap="none" popovertarget="chord-menu" popovertargetaction="hide">Remove <kbd>Del</kbd></button>
+  </div>
+  <div id="range-menu" class="pop menu ctx-menu" popover role="group" aria-label="The selected cells">
+    <button type="button" class="menu-item" data-sel-op="duplicate" data-cmd="Duplicate the selection" data-cmd-group="Song" data-keys="Ctrl+D" popovertarget="range-menu" popovertargetaction="hide">Duplicate to the right <kbd>Ctrl+D</kbd></button>
+    <button type="button" class="menu-item" data-sel-op="unique" data-cmd="Make the selection unique" data-cmd-group="Song" popovertarget="range-menu" popovertargetaction="hide"
+            title="Patterns of its own: the selection stops sharing with the rest of the song (and still shares within itself)">Make unique</button>
+    <button type="button" class="menu-item" data-sel-op="variation" data-cmd="Vary the selection" data-cmd-group="Song" popovertarget="range-menu" popovertargetaction="hide">Variation</button>
+    <button type="button" class="menu-item" data-sel-op="again" data-cmd="Roll the selection again" data-cmd-group="Song" popovertarget="range-menu" popovertargetaction="hide">⚄ Again</button>
+    <label class="menu-row">write <select class="field field-s" data-sel-fill aria-label="write a part into the selected cells with a generator"
+                                         title="A generator writes the selected cells, following the chord track: it plays">
+      <option value="" selected>a part…</option>
+      {% for k, label in gen_kinds %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+      <option value="fill">a fill (drums)</option>
+    </select></label>
+    <button type="button" class="menu-item" data-song-action="loop" popovertarget="range-menu" popovertargetaction="hide">⟳ Loop these sections <kbd>L</kbd></button>
+    <hr class="menu-sep">
+    <button type="button" class="menu-item danger" data-sel-op="clear" data-cmd="Clear the selection" data-cmd-group="Song" data-keys="Delete" popovertarget="range-menu" popovertargetaction="hide">Clear <kbd>Del</kbd></button>
+  </div>
+  {% if song_long["items"] %}
+  {#- Whole stems on the timeline (long audio, routes/song_long.py). Each
+      control posts itself: no enclosing form, so no other field rides
+      along, and `op` / `id` travel in hx-vals. -#}
+  {% set audio_rows = song.tracks | selectattr("kind", "equalto", "audio") | list %}
+  <section class="long-list" id="long-list" aria-label="Whole stems on the song">
+    <h3 class="caps" title="Played as recorded, from their bar on through every section and repeat under them">Whole stems</h3>
+    {% for x in song_long["items"] %}
+    {% set vals = '{"op": "set", "id": "' ~ x.id ~ '"}' %}
+    <div class="long-row{% if x.status %} missing{% endif %}" id="long-{{ x.id }}" data-long="{{ x.id }}" role="group" aria-label="{{ x.name }}">
+      <input class="field field-s long-title" name="name" value="{{ x.name }}" maxlength="40" autocomplete="off" spellcheck="false"
+             aria-label="name of the stem {{ x.name }}"
+             hx-post="/song/long" hx-vals='{{ vals }}' hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+      <label>from bar <input class="field field-s" type="number" name="bar" min="1" max="{{ limits.MAX_LONG_BAR + 1 }}" step="1" value="{{ x.at_bar + 1 }}"
+             hx-post="/song/long" hx-vals='{{ vals }}' hx-trigger="change" hx-sync="this:queue last" hx-swap="none"></label>
+      {% if song.sections | length > 1 %}
+      <select class="field field-s" name="section_id" aria-label="start {{ x.name }} at a section"
+              hx-post="/song/long" hx-vals='{{ vals }}' hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+        <option value="">start at…</option>
+        {% for sec in song.sections %}<option value="{{ sec.id }}">{{ sec.name }}</option>{% endfor %}
+      </select>
+      {% endif %}
+      <span class="long-trim" role="group" aria-label="trim the start of {{ x.name }}">
+        <button type="button" class="btn btn-s" hx-post="/song/long" hx-swap="none"
+                hx-vals='{"op": "set", "id": "{{ x.id }}", "trim": "-1"}'
+                title="Give a bar back at its start: it begins a bar earlier, the rest stays where it is"
+                aria-label="start {{ x.name }} a bar earlier">◂ bar</button>
+        <button type="button" class="btn btn-s" hx-post="/song/long" hx-swap="none"
+                hx-vals='{"op": "set", "id": "{{ x.id }}", "trim": "1"}'
+                title="Cut a bar off its start: it begins a bar later, the rest stays where it is"
+                aria-label="cut a bar off the start of {{ x.name }}">bar ▸</button>
+      </span>
+      <label>for <input class="field field-s" type="number" name="bars" min="0" max="2048" step="1" placeholder="all"
+             value="{{ x.set_bars or '' }}"
+             hx-post="/song/long" hx-vals='{{ vals }}' hx-trigger="change" hx-sync="this:queue last" hx-swap="none"> bars</label>
+      {% if audio_rows | length > 1 %}
+      <select class="field field-s" name="track_id" aria-label="audio track of {{ x.name }}"
+              hx-post="/song/long" hx-vals='{{ vals }}' hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+        {% for t in audio_rows %}<option value="{{ t.id }}" {% if t.id == x.track_id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+      </select>
+      {% endif %}
+      <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="{{ 'true' if x.mute else 'false' }}"
+              hx-post="/song/long" hx-swap="none"
+              hx-vals='{"op": "set", "id": "{{ x.id }}", "mute": "{{ 'off' if x.mute else 'on' }}"}'
+              aria-label="mute {{ x.name }}" title="Mute this stem">M</button>
+      <input type="range" class="track-gain knob knob-s" name="gain" min="0" max="1.5" step="0.05" value="{{ x.gain }}"
+             data-default="1" hx-post="/song/long" hx-vals='{{ vals }}' hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+             style="--fill: {{ (x.gain / 1.5 * 100) | round(1) }}%"
+             aria-label="{{ x.name }} level" title="Level {{ (x.gain * 100) | round | int }}%">
+      {% if x.off %}
+      <button type="button" class="btn btn-s long-tempo" hx-post="/song/long" hx-swap="none"
+              hx-vals='{"op": "tempo", "id": "{{ x.id }}"}'
+              title="A whole stem is never stretched: it is in time only when the song's tempo is its own. This retimes every pattern in the song."
+              >Song tempo → {{ x.bpm | round(2) }}</button>
+      {% endif %}
+      <button type="button" class="btn btn-s btn-icon btn-danger long-x" hx-post="/song/long" hx-swap="none"
+              hx-vals='{"op": "remove", "id": "{{ x.id }}"}'
+              aria-label="remove {{ x.name }} from the song" title="Take it off the song (Ctrl+Z brings it back; the Lab keeps the audio)">✕</button>
+      <span class="long-says" role="status">
+        {%- if x.status %}{{ x.status }}
+        {%- elif x.bars is none %}not heard: it starts after the song's last bar ({{ song_bars }})
+        {%- else %}{{ x.what }} · bars {{ x.bars }}–{{ x.end_bar }}{% if x.cut %} of its {{ x.own_bars }}: the song ends first{% endif %}
+        {%- endif %}
+        {%- if x.off %} · recorded at {{ x.bpm | round(2) }} bpm, the song is {{ song.bpm | round(2) }}: it drifts{% endif -%}
+      </span>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+  {#- the jam: the launcher that stands here while Jam is on;
+      only when there is a block to launch -#}
+  {% set pads = namespace(n=0) %}
+  {% for sec in song.sections %}{% for pid in sec.cells.values() if pid and pid in song.patterns %}{% set pads.n = pads.n + 1 %}{% endfor %}{% endfor %}
+  {% if pads.n %}{% include "fragments/jam_bar.html" %}{% endif %}
+  {% if not song.sections %}
+  {#- an empty song: the starter sheet (one click lays down a whole song
+      and plays it), then the by-hand way in -#}
+  <div class="empty-state arr-empty arr-start"><h3 class="visually-hidden">No sections yet</h3>
+    {% with sheet = "arr" %}{% include "fragments/song_start.html" %}{% endwith %}
+    {#- (the loop as one section is the foot's "Add loop to song", once) -#}
+    <p class="start-hand">Or by hand: a section is a stretch of the song, a column of blocks.
+    <button type="button" class="btn btn-s" hx-post="/song/section/add" hx-swap="none">+ Section</button></p></div>
+  {% elif not song.tracks %}
+  <div class="empty-state arr-empty"><h3>No tracks yet</h3>
+    <p>Add a drums or a synth track below: each one is a row of cells to put patterns in — or let a generator add one and write on it:</p>
+    <span><button type="button" class="btn btn-s" hx-post="/song/gen" hx-vals='{"add": "beat"}' hx-swap="none"
+                  data-cmd="Add a drums track with a beat" data-cmd-group="Song"
+                  title="A drums track and a beat in the song's style: it plays">⚄ a beat</button>
+    <button type="button" class="btn btn-s" hx-post="/song/gen" hx-vals='{"add": "riff"}' hx-swap="none"
+            data-cmd="Add a synth track with a riff" data-cmd-group="Song"
+            title="A synth track and a line that follows the chord track: it plays">⚄ a riff on the chords</button></span></div>
+  {% elif not song.patterns %}
+  <div class="empty-state arr-empty"><p>Click an empty cell (+) to make its first pattern, or let a generator write one:</p>
+    <span><button type="button" class="btn btn-s" hx-post="/song/gen" hx-vals='{"add": "beat"}' hx-swap="none"
+                  title="A beat in the song's style: it plays">⚄ a beat</button>
+    <button type="button" class="btn btn-s" hx-post="/song/gen" hx-vals='{"add": "riff"}' hx-swap="none"
+            title="A line that follows the chord track: it plays">⚄ a riff on the chords</button></span></div>
+  {% endif %}
+  <footer class="arr-foot">
+    {% set kinds = song.tracks | map(attribute="kind") | list %}
+    <form class="arr-add-track" hx-post="/song/track/add" hx-swap="none">
+      <label>add track <select class="field field-s" name="kind">
+        {% if "drums" not in kinds %}<option value="drums">drums</option>{% endif %}
+        <option value="synth">synth</option>
+        <option value="audio">audio</option>
+      </select></label>
+      <button type="submit" class="btn btn-s menu-btn" data-cmd="Add a track">+ Track</button>
+    </form>
+    <button data-cmd="Add the working loop to the song" type="button" class="btn btn-s menu-btn" hx-post="/song/from-loop" hx-swap="none"
+            title="The loop you have on the Loops page becomes a new section at the end">Add loop to song</button>
+  </footer>
+</section>

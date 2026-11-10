@@ -1,0 +1,157 @@
+{# synthlab/studio/templates/fragments/lab_chops.html
+   The chop list beside the waveform (included by lab_panel.html; `src` is
+   the selected song). A chop is a named span of the song with its own mix
+   and its own cleaning (studio/labchops.py, labclean.py); Keep bakes it
+   into the clip store.
+   Every post here is POST /lab/chop (one `op` each) or /lab/chop/keep and
+   MORPHS #lab-body: a name being typed, a number in the clean form and an
+   open "clean" disclosure all survive the redraw (labchop.js keeps
+   `open` out of the morph and remembers it across the swaps that
+   replace; from 1900 px a fold nobody has touched starts open). The ids
+   and the op ride in hx-vals, never in named inputs: lab.js's region drag
+   posts from <body> and would sweep them along.
+   The selected chop's actions are the page's commands (`data-cmd`): one
+   set, whichever chop is marked. Right-click a row for its menu.
+   `chops_oob`: the list alone, out of band — the clip library renamed or
+   deleted a clip from this page (routes/lab.py `chops_oob`). #}
+<aside class="lab-chops module" id="lab-chops" data-module="lab.chops" aria-label="Chops"
+       {% if chops_oob %}hx-swap-oob="outerMorph"{% endif %}>
+  <div class="lab-chops-head">
+    <h3 class="lab-name" title="Double-click the waveform to cut a chop; drag an edge to move it (it snaps to a beat line nearby, Alt held = no snap). Auto fills the region {{ src.region.from }} – {{ src.region.to }}.{% if src.has_stems and not src.vocals_alone %} Tick the vocals stem alone for auto by syllables.{% endif %}">Chops <span class="lab-meta">{{ src.chop_rows | length }} of {{ src.max_chops }}</span></h3>
+    <span class="lab-actions seg" role="group" aria-label="cut the region into chops">
+      <span class="caps">auto</span>
+      {% for rule, off, title in [
+          ("bars", not src.grid.set, "a chop a bar of the region"),
+          ("beats", not src.grid.set, "a chop a beat of the region"),
+          ("transients", false, "a chop from each hit to the next, heard in what the region plays"),
+        ] %}
+      <button type="button" id="chop-auto-{{ rule }}" hx-post="/lab/chop"
+              hx-vals='{"source": "{{ src.id }}", "op": "auto", "rule": "{{ rule }}"}'
+              hx-target="#lab-body" hx-swap="outerMorph" hx-disable="this"
+              data-cmd="Cut the region into chops by {{ rule }}"
+              title="{{ title }} (replaces the chops inside the region)"
+              {% if off %}disabled{% endif %}>{{ rule }}</button>
+      {% endfor %}
+      {% if src.vocals_alone %}
+      <button type="button" id="chop-auto-syllables" hx-post="/lab/chop"
+              hx-vals='{"source": "{{ src.id }}", "op": "auto", "rule": "syllables"}'
+              hx-target="#lab-body" hx-swap="outerMorph" hx-disable="this"
+              data-cmd="Cut the region into chops by syllables"
+              title="a chop a syllable or phrase of the vocals stem (replaces the chops inside the region)">syllables</button>
+      {% endif %}
+    </span>
+  </div>
+  {% if not src.chop_rows %}
+  {# one action, on topic: the first Auto the grid allows #}
+  <div class="empty-state"><h3>No chops yet</h3><p>A chop is a slice kept here with its own stems and cleaning,
+    to keep as a clip later: ✂ Chop on the selection, a double-click on a lane, or {{ src.region.label }} in pieces:</p>
+    {% set first_rule = 'bars' if src.grid.set else 'transients' %}
+    <button type="button" class="btn btn-s" id="chop-auto-empty" hx-post="/lab/chop"
+            hx-vals='{"source": "{{ src.id }}", "op": "auto", "rule": "{{ first_rule }}"}'
+            hx-target="#lab-body" hx-swap="outerMorph" hx-disable="this"
+            data-menu="Cut the region into chops">✂ a chop {{ 'a bar' if src.grid.set else 'a hit' }}</button></div>
+  {% endif %}
+  <ul class="chop-list">
+    {% for c in src.chop_rows %}
+    {% set ids = '"source": "' ~ src.id ~ '", "chop": "' ~ c.id ~ '"' %}
+    <li class="chop-row {{ 'on' if c.selected }}" id="chop-{{ c.id }}" data-ctx="{{ c.name }}" {% if c.selected %}aria-current="true"{% endif %}>
+      <div class="chop-line">
+        <button type="button" class="btn btn-icon btn-s audition sc-play" data-note="{{ c.url }}" data-menu="Hear"
+                aria-label="hear chop {{ c.name }}" title="hear it: its own mix, cleaned"
+                {% if c.selected %}data-cmd="Hear the selected chop"{% endif %}
+                {% if c.needs %}disabled{% endif %}>▶</button>
+        <input type="text" class="field field-s chop-name" id="chop-name-{{ c.id }}" name="name" value="{{ c.name }}"
+               maxlength="60" autocomplete="off" spellcheck="false" aria-label="name of chop {{ c.name }}"
+               hx-post="/lab/chop" hx-vals='{ {{ ids }}, "op": "rename"}' hx-trigger="change" hx-sync="this:queue last"
+               hx-target="#lab-body" hx-swap="outerMorph">
+        <button type="button" class="btn btn-ghost btn-icon btn-s btn-danger lab-x" id="chop-x-{{ c.id }}" hx-post="/lab/chop"
+                hx-vals='{ {{ ids }}, "op": "remove"}' hx-target="#lab-body" hx-swap="outerMorph"
+                aria-label="remove chop {{ c.name }}" data-menu="Remove"
+                {% if c.selected %}data-cmd="Remove the selected chop"{% endif %}
+                title="remove this chop{{ ' (the clip it was kept as stays)' if c.clip }}">✕</button>
+      </div>
+      <div class="chop-line">
+        <button type="button" class="btn btn-s chop-pick" id="chop-pick-{{ c.id }}" hx-post="/lab/chop"
+                hx-vals='{ {{ ids }}, "op": "select"}' hx-target="#lab-body" hx-swap="outerMorph"
+                aria-pressed="{{ 'true' if c.selected else 'false' }}" data-menu="Make it the region"
+                title="make this chop the region, and the lanes its mix">{{ c.from }} · {{ c.seconds }} s
+          {%- if c.bars %} · {{ c.bars }}{% endif %}</button>
+        <span class="lab-meta chop-what" title="what this chop plays and keeps{{ ': ' ~ c.levels if c.levels }}">from {{ c.what }}
+          {%- if c.levels %} ({{ c.levels }}){% endif %}{% if c.set %} · {{ c.set }}{% endif %}</span>
+        <button type="button" class="btn btn-ghost btn-s" id="chop-lanes-{{ c.id }}" hx-post="/lab/chop"
+                hx-vals='{ {{ ids }}, "op": "lanes"}' hx-target="#lab-body" hx-swap="outerMorph"
+                data-menu="Use the lanes' mix"
+                {% if c.selected %}data-cmd="Selected chop: use the lanes' mix"{% endif %}
+                title="use the lanes' mix: this chop plays and keeps what is ticked now ({{ src.what }}), at the lanes' levels"
+                aria-label="use the lanes' mix for chop {{ c.name }}">use the lanes' mix</button>
+      </div>
+      {% if c.needs %}
+      <p class="lab-error">This chop {{ c.needs }}: separate the song that way again, or use the lanes' mix.</p>
+      {% endif %}
+      <details class="chop-clean" id="chop-clean-{{ c.id }}">
+        <summary class="caps">clean{% if c.cleaned %} <span class="led" data-on="armed" title="this chop has cleaning set"></span>{% endif %}</summary>
+        <form class="chop-clean-form" hx-post="/lab/chop" hx-vals='{ {{ ids }}, "op": "clean"}'
+              hx-trigger="change" hx-sync="this:queue last" hx-target="#lab-body" hx-swap="outerMorph"
+              aria-label="cleaning of chop {{ c.name }}">
+          <label title="silence what falls this far under the chop's own peak (stem bleed between phrases); empty = off"><span class="caps">gate</span>
+            <input type="number" class="field field-s" id="chop-gate-{{ c.id }}" name="gate_db" min="{{ src.clean_db[0] | int }}" max="{{ src.clean_db[1] | int }}" step="1"
+                   placeholder="off" value="{{ '' if c.clean.gate_db is none else '%g' | format(c.clean.gate_db) }}"> dB</label>
+          <label title="cut the start and the end under this level (5 ms kept either side); empty = off"><span class="caps">trim</span>
+            <input type="number" class="field field-s" id="chop-trim-{{ c.id }}" name="trim_db" min="{{ src.clean_db[0] | int }}" max="{{ src.clean_db[1] | int }}" step="1"
+                   placeholder="off" value="{{ '' if c.clean.trim_db is none else '%g' | format(c.clean.trim_db) }}"> dB</label>
+          <label title="time-stretch it (same pitch) so its bars are that tempo's bars"><span class="caps">fit</span>
+            <select class="field field-s" id="chop-fit-{{ c.id }}" name="fit">
+              <option value="off" {% if c.clean.fit == 'off' %}selected{% endif %}>off: its own speed</option>
+              <option value="session" {% if c.clean.fit == 'session' %}selected{% endif %}>the loop's {{ src.session_bpm }} bpm</option>
+              <option value="song" {% if c.clean.fit == 'song' %}selected{% endif %}>the song's {{ src.song_bpm }} bpm</option>
+            </select></label>
+          <label><span class="caps">fade in</span>
+            <input type="number" class="field field-s" id="chop-fin-{{ c.id }}" name="fade_in" min="0" max="{{ src.fade_ms[1] | int }}" step="1"
+                   value="{{ '%g' | format(c.clean.fade_in) }}"> ms</label>
+          <label><span class="caps">fade out</span>
+            <input type="number" class="field field-s" id="chop-fout-{{ c.id }}" name="fade_out" min="0" max="{{ src.fade_ms[1] | int }}" step="1"
+                   value="{{ '%g' | format(c.clean.fade_out) }}"> ms</label>
+          <label title="normalise: its peak to −1 dBFS; gain: that many dB, held under full scale"><span class="caps">level</span>
+            <select class="field field-s" id="chop-level-{{ c.id }}" name="level">
+              <option value="off" {% if c.clean.level == 'off' %}selected{% endif %}>as it is</option>
+              <option value="normalise" {% if c.clean.level == 'normalise' %}selected{% endif %}>normalise</option>
+              <option value="gain" {% if c.clean.level == 'gain' %}selected{% endif %}>gain</option>
+            </select></label>
+          <label><span class="caps">gain</span>
+            <input type="number" class="field field-s" id="chop-gain-{{ c.id }}" name="gain_db" min="{{ src.gain_db[0] | int }}" max="{{ src.gain_db[1] | int }}" step="0.5"
+                   value="{{ '%g' | format(c.clean.gain_db) }}" {% if c.clean.level != 'gain' %}disabled{% endif %}> dB</label>
+        </form>
+      </details>
+      {% if c.notes %}<p class="lab-meta chop-notes" id="chop-notes-{{ c.id }}">{{ c.notes }}</p>{% endif %}
+      <div class="chop-line">
+        {% if c.too_long %}
+        <p class="lab-error">{{ c.seconds }} s: a clip holds {{ src.max_region | int }} s. Shorten it, or
+          download the stem (⤓ on its lane).</p>
+        {% elif c.clip %}
+        <button type="button" class="btn btn-s" id="chop-update-{{ c.id }}" hx-post="/lab/chop/keep"
+                hx-vals='{ {{ ids }}, "update": "1"}' hx-target="#lab-body" hx-swap="outerMorph"
+                hx-disable="this" data-menu="Update its clip…"
+                {% if c.selected %}data-cmd="Update the selected chop's clip"{% endif %}
+                hx-confirm="Write over the clip “{{ c.clip }}” with this chop as it is now? It changes everywhere it is used: {{ c.used or 'nowhere in this session yet' }}."
+                title="write this chop over its clip “{{ c.clip }}”"
+                {% if c.needs %}disabled{% endif %}>Update clip</button>
+        <button type="button" class="btn btn-s" id="chop-keep-{{ c.id }}" hx-post="/lab/chop/keep"
+                hx-vals='{ {{ ids }} }' hx-target="#lab-body" hx-swap="outerMorph" hx-disable="this"
+                data-menu="Keep as a new clip"
+                {% if c.selected %}data-cmd="Keep the selected chop as a new clip"{% endif %}
+                title="keep it as another clip, beside “{{ c.clip }}”"
+                {% if c.needs %}disabled{% endif %}>Keep as new</button>
+        <span class="lab-meta">clip “{{ c.clip }}”{% if c.used %} · used: {{ c.used }}{% endif %}</span>
+        {% else %}
+        <button type="button" class="btn btn-s" id="chop-keep-{{ c.id }}" hx-post="/lab/chop/keep"
+                hx-vals='{ {{ ids }} }' hx-target="#lab-body" hx-swap="outerMorph" hx-disable="this"
+                data-menu="Keep as a clip"
+                {% if c.selected %}data-cmd="Keep the selected chop as a clip"{% endif %}
+                title="keep this chop, cleaned, as a clip in the library"
+                {% if c.needs %}disabled{% endif %}>Keep</button>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</aside>

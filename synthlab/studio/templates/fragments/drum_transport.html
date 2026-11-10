@@ -1,0 +1,34 @@
+{# synthlab/studio/templates/fragments/drum_transport.html #}
+{# The drum machine's own clock: bars, steps, swing, humanise. Tempo is
+   the song's (shared with the synth). Bars/steps re-render the bank OOB, and this form comes back OOB with it
+   so the chips and the note agree with the grid. #}
+{% from "macros.html" import fill %}
+<form id="drum-transport" class="drum-transport module" data-module="drums.transport"
+      hx-post="/fragment/drums/transport" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last" hx-swap="none"
+      {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  <button data-cmd="Play / stop the beat" data-cmd-group="Transport" type="button" id="play" class="btn btn-primary btn-play btn-toggle btn-icon play" data-keys="Space" aria-pressed="false"
+          data-player="loop" data-plays="the beat · {{ arrangement.drum_bars }} bar{{ 's' if arrangement.drum_bars != 1 }}" aria-label="play or stop the beat">▶</button>
+  <output class="play-cue" data-cue-for="play">the beat · {{ arrangement.drum_bars }} bar{{ 's' if arrangement.drum_bars != 1 }}</output>
+  <label>bpm <input class="field field-s" type="number" name="bpm" min="{{ limits.BPM_RANGE[0]|int }}" max="{{ limits.BPM_RANGE[1]|int }}" value="{{ arrangement.bpm|int }}"></label>
+  {% with oob = false %}{% include "fragments/meter_pick.html" %}{% endwith %}
+  {# label + chips wrap as one unit, or a phone row break strands "bars" #}
+  <span class="bar-pick"><span class="label-text">bars</span>
+  <div class="seg barchips" role="group" aria-label="drum bars">
+    {% for b in limits.BAR_CHOICES %}
+    <button type="button" class="barchip {% if b <= arrangement.drum_bars %}on{% endif %}"
+            hx-post="/fragment/drums/transport" hx-vals='{"bars": "{{ b }}"}' hx-swap="none"
+            aria-pressed="{{ 'true' if b == arrangement.drum_bars else 'false' }}">{{ b }}</button>
+    {% endfor %}
+  </div></span>
+  <label>steps <select class="field field-s" name="steps">
+    {% for st in meter.step_choices(arrangement.meter) %}<option {% if arrangement.drum_steps == st %}selected{% endif %}>{{ st }}</option>{% endfor %}
+  </select></label>
+  <label>swing <input type="range" class="knob knob-s" data-default="0" name="swing" min="0" max="0.6" step="0.01" value="{{ arrangement.drum_swing }}"
+         style="--fill: {{ fill(arrangement.drum_swing, 0, 0.6) }}">
+    <output data-pct>{{ (arrangement.drum_swing * 100)|round|int }}%</output></label>
+  <label>humanise <input type="range" class="knob knob-s" data-default="0" name="humanize" min="0" max="1" step="0.01" value="{{ arrangement.drum_humanize }}"
+         style="--fill: {{ fill(arrangement.drum_humanize, 0, 1) }}"
+         title="Seeded timing + level jitter: loose feel, same every loop">
+    <output data-pct>{{ (arrangement.drum_humanize * 100)|round|int }}%</output></label>
+  <span class="drum-transport-note">{{ arrangement.drum_bars }} bar{{ 's' if arrangement.drum_bars != 1 }} · {{ arrangement.drum_steps }} steps — drums only · synth keeps its own {{ arrangement.bars }}-bar grid</span>
+</form>

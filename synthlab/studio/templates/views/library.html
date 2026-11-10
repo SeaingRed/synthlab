@@ -1,0 +1,186 @@
+{# synthlab/studio/templates/views/library.html #}
+{# The generated sound library (studio/library.py) as a browser: each
+   family a section (a head strip, then its cards in a grid that fills the
+   width, ordered darkest -> brightest), the core library's categories
+   first, then the recipes, and the selected
+   sound's detail docked at the right, on both tiers.
+   A card IS the audition (audio.js plays data-note like a bred tile, marks
+   its card `.active` and, while it sounds, `.playing`): that is the
+   selection, so the dock is each card's own `.lib-detail`, shown for the
+   active card and placed in the dock by CSS (style.css section 9b1) — no
+   script, no round trip, nothing rendered per sound on open. Off the dock
+   a card's detail shows only its three actions, as keys with short labels
+   (a key's `<i>` is the rest of its label, shown in the dock). Use loads the
+   patch and lands you on Synths with it: the shelf and the bench render
+   the same phrase through the same chain, so what you heard is what
+   arrives there.
+   Right-click (the pen's barrel) on a card is its menu (menu.js: the
+   `data-menu` controls of the nearest `[data-ctx]`). #}
+{#- a tag chip: the genre (a recipe's style) is its own kind, the tone a
+    lens lit dark / mid / bright, any other a role -#}
+{% macro chip(t, genres) %}<i{% if t in genres %} class="g"{% elif t in ("dark", "mid", "bright") %} class="tone-{{ t }}"{% endif %}>{{ t }}</i>{% endmacro %}
+{#- a card's three keys, at its foot whatever the selection: they used to
+    sit in its detail, which the selected card's dock takes, so the card
+    you had just clicked lost them. The dock's keys
+    (.lib-d-acts, once a page, below) press the selected card's. -#}
+{% macro acts(e, kind, base, here) %}
+<div class="lib-acts">
+<button type="button" class="btn btn-s audition lib-mix" data-note="{{ base }}{{ e.name | urlencode }}/audition.wav?mix=1"
+ data-menu="Hear in your mix"
+ title="in your mix: what Use lands on Synths"
+ aria-label="hear {{ e.name }} in your mix">▶<i> in your</i> mix</button>
+<button type="button" class="btn btn-s lib-layer" hx-post="/fragment/layer/add"
+ hx-vals='{{ {"source": kind, "name": e.name} | tojson }}' hx-target="body" hx-swap="innerMorph"
+ data-menu="Add as a layer on Synths"
+ title="a new layer on Synths{{ ', with its FX' if kind == 'recipes' }}, following the main sound"
+ aria-label="add {{ e.name }} as a new layer on Synths">+<i> Layer</i></button>
+{# the sound on Synths, unedited: nothing to load (it used to reload
+it anyway). Edited: loading again means discarding those edits,
+so the button says so. #}
+{%- if here and not sound_dirty %}
+<span class="badge badge-accent lib-here" title="the sound on Synths"
+ aria-label="{{ e.name }} is the sound on Synths">✓<i> On Synths</i></span>
+{%- else %}
+<button type="button" class="btn btn-s lib-use" hx-post="/fragment/{{ {'recipes': 'recipe'}.get(kind, kind) }}/load"
+ hx-vals='{{ {"name": e.name} | tojson }}' hx-target="body" hx-swap="innerMorph"
+ data-menu="{{ 'Reload on Synths' if here else 'Use on Synths' }}"
+ aria-label="{{ 'reload' if here else 'use' }} {{ e.name }} on Synths"
+ title="{{ ('discard your edits and reload the ' ~ {'recipes': 'recipe', 'factory': 'factory sound'}.get(kind, 'library version')) if here else ('load on Synths' ~ (' with its FX' if kind == 'recipes') ~ (' and layer' if e.layered)) }}">{{ "Reload" if here else "Use" }}<i> on Synths</i></button>
+{%- endif %}
+</div>
+{% endmacro %}
+{% macro card(e, n, kind, family, here, genres=()) %}
+{#- kind: the `sounds.SOURCES` the card is found in (the Core shelf lists
+    factory sounds as well as recipes) -#}
+{%- set base = {"recipes": "/recipe/", "factory": "/factory/"}.get(kind, "/library/") %}
+{%- set tags = e.tags | default([]) | reject("equalto", family) | list %}
+<article class="lib-card{{ ' active' if here }}" data-name="{{ e.name }}" data-ctx="{{ e.name }}"
+ data-tags="{{ ((e.tags | default([])) + [family]) | join(' ') | lower }}">
+<button type="button" class="audition lib-play" data-note="{{ base }}{{ e.name | urlencode }}/audition.wav"
+ data-menu="Hear on its own" aria-label="hear {{ e.name }}"{% if e.how %} title="{{ e.how }}"{% endif %}>
+<span class="lib-name">{{ e.name }}</span><span class="lib-hz">{{ e.centroid | default(0) | hz }}</span>
+<svg class="spark sig" viewBox="{{ e.spectrum | sig_box }}" preserveAspectRatio="none" aria-hidden="true"><path id="sp-{{ n }}" d="{{ e.spectrum | default([]) | sig_path }}"/></svg><span class="tagchips">{% for t in tags %}{{ chip(t, genres) }}{% endfor %}
+{%- if e.fx %}<i class="fx" title="{{ e.fx | join(' → ') }}">{{ e.fx | length }} fx</i>{% endif %}
+{%- if e.layered %}<i class="ly" title="brings a following layer">+layer</i>{% endif %}</span>
+</button>
+{{ acts(e, kind, base, here) }}
+<div class="lib-detail">
+<h3 class="lib-d-name">{{ e.name }}</h3>
+<p class="tagchips"><i>{{ family }}</i>{% for t in tags %}{{ chip(t, genres) }}{% endfor %}</p>
+<svg class="spark sig lib-d-spark" viewBox="{{ e.spectrum | sig_box }}" preserveAspectRatio="none" role="img"
+ aria-label="its spectrum, 24 bands, low to high"><use href="#sp-{{ n }}"/></svg>
+{# measured, not decoration: the stored 24-band spectrum in thirds, and
+where the sound sits dark -> bright within its family #}
+<dl class="lib-facts">
+<dt class="caps">bright</dt><dd><span class="meter" style="--level: {{ (e.brightness | default(0) * 100) | round | int }}%"><i></i></span> <output>{{ e.centroid | default(0) | hz }}</output></dd>
+{%- set spec = e.spectrum | default([]) | list %}
+{%- for label, part in [("low", spec[:8]), ("mid", spec[8:16]), ("high", spec[16:])] %}
+{%- set pct = (part | sum / 8 * 100) | round | int %}
+<dt class="caps">{{ label }}</dt><dd><span class="meter" style="--level: {{ pct }}%"><i></i></span> <output>{{ pct }} %</output></dd>
+{%- endfor %}
+{%- if e.patch %}
+<dt class="caps">osc</dt><dd>{{ e.patch.osc1 }}{% if e.patch.osc2 and e.patch.osc2 != 'none' and e.patch.osc2_level | default(0) > 0 %} + {{ e.patch.osc2 }}{% endif %}{% if e.patch.sub_level | default(0) > 0.05 %} + sub{% endif %}</dd>
+<dt class="caps">filter</dt><dd>{{ e.patch.filter_type }} · <output>{{ e.patch.cutoff | default(0) | round | int }} Hz</output></dd>
+<dt class="caps">env</dt><dd><output>{{ (e.patch.attack | default(0) * 1000) | round | int }} ms</output> in · <output>{{ e.patch.release | default(0) | round(2) }} s</output> out</dd>
+<dt class="caps">voices</dt><dd><output>{{ e.patch.unison }}</output></dd>
+{%- endif %}
+{% if e.how %}<dt class="caps">how</dt><dd>{{ e.how }}</dd>{% endif %}
+{#- the chain as it runs: a chip a unit, a lead between (style.css 9b1) #}
+{% if e.fx %}<dt class="caps">fx</dt><dd class="lib-chain">{% for u in e.fx %}<i>{{ u }}</i>{% endfor %}{% if e.layered %}<i class="ly">+ a layer</i>{% endif %}</dd>{% endif %}
+</dl>
+</div>
+</article>
+{% endmacro %}
+{#- a family's head strip: its name, how many, and which way it runs -#}
+{% macro head(id, name, count, note) %}<h2 id="shelf-{{ id }}" class="module-head shelf-title" title="{{ note }}">{{ name }} <small>{{ count }}</small><span class="lib-legend" aria-hidden="true">dark<b></b>bright</span></h2>{% endmacro %}
+{% set total = library | map(attribute=1) | map('length') | sum %}
+{% set ns = namespace(n=0) %}
+{#- three kinds of tag: the families, the tone (dark / mid / bright), the genres -#}
+{% set fams = library | map(attribute=0) | list %}
+{#- the Core shelf's categories are families too: mallets, orchestral -#}
+{% set fams = fams + (core | default([]) | map(attribute=0) | reject("in", fams) | list) %}
+{% set tones = ["dark", "mid", "bright"] | select("in", library_tags) | list %}
+{% set genres = library_tags | reject("in", fams + tones) | list %}
+<main class="cockpit library-view" id="view" hx-history-elt data-view="library">
+  <header class="view-head">
+    <h1>Library</h1>
+    <p class="view-sub">{{ total }} ready-made sounds, every family from dark to bright{% if core %}, a core library of {{ core | map(attribute=1) | map('length') | sum }} named for what they are{% endif %}{% if recipes %}, plus {{ recipes | length }} genre recipes that bring their own effects{% endif %}.</p>
+    <div id="head-how" class="pop head-how" popover><p class="view-how">Click a card to hear the sound on its own: it becomes the selected sound, shown at the right with what was measured of it. ▶ mix plays it in your mix, exactly as it will sound on Synths; + adds it as a layer; Use takes it there. Each card draws the sound's spectrum, low at the left to high at the right, and each family runs dark to bright. The arrow keys move between cards. Right-click a card for its menu.</p></div>
+    <div class="head-tools">{% include "fragments/head_help.html" %}{% include "fragments/reset_menu.html" %}</div>
+  </header>
+  {# 300-odd cards: filtered client-side (audio.js) so it stays instant and
+     needs no round trip; a chip's number is how many it would show #}
+  <div class="lib-filter module" data-module="library.filter">
+    <label class="visually-hidden" for="lib-search">Filter sounds</label>
+    <input type="search" class="field field-s" id="lib-search" placeholder="Filter by name or tag…"
+           autocomplete="off" spellcheck="false">
+    <div class="lib-tags" role="group" aria-label="filter by tag" data-cmd-group="Filter">
+      <button type="button" class="btn btn-s tagfilter tagfilter-all" data-tag="" aria-pressed="true"
+              data-cmd="Show every sound in the library" title="every tag: clear the tag filters">all</button>
+      {% for label, group in [("family", fams | select("in", library_tags) | list), ("tone", tones), ("genre", genres)] if group %}
+      <span class="lib-tag-group"><span class="caps" aria-hidden="true">{{ label }}</span><span class="seg" role="group" aria-label="{{ label }}">
+      {%- for t in group %}<button type="button" class="tagfilter" data-tag="{{ t }}" aria-pressed="false"
+              data-cmd="Filter the library: {{ t }}">{{ t }}</button>{% endfor -%}
+      </span></span>
+      {% endfor %}
+    </div>
+    <span class="lib-count" id="lib-count" role="status" aria-live="polite"></span>
+    {#- cards to look at, rows to scan: per browser (audio.js, localStorage) -#}
+    <span class="seg lib-views" role="group" aria-label="show the sounds as">
+      <button type="button" data-lib-view="" aria-pressed="true" data-cmd="Show the library as cards" title="cards: a spectrum you can read">▦</button>
+      <button type="button" data-lib-view="rows" aria-pressed="false" data-cmd="Show the library as rows" title="rows: one line a sound, to scan all of them">☰</button>
+    </span>
+  </div>
+  <div class="lib-browser">
+  {# The core library (recipes.CORE_SHELF): a shelf a category — the core
+     recipes, and the genre recipes and factory sounds it lists besides —
+     first, as the sounds ready to go; each card Uses its own source. #}
+  {% for cat, members in core | default([]) %}
+  <section class="shelf shelf-core module" aria-labelledby="shelf-core-{{ cat }}" data-module="library.core-{{ cat }}">
+    {{ head("core-" ~ cat, "core · " ~ cat, members | length, "the core library's " ~ cat ~ ", named for what they are · dark → bright") }}
+    <div class="lib-grid">
+      {% for e in members %}{% set ns.n = ns.n + 1 %}{{ card(e, ns.n, e.kind, cat, patch.name == e.name, genres) }}{% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+  {# Genre recipes (studio/recipes.py): whole sounds — patch, FX, curves and
+     sometimes a following layer — so ▶ plays the recipe's own chain and Use
+     brings it all (the "recipes" source, a format-2 load). #}
+  {% if recipes %}
+  <section class="shelf shelf-recipes module" aria-labelledby="shelf-recipes" data-module="library.recipes">
+    {{ head("recipes", "recipes", recipes | length, "filter house, garage, melodic techno, trance and more, with their FX · dark → bright") }}
+    <div class="lib-grid">
+      {% for e in recipes %}{% set ns.n = ns.n + 1 %}{{ card(e, ns.n, "recipes", "recipes", patch.name == e.name, genres) }}{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% for family, members in library %}
+  <section class="shelf module" aria-labelledby="shelf-{{ family }}" data-module="library.{{ family }}">
+    {{ head(family, family, members | length, "dark → bright") }}
+    <div class="lib-grid">
+      {% for e in members %}{% set ns.n = ns.n + 1 %}{{ card(e, ns.n, "library", family, patch.name == e.name, genres) }}{% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+  {#- a filter that hides every card: the way back is the filter's, not a song -#}
+  <p class="empty-state lib-none">No sound matches the filter.
+    <button type="button" class="btn btn-s" data-lib-clear data-tag="" data-cmd="Clear the library filter" data-cmd-group="Filter">Clear filter</button></p>
+  </div>
+  {# the dock's resting face: the active card's own detail covers it #}
+  <aside class="lib-dock module" aria-label="Selected sound" data-module="library.selected">
+    <div class="empty-state"><h3>No sound selected</h3><p>Click a card to hear it. What was measured of it, and Use, appear here.</p>{% include "fragments/empty_start.html" %}</div>
+  </aside>
+  {#- the dock's keys, once a page, at its foot over the selected card's
+      detail: each presses that card's own key (library.js), so the card
+      keeps its keys and nothing is drawn twice per card. What they read
+      follows the selection (style.css 9b1: Use, Reload or ✓ On Synths) -#}
+  <div class="lib-d-acts" role="group" aria-label="the selected sound">
+    <button type="button" class="btn btn-s" data-press="lib-mix" title="in your mix: what Use lands on Synths">▶ in your mix</button>
+    <button type="button" class="btn btn-s" data-press="lib-layer" title="a new layer on Synths, following the main sound">+ Layer</button>
+    <button type="button" class="btn btn-s btn-primary lib-d-use" data-press="lib-use">Use on Synths</button>
+    <button type="button" class="btn btn-s lib-d-reload" data-press="lib-use" title="discard your edits on Synths and load it again">Reload on Synths</button>
+    <span class="badge badge-accent lib-d-here" title="the sound on Synths">✓ On Synths</span>
+  </div>
+  {% if not library %}<div class="empty-state"><h3>No library yet</h3><p>Run <code>uv run python -m synthlab.studio.library</code>.</p></div>{% endif %}
+  <div id="analysis" class="readouts" hidden></div>
+</main>

@@ -1,0 +1,18 @@
+{# synthlab/studio/templates/fragments/song_thumbs.html #}
+{# Every pool pattern's thumbnail, once, as an SVG <symbol> (`song_thumbs`,
+   service._thumb: a hit grid / a note strip). The arranger's cells and the
+   drawer's pick list draw them with <use href="#thumb-ID">, stretched to
+   whatever box they sit in, so a pattern is recognisable without opening
+   it. Its own region: a step edit in the drawer re-sends these rects and
+   never the arranger (whose scroll and open menus a swap would reset).
+   Takes no room on the page (style.css .song-thumbs). #}
+<div id="song-thumbs" class="song-thumbs" aria-hidden="true"
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  <svg width="0" height="0" focusable="false">
+    {% for pid, th in song_thumbs.items() %}
+    <symbol id="thumb-{{ pid }}" viewBox="0 0 {{ th.w }} {{ th.h }}" preserveAspectRatio="none">
+      {%- for x, y in th.marks %}<rect x="{{ x }}" y="{{ y }}" width="1" height="1"/>{% endfor -%}
+    </symbol>
+    {% endfor %}
+  </svg>
+</div>

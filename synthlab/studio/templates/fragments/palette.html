@@ -1,0 +1,29 @@
+{# synthlab/studio/templates/fragments/palette.html #}
+{# The command palette (Ctrl/Cmd+K, palette.js). A modal <dialog>: the focus
+   trap and Esc are the browser's. It holds NO list of the app's commands:
+   palette.js harvests every `[data-cmd]` on the page each time it opens
+   and runs one by activating its element — the button that declares a
+   command is the command (docs/frontend.md, "Commands and shortcuts").
+   Sounds and clips are the server's to find: typing asks
+   GET /fragment/palette, whose rows (#pal-found, never shown) are
+   themselves `[data-cmd]` buttons carrying the app's own posts. #}
+<dialog id="palette" class="palette" closedby="any" aria-label="Command palette">
+  <div class="pal-head">
+    <svg class="vi" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13M15.5 15.5L20 20"/></svg>
+    <input type="text" id="pal-q" name="q" class="pal-input" maxlength="60"
+           role="combobox" aria-expanded="true" aria-controls="pal-list" aria-autocomplete="list"
+           aria-label="run a command, go to a page, find a sound or a clip"
+           placeholder="Run a command, go to a page, find a sound or a clip…"
+           autocomplete="off" spellcheck="false" enterkeyhint="go"
+           hx-get="/fragment/palette" hx-trigger="input delay:150ms" hx-sync="this:queue last"
+           hx-target="#pal-found" hx-swap="outerHTML">
+    <kbd>esc</kbd>
+  </div>
+  <ul id="pal-list" class="pal-list" role="listbox" aria-label="commands"></ul>
+  <div class="pal-foot" aria-hidden="true">
+    <span><kbd>↑</kbd> <kbd>↓</kbd> choose</span>
+    <span><kbd>Enter</kbd> run</span>
+    <span><kbd>?</kbd> every shortcut</span>
+  </div>
+  {% with found = [], q = "" %}{% include "fragments/palette_found.html" %}{% endwith %}
+</dialog>
