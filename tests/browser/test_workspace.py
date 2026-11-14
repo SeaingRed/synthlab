@@ -405,6 +405,11 @@ def _wide(studio, w: int = 2560, h: int = 1440):
     # the page settles first (its fetches land, the view's entrance ends):
     # a drag measures once, at its start
     studio.settle()
+    # the panels at their full height (the sections at rest opened: bench.js
+    # 4): their column sets the page's, and so the room under the others
+    page.evaluate(
+        "() => document.querySelectorAll('[data-rest=folded]').forEach(h => h.click())"
+    )
     page.wait_for_timeout(800)
     return page
 

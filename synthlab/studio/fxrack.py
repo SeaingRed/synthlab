@@ -1891,8 +1891,19 @@ def clean_chain(units) -> list[dict]:
         if unit_id_ok(uid) and uid not in ids:
             ids.add(uid)
             unit["id"] = uid
+        # bypassed (the unit's power key): kept only while it is off, so a
+        # chain with every unit on is stored, and keyed, as it always was
+        if u.get("off") is True:
+            unit["off"] = True
         out.append(unit)
     return out[:MAX_UNITS]
+
+
+def active(units) -> list[dict]:
+    """The units of a chain that sound: the clean chain less the bypassed
+    ones (`off`). What a render and the live keys run; a rack still draws,
+    stores and keys every unit."""
+    return [u for u in clean_chain(units) if not u.get("off")]
 
 
 # --- one edit of a rack, and a rack as it is drawn ----------------------------
@@ -1904,7 +1915,7 @@ def clean_chain(units) -> list[dict]:
 RACK_OPS = ("add", "remove", "move", "set")
 # a set's names that are a press, not a value dragged: each its own undo
 # step (`mixer.edit_rack` gives them no key to join on)
-RACK_PRESSES = ("recall", "step", "steps", "preset")
+RACK_PRESSES = ("recall", "step", "steps", "preset", "on")
 
 
 class RackError(ValueError):
@@ -1936,9 +1947,16 @@ def _set_unit(unit: dict, name: str, value) -> None:
     after): a parameter, the pattern string, a 16th of the step editor
     toggled (`step`), its length (`steps` 16 | 32: the pattern repeated or
     cut), a gate's named rhythm (`preset`, `GATE_PATTERNS`) or a preset
-    recalled (`recall`: `FX_PRESETS` by name, or "defaults")."""
+    recalled (`recall`: `FX_PRESETS` by name, or "defaults"), or its power
+    key (`on`: "1" sounds, "0" bypasses the unit — it keeps its place and
+    its settings)."""
     spec = FX_UNITS[unit["kind"]]
-    if name == "pattern" and "pattern" in spec:
+    if name == "on":
+        if str(value).strip() in ("0", "false", "off"):
+            unit["off"] = True
+        else:
+            unit.pop("off", None)
+    elif name == "pattern" and "pattern" in spec:
         unit["pattern"] = str(value)
     elif name in ("step", "steps") and "pattern" in spec:
         pat = str(unit.get("pattern") or spec["pattern"])
@@ -2000,7 +2018,10 @@ def edit_chain(units, op: str, values) -> tuple[list[dict], str, int | None]:
         name, value = values.get("name", ""), values.get("value", "")
         _set_unit(chain[at], name, value)
         label = FX_UNITS[chain[at]["kind"]]["label"]
-        said = f"{label}: {value}" if name == "recall" else f"{label} {name}"
+        if name == "on":
+            said = f"{label} {'bypassed' if chain[at].get('off') else 'on'}"
+        else:
+            said = f"{label}: {value}" if name == "recall" else f"{label} {name}"
     else:
         raise RackError("No such rack edit.")
     return clean_chain(chain), said, at
@@ -2011,9 +2032,9 @@ def rack_rows(units) -> list[dict]:
     — its index, kind, the kind's label (`name`) and the unit's (`label`:
     numbered when the chain holds two of its kind), its parameters (a dict
     each: name, lo, hi, default, value, and `choices`, the labels, for one
-    that is a choice), its pattern string when it has one, its ★ presets'
-    names, a gate's rhythms `(key, label, pattern)`, and whether it is the
-    first or the last."""
+    that is a choice), its pattern string when it has one, whether it is
+    `on` (not bypassed), its ★ presets' names, a gate's rhythms `(key,
+    label, pattern)`, and whether it is the first or the last."""
     chain = clean_chain(list(units or []))
     count: dict[str, int] = {}
     rows = []
@@ -2042,6 +2063,7 @@ def rack_rows(units) -> list[dict]:
                     for name, (lo, hi, default) in spec.get("params", {}).items()
                 ],
                 "pattern": u.get("pattern"),
+                "on": not u.get("off"),
                 "presets": list(FX_PRESETS.get(u["kind"], {})),
                 "rhythms": (
                     [(k, g["label"], g["pattern"]) for k, g in GATE_PATTERNS.items()]
@@ -2163,9 +2185,10 @@ def build_chain(
     sidechain) read timing from the arrangement. `span` is how many
     seconds the chain will run over, so the clocked triggers (sidechain,
     pump) reach its end (a song section's cycle and tail); the default
-    leaves a loop's chain exactly as it was."""
+    leaves a loop's chain exactly as it was. A bypassed unit (`off`) is
+    not built: the signal passes it by."""
     chain: list = []
-    for u in clean_chain(units):
+    for u in active(units):
         name, kw = unit_args(u, arr, span)
         chain.append(getattr(fx, name)(**kw))
     return chain

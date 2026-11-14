@@ -54,7 +54,7 @@ from .. import effects as fx
 from .. import sampler, wavetables
 from ..synth import Patch, at_bpm
 from . import worklet
-from .fxrack import FX_UNITS, clean_chain, kick_steps, resolve_unit
+from .fxrack import FX_UNITS, active, kick_steps, resolve_unit
 from .render import patch_key
 from .state import Arrangement, Lane, audible_layers
 
@@ -122,7 +122,7 @@ assert TRANSPORT <= {k for k, v in FX_LIVE.items() if v == "offline"}
 def lane_mode(units, all_live: bool = False) -> str:
     """ "live" (a voice node in the worklet) or "buffer" (pre-rendered
     notes) for a lane that isn't the edited slot."""
-    if all_live or any(u["kind"] in CLOCK | TRANSPORT for u in clean_chain(units)):
+    if all_live or any(u["kind"] in CLOCK | TRANSPORT for u in active(units)):
         return "live"
     return "buffer"
 
@@ -146,7 +146,7 @@ def lane_key(voice, units, arr: Arrangement) -> str:
 
 def offline_units(units) -> list[str]:
     """The kinds in a chain the live keys can't play."""
-    return [u["kind"] for u in clean_chain(units) if FX_LIVE[u["kind"]] == "offline"]
+    return [u["kind"] for u in active(units) if FX_LIVE[u["kind"]] == "offline"]
 
 
 def keys_bpm(s) -> float:
@@ -392,7 +392,7 @@ def live_chain(units, arr: Arrangement, drums: bool) -> list[dict]:
     hits inside the drum loop, none when the view renders no drums: the
     loop's sidechain ducks on nothing then too, `render.chain_arr`)."""
     out: list[dict] = []
-    for u in clean_chain(units):
+    for u in active(units):
         name, kw = resolve_unit(u, arr)
         # the factory's own defaults for what the rack doesn't expose
         # (a chorus's base delay, a phaser's stages): never retyped in JS

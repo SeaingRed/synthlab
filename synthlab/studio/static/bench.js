@@ -34,7 +34,15 @@
 // 138 -> 146: the twelve mod routes — "+ route" opens the next of
 // slots 5-12, and a lead's jacks are all marked before any is measured (a
 // target jack shows while plugged).
-// Budget: <= 146 code lines.
+// 4. A section at rest folds to its heading. A panel's run of rows under a
+//    heading (an h4, or the legend down to the first h4) rests when the
+//    engine hears none of it: every row is idle (paramui.idle's mark) or a
+//    dial at 0 — Tremolo at depth 0, the Vowel at amount 0, an LFO nothing
+//    routes. It is drawn as its heading alone; a click (Enter, Space) opens
+//    it, and one opened or touched stays open for the page's life, so
+//    nothing folds under the hand. No state: the patch says what rests.
+// 146 -> 188: the sections at rest.
+// Budget: <= 188 code lines.
 
 (() => {
   "use strict";
@@ -182,6 +190,56 @@
     d.hidePopover();
     document.querySelector('[popovertarget="agent-drawer"]:not(.ad-close)')?.focus();
   });
+  // ---- 4. a section at rest folds to its heading -----------------------------
+  const HEADS = ":is(#patch, .patch-panel) h4.subhead, fieldset.patch-panel:not(#panel-mod-matrix) > legend";
+  const opened = new Set();
+  const keyOf = (h) => h.id || h.parentElement.id;
+  const runOf = (h) => {
+    const run = [];
+    for (let n = h.nextElementSibling; n && !n.matches("h4.subhead"); n = n.nextElementSibling) run.push(n);
+    return run;
+  };
+  const still = (c) => c.type === "range" && +c.value === 0;
+  // every control on show in the run, in a row or not (an FM4 operator's dial, a wavetable's frame)
+  const atRest = (run) => {
+    const ctls = run.flatMap((n) => [...n.querySelectorAll("input, select")]).filter((c) => c.offsetParent && !c.closest("[popover]"));
+    return ctls.length > 0 && ctls.every((c) => c.closest(".param[data-idle]") || still(c));
+  };
+  function rest() {
+    const heads = [...document.querySelectorAll(HEADS)].map((h) => [h, runOf(h)]);
+    for (const [, run] of heads) run.forEach((n) => n.removeAttribute("data-rested")); // measured as laid out unfolded
+    const rests = heads.map(([h, run]) => !!h.offsetParent && atRest(run)); // every read before any write
+    // a section folds as its page arrives (a head not yet `data-seen`: a load, a morph), and stays as it
+    // was after: an edit's own swaps find the idle marks a beat behind, and never fold what is on show
+    heads.forEach(([h, run], i) => {
+      const may = !h.hasAttribute("data-seen") || h.dataset.rest === "folded";
+      h.setAttribute("data-seen", "");
+      const own = h.matches("h4") ? ["title"] : []; // (a legend's title is its panel's note)
+      if (!rests[i]) { for (const a of ["data-rest", "tabindex", "role", "aria-expanded", ...own]) h.removeAttribute(a); return; }
+      const fold = may && !opened.has(keyOf(h));
+      h.dataset.rest = fold ? "folded" : "open";
+      h.tabIndex = 0; h.setAttribute("role", "button"); h.setAttribute("aria-expanded", String(!fold));
+      if (h.matches("h4")) h.title = "at rest: nothing here is heard now. Click to " + (fold ? "open it" : "fold it");
+      if (fold) run.forEach((n) => n.setAttribute("data-rested", ""));
+    });
+  }
+  const headAt = (e) => (e.target.closest?.("button, select, input, [popover]") ? null : e.target.closest?.("[data-rest]"));
+  function flip(e) {
+    const h = headAt(e);
+    if (!h || (e.type === "keydown" && e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    if (h.dataset.rest === "folded") opened.add(keyOf(h)); else { opened.delete(keyOf(h)); h.removeAttribute("data-seen"); }
+    rest();
+  }
+  document.addEventListener("click", flip);
+  document.addEventListener("keydown", flip);
+  // a control moved: its section stays open, whatever its value comes to
+  document.addEventListener("input", (e) => {
+    const row = e.target.closest?.(":is(#patch, .patch-panel) .param");
+    for (const h of row ? document.querySelectorAll(HEADS) : []) if (runOf(h).some((n) => n.contains(row))) opened.add(keyOf(h));
+  });
+  document.addEventListener("patch-idle", () => queueMicrotask(rest)); // (after audio.js has moved the idle marks)
   document.addEventListener("htmx:after:settle", settle);
   document.addEventListener("DOMContentLoaded", settle);
+  for (const t of ["htmx:after:settle", "DOMContentLoaded"]) document.addEventListener(t, rest);
 })();

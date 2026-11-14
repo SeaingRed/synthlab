@@ -51,8 +51,17 @@ hx-post="{{ r.url if one else r.url[op] }}" hx-vals='{{ all | tojson }}'
   {% set idx = u.index %}
   {% set cmd = u.name ~ " " ~ (idx + 1) %}
   {{ lead() }}
-  <div class="fx-unit module" data-unit="{{ u.kind }}" data-ctx="{{ u.label }} · {{ r.title }}">
+  <div class="fx-unit module" data-unit="{{ u.kind }}"{{ ' data-off' if not u.on }} data-ctx="{{ u.label }} · {{ r.title }}">
     <header class="module-head">
+      {#- the unit's power key: off, the signal passes it by (it keeps its
+          place and its settings; `fxrack.active`). A press of its own in
+          the undo ring -#}
+      <button type="button" class="btn btn-ghost btn-icon btn-s fx-power" aria-pressed="{{ 'true' if u.on else 'false' }}"
+              data-menu="{{ 'Bypass' if u.on else 'Switch on' }}"
+              data-cmd="{{ cmd }}: {{ 'bypass' if u.on else 'switch on' }} ({{ r.title }})" data-cmd-group="{{ group }}"
+              {{ post(r, "set", {"index": idx | string, "name": "on", "value": "0" if u.on else "1"}) }}
+              {{ r.value | safe }}
+              aria-label="{{ u.label }} on" title="{{ 'on: press to bypass (the unit keeps its settings)' if u.on else 'bypassed: press to switch it back on' }}"><i class="led" aria-hidden="true"></i></button>
       <strong>{{ u.label }}</strong>
       <span class="fx-acts">
         {#- ★ the unit's presets (fxrack.FX_PRESETS) and ↺ its defaults: a

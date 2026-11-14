@@ -252,8 +252,16 @@ wider margins:
   / remove, the popovers' id part, the commands' title and group, the
   out jack's label, and whether ‹ › are disabled at the ends (not here:
   the button pressed at an end keeps its `autofocus`). So fxcables.js
-  wires all three. No rack has a per-unit bypass (it would be a new
-  persisted field of a unit, in every render key and the live FX).
+  wires all three. **A unit's power key** (the lamp before its name;
+  `fx_units.html` `.fx-power`): off, the signal passes the unit by — it
+  keeps its place, its settings and its lane. One set post (`name=on`,
+  `value` 0 | 1, `fxrack._set_unit`; a press, so its own undo step) on
+  every rack. Stored as `"off": true` on the unit and **only while it is
+  off** (`clean_chain`), so a chain with every unit on is saved and keyed
+  as it always was; the keys hash the clean chain, so a press is a new
+  key. What runs is `fxrack.active(units)`: `build_chain`, `fxauto`, a
+  return's `_wet`, the live keys' `fxlive.live_chain` (a bypassed offline
+  unit no longer blocks the worklet) and the chain bar's line.
 - **Undo of a rack edit**: every add / chain / move /
   remove / set on a session rack (`routes/fx.py`: the layer, master and
   drum-bus chains) is a step of the patch ring (`state.push_fx_undo`: the
@@ -272,6 +280,34 @@ wider margins:
   (the reset menu's ↩ takes a drum-bus edit back); the vocal booth's rack
   has no undo (`voice_lab.json`, outside every ring). A Song audio
   track's rack is undoable too, one song edit each (`song.md`).
+- **The modules' frame, measured** (style.css 17.3; comfy, 2560): every
+  module's head is one strip — `--h-s` high, the caps lettering at
+  `--track-caps`, `--s1` under it — at the same offset from its module's
+  top: a seam is the **foot** of the module over it (`border-bottom`, as
+  a panel's), never the top of the one under. The XY pad's name and ⊕
+  are its head's strip; its well is the wells' radius (the pad stays
+  a 320 px square, centred: as wide as a 400 px column it pushed the sub
+  spectrum under the keys).
+- **The pedalboard's spacing**: one gap (`--fx-gap`, 22 px) between two
+  units, beside or below. The in jack stands in the rack's left gutter
+  (`--fx-gutter`), so every row starts on one left edge; the out jack and
+  its lead are one gap wide and end the last unit's row. In the six-
+  column layout the units stand two a row, each half the rack (a unit's
+  ‹ › show under the hand there; its right click lists them always), and
+  an empty rack is one line: its head and "＋ Reverb ▶".
+- **Unassigned macros are one line**: while no macro has a target the
+  rack is four "Macro n ＋" keys (each opens its assign form), not four
+  dead dials; the first target brings the dials back (CSS, `:has`).
+- **A section at rest folds to its heading** (bench.js 4): a run of rows
+  under an `h4.subhead` — or a panel's rows down to its first one, so the
+  whole Vowel panel — rests when every visible row is idle
+  (`data-idle`) or a dial at 0: Tremolo at depth 0, an LFO nothing
+  routes, the Mixer with nothing mixed in. It is drawn as its heading (▸;
+  a button: click, Enter, Space) and its rows are `[data-rested]`. One
+  opened, or one whose control was moved, stays open for the page's
+  life: nothing folds under the hand. No state — the patch says what
+  rests; the controls stay in the DOM (the deck, MIDI learn and the form
+  post them as before).
 - **No per-layer meter**: the loop is one mixed buffer and the live
   voice's `load` reports are CPU, not level — a meter per lane needs an
   analyser per lane. Not built.

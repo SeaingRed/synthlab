@@ -198,6 +198,8 @@ def render(
         x = head
         for i in range(first, len(units)):
             u = units[i]
+            if u.get("off"):  # bypassed: its lane moves nothing
+                continue
             if i not in found:
                 x = fx.chain(x, build_chain([u], arr, span=span))
                 continue

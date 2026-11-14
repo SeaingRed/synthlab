@@ -1451,6 +1451,8 @@ def _wet(x: np.ndarray, units: list, arr, span: float) -> np.ndarray:
     from .. import effects
 
     for u in units:
+        if u.get("off"):  # bypassed
+            continue
         y = to_stereo(np.asarray(fx_chain(x, build_chain([u], arr, span=span))))
         if u["kind"] == "delay":
             _name, kw = unit_args(u, arr, span)

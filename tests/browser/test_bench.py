@@ -279,7 +279,11 @@ def test_the_rack_is_open_and_one_action_is_primary(studio):
     studio.settle()
     # macros and the XY pad are reachable without opening a disclosure
     page.locator("#xypad").scroll_into_view_if_needed()
-    assert page.locator("#xypad").is_visible() and page.locator("#macro-0").is_visible()
+    assert page.locator("#xypad").is_visible()
+    # (no macro has a target yet: the rack is one line of "Macro n ＋" keys,
+    # each opening its assign form — the dials come with the first target)
+    assert not page.locator("#macro-0").is_visible()
+    assert page.locator(".macro-assign > .btn").first.is_visible()
     assert not page.evaluate("document.getElementById('perform-tools').open")
     # the Bass check loads when it comes into view
     page.wait_for_selector(".bass-check .meter-card")
@@ -339,3 +343,37 @@ def test_the_agent_drawer_docks_beside_the_page(studio):
     page.click("#agent-pin")
     page.wait_for_function("() => !('agent' in document.documentElement.dataset)")
     studio.settle()
+
+
+def test_a_section_at_rest_is_its_heading_and_a_units_power_key_bypasses_it(
+    studio, server
+):
+    """The default sound has no tremolo: the section is its heading, a click
+    away; a unit's lamp takes it out of the chain and leaves it in the rack."""
+    page = studio.page
+    page.set_viewport_size({"width": 1920, "height": 1080})
+    studio.open("editor")
+    studio.settle()
+    head, depth = page.locator("#sub-tremolo_rate"), page.locator("#row-tremolo_depth")
+    assert head.get_attribute("data-rest") == "folded" and not depth.is_visible()
+    head.click()
+    assert head.get_attribute("aria-expanded") == "true" and depth.is_visible()
+    # moved, it stays open: at 0 again it does not fold under the hand
+    page.focus("#p-tremolo_depth")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_timeout(400)
+    assert depth.is_visible()
+
+    page.locator("#fx-scope-master .empty-fx").click()
+    unit = page.locator("#fx-scope-master .fx-unit")
+    unit.wait_for()
+    assert "off" not in server.state.fx_master[0]
+    unit.locator(".fx-power").click()
+    page.wait_for_selector("#fx-scope-master .fx-unit[data-off]")
+    assert server.state.fx_master[0].get("off") is True
+    assert unit.locator(".fx-power").get_attribute("aria-pressed") == "false"
+    assert page.locator("#fx-scope-master .fx-wires path").count() > 0  # still wired
+    unit.locator(".fx-power").click()
+    page.wait_for_selector("#fx-scope-master .fx-unit:not([data-off])")
+    assert "off" not in server.state.fx_master[0]

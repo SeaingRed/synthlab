@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **FX units have a power key**: the lamp before a unit's name bypasses it
+  — it keeps its place, its settings and its automation lane — on every
+  rack (Synths, Kit, Mix, Voice, a Song audio track, the vocal booth), in
+  the render and on the live keys. One undo step.
+- **Synths, tidied**: every module's head is one height with one
+  lettering and one gap under it; seams no longer push a title down a
+  pixel; FX units stand on one left edge with one gap beside and below,
+  two a row in the wide layout; an empty rack is one line.
+- **Unassigned macros are one line** of "Macro n ＋" keys until one has a
+  target.
+- **Sections at rest fold to their heading** (Tremolo at depth 0, the
+  Vowel at amount 0, an LFO nothing routes…): a click opens one, and one
+  you touch stays open.
+
 ## 0.1.0a1 — 2026-11-10
 
 The first public release (alpha).
