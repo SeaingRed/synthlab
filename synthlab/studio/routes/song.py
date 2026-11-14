@@ -57,7 +57,17 @@ from fastapi import Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from ...sequencer import SCALES, midi, name_of
-from .. import beatgen, beatpick, drumops, limits, meter, schema, song_bridge, song_play
+from .. import (
+    beatgen,
+    beatpick,
+    drumops,
+    limits,
+    meter,
+    moves,
+    schema,
+    song_bridge,
+    song_play,
+)
 from .. import patternops as po
 from .. import song_model as sm
 from ..arrange import arrangement_from_form
@@ -607,7 +617,28 @@ def section_duplicate(request: Request, section_id: str, svc: Svc) -> Response:
 
 @router.post("/song/section/{section_id}/move")
 def section_move(request: Request, section_id: str, form: StrForm, svc: Svc):
-    """To index `to`, or by `delta` places (-1 left, +1 right); clamped."""
+    """To index `to`, or by `delta` places (-1 left, +1 right); clamped.
+
+    With a `move` instead (an automation move, `moves.MOVES`) it puts that
+    ready-made lane on `track` in this section: the lane, and the FX unit
+    it needs when the rack lacks one, are one undo step, and the toast says
+    what was done; a move the track cannot take, or a full rack, is refused
+    in words."""
+    if "move" in form:
+        said: list[str] = []
+
+        def put(song):
+            said[:] = [
+                moves.apply(song, section_id, form.get("track", ""), form["move"])
+            ]
+
+        return _commit(
+            svc,
+            put,
+            label="automation move",
+            soon=True,
+            then=lambda: {"studio-toast": {"message": said[0]}},
+        )
 
     def change(song):
         _section(song, section_id)
