@@ -11,8 +11,9 @@ measures it against `effects.py` (`tests/studio/test_live_fx.py`).
               and the live vocal units through static/vox-worklet.js, the
               FX2 units — auto-filter, tremolo, tape, ping-pong,
               formant and frequency shifters, exciter, vocoder — and
-              the dynamics (OTT, limiter, transient shaper)
-              through static/fx2-worklet.js, all in the same scope)
+              the dynamics (OTT, limiter, transient shaper) and the
+              multiband drive through static/fx2-worklet.js, all in the
+              same scope)
     "clock"   the same, timed on the transport clock (gate / pump /
               sidechain: the loop's own beat, not the key's)
     "native"  a Web Audio node computes it exactly: reverb is a
@@ -93,6 +94,7 @@ FX_LIVE: dict[str, str] = {
     "ott": "js",
     "limiter": "js",
     "transient": "js",
+    "mbdrive": "js",
     "spring": "native",
     "gate": "clock",
     "pump": "clock",
@@ -380,6 +382,14 @@ _FX2 = {
         "floor": fx.TRANSIENT_FLOOR,
         "scale": fx.TRANSIENT_SCALE,
         "top": fx.TRANSIENT_MAX / fx.TRANSIENT_SCALE,
+    },
+    # the multiband drive: the OTT's crossovers, the drive's shapes' constants
+    "mbdrive": lambda kw: {
+        "split": fx.OTT_SPLIT,
+        "q": fx.OTT_Q,
+        "fuzz_bias": fx.FUZZ_BIAS,
+        "fuzz_gain": fx.FUZZ_GAIN,
+        "tube_even": fx.TUBE_EVEN,
     },
 }
 

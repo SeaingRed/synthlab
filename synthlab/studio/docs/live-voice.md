@@ -431,6 +431,28 @@ maximum in the log domain: no Python loop). Live: the OTT is 18 biquads
 and three followers a sample, the limiter a deque push and a few
 multiplies; not measured in a browser.
 
+### The multiband drive
+
+**The multiband drive** (`mbdrive`: low, mid, high 1-12, mode, mix;
+`fxrack.MULTIBAND_UNITS`, kept from the sound agent for the schema's
+budget; `tests/test_effects_mbdrive.py`) is the OTT's three bands, each
+through the drive's shape at its own amount (`docs/engine.md`,
+"Multiband drive"). "js" in `FX_LIVE`; its twin is in `fx2-worklet.js`
+on the OTT's crossover (`crossover` / `split`, now shared by the two)
+and fx-worklet.js's own `shape` for each band not at 1, built once per
+parameter set. A band at 1 is passed unshaped; every band at 1 skips the
+split and passes the input (`mbdrive_flat`: the input exactly, live and
+in the loop). The dry under its mix is the bands summed, as the engine's.
+**Measured <= 3.8e-8 of peak** on the synth note, one case per mode with
+a band left at 1, and a stack (tube drive, the multiband drive, OTT,
+limiter) at 6.8e-7 — all of it the worklet's float32 between units
+amplified by the drives: the engine with its input rounded to float32
+between units is the live output exactly. **Lanes** on the three amounts
+and the mix (the unit's own blend, `fxauto.OWN_MIX`), standing still
+bit for bit in every mode. **Cost**: 0.003 CPU s per s of stereo noise
+in NumPy (nine biquads a channel and three shapes); live, 18 biquads and
+up to six shapes a sample; not measured in a browser.
+
 ## Hard sync, FM4, wavetables and drift
 
 Hard sync, the 4-operator FM shape, eight more wavetables and analog drift

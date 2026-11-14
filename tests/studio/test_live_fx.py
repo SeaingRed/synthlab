@@ -377,6 +377,32 @@ UNITS: dict[str, list[dict]] = {
             "params": {"attack": -0.8, "sustain": -1.0, "output": 4.0},
         }
     ],
+    # fx2-worklet.js: the multiband drive, every mode, a band left at 1
+    "mbdrive": [{"kind": "mbdrive", "params": {"low": 6.0, "mid": 2.0}}],
+    "mbdrive_hard": [
+        {"kind": "mbdrive", "params": {"mid": 9.0, "high": 4.0, "mode": 1, "mix": 0.7}}
+    ],
+    "mbdrive_fuzz": [
+        {
+            "kind": "mbdrive",
+            "params": {"low": 12.0, "mid": 1.0, "high": 8.0, "mode": 2, "mix": 0.6},
+        }
+    ],
+    "mbdrive_tube": [
+        {"kind": "mbdrive", "params": {"low": 3.0, "mid": 5.0, "high": 12.0, "mode": 3}}
+    ],
+    # at its defaults: the input itself, live as in the loop
+    "mbdrive_flat": [{"kind": "mbdrive", "params": {"mix": 0.5}}],
+    # stacked with its neighbours: a drive into it, an OTT and a limiter
+    # after it. (Pushed harder — low 5, the limiter +6 dB — it is 1.3e-6 of
+    # peak: the worklet's float32 between units, amplified; the engine with
+    # its input rounded to float32 between units is the live output exactly)
+    "stack_mbdrive": [
+        {"kind": "drive", "params": {"amount": 1.5, "mode": 3}},
+        {"kind": "mbdrive", "params": {"low": 3.0, "high": 2.0, "mode": 0, "mix": 0.8}},
+        {"kind": "ott", "params": {"depth": 0.4}},
+        {"kind": "limiter", "params": {"gain": 2.0}},
+    ],
     # the dynamics chains as they stack (Drum Punch's live units; Master Glue)
     "stack_dynamics": [
         {"kind": "transient", "params": {"attack": 0.6, "sustain": -0.2}},
@@ -444,6 +470,7 @@ def test_livefx_sends_every_worklet_unit_to_the_worklet():
         "ott",
         "limiter",
         "transient",
+        "mbdrive",
     }
 
 

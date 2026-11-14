@@ -3173,3 +3173,54 @@ def _transient(x, attack=0.0, sustain=0.0, output=0.0, sr=SR):
 
 def transient(attack=0.0, sustain=0.0, output=0.0):
     return partial(_transient, attack=attack, sustain=sustain, output=output)
+
+
+# ----------------------------------------------------------------------------
+# multiband drive — the OTT's three bands, each through the drive's shape at
+# its own amount: a bass driven into a growl while its top stays clean, or
+# only the air fizzed. Memoryless but for the crossovers, so causal; its
+# live twin is in static/fx2-worklet.js beside the OTT's.
+# ----------------------------------------------------------------------------
+
+
+def _unshaped(amount) -> bool:
+    """A band's amount that leaves it as it is: 1 (or a lane at 1 all
+    through). The drive's shapes are not the identity at 1 (soft's is
+    tanh(x) / tanh(1)), so such a band is passed, never shaped."""
+    return bool(np.all(np.asarray(amount) == 1.0))
+
+
+def _mbdrive(x, low=1.0, mid=1.0, high=1.0, mode="soft", mix=1.0, sr=SR):
+    """Three bands (`ott_bands`: 120 Hz / 2.5 kHz), each through
+    `drive_shape` at its own amount (`low`, `mid`, `high`, 1..12, any of
+    `DRIVE_MODES`) — a band at 1 passed as it is — summed: the wet. The dry
+    under a `mix` below 1 is the bands summed unshaped (the input through
+    the two all-passes), in phase with the wet: the raw input would cancel
+    the wet near 2.5 kHz at an even blend. With every band at 1 nothing is
+    split and the unit is its input. Each amount and `mix` may be a
+    per-sample array (a lane): an amount where it reads 1 is the band's own
+    sample, elsewhere the shape at its value."""
+    amounts = (low, mid, high)
+    if all(_unshaped(a) for a in amounts):
+        return x
+    st = to_stereo(x)
+    if len(st) == 0:
+        return x
+    bands = ott_bands(st, sr)
+    dry = bands[0] + bands[1] + bands[2]
+    wet = np.zeros_like(st)
+    for band, amount in zip(bands, amounts, strict=True):
+        a = np.asarray(amount, dtype=np.float64)
+        if a.ndim == 0:
+            wet += band if float(a) == 1.0 else drive_shape(band, float(a), mode)
+        elif _unshaped(a):
+            wet += band
+        else:
+            wet += np.where(a[:, None] == 1.0, band, drive_shape(band, a, mode))
+    m = _per_sample(mix, st)
+    res = dry * (1 - m) + wet * m
+    return res if is_stereo(x) else res.mean(axis=1)
+
+
+def mbdrive(low=1.0, mid=1.0, high=1.0, mode="soft", mix=1.0):
+    return partial(_mbdrive, low=low, mid=mid, high=high, mode=mode, mix=mix)
