@@ -1460,6 +1460,14 @@ CASES: list[Case] = [
         _song,
         url="/song/section/s2/move",
     ),
+    # an automation move on a track of the section (moves.py): a lane
+    C(
+        "/song/section/{section_id}/move",
+        "song",
+        {"track": "t1", "move": "open_filter"},
+        _song,
+        url="/song/section/s1/move",
+    ),
     C(
         "/song/section/{section_id}/delete",
         "song",

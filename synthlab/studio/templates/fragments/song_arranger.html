@@ -192,6 +192,31 @@
                             title="Copy the song's progression onto {{ sec.name }}, to change it there alone">Own chords</button>
                     {% endif %}
                   </div>
+                  {#- automation moves (moves.py; POST /song/section/{id}/move):
+                      a ready-made lane on the track picked here, one undo step -#}
+                  {% if song.tracks %}
+                  {% set mv = namespace(pick=none) %}
+                  {% for t in song.tracks if mv.pick is none and (sec.cells.get(t.id) or sec.audio | selectattr("track_id", "equalto", t.id) | list) %}{% set mv.pick = t.id %}{% endfor %}
+                  <div class="menu-row moves-row" role="group" aria-label="Automation moves in {{ sec.name }}">
+                    <span class="menu-label">move</span>
+                    <select class="field field-s" name="track" aria-label="the track the move goes on"
+                            title="The track the move is put on, in {{ sec.name }}">
+                      {% for t in song.tracks %}<option value="{{ t.id }}"{% if t.id == mv.pick %} selected{% endif %}>{{ t.name }}</option>{% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/move" hx-include="closest .moves-row" hx-vals='{"move": "open_filter"}' hx-swap="none"
+                            data-cmd="Move: open the filter over this section" data-cmd-group="Song"
+                            title="A low-pass opens across {{ sec.name }}, slow at first (a Lowpass is added to the track if it has none, wide open at rest)">open filter</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/move" hx-include="closest .moves-row" hx-vals='{"move": "wash_out"}' hx-swap="none"
+                            data-cmd="Move: wash out into the next section" data-cmd-group="Song"
+                            title="A reverb's mix rises over the second half of {{ sec.name }} (a Reverb is added at mix 0 if the track has none)">wash out</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/move" hx-include="closest .moves-row" hx-vals='{"move": "pump_harder"}' hx-swap="none"
+                            data-cmd="Move: pump harder to the end" data-cmd-group="Song"
+                            title="A pump's depth rises to the end of {{ sec.name }} (a Pump is added at depth 0 if the track has none)">pump harder</button>
+                    <button type="button" class="btn btn-s menu-btn" hx-post="/song/section/{{ sec.id }}/move" hx-include="closest .moves-row" hx-vals='{"move": "drop_cut"}' hx-swap="none"
+                            data-cmd="Move: cut the last beat" data-cmd-group="Song"
+                            title="The track's level drops to silence for the last beat of {{ sec.name }}">cut last beat</button>
+                  </div>
+                  {% endif %}
                   <form class="menu-row trans-form" hx-post="/song/section/{{ sec.id }}/transition" hx-swap="none"
                         aria-label="Add a transition to {{ sec.name }}">
                     <span class="menu-label">add</span>

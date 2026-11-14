@@ -838,6 +838,52 @@ were drawn on, so they play the values they did.
   and on long audio; a lane is not carried when "Open in Perform"
   copies the track's chain (the unit keeps its id there).
 
+### Automation moves
+
+**Automation moves** (`studio/moves.py`, `POST /song/section/{id}/move` with
+`track` and `move`, `tests/studio/test_moves.py`): four ready-made lanes a
+section's menu ("move": a track picker and four buttons) puts on one track
+in one click. They write nothing the lane machinery above does not already
+take (a `gain` lane, or an `fx:<unit id>:<kind>:<param>` lane), so a section
+with one is the section with that lane drawn by hand.
+
+| Move | Lane |
+|---|---|
+| `open_filter` | a `lowpass` `cutoff`: 0.04 of its range at the start, 0.15 at mid-section, the slider's top (12 kHz) at the end: slow at first |
+| `wash_out` | a `reverb` `mix`: held at the unit's value over the first half, rising to 0.8 by the end |
+| `pump_harder` | a `pump` `depth`: from the unit's value to 0.9 at the end |
+| `drop_cut` | the level (`gain`): unity, a fall over an eighth of a beat to 0 at the last beat's downbeat, held to the end |
+
+- **Positions are bars, not beats.** A lane runs 0..1 across one pass and is
+  laid out in bars (`meter.warp`), so the last beat is `1 / (bars x the
+  meter's quarter notes a bar)`: 7/8 has 3.5, 6/8 and 3/4 have 3. Under a
+  tempo ramp it stays in bars, as every lane does. A section too short to
+  hold a unity run before the last beat (under about a beat and a half) is
+  cut whole. The lane's end is held, and every repeat replays the lane, so
+  the level is back at the next pass's start.
+- **A missing unit is added at rest**: a lowpass at cutoff 12 kHz (the top
+  of its slider, where the lane ends), a reverb at mix 0, a pump at depth 0.
+  Reverb and pump at rest are exact bypasses (`test_moves.py` renders the
+  section before and after, 1e-6); the lowpass at the slider's top is the
+  filter wide open, not a bypass. A unit the track already holds (the first
+  one that sounds; a bypassed one, `"off"`, is kept as it is and a sounding
+  one is added beside it) is reused untouched, and the lane starts at its
+  value. A full rack (`fxrack.MAX_UNITS`) refuses the three FX moves in
+  words and changes nothing; `drop_cut` needs no unit.
+- **Racks**: the lane code addresses the TRACK's `fx` on every kind, so the
+  moves do too: a synth's and a drums track's chain (the sound's, mirrored
+  into the track), an audio track's rack. A cell must hold a pattern (an
+  audio track: a take) in the section (`lanes_live`), else the move is
+  refused. While the sound dock is editing a synth track, its working FX are
+  mirrored over the track's after each Synths request
+  (`mirror_patch_to_track`), as for any lane's unit id; the song's move
+  reloads the dock (`follow_track_edit`), which is not checked here.
+- **Twice is once**: the same move replaces its own lane (one per target)
+  and reuses its unit. The unit and the lane are one `_commit`: one undo
+  step, "automation move". The toast says the edit in words.
+- The section's own "move left / right" posts the same path with `delta`;
+  a `move` field is what selects an automation move.
+
 ### An audio track's rack and lanes
 
 **An audio track's rack and lanes** (`mixer.edit_rack`,
