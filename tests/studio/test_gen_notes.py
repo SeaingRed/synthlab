@@ -477,3 +477,96 @@ def test_the_styles_are_whole_and_name_only_what_exists():
         for k in ("melodic_techno", "filter_house", "garage", "trance")
     ] == [176, 144, 104, 144]
     assert styles.bars_of("trance", "long") == 208
+
+
+# --- the bass switch: call and response between bass sounds -------------------
+
+
+def _switch(voices=2, every=2.0, seed=7, song=None, bars=8, **kw):
+    ctx = _ctx(song, "bass", seed, role="sw", bars=bars)
+    return nt.bass_switch(ctx, voices, every, **kw), ctx
+
+
+def _held(lane: dict) -> set[int]:
+    return {s for _p, s in lane["cells"]}
+
+
+def test_a_bass_switch_never_holds_a_step_in_two_lanes():
+    for voices in (2, 3, 4):
+        for every in (1.0, 2.0, 3.0):
+            lanes, _ = _switch(voices, every)
+            assert len(lanes) == voices
+            sets = [_held(lane) for lane in lanes]
+            for i, a in enumerate(sets):
+                for b in sets[i + 1 :]:
+                    assert not a & b
+
+
+def test_every_window_holds_a_note_in_its_own_lane():
+    for voices, every in ((2, 2.0), (3, 2.0), (2, 1.0), (4, 1.0)):
+        lanes, ctx = _switch(voices, every)
+        win = int(every * 4)
+        for w in range(ctx.total // win):
+            ons = {s for k in range(voices) for s in nt.note_ons(lanes[k])}
+            own = nt.note_ons(lanes[w % voices])
+            assert any(w * win <= s < (w + 1) * win for s in own), (voices, every, w)
+            # and nothing of another voice there
+            for k in range(voices):
+                if k != w % voices:
+                    assert not any(
+                        w * win <= s < (w + 1) * win for s in nt.note_ons(lanes[k])
+                    )
+            assert ons
+
+
+def test_a_bass_switch_is_seeded_and_the_seed_moves_the_figure():
+    a, _ = _switch(seed=7)
+    assert a == _switch(seed=7)[0]
+    assert any(_switch(seed=s)[0] != a for s in range(8, 14))
+
+
+def test_one_voice_plays_every_window():
+    (lane,), ctx = _switch(1, 2.0)
+    ons = nt.note_ons(lane)
+    assert all(any(w * 8 <= s < w * 8 + 8 for s in ons) for w in range(ctx.total // 8))
+
+
+def test_a_bass_switch_plays_the_chord_roots_the_roots_bass_reads():
+    lanes, ctx = _switch(2, 2.0)
+    for lane in lanes:
+        for pitch, start, _n in nt.runs(lane):
+            want = nt.above(ctx.low, ctx.chord(start - start % 8)["root"])
+            assert midi(pitch) == want
+
+
+def test_generate_returns_one_lane_a_voice():
+    lanes, ctx = _switch(3, 2.0)
+    for k in range(3):
+        assert nt.generate("bass_switch", ctx, voice=k, voices=3, every=2.0) == lanes[k]
+
+
+def test_a_bass_switch_can_leave_the_kicks_steps():
+    ctx = _ctx(role="sw", kick=(0, 10))
+    for k in range(2):
+        lane = nt.generate("bass_switch", ctx, voice=k, leave_kick=True)
+        assert not {s % 16 for s in nt.note_ons(lane)} & {0, 10}
+        assert nt.note_ons(lane)
+
+
+@pytest.mark.parametrize("meter", ["3/4", "6/8", "7/8"])
+def test_a_bass_switch_in_another_meter_stays_inside_its_bars(meter):
+    from synthlab.studio import meter as _m
+    from synthlab.studio import meterops
+
+    six = _m.parse(meter).sixteenths
+    lanes, ctx = _switch(2, 2.0)
+    fitted = [meterops.beat_fit(lane, meter) for lane in lanes]
+    for lane in fitted:
+        for _p, start, n in nt.runs(lane):
+            assert start // six == (start + n - 1) // six  # no note crosses a bar
+    held = [_held(lane) for lane in fitted]
+    assert not held[0] & held[1]
+    # the windows restart at each bar: the first voice opens every bar
+    for bar in range(ctx.bars):
+        first = min(s for lane in fitted for s in nt.note_ons(lane) if s // six == bar)
+        assert first in nt.note_ons(fitted[0])

@@ -1164,7 +1164,7 @@ sync, a 4-op FM stack and drift ("Revisited").
   0.7, a room, the pump at 0.9 *after* the room so the room ducks too —
   a room after the pump fills the duck back in to -5.8 dB; width 1.6).
 - **Starters** (`songcraft.md`, "Styles"): every one opens with nothing
-  missing and passes its signature for five seeds (9 / 9 / 9 / 8 / 10
+  missing and passes its signature for five seeds (9 / 9 / 10 / 8 / 10
   checks). Dubstep is the one with seven synth tracks (the wobble twice:
   the eighth for the first drop, the eighth triplet by a track `patch`
   override answering the growl in the second). `tools/song_measure.py`,

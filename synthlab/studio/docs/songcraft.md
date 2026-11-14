@@ -97,6 +97,7 @@ the part's register and its stream.
 |---|---|
 | `bass_rolling` | steps 1, 2, 3 of every beat and never the kick's step, one step long each with a **cut** between (two cells of one pitch side by side are otherwise one held note), on the chord's root. `figure`: `roll`, `octave` (the third an octave up), `gallop` (2, 3), `offbeat` (2). The seed moves which beats' last note pops to the chord's fifth or the octave. `bass_pair` is the two tracks from one seed: the mid with its pops, the sub an octave under on the roots |
 | `bass_root`, `bass_offbeat`, `bass_walk`, `bass_2step` | long roots · an offbeat eighth · a syncopated funk line with a slide · a two-step sub with gaps |
+| `bass_switch` | call and response between bass sounds: `bass_switch(ctx, voices=2, every=2.0)` is one lane a voice, `generate("bass_switch", ctx, voice=k, voices=n, every=b)` lane k. Time is cut into windows of `every` beats (split at every bar line); voice k sounds only where `window % voices == k`, one short figure from a table of five (it always opens on the window's first step) on the root of the chord under the window's start, silence elsewhere. The seed draws the figures from one stream for every voice, so no step is held in two lanes. `leave_kick` moves a note that would start on a kick's step one step on: for a voice whose chain has no duck. Written in 4/4 like the rest and put on another meter's beats by `meterops.beat_fit` (each bar's first note carries a cut so a fitted bar cannot run into the one before) |
 | `chords` | the progression voiced (`close`: voice-led; `wide`; `anthem`; `power`), `rhythm` `held` / `stabs` (offbeats) / `pump` / `push` |
 | `pad` | held, wide |
 | `arp` | the chord's tones as explicit notes: `up`, `down`, `updown`, `random`, `pedal`; `rate` 1 or 2 sixteenths, `gate`, `octaves` |
@@ -146,7 +147,11 @@ breakdown, the jungle-ish beat in the second drop, an Impact track),
 eighth; the second drop the riddim beat under a growl for the first half
 of every pass and the same wobble at the eighth triplet — a track's
 `patch` override — for the second; a cut and an Impact into each drop;
-seven synth tracks, the eighth free), `synthwave` (*Synthwave*, 100: the
+seven synth tracks, the eighth free; **the first drop is call and
+response**: the wobble and the growl are voices 0 and 1 of `bass_switch`
+(part "B" of each track, every 2 beats, the growl with `leave_kick`
+because its chain is full) — the second drop keeps its alternation by
+halves, the growl's span then the triplet's entry), `synthwave` (*Synthwave*, 100: the
 drum bus through the Gated Verb chain's room and gate, a sixteenth arp
 bass on `arp` "pedal" in the bass register, tucked; brass pushes, then
 stabs in the choruses; a bridge with no drums swelling into the last
@@ -320,13 +325,16 @@ industrial, 8 / 10 for psych and sixties; among them trance's "a
 sub drop under the climax's first beat" and "the drums punched", melodic
 techno's "a sub drop under a drop's first beat", filter house's
 envelope filter on the bass, garage's OTT pad, electro's punched drums;
-9 / 9 / 9 / 8 / 10 for hip-hop, drum & bass, dubstep,
+9 / 9 / 10 / 8 / 10 for hip-hop, drum & bass, dubstep,
 synthwave and future bass — `_half_time` (a snare or clap on step 8 of
 the drop's first bar, none on 4 or 12), `_rolled` (a hat or snare hit
 with a ratchet of 2 or more), `_ghosts`, a gliding sine 808 landing
 with the kick, a Reese read as two saws 10 cents apart or more, the
 wobble as a bass whose filter LFO is synced (two clock rates or more
-across the basses), a gated room as a `reverb` followed by a `vgate` on
+across the basses), the switch as two bass tracks that alternate in a
+drop (`_alternates`: both sound, no step is held by both, the sound
+changes hands twice or more along the pass; read from the notes with
+`held_steps`, never a track's name), a gated room as a `reverb` followed by a `vgate` on
 the drum bus, a sequenced bass as eight note-ons a bar or more in every
 chorus bar, a pitch-bent pluck as a pitch envelope or a route to
 `pitch`; 10 each for lo-fi, ambient, chiptune, hardstyle and

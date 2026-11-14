@@ -344,6 +344,71 @@ def bass_2step(ctx: Ctx) -> dict:
     return lane.data()
 
 
+# a window's figure, as (offset, length, velocity) in sixteenths from the
+# window's start: every one opens on the window's first step, so a window
+# always sounds, and is clipped to the window (and the bar) it is in
+_SWITCH_FIGURES = (
+    ((0, 6, 0.95),),
+    ((0, 2, 0.95), (2, 2, 0.85), (4, 2, 0.9), (6, 2, 0.8)),
+    ((0, 3, 0.95), (3, 3, 0.85), (6, 2, 0.9)),
+    ((0, 2, 0.95), (3, 1, 0.8), (4, 3, 0.9)),
+    ((0, 1, 0.95), (2, 1, 0.8), (4, 4, 0.9)),
+)
+SWITCH_VOICES = 4
+
+
+def bass_switch(
+    ctx: Ctx, voices: int = 2, every: float = 2.0, leave_kick: bool = False
+) -> list[dict]:
+    """Call and response between bass sounds: one lane a voice. Time is cut
+    into windows of `every` beats (a window never crosses a bar line: one
+    that would is split there) and voice k sounds only in the windows where
+    `window % voices == k`; in its window it plays one short figure on the
+    root of the chord under the window's start (the seed picks the figure,
+    from one stream for every voice, so a lane is the same whichever voice
+    is asked for) and nothing else. Written in 4/4 like the rest; another
+    meter takes it through `meterops.beat_fit`. `leave_kick` moves a note
+    that would start on a kick's step one step on (a voice whose chain has
+    no duck)."""
+    voices = max(1, min(SWITCH_VOICES, int(voices)))
+    win = max(1, round(max(0.25, min(8.0, float(every))) * 4))
+    r = rng(ctx, "bass_switch")
+    lanes = [Lane(ctx.bars) for _ in range(voices)]
+    for bar in range(ctx.bars):
+        lo, hi = bar * SPB, (bar + 1) * SPB
+        edges = sorted({lo, hi, *range((lo // win + 1) * win, hi, win)})
+        for a, b in zip(edges, edges[1:], strict=False):
+            lane = lanes[(a // win) % voices]
+            root = above(ctx.low, ctx.chord(a)["root"])
+            for off, length, vel in r.choice(_SWITCH_FIGURES):
+                at, n = a + off, length
+                if at >= b:
+                    continue
+                if leave_kick and at % SPB in ctx.kick:
+                    at, n = at + 1, n - 1
+                if n < 1 or at >= b:
+                    continue
+                lane.note(root, at, min(n, b - at), vel)
+                if at == lo:
+                    # a cut on every bar's first note: fitted to a shorter
+                    # bar, the note before it can end on that bar line
+                    lane.cuts.add((root, at))
+    return [lane.data() for lane in lanes]
+
+
+def _switch_lane(
+    ctx: Ctx,
+    voice: int = 0,
+    voices: int = 2,
+    every: float = 2.0,
+    leave_kick: bool = False,
+) -> dict:
+    """`bass_switch`'s lane `voice` (the one-lane-a-call shape the table
+    wants)."""
+    lanes = bass_switch(ctx, voices, every, leave_kick)
+    return lanes[max(0, min(len(lanes) - 1, int(voice)))]
+
+
 # --- chords, pad ----------------------------------------------------------------
 
 
@@ -678,6 +743,7 @@ GENERATORS = {
     "bass_offbeat": bass_offbeat,
     "bass_walk": bass_walk,
     "bass_2step": bass_2step,
+    "bass_switch": _switch_lane,
     "chords": chords,
     "pad": pad,
     "arp": arp,
@@ -692,6 +758,7 @@ KIND_REGISTER = {
     "bass_offbeat": "bass",
     "bass_walk": "bass",
     "bass_2step": "sub",
+    "bass_switch": "bass",
     "chords": "chords",
     "pad": "pad",
     "arp": "arp",

@@ -64,7 +64,7 @@ def test_the_signature_lists_have_each_styles_length(style):
             "sixties": 10,
             "hiphop": 9,
             "dnb": 9,
-            "dubstep": 9,
+            "dubstep": 10,
             "synthwave": 8,
             "future_bass": 10,
             "lofi": 10,
@@ -409,6 +409,19 @@ def test_the_hiphop_to_future_bass_checks_fail_when_their_piece_is_gone():
     s = copy.deepcopy(good)
     _track(s, "Impact")["mute"] = True
     assert not _sig(s)["an impact starting on a drop's first bar line"]
+    # the switch: read from the notes. The growl made to play the wobble's
+    # notes overlaps it; a growl with its own notes in the same steps too
+    alt = "two basses answering each other in a drop, never on one step"
+    assert _sig(good)[alt]
+    s = copy.deepcopy(good)
+    drop = next(x for x in s["sections"] if x["name"] == "Drop")
+    wob, gro = _track(s, "Wobble")["id"], _track(s, "Growl")["id"]
+    drop["cells"][gro] = drop["cells"][wob]
+    assert not _sig(s)[alt]
+    s = copy.deepcopy(good)
+    for t in s["tracks"]:  # renaming changes nothing: the notes are read
+        t["name"] = "Bass " + t["id"]
+    assert _sig(s)[alt]
     assert all(_sig(good).values())
 
     good = build.start("synthwave", 2).song

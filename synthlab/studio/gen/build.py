@@ -759,6 +759,7 @@ _KIND_ROLE = {
     "bass_offbeat": "bass",
     "bass_walk": "bass",
     "bass_2step": "bass",
+    "bass_switch": "bass",
     "chords": "chords",
     "pad": "pad",
     "arp": "arp",
