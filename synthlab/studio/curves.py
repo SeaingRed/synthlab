@@ -92,6 +92,10 @@ FX_LANES: dict[str, tuple[str, ...]] = {
     "ott": ("depth",),
     "limiter": ("gain",),
     "transient": ("attack", "sustain"),
+    # the multiband drive: each band's amount (a drive's, per band) and its
+    # blend — whose dry is the bands summed, so the unit takes it itself
+    # (`fxauto.OWN_MIX`)
+    "mbdrive": ("low", "mid", "high", "mix"),
 }
 # A lane stores 0..1 of its range, so a slider widened later would rescale
 # every lane drawn on it: such a lane keeps the range it was drawn in. The

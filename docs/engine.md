@@ -157,6 +157,25 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   included); lanes on the OTT's depth, the limiter's gain, the shaper's
   attack and sustain. **The envelope filter is the auto-filter's `env`**
   (a preset each way), not a unit. No existing unit moved: no `RENDER_REV`.
+- **Multiband drive** (`effects.mbdrive`, FX unit `mbdrive`,
+  `tests/test_effects_mbdrive.py`): the OTT's three bands (`ott_bands`),
+  each through `drive_shape` at its own amount (`low`, `mid`, `high`,
+  1-12, one `mode` of `DRIVE_MODES` for all three, stored as its index as
+  the drive's is), summed. **A band at 1 is passed, never shaped** (the
+  shapes are not the identity at 1: soft's small-signal gain there is
+  1 / tanh(1), +2.4 dB), and with every band at 1 nothing is split: the
+  unit is its input, at any mix. **Its dry is the bands summed**, not its
+  input — the input through two all-passes, flat in level and in phase
+  with the wet; the raw input would cancel the wet near 2.5 kHz (the
+  all-passes' ~180 degrees) at an even blend. So `mix` 0 with a band
+  driven is the all-passed input (as the OTT at depth 0), and a mix lane
+  is the unit's own (`fxauto.OWN_MIX`). Measured: 60 Hz + 6 kHz with the
+  low band at 8, every mode: the 60 Hz tone +9.2 to +12.4 dB with
+  harmonics under 500 Hz from nothing, the 6 kHz partial 0.000 dB.
+  Causal, silent in silence; live twin in `fx2-worklet.js` (the OTT's
+  crossover, now shared, and fx-worklet.js's drive shapes: <= 3.8e-8 of
+  peak); lanes on the three amounts and the mix. No existing unit moved:
+  no `RENDER_REV`.
 - `sequencer.py` — `Song`: beat-based multitrack timeline. `note_span()` is
   the one definition of how long a note's buffer is: its own length plus the
   patch's release (capped at `MAX_NOTE_TAIL`). It was a flat `dur * 1.15`

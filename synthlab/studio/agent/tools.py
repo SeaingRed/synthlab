@@ -47,6 +47,7 @@ from ..fxrack import (
     FX2_UNITS,
     FX_UNITS,
     MAX_UNITS,
+    MULTIBAND_UNITS,
     VOCAL_UNITS,
     clean_chain,
 )
@@ -83,8 +84,9 @@ _AGENT_FX_CAPS = {("width", "amount"): 1.5}
 # the units the agent may put on a sound: every one but the live vocal
 # chain's (a mic's, not a synth's — and five more catalogue lines on every
 # request), the FX2 units (nine more lines: past the schema's budget,
-# tests/studio/test_agent.py) and the dynamics units (three more)
-_NOT_OFFERED = VOCAL_UNITS | FX2_UNITS | DYNAMICS_UNITS
+# tests/studio/test_agent.py), the dynamics units (three more) and the
+# multiband drive (one more)
+_NOT_OFFERED = VOCAL_UNITS | FX2_UNITS | DYNAMICS_UNITS | MULTIBAND_UNITS
 AGENT_FX = {k: v for k, v in FX_UNITS.items() if k not in _NOT_OFFERED}
 
 

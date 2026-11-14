@@ -48,7 +48,7 @@
 // 192 -> 193: the units of fx2-worklet.js (a
 // fourth module in the FX scope) and the spring's ConvolverNode.
 // The dynamics units (OTT, limiter, transient shaper) join
-// the `JS` set, fx2-worklet.js's too — no new line.
+// the `JS` set, fx2-worklet.js's too — no new line. So does the multiband drive.
 // 193 -> 194: a lane's own wavetable rides the
 // sampler's fetch (`sampler(l, url, "wtable")`) and holds `ready` the same way.
 // Budget: <= 194 code lines.
@@ -59,7 +59,7 @@
   const JS = new Set(["drive", "clip", "fold", "bitcrush", "ringmod", "comb", "width", "delay", "chorus",
     "flanger", "phaser", "gate", "pump", "sidechain", "eq", "doubler", "rotary", "tape_echo", "telephone", "pitch",
     "autotune", "harmony", "vox_comp", "deess", "vgate", // these five and pitch: vox-worklet.js, in the same scope
-    "autofilter", "tremolo", "tape", "pingpong", "formant_shift", "freqshift", "exciter", "vocoder_fx", "ott", "limiter", "transient"]); // fx2-worklet.js
+    "autofilter", "tremolo", "tape", "pingpong", "formant_shift", "freqshift", "exciter", "vocoder_fx", "ott", "limiter", "transient", "mbdrive"]); // fx2-worklet.js
   let ctx = null, tables = null, masterIn = null, master = null, stack = [], wasm = null;
   const layers = []; // {node, gain, chain}
   const irs = new Map(); // IR url -> Promise<AudioBuffer>

@@ -39,6 +39,12 @@ pieces:
   the ceiling as the slider would be), the transient shaper's `attack`
   and `sustain` (each its detector's dB times the value, per sample):
   memoryless in the parameter, exact, standing still bit for bit.
+- the multiband drive's `low` / `mid` / `high` (each band's drive amount,
+  per sample: `effects.drive_shape` takes an array; a sample at 1 is the
+  band itself) and its `mix`, which it takes itself (`OWN_MIX`: its dry is
+  the bands summed, not its input). Memoryless in the parameters, exact,
+  standing still bit for bit. A lane at 1 on every band all through is
+  the unit at rest: its input, unsplit.
 - lowpass / highpass `cutoff` and `q`: `core.biquad`'s swept state-variable
   filter, one coefficient set per 64-sample block (1.45 ms) — the engine's
   own swept filter, the one a Patch's cutoff curve runs.
@@ -148,9 +154,11 @@ def values(
 BLOCKED = frozenset({"lowpass", "highpass", "eq"})
 BLOCK = 64
 # the units that blend inside their own regions (a repeat's, a stop's
-# window) rather than over the whole buffer: they take the mix array
-# themselves, where every other `mix` is `dry * (1 - mix) + wet * mix`
-OWN_MIX = frozenset({"beat_repeat", "stop"})
+# window) rather than over the whole buffer, or against a dry that is not
+# their input (the multiband drive's: its bands summed, the input through
+# two all-passes): they take the mix array themselves, where every other
+# `mix` is `dry * (1 - mix) + wet * mix` with the input the dry
+OWN_MIX = frozenset({"beat_repeat", "stop", "mbdrive"})
 
 
 def _unit(x: np.ndarray, u: dict, arr: Arrangement, arrays: dict, n: int) -> np.ndarray:

@@ -49,6 +49,9 @@ FX2_UNITS = frozenset(
 # the dynamics units (the mix's dynamics, fx2-worklet.js too).
 # Not offered to the sound agent, for the FX2 units' reason
 DYNAMICS_UNITS = frozenset({"ott", "limiter", "transient"})
+# the multiband drive (fx2-worklet.js too): not offered to the sound agent,
+# for the same reason (its schema's budget)
+MULTIBAND_UNITS = frozenset({"mbdrive"})
 # an LFO unit's `sync` (the auto-filter's, the tremolo's): 0 its own `rate`
 # in Hz, else one cycle a note length (beats: `LFO_BEATS`, resolve_unit)
 LFO_SYNC = (
@@ -574,6 +577,20 @@ FX_UNITS: dict[str, dict] = {
             "output": (-12.0, 12.0, 0.0),
         },
     },
+    # the OTT's three bands, each through the drive's shape at its own
+    # amount (1 = the band untouched; every band at 1 is the input itself);
+    # `mode` a choice as the drive's (effects.DRIVE_MODES, its index)
+    "mbdrive": {
+        "label": "Multiband drive",
+        "params": {
+            "low": (1.0, 12.0, 1.0),
+            "mid": (1.0, 12.0, 1.0),
+            "high": (1.0, 12.0, 1.0),
+            "mode": (0.0, 3.0, 0.0),
+            "mix": (0.0, 1.0, 1.0),
+        },
+        "choices": {"mode": fx.DRIVE_MODES},
+    },
 }
 
 
@@ -884,6 +901,12 @@ FX_PRESETS: dict[str, dict[str, dict[str, float]]] = {
         "Tight": {"sustain": -0.7},
         "Roomy": {"sustain": 0.7},
         "Soften": {"attack": -0.6},
+    },
+    # mode indexes effects.DRIVE_MODES (0 soft, 1 hard, 2 fuzz, 3 tube)
+    "mbdrive": {
+        "Low growl": {"low": 6.0, "mid": 1.5, "mode": 3.0},
+        "Mid bite": {"mid": 5.0, "mode": 1.0, "mix": 0.8},
+        "Air fizz": {"high": 8.0, "mode": 2.0, "mix": 0.6},
     },
 }
 
@@ -2285,6 +2308,9 @@ def resolve_unit(u: dict, arr: Arrangement) -> tuple[str, dict]:
     if kind == "drive":
         mode = fx.DRIVE_MODES[int(p["mode"])]
         return "drive", {"amount": p["amount"], "mix": p["mix"], "mode": mode}
+    if kind == "mbdrive":  # the drive's mode, by name
+        rest = {k: v for k, v in p.items() if k != "mode"}
+        return "mbdrive", {**rest, "mode": fx.DRIVE_MODES[int(p["mode"])]}
     if kind == "compress":
         # makeup below 0 dB is the automatic one (the factory's None)
         makeup = 10 ** (p["makeup"] / 20) if p["makeup"] >= 0 else None
