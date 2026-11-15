@@ -146,6 +146,7 @@ def _tone(client) -> None:
 
 
 _HUB_BEAT = json.dumps({"target": "beat", "style": "techno", "kit": "Trance"})
+_HUB_KEYS = json.dumps({"target": "keys", "slices": 8, "cut": "equal"})
 
 
 def _hub_applied(client) -> None:
@@ -2069,6 +2070,11 @@ CASES: list[Case] = [
         _tone,
     ),
     C("/hub/apply", "clips", {"item": "clip:tone", "plan": _HUB_BEAT}, _tone),
+    # → Chop keys: a preview like a make's (a toast when the clip is gone);
+    # its Apply lands on Synths, as → Sound's does
+    C("/hub/chop", "clips", {"item": "clip:tone", "slices": "8"}, _tone),
+    C("/hub/chop", "clips", {"item": "clip:nope", "slices": "8"}),
+    C("/hub/apply", "clips", {"item": "clip:tone", "plan": _HUB_KEYS}, _tone),
     C("/hub/apply", "clips", {"item": "clip:tone", "plan": "[1]"}, _tone),  # no plan
     C("/hub/undo", "clips", {}, _hub_applied),
     C("/hub/undo", "clips"),  # nothing to undo: a toast

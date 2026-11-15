@@ -766,6 +766,7 @@ _KIND_ROLE = {
     "lead": "lead",
     "chops": "vocal",
     "hit": "fx",
+    "chop_stutter": "vocal",
 }
 
 

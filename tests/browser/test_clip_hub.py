@@ -11,7 +11,9 @@ Journeys, driven as a user drives them:
 - send: a drum row's button posts the drum machine's own route and the
   list says where the clip is used now;
 - make a beat: ▶ Preview renders and plays a preview, nothing written;
-  Apply writes it as one step; Ctrl+Z (the hub's ↶ Undo) takes it back.
+  Apply writes it as one step; Ctrl+Z (the hub's ↶ Undo) takes it back;
+- → Chop keys: a preview, Apply lands on Synths with the sliced sampler,
+  and the hub's ↶ Undo gives the sound before it back.
 
 Proves signal flows and state moves; nobody listens here: the clips are
 test tones and synthetic drums, and what a make sounds like is unchecked.
@@ -21,6 +23,7 @@ from __future__ import annotations
 
 import pytest
 
+from synthlab import sampler
 from synthlab.studio.clips import list_clips, save_clip
 from tests.studio.test_clip_hub import drum_loop, melody
 
@@ -163,3 +166,28 @@ def test_the_hub_is_on_the_rail_and_the_morph_says_it_needs_a_key(hub):
     page.click("#hub-make .hub-target label:has(input[value=notes])")
     assert page.locator("#hub-make select[name=sound]").is_visible()
     assert not page.locator("#hub-make select[name=kit]").is_visible()
+
+
+def test_chop_keys_preview_apply_and_undo(hub):
+    s = hub.server.state
+    page = hub.open("clips")
+    patch0 = s.patch.to_json()
+    _open_bench(hub, "loop")
+    page.select_option("#hub-make select[name=slices]", "16")
+    page.select_option("#hub-make select[name=cut]", "equal")
+    page.click("#hub-make .hub-chop button:has-text('Chop keys')")
+    page.wait_for_selector("#hub-result audio[data-hub-preview]", state="attached")
+    page.wait_for_function("() => !document.querySelector('.htmx-request')")
+    assert s.patch.to_json() == patch0  # a preview writes nothing
+    assert "16 equal slices" in page.locator("#hub-result .hub-said").inner_text()
+    page.click("#hub-result button:has-text('Apply')")
+    page.wait_for_selector('#view[data-view="editor"]')  # it lands on Synths ...
+    page.wait_for_function("() => location.pathname === '/view/editor'")
+    assert page.locator("#view").count() == 1  # ... as the page, not inside it
+    p = s.patch
+    assert p.osc1 == "sampler" and p.sampler_root == 60
+    assert len(sampler.parse_slices(p.sampler_slices)) == 16
+    hub.nav("clips")
+    page.click("#hub-undo")
+    page.wait_for_function("() => !document.getElementById('hub-undo')")
+    assert s.patch.to_json() == patch0

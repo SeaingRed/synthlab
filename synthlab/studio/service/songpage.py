@@ -246,6 +246,7 @@ GEN_KINDS = (
     ("arp", "arp"),
     ("lead", "lead"),
     ("chops", "chops"),
+    ("chop_stutter", "chop stutter (slice keys)"),
 )
 
 
