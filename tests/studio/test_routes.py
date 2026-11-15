@@ -517,6 +517,8 @@ EXPECTED_ROUTES = [
     # the sampler instrument: a clip / a resample becomes a sound, chops
     (["POST"], "/fragment/sampler/chop"),
     (["POST"], "/fragment/sampler/clip"),
+    # Resample ↻: the layer's phrase through its rack, the rack emptied
+    (["POST"], "/fragment/sampler/rebake"),
     # ● Record sample: a timed mic take into the clip store and the sampler
     (["POST"], "/fragment/sampler/record"),
     (["POST"], "/fragment/sampler/resample"),

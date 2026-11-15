@@ -890,6 +890,7 @@ CASES: list[Case] = [
     C("/fragment/sampler/clip", "perform", {"name": "tone"}, _tone),
     C("/fragment/sampler/clip", "editor", {"name": "hit"}, _clip),  # silent: toast
     C("/fragment/sampler/resample", "editor", {"source": "phrase"}),
+    C("/fragment/sampler/rebake", "editor", {}),
     # your own wavetable — made from a clip or drawn, a patch
     # edit answered with the whole page (the mod matrix's mixes do the same)
     C(

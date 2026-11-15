@@ -96,7 +96,7 @@ layer strip; style.css 7a2) is three parts, each wrapping **whole**:
   of 4 ▶ the phrase · hold · 1 bar" (`.sb-title`: `#sound-id` drawn as
   contents, so its `.sid-meta` and ▶'s `.play-cue` share the line) · the
   actions in four `.sb-group`s — edit (Undo) · compare (A/B, ⇄, Morph) ·
-  take it further (Bounce, Resample loop, → Song) · the outcome (✦ Agent,
+  take it further (Bounce, Resample loop, Resample ↻, → Song) · the outcome (✦ Agent,
   Save sound…) — in two `.sb-half`s: one line, right-aligned, or, when the
   line is short, the halves one over the other beside the name, never
   three and one. The empty morph slot is drawn unlit ("Morph" over an
@@ -342,7 +342,9 @@ loop says what it replaced**: it stays a replace of the edited layer's
 sound (a sampler of the Perform loop layered under the sound it was
 taken from plays the loop at every note of the phrase), and its done
 toast names the layer, what it took and its length, Source's chop and
-the way back ("Ctrl+Z gives “Acid Alley” back"). **"edited" follows
+the way back ("Ctrl+Z gives “Acid Alley” back"). **Resample ↻ bakes
+the layer's rack and empties it**, one undo step giving back both
+(`sampler-and-clips.md`, "Sampler instrument"). **"edited" follows
 undo across a load**: a patch undo step keeps the "sound" baseline of
 its moment (`state/history.py` `_SOUND_BASE`), and Ctrl+Z that lands on
 exactly that baseline's patch restores it — save, Resample, Ctrl+Z is
