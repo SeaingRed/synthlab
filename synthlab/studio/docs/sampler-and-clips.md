@@ -707,6 +707,33 @@ on every input inside it), hidden unless an osc is "sampler" (the
 `hidden` attribute + an editor.html `:has()` rule on the osc1 pills, like
 the shape rows).
 
+**Resample ↻** (the sound bar, beside ⤷ Resample loop; `POST
+/fragment/sampler/rebake`, `sampler_rebake`): resample, mangle, resample
+again, one generation a press. The edited layer's phrase — the Synths
+phrase (or a song track's notes while one is edited), the layer's patch
+and curves, through **the layer's own rack as it sounds**
+(`fxrack.active`: bypassed units skipped), and nothing else: no master
+rack, no other layer, no beat, the slot's gain at 1 (`svc.render("editor",
+patch=, chain=, mix=False)`, a card's "on its own" audition with the
+layer's rack as its chain) — becomes that layer's sampler sound
+(`sampler_patch` through `load_sound`, as every resample: osc1 the
+sample, filter off; not looped, as ⤷ Resample loop is not), its root the
+phrase's root key (`RenderInputs.arr.root`), so the phrase's root plays
+the take at its own pitch. **The layer rack empties in the same step**:
+the FX are in the sample, so they are not applied a second time, and a
+second press resamples the first press's result through whatever was put
+on the rack since. The name counts the generations ("Acid ↻", "Acid ↻2").
+One undo step gives back the patch *and* the rack: a patch step that
+carries the chain as well (`push_undo_step(also_fx=("layer", chain))`,
+`state/history.py` `_FX_ALSO`), never two steps. Refused in words,
+nothing changed and nothing stored: a phrase longer than a sample holds
+(`sampler.MAX_SAMPLE_SECONDS`, 30 s — ⤷ Resample loop truncates instead),
+a render error, silence. Drawn curves are baked into the take *and* stay
+on the layer (the curves are the session's, not the rack's): a level or
+pan curve applies again to the sampler. Renders under the lock, as ⤷
+Resample loop and ⏺ Bounce do (one phrase, usually cached by ▶).
+`tests/studio/test_sampler_studio.py` (`test_resample_chain_*`).
+
 ### Record a sample
 
 **● Record sample** (`static/samplerec.js`, `POST

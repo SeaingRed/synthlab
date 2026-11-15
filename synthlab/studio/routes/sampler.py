@@ -15,8 +15,10 @@ clip store and then used exactly as "Use as sampler" uses a clip."""
 
 from __future__ import annotations
 
+import copy
 import json
 import math
+import re
 import time
 import wave
 from dataclasses import replace
@@ -25,7 +27,8 @@ from fastapi import Request, Response
 
 from ... import params, sampler
 from ...audio import read_pcm16
-from .. import limits
+from ...sequencer import midi
+from .. import fxrack, limits
 from .. import samplerview as sv
 from ..clips import free_clip_name, load_clip, save_clip
 from ..render import RenderError
@@ -195,6 +198,64 @@ def sampler_resample(request: Request, form: StrForm, svc: Svc) -> Response:
     return adopt_audio(
         request, svc, audio, sampler.SR, f"resampled {source}", say=say, kind="done"
     )
+
+
+_GENERATION = re.compile(r"^(.*) ↻(\d*)$")
+
+
+def _next_generation(name: str) -> str:
+    """ "Acid" -> "Acid ↻" -> "Acid ↻2" -> ...: each press one generation."""
+    m = _GENERATION.match(name)
+    if m is None:
+        return f"{(name or 'sound')[:56]} ↻"
+    return f"{m.group(1)[:52]} ↻{int(m.group(2) or 1) + 1}"
+
+
+@router.post("/fragment/sampler/rebake")
+def sampler_rebake(request: Request, form: StrForm, svc: Svc) -> Response:
+    """Resample ↻: the edited layer's phrase through that layer's own rack
+    (as it sounds: bypassed units skipped; not the master rack, not the
+    other layers, not the beat) becomes that layer's sampler sound, rooted
+    on the phrase's root so the phrase's keys play it back — and the layer
+    rack is emptied in the same step, so the FX baked into the sample are
+    not applied twice. Pressing again resamples the result: one generation
+    a press. One undo step gives back the patch and the rack together
+    (`push_undo_step(also_fx=)`). A phrase longer than the sampler stores
+    (`sampler.MAX_SAMPLE_SECONDS`), a render error or silence is refused in
+    words, changing nothing."""
+    s: StudioState = svc.state
+    rack = s.fx_chain("layer") or []
+    chain = {"main_fx": fxrack.active(rack), "curves": s.curves, "layers": None}
+    try:
+        inp = svc.render_inputs("editor", patch=s.patch, chain=chain, mix=False)
+        audio = svc.render("editor", patch=s.patch, chain=chain, mix=False).audio()
+    except RenderError as err:
+        return svc.toast(f"Couldn't resample: {err}")
+    secs = len(audio) / sampler.SR
+    if secs > sampler.MAX_SAMPLE_SECONDS:
+        return svc.toast(
+            f"The phrase is {secs:.1f} s: a sample holds "
+            f"{sampler.MAX_SAMPLE_SECONDS:g} s at most. Nothing changed."
+        )
+    if sv.silent(audio):
+        return svc.toast("The phrase is silent: nothing to resample.")
+    sid = sampler.save(s.sample_dir, audio, sampler.SR)
+    was = s.patch.name or "the sound"
+    name = _next_generation(s.patch.name)
+    before = s.patch_snapshot()
+    rack_before = copy.deepcopy(rack)
+    s.load_sound(sv.sampler_patch(sid, name, midi(inp.arr.root)), label=name)
+    # the FX are in the sample now: the rack empties with the same press
+    # (the chain as stored, so `fx_chain` keeps the same list)
+    s.fx_chain("layer")[:] = []
+    s.push_undo_step(before, also_fx=("layer", rack_before))
+    s.save()
+    fx = plural(len(fxrack.active(rack_before)), "unit")
+    say = (
+        f"Layer {s.active_layer + 1} is now “{name}”: the phrase through its "
+        f"FX ({fx}, {secs:.1f} s), the rack emptied. Ctrl+Z gives “{was}” back."
+    )
+    return svc.land_on(request, "editor", say, kind="done")
 
 
 @router.post("/fragment/sampler/chop")

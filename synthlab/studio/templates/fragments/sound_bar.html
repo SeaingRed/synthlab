@@ -56,6 +56,13 @@
             hx-vals='{"source": "loop"}' hx-target="body" hx-swap="innerMorph"
             title="resample the working loop into a sampler sound you play from the keys (chop it in Source)"
             aria-label="resample the loop into a sampler">⤷ Resample loop</button>
+    {#- Resample ↻: this layer's phrase through its own rack becomes its
+        sampler sound and the rack empties — press again for the next
+        generation (routes/sampler.py `sampler_rebake`; one Ctrl+Z) -#}
+    <button data-cmd="Resample the layer through its FX" type="button" class="btn btn-s sb-btn" hx-post="/fragment/sampler/rebake"
+            hx-target="body" hx-swap="innerMorph"
+            title="this layer's phrase through its own FX (not the master) becomes its sampler sound, and its rack empties: press again to resample the result (Ctrl+Z gives the sound and its FX back)"
+            aria-label="resample this layer through its FX into a sampler">Resample ↻</button>
     {#- → Song: the Perform loop (its notes and beat, with this sound) as the
         song's new last section — Perform's button, here too. Its answer
         opens under it (a popover: the row never reflows round it) -#}

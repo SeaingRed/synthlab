@@ -4,6 +4,7 @@ persistence (studio/samplerview.py, routes/sampler.py)."""
 
 from __future__ import annotations
 
+import copy
 import json
 from dataclasses import replace
 
@@ -12,7 +13,9 @@ from fastapi.testclient import TestClient
 
 from synthlab import sampler
 from synthlab.core import SR
+from synthlab.sequencer import midi
 from synthlab.studio.clips import save_clip
+from synthlab.studio.fxrack import clean_chain
 from synthlab.studio.render import keyed_patch, patch_key
 from synthlab.studio.server import create_app
 from synthlab.studio.worklet import blockers
@@ -152,6 +155,69 @@ def test_resample_says_what_it_replaced_and_undo_clears_edited(tmp_path):
     assert "Ctrl+Z gives “my acid” back" in toast["message"]
     client.post("/fragment/undo", headers=HX)
     assert s.patch.name == "my acid" and not s.is_dirty("sound")
+
+
+def _rack(s, *units):
+    s.fx_chain("layer")[:] = clean_chain(list(units))
+    return copy.deepcopy(s.fx_chain("layer"))
+
+
+DRIVE = {"kind": "drive", "params": {"amount": 6.0}}
+OFF_REVERB = {"kind": "reverb", "params": {}, "off": True}
+
+
+def test_resample_chain_bakes_the_layer_rack_and_empties_it(tmp_path):
+    """Resample ↻: the layer's phrase through its own rack becomes its
+    sampler, rooted on the phrase's root, and the rack is emptied in the
+    same step; a second press resamples the result (a new sample)."""
+    client = _client(tmp_path)
+    s = client.app.state.studio
+    svc = client.app.state.svc
+    _rack(s, DRIVE, OFF_REVERB)
+    root = svc.render_inputs("editor").arr.root
+    r = client.post("/fragment/sampler/rebake", headers=HX)
+    assert r.status_code == 200
+    toast = json.loads(r.headers["HX-Trigger"])["studio-toast"]
+    assert toast["kind"] == "done" and "the rack emptied" in toast["message"]
+    first = s.patch.sampler_sample
+    assert s.patch.osc1 == "sampler" and sampler.valid_id(first)
+    assert s.patch.sampler_root == midi(root) and s.patch.sampler_loop == "off"
+    assert s.fx_chain("layer") == []
+    r = client.post("/fragment/sampler/rebake", headers=HX)
+    assert r.status_code == 200
+    assert s.patch.osc1 == "sampler" and s.patch.sampler_sample != first
+    assert s.patch.name.endswith(" ↻2")
+
+
+def test_resample_chain_skips_bypassed_units_and_undoes_in_one_step(tmp_path):
+    client = _client(tmp_path)
+    s = client.app.state.studio
+    patch = s.patch
+    rack = _rack(s, DRIVE, OFF_REVERB)
+    client.post("/fragment/sampler/rebake", headers=HX)
+    with_off = s.patch.sampler_sample
+    # one undo: the synth and its rack, both exactly as they were
+    client.post("/fragment/undo", headers=HX)
+    assert s.patch == patch and s.fx_chain("layer") == rack
+    # the bypassed reverb was never heard: the drive alone bakes the same
+    # audio, so the same content id
+    _rack(s, DRIVE)
+    client.post("/fragment/sampler/rebake", headers=HX)
+    assert s.patch.sampler_sample == with_off
+
+
+def test_resample_chain_refuses_a_phrase_longer_than_a_sample(tmp_path, monkeypatch):
+    client = _client(tmp_path)
+    s = client.app.state.studio
+    patch = s.patch
+    rack = _rack(s, DRIVE)
+    steps = len(s._history)
+    monkeypatch.setattr(sampler, "MAX_SAMPLE_SECONDS", 0.5)  # the phrase is a bar
+    r = client.post("/fragment/sampler/rebake", headers=HX)
+    assert r.status_code == 422 and "a sample holds 0.5 s at most" in r.text
+    assert s.patch == patch and s.fx_chain("layer") == rack
+    assert len(s._history) == steps
+    assert not list((tmp_path / "samples").glob("*.wav"))
 
 
 def test_chops_map_slices_to_keys_and_slice_edits_are_undoable(tmp_path):
