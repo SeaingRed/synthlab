@@ -26,10 +26,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from synthlab import sampler
-from synthlab.studio import cliphub, clipmake, clipmorph, loops, takecoach
+from synthlab.studio import cliphub, clipmake, clipmorph, loops, samplerview, takecoach
 from synthlab.studio.agent.config import AgentConfig
 from synthlab.studio.clips import list_clips, save_clip
 from synthlab.studio.drumfactory import DRUM_KITS
+from synthlab.studio.gen import notes as nt
 from synthlab.studio.server import create_app
 
 SR = 44100
@@ -629,3 +630,161 @@ def test_the_audio_sent_is_short_mono_and_from_the_first_sound():
         assert w.getnframes() == int(clipmorph.MORPH_SECONDS * clipmorph.MORPH_RATE)
     first = np.frombuffer(frames, "<i2")[:200]
     assert np.any(first != 0)  # the leading second of silence is skipped
+
+
+# --- → Chop keys: the clip's slices across the keys -----------------------------------
+
+HITS = (0.1, 0.33, 0.52, 0.9, 1.13, 1.41, 1.62, 1.95)  # uneven: not an equal grid
+
+
+def hits(times=HITS, seconds: float = 2.3) -> np.ndarray:
+    """Clear, separate hits (a falling sine under a noise burst), MONO."""
+    n = int(seconds * SR)
+    out = np.zeros(n)
+    t = np.arange(int(0.08 * SR)) / SR
+    noise = np.random.default_rng(3).standard_normal(len(t))
+    hit = (np.sin(2 * np.pi * 180 * t) + 0.5 * noise) * np.exp(-t * 60)
+    for at in times:
+        a = int(at * SR)
+        out[a : a + len(hit)] += hit[: n - a]
+    return out * 0.5
+
+
+def _keys_plan(**kw) -> dict:
+    return clipmake.clean_plan({"target": "keys", **kw})[0]
+
+
+def test_equal_slices_cover_the_clip_with_no_gap_and_no_overlap():
+    c = clipmake.make_keys(drum_loop(), _keys_plan(slices=16, cut="equal"))
+    assert not c.refused
+    sl = sampler.parse_slices(c.sampler["chop"])
+    assert len(sl) == 16 and sl[0].a == 0.0 and sl[-1].b == 1.0
+    assert all(p.b == q.a for p, q in zip(sl, sl[1:], strict=False))  # end to end
+    widths = [s.b - s.a for s in sl]
+    assert max(widths) - min(widths) < 1e-4  # equal parts
+    assert c.sampler["fields"] == {"sampler_root": nt.CHOP_ROOT}
+    assert nt.CHOP_ROOT == samplerview.DEFAULT_ROOT  # the sampler's own root
+
+
+def test_onset_slices_start_on_the_hits():
+    x = hits()
+    c = clipmake.make_keys(x, _keys_plan(slices=8, cut="onsets"))
+    assert not c.refused, c.refused
+    sl = sampler.parse_slices(c.sampler["chop"])
+    starts = [s.a * len(x) / SR for s in sl]
+    assert len(starts) == 8
+    for want, got in zip(HITS, starts, strict=True):
+        assert abs(got - want) <= 0.01, (want, got)
+    assert all(p.b == q.a for p, q in zip(sl, sl[1:], strict=False))
+    assert sl[-1].b == 1.0
+
+
+def test_fewer_onsets_than_slices_halves_the_longest_and_says_so():
+    x = hits()
+    c = clipmake.make_keys(x, _keys_plan(slices=16, cut="onsets"))
+    sl = sampler.parse_slices(c.sampler["chop"])
+    assert len(sl) == 16
+    starts = [s.a * len(x) / SR for s in sl]
+    for want in HITS:  # every hit still starts a slice
+        assert min(abs(s - want) for s in starts) <= 0.01
+    assert all(s.b - s.a >= clipmake.MIN_CHOP_SECONDS * SR / len(x) for s in sl)
+    assert "Heard 8 onsets" in " ".join(c.said)
+
+
+def test_a_hostile_chop_plan_is_held_to_its_choices():
+    plan, notes = clipmake.clean_plan({"target": "keys", "slices": "999", "cut": "x"})
+    assert plan["slices"] == 16 and plan["cut"] == "equal" and len(notes) == 2
+    for raw in (8, "32", 16.0, "16"):
+        assert clipmake.clean_plan({"slices": raw})[0]["slices"] == int(float(raw))
+    for raw in (True, "nan", "1e400", 12, None, [8]):
+        assert clipmake.clean_plan({"slices": raw})[0]["slices"] == 16
+
+
+def _chop(client, item: str, **form):
+    return client.post("/hub/chop", data={"item": item, **form}, headers=HX)
+
+
+@pytest.mark.parametrize(
+    "name,audio,said",
+    [
+        ("hush", np.zeros((SR, 2)), "silent"),
+        ("blip", melody()[: int(0.05 * SR)], "too short for 16 slices"),
+    ],
+)
+def test_a_silent_or_short_clip_is_refused_and_nothing_changes(
+    client, tmp_path, name, audio, said
+):
+    s = _st(client)
+    save_clip(tmp_path, name, audio)
+    patch0 = s.patch.to_json()
+    r = _chop(client, f"clip:{name}", slices="16")
+    assert r.status_code == 422 and said in html.unescape(r.text), r.text[:300]
+    plan = json.dumps({"target": "keys", "slices": 16})
+    r = client.post(
+        "/hub/apply", data={"item": f"clip:{name}", "plan": plan}, headers=HX
+    )
+    assert r.status_code == 422 and said in html.unescape(r.text)
+    assert s.patch.to_json() == patch0 and client.app.state.svc.hub.last is None
+    assert not list(s.sample_dir.glob("*.wav"))
+
+
+def test_a_clip_the_store_no_longer_holds_is_refused(client, tmp_path):
+    s = _st(client)
+    patch0 = s.patch.to_json()
+    (tmp_path / "clips" / "tune.wav").unlink()
+    for r in (
+        _chop(client, "clip:tune"),
+        client.post(
+            "/hub/apply",
+            data={"item": "clip:tune", "plan": json.dumps({"target": "keys"})},
+            headers=HX,
+        ),
+    ):
+        assert r.status_code == 422 and "gone" in r.text
+    assert s.patch.to_json() == patch0
+
+
+def test_chop_keys_previews_applies_as_one_step_and_undoes(client):
+    s = _st(client)
+    patch0 = s.patch.to_json()
+    r = _chop(client, "clip:loop", slices="16", cut="equal")
+    assert r.status_code == 200 and "/preview/" in r.text, r.text[:400]
+    assert s.patch.to_json() == patch0  # a preview writes nothing
+    assert not list(s.sample_dir.glob("*.wav"))
+    plan = _plan(r)
+    assert json.loads(plan)["target"] == "keys"
+    r = client.post(
+        "/hub/apply", data={"item": "clip:loop", "plan": plan, "seed": "0"}, headers=HX
+    )
+    assert r.status_code == 200 and r.headers.get("HX-Push-Url") == "/view/editor"
+    # Synths' whole page, into the body (Apply's form targets #hub-result)
+    assert r.headers.get("HX-Retarget") == "body"
+    p = s.patch
+    assert p.osc1 == "sampler" and p.sampler_root == nt.CHOP_ROOT
+    assert len(sampler.parse_slices(p.sampler_slices)) == 16
+    assert (s.sample_dir / f"{p.sampler_sample}.wav").is_file()  # kept on Apply
+    r = client.post("/hub/undo", headers=HX)
+    assert r.status_code == 200
+    assert s.patch.to_json() == patch0
+
+
+def test_a_mono_clip_chops_at_its_onsets(client, tmp_path):
+    s = _st(client)
+    save_clip(tmp_path, "taps", hits())
+    r = _chop(client, "clip:taps", slices="8", cut="onsets")
+    assert r.status_code == 200 and "Cut at its 8 onsets" in r.text, r.text[:400]
+    r = client.post(
+        "/hub/apply", data={"item": "clip:taps", "plan": _plan(r)}, headers=HX
+    )
+    assert r.status_code == 200
+    sl = sampler.parse_slices(s.patch.sampler_slices)
+    assert len(sl) == 8 and s.patch.osc1 == "sampler"
+    assert sampler.get(s.patch.sampler_sample).shape[1] == 2  # stored stereo
+
+
+def test_a_clip_longer_than_the_sampler_holds_is_chopped_over_what_it_keeps():
+    x = np.random.default_rng(5).standard_normal((int(31 * SR), 2)) * 0.1
+    c = clipmake.make_keys(x, _keys_plan(slices=8))
+    sl = sampler.parse_slices(c.sampler["chop"])
+    assert len(sl) == 8 and sl[-1].b == 1.0  # of the 30 s the store keeps
+    assert "first 30 s" in " ".join(c.said)

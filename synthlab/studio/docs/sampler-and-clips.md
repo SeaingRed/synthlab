@@ -707,6 +707,20 @@ on every input inside it), hidden unless an osc is "sampler" (the
 `hidden` attribute + an editor.html `:has()` rule on the osc1 pills, like
 the shape rows).
 
+**A clip chopped onto the keys in one move** is the clip hub's **→ Chop
+keys** (`POST /hub/chop`, `clipmake.make_keys`; `clip-hub.md`, "→ Chop
+keys"): 8, 16 or 32 slices, at equal parts or at the clip's onsets
+(`drumhits.find_hits`), slice i on C4 + i — `sampler_root` set to 60
+(`samplerview.DEFAULT_ROOT`, `notes.CHOP_ROOT`) rather than the detected
+pitch, because the keys name slices here, and a slice plays at its own
+pitch on its own key whatever the root (`sampler.render`: `k = round(12
+log2(key / root))`). Only the existing fields: `osc1` "sampler",
+`sampler_sample`, `sampler_slices`, `sampler_root`. Applied through
+`adopt_audio` like any sampler sound (one patch undo step, landing on
+Synths), so the panel's chop edits work on it as on any other. The
+Song's **chop stutter** generator (`songcraft.md`) writes a walk over
+exactly those keys.
+
 ### Record a sample
 
 **● Record sample** (`static/samplerec.js`, `POST

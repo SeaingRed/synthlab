@@ -539,6 +539,7 @@ EXPECTED_ROUTES = [
     # the clip hub: make (a preview), Apply, its Undo; a sample kept as a
     # clip, a clip opened in the Lab; the tuned audio kept new or written over
     (["POST"], "/hub/apply"),
+    (["POST"], "/hub/chop"),
     (["POST"], "/hub/keep"),
     (["POST"], "/hub/lab"),
     (["POST"], "/hub/make"),
@@ -762,6 +763,9 @@ RENDER_OUTSIDE_LOCK = {
     "/hub/make",
     "/hub/apply",
     "/hub/lab",
+    # → Chop keys: a make's preview of one plan (the clip's onsets heard,
+    # the chopped sound rendered from a snapshot)
+    "/hub/chop",
 }
 
 

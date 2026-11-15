@@ -18,7 +18,8 @@ Sending reuses each destination's own route, posted from the bench
   with the lock released), Apply (made again from the same plan and seed,
   written through the paths a hand edit takes, ONE undo step: the page's
   own Ctrl+Z for what it holds, and the hub's ↶ Undo for all of it) and
-  Undo.
+  Undo; → Chop keys (`/hub/chop`) is a make's preview of one plan, the
+  clip's slices across the keys, applied and undone the same way.
 
 Every input is untrusted: an item reference is parsed and checked
 (`cliphub.parse_ref`), the tune clamped (`clean_tune`), a plan — the
@@ -410,6 +411,10 @@ def _build(svc: StudioService, job: _Job, plan: dict, seed: int):
                 from ..fxrack import chain_preset
 
                 c.fx = [] if plan["fx"] == "none" else chain_preset(plan["fx"]) or []
+    elif plan["target"] == "keys":
+        c = clipmake.make_keys(audio, plan)
+        if not c.refused:
+            c.patch = clipmake.keys_patch(audio, f"{job.title} chops", c)
     else:
         c = clipmake.make_sound(audio, plan)
         c.patch, _said = clipmake.sampler_patch(audio, job.title, plan["sound_mode"])
@@ -550,26 +555,65 @@ def hub_make(request: Request, form: StrForm, svc: Svc) -> Response | OutsideLoc
             info.update(
                 tokens=answer["tokens"], summary=plan["summary"], why=plan["why"]
             )
-        c, _audio, _g = _build(svc, job, plan, seed)
-        if c.refused:
-            return svc.toast(c.refused)
-        with s.lock:
-            inp = _preview(svc, job, c, with_beat)
-        try:
-            result = svc.render_preview(inp)
-        except RenderError as err:
-            return svc.toast(str(err))
-        return _result(
-            svc,
-            request,
-            job=job,
-            plan=plan,
-            seed=seed,
-            c=c,
-            key=result.key,
-            notes=said,
-            ai=info,
-        )
+        return _previewed(svc, request, job, plan, seed, said, info, with_beat)
+
+    return OutsideLock(run)
+
+
+def _previewed(
+    svc: StudioService,
+    request: Request,
+    job: _Job,
+    plan: dict,
+    seed: int,
+    said: list[str],
+    info: dict,
+    with_beat: bool = False,
+) -> Response:
+    """With the lock released: the candidate made, its preview's inputs
+    taken under the lock, rendered outside it, answered as the result."""
+    c, _audio, _g = _build(svc, job, plan, seed)
+    if c.refused:
+        return svc.toast(c.refused)
+    with svc.state.lock:
+        inp = _preview(svc, job, c, with_beat)
+    try:
+        result = svc.render_preview(inp)
+    except RenderError as err:
+        return svc.toast(str(err))
+    return _result(
+        svc,
+        request,
+        job=job,
+        plan=plan,
+        seed=seed,
+        c=c,
+        key=result.key,
+        notes=said,
+        ai=info,
+    )
+
+
+@router.post("/hub/chop")
+@render_outside_lock
+def hub_chop(request: Request, form: StrForm, svc: Svc) -> Response | OutsideLock:
+    """→ Chop keys: a preview of the clip as a sampler sound of `slices`
+    (8, 16, 32) slices, cut at equal divisions or at its onsets (`cut`),
+    slice i on C4 + i (`clipmake.make_keys`) — nothing written. Its Apply
+    and Undo are the make's own (`/hub/apply`, `/hub/undo`): the plan it
+    answers is a `keys` plan, held to `clean_plan` again when posted back."""
+    ref = _ref(svc, form.get("item"))
+    if ref is None:
+        return svc.toast("That clip is gone.")
+    plan, notes = clipmake.clean_plan(
+        {"target": "keys", "slices": form.get("slices"), "cut": form.get("cut")}
+    )
+    seed = clipmake.seed_of(ref.text, form.get("seed"))
+    job = _Job(svc, ref)
+    info = {"tokens": 0, "summary": "", "why": []}
+
+    def run() -> Response:
+        return _previewed(svc, request, job, plan, seed, notes, info)
 
     return OutsideLock(run)
 
@@ -614,8 +658,9 @@ def hub_apply(request: Request, form: StrForm, svc: Svc) -> Response | OutsideLo
     as a hand edit writes it — a beat through `apply_pattern` (one pattern
     undo step: Ctrl+Z on Drums), a note part onto the working loop's grid
     (one pattern undo step) and its sound through `load_sound` (one patch
-    undo step), a sound through `adopt_audio` (landing on Synths). The
-    hub's ↶ Undo takes ALL of it back in one step."""
+    undo step), a sound — or the clip chopped onto the keys — through
+    `adopt_audio` (landing on Synths). The hub's ↶ Undo takes ALL of it
+    back in one step."""
     ref = _ref(svc, form.get("item"))
     if ref is None:
         return svc.toast("That clip is gone.")
@@ -669,8 +714,11 @@ def _commit(
     before = _snapshot(s)
     kept: list[str] = []
     label = f"{c.target} from “{_title(job.ref)}”"
-    if c.target == "sound":
-        name = f"{job.title} voice" if plan["sound_mode"] == "voice" else job.title
+    if c.target in ("sound", "keys"):
+        if c.target == "keys":
+            name = f"{job.title} chops"
+        else:
+            name = f"{job.title} voice" if plan["sound_mode"] == "voice" else job.title
         resp = adopt_audio(
             request,
             svc,
@@ -683,6 +731,11 @@ def _commit(
         )
         if resp.status_code == 200:
             svc.hub.push(Made(label, before, _snapshot(s)))
+            # Synths' whole page: Apply's form targets #hub-result, so the
+            # answer says where it goes (as the bench's own "⤷ as a sampler
+            # sound" button does by its hx-target)
+            resp.headers["HX-Retarget"] = "body"
+            resp.headers["HX-Reswap"] = "innerMorph"
         return resp
     pattern_before = s.pattern_snapshot()
     fields = dict(c.arr)

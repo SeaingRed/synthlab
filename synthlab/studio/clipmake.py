@@ -1,4 +1,5 @@
-"""Make from a clip: the clip hub's "→ Beat", "→ Notes" and "→ Sound".
+"""Make from a clip: the clip hub's "→ Beat", "→ Notes", "→ Sound" and
+"→ Chop keys".
 
 A clip is listened to (`analysis.drumhits`, `analysis.voiced`, the tempo
 and key `cliphub.measure` found) and turned into a **candidate**: the
@@ -37,6 +38,7 @@ from __future__ import annotations
 import math
 import zlib
 from dataclasses import dataclass, field, replace
+from itertools import pairwise
 
 import numpy as np
 
@@ -54,7 +56,7 @@ from .lru import LRU
 from .state import DRUM_ROWS, ROOTS
 from .state.model import grid_rows
 
-TARGETS = ("beat", "notes", "sound")
+TARGETS = ("beat", "notes", "sound", "keys")
 KITS = ("own", "keep", *DRUM_KITS)
 STYLES = ("clip", *beatgen.STYLES)
 DENSITIES = ("same", "busier", "sparser")
@@ -65,6 +67,9 @@ SOUND_SOURCES = ("keep", "clip", "library", "recipes", "factory")
 SOUND_MODES = ("whole", "chops", "voice")
 SNAPS = ("loop", "clip", "none")
 FXS = ("keep", "none", *CHAIN_PRESETS)
+CHOP_SLICES = (8, 16, 32)  # → Chop keys: slices across the keys
+CHOP_CUTS = ("equal", "onsets")
+MIN_CHOP_SECONDS = 0.01  # a slice is at least this long (the panel's own floor)
 MAX_TEXT = 200  # a plan's summary, a "why" line
 MAX_WHY = 4
 MIN_TEMPO_CONF = 0.2  # a measured grid under this is not trusted
@@ -85,6 +90,8 @@ DEFAULT_PLAN = {
     "transpose": 0,
     "snap": "loop",
     "fx": "keep",
+    "slices": 16,
+    "cut": "equal",
     "summary": "",
     "why": [],
 }
@@ -150,6 +157,22 @@ def _number(v, lo: float, hi: float, default):
     return min(hi, max(lo, x))
 
 
+def _slices(v, notes: list[str]) -> int:
+    """→ Chop keys' slice count: one of `CHOP_SLICES` (a form posts it as
+    text), else 16 and a line saying so."""
+    if v is None or v == "":
+        return 16
+    if not isinstance(v, bool):
+        try:
+            x = float(v)
+        except (TypeError, ValueError):
+            x = math.nan
+        if math.isfinite(x) and int(x) == x and int(x) in CHOP_SLICES:
+            return int(x)
+    notes.append(f"Slices “{_text(str(v), 40)}” is not 8, 16 or 32: 16.")
+    return 16
+
+
 def clean_plan(raw, sounds=None) -> tuple[dict, list[str]]:
     """(the plan, what was refused) from anything — a form's fields or
     Gemini's JSON. Every name is checked against the studio's own lists
@@ -183,6 +206,8 @@ def clean_plan(raw, sounds=None) -> tuple[dict, list[str]]:
     p["transpose"] = int(round(_number(raw.get("transpose"), -24, 24, 0)))
     p["snap"] = _choice(raw.get("snap"), SNAPS, "loop", "Key", notes)
     p["fx"] = _choice(raw.get("fx"), FXS, "keep", "FX chain", notes)
+    p["slices"] = _slices(raw.get("slices"), notes)
+    p["cut"] = _choice(raw.get("cut"), CHOP_CUTS, "equal", "Cut at", notes)
     snd = raw.get("sound")
     if isinstance(snd, str):  # a picker posts "library:Name"
         source, _, name = snd.partition(":")
@@ -728,6 +753,110 @@ def make_sound(audio: np.ndarray, plan: dict) -> Candidate:
     c.sampler = {"chop": chop, "fields": fields}
     c.said.append(said)
     return c
+
+
+# --- → Chop keys: the clip's slices across the keys -----------------------------------
+
+
+def _equal_edges(total: int, n: int) -> list[int]:
+    return [int(round(total * i / n)) for i in range(n + 1)]
+
+
+def chop_edges(audio: np.ndarray, n: int, cut: str) -> tuple[list[int], str]:
+    """(the `n` slices' n + 1 edges in samples, what was done). `equal`:
+    the clip in `n` equal parts, end to end. `onsets`: a slice from each
+    onset `drumhits.find_hits` hears (the `n` loudest when there are more),
+    the first starting at the first onset — the lead-in before it is left
+    out — and the last running to the clip's end; with fewer onsets than
+    `n` the longest slice is halved until there are `n` (each at least
+    `MIN_CHOP_SECONDS`), and none found is equal parts. The caller has
+    refused a clip shorter than `n` x `MIN_CHOP_SECONDS`."""
+    total = len(audio)
+    if cut != "onsets":
+        return _equal_edges(total, n), f"{n} equal slices, end to end."
+    least = int(round(MIN_CHOP_SECONDS * SR))
+    hits = drumhits.find_hits(audio)
+    if len(hits) > n:
+        hits = sorted(sorted(hits, key=lambda h: -h.level)[:n], key=lambda h: h.time)
+    starts: list[int] = []
+    for h in hits:
+        s = int(round(h.time * SR))
+        if s > total - least or (starts and s - starts[-1] < least):
+            continue
+        starts.append(s)
+    if not starts:
+        return _equal_edges(total, n), f"No onsets heard: {n} equal slices instead."
+    found = len(starts)
+    edges = [*starts, total]
+    while len(edges) - 1 < n:
+        widths = np.diff(edges)
+        i = int(np.argmax(widths))
+        if widths[i] // 2 < least:
+            return (
+                _equal_edges(total, n),
+                f"{found} onsets, too close to split into {n}: {n} equal slices.",
+            )
+        edges.insert(i + 1, edges[i] + int(widths[i]) // 2)
+    said = (
+        f"Cut at its {n} onsets."
+        if found >= n
+        else f"Heard {found} onset{'s' if found != 1 else ''}: the longest "
+        f"slices halved to make {n}."
+    )
+    if starts[0] >= least:
+        said += f" The {starts[0] / SR:.2f} s before the first onset is left out."
+    return edges, said
+
+
+def make_keys(audio: np.ndarray, plan: dict) -> Candidate:
+    """→ Chop keys: the clip as a sampler sound of `plan["slices"]` slices,
+    slice i on `notes.CHOP_ROOT` + i (C4 up: the sampler's own default
+    root, and what `notes.chop_stutter` writes over). Apply is
+    `routes.sampler.adopt_audio` with the slices and that root, as →
+    Sound's. Refused, in words, for a silent clip or one too short for its
+    slices to be `MIN_CHOP_SECONDS` each."""
+    c = Candidate("keys")
+    cap = int(sampler.MAX_SAMPLE_SECONDS * SR)  # what the sample store keeps
+    x = np.asarray(audio)[:cap]
+    if not len(x) or samplerview.silent(x):
+        c.refused = "That clip is silent: nothing to chop onto the keys."
+        return c
+    n = int(plan["slices"])
+    if len(x) < n * MIN_CHOP_SECONDS * SR:
+        c.refused = (
+            f"That clip is {len(x) / SR * 1000:.0f} ms: too short for {n} slices "
+            f"of {MIN_CHOP_SECONDS * 1000:.0f} ms each. Fewer slices, or a longer clip."
+        )
+        return c
+    edges, said = chop_edges(x, n, plan["cut"])
+    total = len(x)
+    slices = [sampler.Slice(a / total, b / total) for a, b in pairwise(edges)]
+    root = nt.CHOP_ROOT
+    c.sampler = {
+        "chop": sampler.format_slices(slices),
+        "fields": {"sampler_root": root},
+    }
+    c.said.append(said)
+    c.said.append(
+        f"Slice 1 on {name_of(root)} up to slice {n} on {name_of(root + n - 1)}, "
+        "a key each: a track's “chop stutter” writes over them."
+    )
+    if len(audio) > cap:
+        c.said.append(
+            f"Only its first {sampler.MAX_SAMPLE_SECONDS:g} s: "
+            "the sampler holds no more."
+        )
+    return c
+
+
+def keys_patch(audio: np.ndarray, name: str, c: Candidate):
+    """The chopped sampler sound a `make_keys` candidate is, its audio
+    registered in memory only (a preview leaves nothing in the store;
+    Apply saves the same id)."""
+    x = np.asarray(audio)[: int(sampler.MAX_SAMPLE_SECONDS * SR)]
+    sid = sampler.register(x, SR)
+    patch = samplerview.sampler_patch(sid, name, c.sampler["fields"]["sampler_root"])
+    return replace(patch, sampler_slices=sampler.clean_slices(c.sampler["chop"]))
 
 
 def seed_of(ref: str, seed) -> int:

@@ -49,7 +49,9 @@ Rules:
 fx. Never invent a name.
 - target: "beat" for drums / groove / kit / rhythm requests; "notes" for a \
 bassline, arp, pluck, lead, chords, melody played by a sound; "sound" when \
-they want the clip itself on the keys.
+they want the clip itself on the keys; "keys" when they want it chopped \
+(vocal chops, micro-chops, a slice a key): slices 8, 16 or 32, cut "equal" \
+or at its "onsets".
 - half-time / double-time -> feel; "busier", "more hats", "fuller" -> \
 density busier; "sparser", "stripped", "minimal" -> sparser; amount 0.1-0.6.
 - "like <a genre or kit>" -> the closest kit and/or beat style in the \
@@ -97,6 +99,8 @@ def schema() -> dict:
             "transpose": {"type": "integer"},
             "snap": enum(clipmake.SNAPS),
             "fx": enum(clipmake.FXS),
+            "slices": {"type": "integer"},
+            "cut": enum(clipmake.CHOP_CUTS),
             "summary": {"type": "string"},
             "why": {"type": "array", "items": {"type": "string"}, "maxItems": 4},
         },

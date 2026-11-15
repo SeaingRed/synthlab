@@ -6036,6 +6036,8 @@ input[type="range"]:is(:hover, :focus-visible, :active) {
 .hub-make:has([name="target"][value="beat"]:checked) .hub-opts-beat,
 .hub-make:has([name="target"][value="notes"]:checked) .hub-opts-notes,
 .hub-make:has([name="target"][value="sound"]:checked) .hub-opts-sound { display: flex; }
+/* → Chop keys: its own row, whatever the target (its button posts /hub/chop) */
+.hub-make .hub-opts.hub-chop { display: flex; padding-top: var(--s15); border-top: 1px dashed var(--line); }
 .hub-opts > label:not(.param-knob, .hub-check) { display: grid; gap: 2px; font-size: var(--fs-2xs);
   color: var(--text-dim); }
 .hub-sound { max-width: 28ch; }

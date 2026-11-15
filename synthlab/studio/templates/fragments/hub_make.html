@@ -4,8 +4,9 @@
    or the part made and rendered, NOTHING written — the result (and its
    Apply) lands in #hub-result. "auto" leaves a choice to the description
    when ✦ is used, else to the default. Which pickers show follows the
-   target (CSS `:has()`, no script). ✦ sends the clip's first seconds to
-   Gemini, and says so. #}
+   target (CSS `:has()`, no script). → Chop keys is a row of its own
+   (`/hub/chop`: the clip's slices across the keys, a preview like the
+   rest). ✦ sends the clip's first seconds to Gemini, and says so. #}
 {% set b = hub.bench %}{% set pk = b.pick %}
 <form class="hub-sec hub-make" id="hub-make" hx-post="/hub/make" hx-target="#hub-result" hx-swap="outerMorph"
       hx-sync="this:queue all" aria-label="make something from it">
@@ -65,6 +66,16 @@
   <div class="hub-go">
     <button type="submit" class="btn" data-cmd="Preview what the clip makes" data-cmd-group="Clip hub"
             title="listen to the clip and make it — nothing is written until Apply">▶ Preview</button>
+  </div>
+
+  <div class="hub-opts hub-chop" role="group" aria-label="chop it onto the keys">
+    <label>slices <select name="slices" class="field field-s">
+      {% for n in (8, 16, 32) %}<option value="{{ n }}"{% if n == 16 %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
+    <label>cut at <select name="cut" class="field field-s"><option value="equal">equal parts</option>
+      <option value="onsets">its onsets</option></select></label>
+    <button type="button" class="btn" hx-post="/hub/chop" hx-include="#hub-make" hx-target="#hub-result"
+            hx-swap="outerMorph" hx-sync="#hub-make:queue all" data-cmd="Clip: chop onto the keys" data-cmd-group="Clip hub"
+            title="the clip as a sampler sound cut into slices, slice 1 on C4 and one a key up from it (a track's “chop stutter” writes over them) — a preview: nothing is written until Apply">→ Chop keys</button>
   </div>
 
   <div class="hub-morph">
