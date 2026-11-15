@@ -836,6 +836,17 @@ STEERS: dict[str, Steer] = {
         ops={"add_fx": 2.0, "remove_fx": 1.5},
         curve=("cutoff", "fall"),
     ),
+    # dubstep is dirty and squashed over a sub: drive, a fold and the
+    # compressor on the main, the filter drawn opening — never a hall or a
+    # grain cloud (the multiband drive is a hand's and the song's, not a
+    # unit the breeder adds)
+    "dubstep": Steer(
+        roles={"sub": 2.5, "pluck": 1.0, "pad": 0.3, "air": 0.5},
+        fx_add={"drive": 4.0, "fold": 2.5, "compress": 2.0, "highpass": 1.5},
+        fx_drop=frozenset({"shimmer", "granular", "reverb", "vinyl"}),
+        ops={"add_fx": 2.5, "route": 2.0, "add_curve": 1.5},
+        curve=("cutoff", "rise"),
+    ),
 }
 
 
