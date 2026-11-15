@@ -660,6 +660,17 @@ GENRE_TARGETS: dict[str, dict[str, tuple[float, float]]] = {
         "log_flatness": (0.5, 0.5),
         "centroid": (0.4, 0.5),
     },
+    # Dubstep (the bass-music sounds): bright, noisy, dense and moving —
+    # a hard-synced screech, a drop chord, a noise riser; short on the
+    # whole. Measured from the pack's leads, keys and fx (its basses, as
+    # every pack's, are left out: the low end is the role recipes' job).
+    "dubstep": {
+        "centroid": (1.4, 1.0),
+        "log_flatness": (1.5, 0.7),
+        "density": (1.8, 0.7),
+        "movement": (1.7, 0.7),
+        "env_length": (-1.0, 0.5),
+    },
 }
 _VECTOR_INDEX = {k: i for i, k in enumerate(BREED_VECTOR)}
 
@@ -761,6 +772,16 @@ GENE_BIAS: dict[str, dict[str, tuple]] = {
         "cutoff": (2200.0, 5000.0),
         "resonance": (0.05, 0.2),
         "release": (0.05, 0.4),
+    },
+    # a saw, a square or a supersaw driven hard through a resonant filter
+    # the LFO swings, notes that do not hang on
+    "dubstep": {
+        "osc1": ("saw", "square", "supersaw"),
+        "drive": (2.0, 4.0),
+        "resonance": (0.3, 0.7),
+        "cutoff": (900.0, 3500.0),
+        "filter_lfo_depth": (800.0, 2200.0),
+        "release": (0.05, 0.25),
     },
 }
 _LEAN_PROB = 0.6

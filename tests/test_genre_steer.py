@@ -1,6 +1,6 @@
 """Genre steering directions — one a Start-a-song style: "melodic_techno",
-"garage", "filter_house", "trance", "electro", "industrial", "psych" and
-"sixties": a target feature profile
+"garage", "filter_house", "trance", "electro", "industrial", "psych",
+"sixties" and "dubstep": a target feature profile
 scored on the breeder's probe, gene leanings for the single-depth breeder
 (`breed.GENE_BIAS`), role/FX biases for layered and deep (`genome.STEERS`).
 The five tonal directions are left exactly as they were. All seeded, so the
@@ -41,6 +41,7 @@ GENRES = (
     "industrial",
     "psych",
     "sixties",
+    "dubstep",
 )
 # the directions whose target profile is measured from a pack's recipes:
 # direction -> the recipes' genre tag (`recipes.GENRES`)
@@ -51,6 +52,7 @@ MEASURED = {
     "industrial": "industrial",
     "psych": "psych",
     "sixties": "sixties",
+    "dubstep": "dubstep",
 }
 TONAL = ("more_sub", "darker", "brighter", "grittier", "cleaner")
 PARENTS = (Patch(), PRESETS["pad_warm"], PRESETS["bass_reese"])

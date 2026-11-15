@@ -1711,6 +1711,104 @@ CHAIN_PRESETS: dict[str, dict] = {
             },
         ],
     },
+    # bass music's multiband drive chains (the dubstep pack, round two):
+    # the growl's mids driven hard and clipped, the highs' bite, the drop
+    # bus's glue
+    "mb_growl": {
+        "label": "MB Growl",
+        "units": [
+            {
+                "kind": "mbdrive",
+                "params": {
+                    "low": 4.0,
+                    "mid": 5.0,
+                    "high": 2.0,
+                    "mode": 1.0,
+                    "mix": 0.85,
+                },
+            },
+            {
+                "kind": "clip",
+                "params": {"drive": 3.0, "ceiling": -7.0, "soft": 0.3, "mix": 1.0},
+            },
+            {"kind": "highpass", "params": {"cutoff": 40.0, "q": 0.7}},
+            {
+                "kind": "clip",
+                "params": {"drive": 0.0, "ceiling": -1.0, "soft": 0.6, "mix": 1.0},
+            },
+        ],
+    },
+    "mb_bite": {
+        "label": "MB Bite",
+        "units": [
+            {
+                "kind": "mbdrive",
+                "params": {
+                    "low": 1.0,
+                    "mid": 2.0,
+                    "high": 7.0,
+                    "mode": 2.0,
+                    "mix": 0.7,
+                },
+            },
+            {
+                "kind": "eq",
+                "params": {
+                    "low": 0.0,
+                    "mid_freq": 900.0,
+                    "mid_gain": -6.0,
+                    "mid_q": 4.0,
+                    "high": 0.0,
+                },
+            },
+            {
+                "kind": "ott",
+                "params": {
+                    "depth": 0.3,
+                    "time": 1.0,
+                    "upward": 1.0,
+                    "downward": 1.0,
+                    "low": 0.0,
+                    "mid": 0.0,
+                    "high": 0.0,
+                    "output": 0.0,
+                },
+            },
+            {"kind": "highpass", "params": {"cutoff": 40.0, "q": 0.7}},
+            {
+                "kind": "clip",
+                "params": {"drive": 0.0, "ceiling": -1.0, "soft": 0.6, "mix": 1.0},
+            },
+        ],
+    },
+    "drop_glue": {
+        "label": "Drop Glue",
+        "units": [
+            {
+                "kind": "transient",
+                "params": {"attack": 0.4, "sustain": 0.0, "output": 0.0},
+            },
+            {
+                "kind": "mbdrive",
+                "params": {
+                    "low": 1.5,
+                    "mid": 2.0,
+                    "high": 1.5,
+                    "mode": 0.0,
+                    "mix": 0.4,
+                },
+            },
+            {
+                "kind": "limiter",
+                "params": {
+                    "gain": 3.0,
+                    "ceiling": -1.0,
+                    "release": 0.08,
+                    "lookahead": 0.002,
+                },
+            },
+        ],
+    },
 }
 
 
@@ -1844,6 +1942,12 @@ _CHAIN_INFO: dict[str, tuple[str, str, str]] = {
         "Hardstyle's kick: driven into a clipper, the front lifted, the tail loud."),
     "phonk_crush": ("drive", "phonk",
         "Phonk's dirt: fuzz, a sampler's lost bits, clipped hard."),
+    "mb_growl": ("drive", "dubstep",
+        "A growl's mids driven hard in a multiband drive, then clipped."),
+    "mb_bite": ("drive", "dubstep",
+        "The highs driven and a mid notched, the OTT lightly: a lead's bite."),
+    "drop_glue": ("dynamics", "dubstep",
+        "A drop bus: the shaper's front, a little multiband drive, the limiter."),
 }
 # fmt: on
 for _key, (_group, _pack, _blurb) in _CHAIN_INFO.items():

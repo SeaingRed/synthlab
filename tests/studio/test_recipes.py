@@ -45,8 +45,8 @@ def test_the_twelve_recipes_and_the_packs_seventeen():
     the drop FX), and twenty-two (hip-hop / trap, drum & bass, dubstep,
     synthwave, future bass) and twenty-three (lo-fi hip-hop, ambient /
     cinematic, chiptune, hardstyle, phonk), and the core library's
-    forty-nine."""
-    assert len(NAMES) == 160
+    forty-nine, and the bass-music twelve."""
+    assert len(NAMES) == 172
     assert NAMES[:12] == [
         "Cinematic Gate Lead",
         "Rolling Sidechained Sub",
@@ -211,6 +211,19 @@ def test_the_twelve_recipes_and_the_packs_seventeen():
         "Alarm",
         "Ambience Bed",
         "Wind",
+        # the bass-music twelve (test_style_packs.py)
+        "Stack Growl",
+        "Pairs Growl",
+        "Triple Growl",
+        "Split Growl",
+        "Talking Bass",
+        "Vowel Wobble Bass",
+        "Sync Sweep Lead",
+        "Sync Saw Lead",
+        "Metal Bass",
+        "Drop Chord Stab",
+        "Snare Riser",
+        "Fall Sub",
     ]
     assert recipes.GENRES == (
         "techno",

@@ -1035,6 +1035,104 @@ labels).
 - **What none of this says**: whether any of it sounds like its style.
   Nobody has listened.
 
+### Style packs: bass music (dubstep, round two)
+
+**Twelve more recipes for the dubstep pack, three chains built on the
+multiband drive (`mbdrive`, `docs/engine.md`) and a breed direction.** The
+pack had four sounds (*Wobble Bass*, *Growl Bass*, *Half-Time Sub*,
+*Screech Lead*); the style wants more bass characters. All twelve are
+appended after the core library's last recipe (nothing before them moved:
+no `RENDER_REV`), tagged `dubstep` and by role, measured at 140 bpm, on
+existing Patch fields and FX units only, in the worklet (no offline unit),
+and hold the table's rules in `tests/studio/test_style_packs.py` (peak,
+|mean| / peak < 0.005, under 1 % below 20 Hz, where the role sits; *Fall
+Sub* is held to the subs' rule, mono and over 0.9 under 120 Hz, and *Drop
+Chord Stab* to the plucks': gone 0.6 s into a held key).
+
+- **Four growls** on `fm4`, each differing in algorithm, operator ratios
+  and where the vowel filter sits, through a multiband-drive chain:
+  *Stack Growl* (`stack`, modulators an octave and two over the carrier,
+  an "o"; MB Growl), *Pairs Growl* (`pairs`, the second pair a fifth
+  over, an "i"; MB Growl), *Triple Growl* (`three`, the middle operator
+  breathing on the quarter through a mod route, between "e" and "a"; a
+  tube-shaped multiband drive and the clipper) and *Split Growl*
+  (`pair_plus`, two plain carriers riding the pair, a bright "e"; a hard
+  multiband drive and the clipper).
+- **Two talking basses**: *Talking Bass* (the vowel filter's position
+  walked across the phrase by a curve, "oo" - "ah" - "ee" and back) and
+  *Vowel Wobble Bass* (the same filter on the clock: an LFO on the quarter
+  swings the vowel either side of "eh"; MB Growl). **A vowel filter, not a
+  voice**; the formant-shifter unit is not used.
+- **Two hard-sync screech leads** with different sync sweeps: *Sync Sweep
+  Lead* (a curve draws the sync pitch rising across the phrase; MB Bite)
+  and *Sync Saw Lead* (a saw LFO on the sync pitch every eighth, so it
+  snaps open and falls; a fuzzed multiband drive and the OTT).
+- *Metal Bass*: a saw and a sub through the feedback comb filter
+  (`comb_plus`, key tracking 1: tuned to the note), the tuning wobbling a
+  little on the eighth, driven in three bands.
+- *Drop Chord Stab* (role keys): seven detuned saws spread wide, the filter
+  snapped open and shut in a quarter second, a high-pass at 180 Hz, a
+  little tube multiband drive, width 1.6.
+- *Snare Riser* (role fx): white noise through a resonant band-pass that a
+  cutoff curve climbs across the phrase, chopped on the sixteenth by a
+  tremolo. **Noise: there is no snare in it** (and the tremolo's width and
+  the mono noise leave it at 0.00 on the width measure).
+- *Fall Sub*: a sine that starts an octave up and falls onto its note in
+  60 ms, then holds, nothing over 240 Hz: the Half-Time Sub with a thump.
+
+Each dirty bass ends as the pack's others do, drive, clipper, high-pass,
+soft clipper, because a clipped lopsided wave keeps an offset and a swept
+resonant filter throbs under 20 Hz (two of the growls sit at 0.65 and
+0.75 % under 20 Hz against the 1 % bar: little room; the fm4 stack is
+brighter than a plain saw, so each growl's FM levels were lowered and its
+sub raised until a third of it sat under 120 Hz, as *Growl Bass* needed).
+Measured as the packs above (one note of the whole recipe at its card pitch
+and tempo; dBFS; "free" the peak with the pump / gate out; "<120" the share
+of energy under 120 Hz; "hold" the dry patch's level 0.6-0.9 s into a 1 s
+note against its loudest 50 ms; width `extract`'s):
+
+  | recipe | role | peak | rms | free | <120 | hold | width |
+  |---|---|---|---|---|---|---|---|
+  | Stack Growl | bass | -1.8 | -11.5 | -1.8 | 0.51 | -3.5 | 0.00 |
+  | Pairs Growl | bass | -2.0 | -11.6 | -2.0 | 0.37 | -2.7 | 0.00 |
+  | Triple Growl | bass | -2.4 | -11.9 | -2.4 | 0.35 | -1.5 | 0.00 |
+  | Split Growl | bass | -2.9 | -12.0 | -2.9 | 0.35 | -2.1 | 0.00 |
+  | Talking Bass | bass | -2.4 | -11.0 | -2.4 | 0.38 | -0.4 | 0.00 |
+  | Vowel Wobble Bass | bass | -1.9 | -10.5 | -1.9 | 0.51 | -1.4 | 0.00 |
+  | Sync Sweep Lead | lead | -2.2 | -12.3 | -2.2 | 0.00 | -1.1 | 0.00 |
+  | Sync Saw Lead | lead | -1.5 | -12.0 | -1.5 | 0.00 | -1.6 | 0.00 |
+  | Metal Bass | bass | -2.1 | -10.2 | -2.1 | 0.47 | -2.7 | 0.00 |
+  | Drop Chord Stab | keys | -1.2 | -19.2 | -1.2 | 0.00 | gone | 0.82 |
+  | Snare Riser | fx | -4.1 | -19.2 | -4.1 | 0.00 | -3.8 | 0.00 |
+  | Fall Sub | bass | -1.9 | -6.3 | -1.9 | 1.00 | -0.6 | 0.00 |
+
+- **Chains** (`fxrack.CHAIN_PRESETS`, browsed under Dubstep): *MB Growl*
+  (a multiband drive leaning on the mids, 4 / 5 / 2 in the hard
+  mode at 85 %, into a clipper at -7 dB, the high-pass at 40 Hz,
+  the ceiling at -1), *MB Bite* (the highs driven fuzzed at 7, a 6 dB
+  notch at 900 Hz in the EQ, the OTT at 0.3, the high-pass, the ceiling)
+  and *Drop Glue* (a drop bus: the transient shaper's front at +0.4, a
+  little multiband drive at 40 %, the limiter 3 dB into -1 dBFS).
+- **Direction `dubstep`** (`breed.GENRE_TARGETS`, `GENE_BIAS`,
+  `genome.STEERS`, the Breed page's buttons): **measured from the pack's
+  non-bass recipes** (two leads' worth of screech, a chord and a riser: *Screech Lead*, *Sync
+  Sweep Lead*, *Sync Saw Lead*, *Drop Chord Stab*, *Snare Riser*), as the
+  others', and held to them by `test_a_measured_profile_is_its_packs_recipes`:
+  centroid 1.4, log flatness 1.5, density 1.8, movement 1.7, env_length
+  -1.0 (bright, noisy, dense and moving, short). The genes lean toward a
+  saw, a square or a supersaw driven hard through a resonant filter an
+  LFO swings; the deep and layered steers toward a sub under it, drive,
+  fold and the compressor on the main, never a hall or a grain cloud. The
+  multiband drive is not in the breeder's FX pool (adding it would move
+  every seeded draw): a hand's and a song's unit.
+- **Starter.** Melodic techno's starter does not gain the *Cinematic
+  Braam* on the first beat of the breakdown: a take can only be a
+  transition generator's clip, not a recipe, and a seventh-to-eighth synth
+  track is the one no starter fills (`songcraft.md`, "Styles").
+- **What none of this says**: whether any of it sounds like bass music.
+  Nobody has listened, and the live parity corpus has not been run on
+  these twelve.
+
 ### Phase warp, custom wavetables, voice and glide modes
 
 Seven Patch fields, all off at their defaults (`render.KEY_ADDED_FIELDS`)
