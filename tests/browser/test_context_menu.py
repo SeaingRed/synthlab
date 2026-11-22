@@ -290,3 +290,36 @@ def test_a_sections_own_menu_on_every_kind_of_panel(chromium, seeded):  # noqa: 
         assert not errors, errors
     finally:
         _close(ctx, page)
+
+
+def test_a_sound_loaded_from_the_menu_leaves_the_keys_playing(studio, server):
+    """A right click on a sound -> Load / Add as a new layer runs the row by
+    focusing and clicking its button; Chrome then turns that button's
+    :focus-visible on at the first key typed, and the keys' gate took it
+    for one the keyboard reached: every letter was swallowed until a click
+    elsewhere. Only a button Tab (or an arrow) moved to keeps its letters
+    (piano.js `lettersBlocked`)."""
+    page = studio.open("editor")
+    page.evaluate(
+        "() => { window.__n = 0; const k = window.synthlab.keyNote;"
+        " window.synthlab.keyNote = (...a) => { if (a[1] !== undefined) window.__n++;"
+        " return k?.(...a); }; }"
+    )
+    notes = lambda: page.evaluate("() => window.__n")  # noqa: E731
+    card = page.locator("#view article.sound-card").nth(3)
+    for row in ("Load into the layer you are editing", "Add as a new layer"):
+        before = notes()
+        card.click(button="right")
+        page.locator("#ctx-menu:popover-open .menu-item", has_text=row).first.click()
+        studio.settle()
+        page.keyboard.press("s")
+        page.wait_for_function(f"() => window.__n > {before}", timeout=4000)
+        assert studio.unexplained() == []
+    # a button the keyboard reached still keeps its letters
+    page.locator("#view article.sound-card").nth(5).locator("button.sc-layer").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    held = notes()
+    page.keyboard.press("f")
+    page.wait_for_timeout(300)
+    assert notes() == held

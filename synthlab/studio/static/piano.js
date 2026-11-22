@@ -109,16 +109,22 @@
   // are armed. (keysBlocked alone still gates the transport's Space.)
   const KEY_OWNERS = ".grid, .arranger-grid, .jam-grid, .ctile, #song-ruler, #lab-wave, .chop-mark, .slice-mark";
   const ownKey = (code) => (document.getElementById("view")?.dataset.ownKeys || "").split(" ").includes(code);
-  // a button or link a pointer pressed (a view's nav link, a toolbar's
-  // button) is not one the keyboard reached, though Chrome turns its
-  // :focus-visible on at the first key typed: it leaves the keys playing
-  // (its Space stays its own: keysBlocked, transport.js)
-  let pointed = null;
-  document.addEventListener("pointerdown", (e) => { pointed = e.target.closest?.("button, a, summary") || null; }, true);
-  document.addEventListener("keydown", (e) => { if (e.key === "Tab") pointed = null; }, true); // the keyboard moves on
-  const typing = (e) => keysOn && (!keysBlocked(e.target) || (e.target === pointed && e.code !== "Space")) &&
+  // only a button or link the KEYBOARD moved the focus to (Tab, an arrow,
+  // Home / End) keeps its letters. One a pointer pressed (a view's nav link,
+  // a toolbar's button) or a script focused (the context menu runs a row by
+  // focusing and clicking its control; a swap that loads a sound moves the
+  // focus) is not, though Chrome turns its :focus-visible on at the first
+  // key typed: it leaves the keys playing (its Space stays its own:
+  // keysBlocked, transport.js). It used to be "the one the pointer pressed",
+  // so a sound loaded from the menu left the keys dead until a click.
+  const NAV_KEYS = new Set(["Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]);
+  let navAt = -Infinity, reached = null; // when a key last moved the focus; where it went
+  document.addEventListener("keydown", (e) => { if (NAV_KEYS.has(e.key)) navAt = e.timeStamp; }, true);
+  document.addEventListener("focusin", (e) => { reached = e.timeStamp - navAt < 250 ? e.target : null; }, true);
+  const lettersBlocked = (e) => keysBlocked(e.target) && (isTypingTarget(e.target) || e.target === reached || e.code === "Space");
+  const typing = (e) => keysOn && !lettersBlocked(e) &&
     !e.target.closest?.(KEY_OWNERS) && !ownKey(e.code) && !padsTyping() && window.synthlab.songArmed?.()?.kind !== "drums";
-  Object.assign(window.synthlab, { typing, padsTyping }); // chords.js, letters.js, columns.js; perform.js
+  Object.assign(window.synthlab, { typing, padsTyping, lettersBlocked }); // chords.js, letters.js, columns.js; perform.js
 
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
   // Pen pressure -> velocity. A mouse reports exactly 0.5, which is "no

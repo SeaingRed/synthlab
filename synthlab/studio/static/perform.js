@@ -16,7 +16,7 @@
   }
   document.addEventListener("keydown", (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (window.synthlab.keysBlocked(e.target) || !window.synthlab.keysOn() || !window.synthlab.padsTyping()) return; // shared gates (piano.js)
+    if (window.synthlab.lettersBlocked(e) || !window.synthlab.keysOn() || !window.synthlab.padsTyping()) return; // shared gates (piano.js)
     const pads = document.querySelectorAll("#perform-pads .hit-pad");
     const i = KEYS[e.key.toLowerCase()];
     if (i === undefined || !pads[i]) return;
@@ -151,7 +151,7 @@
   const fxByKey = (k) => document.querySelector(`.pfx[data-key="${k}"]`);
   // Ctrl/Cmd/Alt chords (Ctrl+C / V / P) are the browser's, never a pad
   document.addEventListener("keydown", (e) => {
-    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || window.synthlab.keysBlocked(e.target) || !window.synthlab.keysOn() || !window.synthlab.padsTyping()) return;
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || window.synthlab.lettersBlocked(e) || !window.synthlab.keysOn() || !window.synthlab.padsTyping()) return;
     fxOn(fxByKey(e.key.toLowerCase()));
   });
   document.addEventListener("keyup", (e) => fxOff(fxByKey(e.key.toLowerCase())));

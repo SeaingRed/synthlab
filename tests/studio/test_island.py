@@ -702,9 +702,10 @@ def test_sliders_do_not_swallow_live_keys():
     # playing while a slider is being dragged (both keymaps).
     gate = "range|checkbox|radio|button|submit|color"
     assert gate in PIANO.read_text(encoding="utf-8")
-    # perform.js shares piano.js's gate rather than duplicating it
+    # perform.js shares piano.js's gate rather than duplicating it (keysBlocked,
+    # through lettersBlocked: a button the keyboard did not reach plays)
     perform = Path("synthlab/studio/static/perform.js").read_text(encoding="utf-8")
-    assert "keysBlocked" in perform
+    assert "lettersBlocked" in perform
 
 
 MIDI = Path("synthlab/studio/static/midi.js")
@@ -761,9 +762,11 @@ def test_shared_key_gate_and_keys_toggle(tmp_path):
     piano = PIANO.read_text(encoding="utf-8")
     assert "window.synthlab.keysBlocked = keysBlocked" in piano
     assert "isContentEditable" in piano
-    # (chords.js through piano.js's whole typing gate, which holds keysBlocked)
-    assert "keysOn && (!keysBlocked(e.target)" in piano
-    for island, gate in (("chords.js", "typing("), ("perform.js", "keysBlocked(")):
+    # (chords.js through piano.js's whole typing gate, which holds keysBlocked
+    # through lettersBlocked: a button the keyboard did not reach still plays)
+    assert "keysOn && !lettersBlocked(e)" in piano
+    assert "lettersBlocked = (e) => keysBlocked(e.target)" in piano
+    for island, gate in (("chords.js", "typing("), ("perform.js", "lettersBlocked(")):
         js = Path("synthlab/studio/static", island).read_text(encoding="utf-8")
         assert f"window.synthlab.{gate}" in js, island
         assert "select|textarea" not in js, island
