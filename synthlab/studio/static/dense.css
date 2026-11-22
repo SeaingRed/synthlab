@@ -357,8 +357,7 @@ body { line-height: 1.35; }
   .perform-view .perf-fx { display: flex; align-items: center; gap: var(--s2); }
   .perform-view .perf-fx .launch-title { margin: 0; }
   .perform-view #drumxy { min-height: 120px; }
-  .perform-view :is(.perform-pads, #perform-arrange) { padding: var(--s1); }
-  .perform-side > #perform-arrange { background: var(--ah-tile); padding: var(--s1) var(--s2); }
+  .perform-view .perform-pads { padding: var(--s1); }
   .perform-view .perform-pads { gap: var(--s1); }
 
   /* --- Drums: the clock, the bank with its grid taking the height, the kit
@@ -835,7 +834,7 @@ body { line-height: 1.35; }
   .song-view > :is(.song-topbar, .song-arranger, .drawer-idle, .song-drawer),
   .pool-sheet,
   .perform-view > :is(.perform-transport, .perf-fx, .slots-module, .transport, .perform-drums, .perform-launch),
-  .perform-view :is(.perform-pads, #perform-arrange),
+  .perform-view .perform-pads,
   .drums-view > :is(#drum-transport, #drum-bank, #drum-panels, #fx-rack),
   .mixer-view :is(.mix-returns, .mix-empty),
   #view.hub-view > :is(.hub-filter, .hub-list, .hub-bench) { background: var(--ah-tile); }

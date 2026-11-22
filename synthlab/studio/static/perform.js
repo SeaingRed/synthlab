@@ -1,8 +1,10 @@
 // synthlab/studio/static/perform.js
 // Perform view island. Owns: QWER/ASDF -> beat pads (while the keyboard
 // dock's typing → pads says so: piano.js `padsTyping`), the drum XY pad
-// (posts hat decay / kick punch), and launcher button states
-// (queued -> playing on audio.js's `loop-switched`). Budget: <= 150 code lines.
+// (posts hat decay / kick punch), launcher button states (queued ->
+// playing on audio.js's `loop-switched`) and Play's popover (opened from
+// the keyboard dock's Tools: one of it and Play tools at a time, kept open
+// across visits). Budget: <= 165 code lines (150 -> 165: Play's popover).
 
 (() => {
   "use strict";
@@ -160,4 +162,26 @@
   // drag, a beat launch), so release only when the held pad itself is gone
   document.addEventListener("htmx:after:swap", () => { if ([...held].some((b) => !b.isConnected)) allFxOff(); });
   window.addEventListener("blur", allFxOff);
+
+  // ---- Play (#perform-play): a popover the keyboard dock's Tools open ("Pads ▴") -------
+  // One of it and Play tools at a time (both stand above the dock's right end); open again
+  // on the next visit when it was left open (localStorage synthlab.pads); its keys play it shut
+  const PADS = "synthlab.pads", other = { "perform-play": "play-tools", "play-tools": "perform-play" };
+  document.addEventListener("toggle", (e) => {
+    const id = e.target.id, open = e.newState === "open";
+    if (!other[id]) return;
+    if (open) { const o = document.getElementById(other[id]); if (o?.matches(":popover-open")) o.hidePopover(); }
+    if (id !== "perform-play") return;
+    try { localStorage.setItem(PADS, open ? "1" : "0"); } catch { /* this page still has it */ }
+    document.getElementById("play-open")?.setAttribute("aria-expanded", String(open));
+  }, true); // (toggle does not bubble)
+  function reopen() {
+    const p = document.getElementById("perform-play");
+    let on = null;
+    try { on = localStorage.getItem(PADS); } catch { on = null; }
+    if (p && on === "1" && !p.matches(":popover-open")) p.showPopover();
+    document.getElementById("play-open")?.setAttribute("aria-expanded", String(!!p?.matches(":popover-open")));
+  }
+  document.addEventListener("DOMContentLoaded", reopen);
+  document.addEventListener("htmx:after:settle", reopen);
 })();
