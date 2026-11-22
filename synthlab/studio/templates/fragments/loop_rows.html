@@ -10,8 +10,9 @@
    neither): `r.ref` is what
    its actions post, and a take's or a slot's first keeping action makes
    its loop.
-   A row: ▶ — in time: from the next bar line of what plays, at its tempo
-   (loopspanel.js: the take's audio, or a render made on the first ▶,
+   A row: ▷ listen — a quiet preview in time, layered over what plays and
+   stopped by the transport: from the next bar line of what plays, at its
+   tempo (loopspanel.js: the take's audio, or a render made on the first ▷,
    `POST /loop/preview`) —, its notes as a mini piano roll or its beat as
    a mini step grid (`r.roll`: one path), its name (`r.title`: what it is,
    for a name the clock gave) · detail, ★, its tags (a click filters the
@@ -113,16 +114,18 @@
       {#- (no title: a tip on every row the pointer crosses; the panel's
           head says a row drags onto a grid) -#}
       {%- elif panel and not r.editing and not scene %} draggable="true" data-drag-loop='{{ v }}'{% endif %}>
-    {#- ▶ in time (loopspanel.js): the take's audio at its own tempo, else
-        what /loop/preview renders — at the tempo of what plays (an idea or
-        a section is heard by opening it) -#}
+    {#- ▷ listen in time (loopspanel.js): a quiet preview over what plays —
+        never the transport (the Loops page's deck is: it stops a listen
+        when it starts). The take's audio at its own tempo, else what
+        /loop/preview renders — at the tempo of what plays (an idea or a
+        section is heard by opening it) -#}
     {% if scene %}
-    <span class="btn btn-icon btn-s kt-play lp-scene-mark" aria-hidden="true">{{ '◆' if r.what == 'idea' else '§' }}</span>
+    <span class="btn btn-icon btn-s btn-ghost kt-play lp-scene-mark" aria-hidden="true">{{ '◆' if r.what == 'idea' else '§' }}</span>
     {% else %}
-    <button type="button" class="btn btn-icon btn-s kt-play lp-play" data-preview='{{ v }}'
+    <button type="button" class="btn btn-icon btn-s btn-ghost kt-play lp-play listen" data-preview='{{ v }}'
             {%- if r.audio %} data-take-url="/clip/{{ r.audio | urlencode }}.wav"{% endif %} data-loop-bpm="{{ r.bpm or 0 }}"
-            data-menu="Hear" aria-label="hear {{ r.title }}"
-            title="hear it in time: from the next bar line of what plays, at its tempo{% if not r.audio %} (rendered the first time){% endif %}">▶</button>
+            data-menu="Listen" aria-label="listen to {{ r.title }}"
+            title="▷ listen: a quiet preview in time — from the next bar line of what plays, at its tempo{% if not r.audio %} (rendered the first time){% endif %}; it never stops what plays, and stops when the transport starts">▷</button>
     {% endif %}
     {% if r.editing %}
     <span class="kt-name lp-name"><span class="lp-on" title="open on the Loops page's note grid: every change there saves to it">✎ editing</span> {{ r.title }} <small>on the grid · saves as you go</small></span>
