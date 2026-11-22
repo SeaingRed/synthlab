@@ -819,6 +819,7 @@
   function setMod(param, v) {
     mods[param] = Math.min(1, Math.max(0, Number(v) || 0));
     voiceNode?.port.postMessage({ type: param === "mod_wheel" ? "modwheel" : "aftertouch", v: mods[param] });
+    window.synthlab.keyMove?.(param, mods[param]);
   }
   const range = () => Math.max(0, Number(patch?.bend_range ?? 2));
   function setWheel(w) {
@@ -826,6 +827,7 @@
     const st = wheel * range();
     voiceNode?.port.postMessage({ type: "wheel", st });
     window.synthlab.bendKeys?.(st);
+    window.synthlab.keyMove?.("pitch_bend", wheel); // ⏺ Rec keeps the wheel too
     syncBend();
   }
   function syncBend() {

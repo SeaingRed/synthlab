@@ -57,6 +57,7 @@ from .. import (
     song_bridge,
     takeclean,
     takecoach,
+    takemoves,
     tosong,
 )
 from .. import meter as _meter
@@ -142,6 +143,18 @@ def take_keys(
     if a.meter != _meter.DEFAULT:
         meta["meter"] = a.meter
     payload = s.sound_payload()
+    # the controls turned during the take: its loop's curves (takemoves.py),
+    # over the grid its loop is placed on; the session's sound is left as
+    # the knobs are now
+    meter = _take_meter(meta)
+    grid = loops.grid_bars(bars, loops.default_steps(meter))
+    payload, kept, missed = takemoves.apply(
+        payload,
+        takemoves.parse(form.get("moves", "")),
+        grid * _meter.bar_beats(meter),
+        s.macros,
+    )
+    moved = takemoves.said(kept, missed)
     meta["sound"] = kt.save_sound(s.data_dir, payload)
     if form.get("beat") == "1":
         meta["beat"] = True
@@ -158,18 +171,30 @@ def take_keys(
         return with_toast(resp, f"Kept the take “{name}” — no loop of it: {err}")
     at = slotrec.target(s, form)
     if at:
-        return _landed(svc, resp, made, at, notes)
+        return _moved_too(_landed(svc, resp, made, at, notes), moved, s, made)
     loop = loops.load(s.data_dir, made)
     if loop is not None and (rest := loops.rest_bars(loop)):
         on = loop["lane"]["bars"]
-        return with_toast(
+        resp = with_toast(
             resp,
             f"Took “{_title(s, made)}”: {plural(on + rest, 'bar')}, "
             f"{plural(len(notes), 'note')}. The loop's grid holds bars 1–{on}; "
             f"bars {on + 1}–{on + rest} are kept as played — → Song lays out "
             "every bar as sections you can edit.",
         )
-    return resp
+    return _moved_too(resp, moved, s, made)
+
+
+def _moved_too(resp: Response, said: str, s: StudioState, made: str) -> Response:
+    """The take's answer with what its controls did said too
+    (`takemoves.said`): after the toast it has, or as its own."""
+    if not said:
+        return resp
+    trig = json.loads(resp.headers.get("HX-Trigger") or "{}")
+    was = (trig.get("studio-toast") or {}).get("message")
+    return with_toast(
+        resp, f"{was} {said}" if was else f"Took “{_title(s, made)}”. {said}"
+    )
 
 
 @router.post("/take/keys/capture")

@@ -280,6 +280,12 @@ MAX_TAKE_NOTES_CHARS = 100_000  # the notes' JSON as posted
 # bundle: the notes and the notes as played, compact, are ~50 kB at most
 MAX_TAKE_NOTES_BYTES = 128_000
 MAX_TAKE_BARS = 64  # a free take's 60 s (MAX_FREE_TAKE_SECONDS) at 200 bpm is 50 bars
+# the controls moved during one take, kept as its loop's curves (takemoves.py):
+# how many controls, how many points each as posted (thinned to the curve's
+# own MAX_CURVE_POINTS when kept), and the JSON's size
+MAX_TAKE_MOVE_FIELDS = 32
+MAX_TAKE_MOVE_POINTS = 4000
+MAX_TAKE_MOVES_CHARS = 400_000
 # --- loops (studio_data/loops/, loops.py: Save as loop) ---------------------------
 MAX_LOOPS = 200  # the store; a save past it is refused
 MAX_LOOP_TAGS = 12  # a loop's tags (the Loops panel)
