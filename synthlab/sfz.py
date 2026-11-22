@@ -112,15 +112,48 @@ def clean_member(name: str) -> str:
     return name
 
 
-def _eocd_entries(data: bytes) -> int:
-    """The entry count the end-of-central-directory record claims, read
-    before `zipfile` builds its table (so a zip of millions of entries is
-    refused for the price of a search of its tail)."""
-    tail = data[-(65_535 + 22) :]
-    at = tail.rfind(b"PK\x05\x06")
-    if at < 0 or len(tail) < at + 22:
+def _check_directory(data: bytes, members: int) -> None:
+    """Walk the zip's central directory ourselves, with a running count,
+    before `zipfile` builds its table from it: the end record's entry count
+    is only a claim (a forged one, or a ZIP64 record, would pass a check of
+    that number alone while the directory is huge). The directory is found
+    where `zipfile` finds it — its size from the end record (ZIP64's when
+    the plain one says 0xFFFF / 0xFFFFFFFF), ending where that record
+    starts — and refused if it is larger than the upload, has more records
+    than `members`, or does not end exactly at its own end."""
+    tail_at = max(0, len(data) - (65_535 + 22))
+    at = data.rfind(b"PK", tail_at)
+    if at < 0 or len(data) < at + 22:
         raise SfzError("That is not a zip file.")
-    return struct.unpack_from("<H", tail, at + 10)[0]
+    entries, cd_size = (
+        struct.unpack_from("<H", data, at + 10)[0],
+        struct.unpack_from("<I", data, at + 12)[0],
+    )
+    end = at
+    if entries == 0xFFFF or cd_size == 0xFFFFFFFF or data[at - 20 : at - 16] == b"PK":
+        loc = at - 20
+        if loc < 0 or data[loc : loc + 4] != b"PK":
+            raise SfzError("That zip's directory is inconsistent.")
+        rec = struct.unpack_from("<Q", data, loc + 8)[0]
+        if rec + 56 > loc or data[rec : rec + 4] != b"PK":
+            raise SfzError("That zip's directory is inconsistent.")
+        entries, cd_size = struct.unpack_from("<QQ", data, rec + 32)
+        end = rec
+    if entries > members:
+        raise SfzError(f"The zip holds more than {members} files.")
+    if cd_size > end:
+        raise SfzError("That zip's directory is inconsistent.")
+    pos, stop, count = end - cd_size, end, 0
+    while pos < stop:
+        if data[pos : pos + 4] != b"PK" or pos + 46 > stop:
+            raise SfzError("That zip's directory is inconsistent.")
+        count += 1
+        if count > members:
+            raise SfzError(f"The zip holds more than {members} files.")
+        n, m, k = struct.unpack_from("<HHH", data, pos + 28)
+        pos += 46 + n + m + k
+    if pos != stop:
+        raise SfzError("That zip's directory is inconsistent.")
 
 
 class Archive:
@@ -133,8 +166,7 @@ class Archive:
                 "Send a .zip holding the .sfz and its samples "
                 "(a bare .sfz has no audio with it)."
             )
-        if _eocd_entries(data) > lim.members:
-            raise SfzError(f"The zip holds more than {lim.members} files.")
+        _check_directory(data, lim.members)
         try:
             self._z = zipfile.ZipFile(io.BytesIO(data))
             infos = self._z.infolist()
@@ -234,9 +266,22 @@ class _Source:
     def expand(self, text: str, cap: int) -> str:
         if "$" not in text:
             return text
-        out = _VAR.sub(lambda m: self.defines.get(m.group(0), m.group(0)), text)
-        if len(out) > cap:
+        # bounded while it is built: a long define used many times never
+        # makes a string past the cap (a `sub` would build it, then check)
+        parts: list[str] = []
+        size = pos = 0
+        for m in _VAR.finditer(text):
+            rep = self.defines.get(m.group(0), m.group(0))
+            size += m.start() - pos + len(rep)
+            if size > cap:
+                raise SfzError("A #define expands past what this importer will read.")
+            parts += (text[pos : m.start()], rep)
+            pos = m.end()
+        size += len(text) - pos
+        if size > cap:
             raise SfzError("A #define expands past what this importer will read.")
+        parts.append(text[pos:])
+        out = "".join(parts)
         return out
 
     def feed(self, path: str, depth: int, stack: tuple[str, ...]) -> None:

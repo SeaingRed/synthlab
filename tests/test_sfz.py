@@ -512,3 +512,91 @@ def test_an_unexpected_failure_inside_is_still_an_sfzerror(monkeypatch):
     monkeypatch.setattr(sfz, "parse", boom)
     with pytest.raises(SfzError):
         one("<region> sample=s.wav")
+
+
+# --- the cap holds while a define is substituted, and the zip's directory is walked ---
+
+
+def test_a_long_define_used_thousands_of_times_never_builds_the_big_string(
+    monkeypatch,
+):
+    class NoSub:
+        """The real pattern, but `sub` (which builds the whole string and
+        checks after) is not allowed."""
+
+        def __init__(self, real):
+            self.finditer = real.finditer
+
+        def sub(self, *_a, **_k):
+            raise AssertionError("substituted without a running cap")
+
+    monkeypatch.setattr(sfz, "_VAR", NoSub(sfz._VAR))
+    text = "#define $A " + "y" * 4000 + "\n" + "$A" * 5000 + "\n"
+    with pytest.raises(SfzError, match="expands past"):
+        one(text)
+    # a define's own value built from long ones, the same way
+    text = "#define $A " + "y" * 4000 + "\n#define $B " + "$A" * 5000 + "\n"
+    with pytest.raises(SfzError, match="expands past"):
+        one(text)
+
+
+def _many(n: int) -> bytes:
+    return zip_of({f"f{i}.txt": b"x" for i in range(n)})
+
+
+def _eocd(data: bytes) -> int:
+    return data.rfind(b"PK\x05\x06")
+
+
+def test_a_forged_end_record_count_does_not_hide_a_big_directory():
+    data = bytearray(_many(20))
+    at = _eocd(data)
+    struct.pack_into("<HH", data, at + 8, 1, 1)  # the record says one entry
+    with pytest.raises(SfzError, match="more than 10 files"):
+        sfz.load(bytes(data), Store(), Limits(members=10))
+
+
+def _zip64(data: bytes, entries: int) -> bytes:
+    """`data` with a ZIP64 end record and locator, its plain end record
+    saying 0xFFFF / 0xFFFFFFFF, the ZIP64 record claiming `entries`."""
+    at = _eocd(data)
+    cd_size, cd_off = struct.unpack_from("<II", data, at + 12)
+    rec = struct.pack(
+        "<4sQHHIIQQQQ",
+        b"PK\x06\x06",
+        44,
+        45,
+        45,
+        0,
+        0,
+        entries,
+        entries,
+        cd_size,
+        cd_off,
+    )
+    loc = struct.pack("<4sIQI", b"PK\x06\x07", 0, at, 1)
+    eocd = bytearray(data[at:])
+    struct.pack_into("<HH", eocd, 8, 0xFFFF, 0xFFFF)
+    struct.pack_into("<II", eocd, 12, 0xFFFFFFFF, 0xFFFFFFFF)
+    return data[:at] + rec + loc + bytes(eocd)
+
+
+def test_a_zip64_end_record_is_walked_too():
+    big = _many(20)
+    with pytest.raises(SfzError, match="more than 10 files"):
+        sfz.load(_zip64(big, 1), Store(), Limits(members=10))  # forged count
+    with pytest.raises(SfzError, match="more than 10 files"):
+        sfz.load(_zip64(big, 20), Store(), Limits(members=10))  # honest count
+    # a ZIP64 record that points nowhere, or a directory that does not end
+    # where it says: inconsistent, never a crash
+    bad = bytearray(_zip64(big, 20))
+    bad[_eocd(bad) - 20 + 8 : _eocd(bad) - 20 + 16] = struct.pack("<Q", 3)
+    with pytest.raises(SfzError, match="inconsistent"):
+        sfz.load(bytes(bad), Store(), Limits(members=100))
+    cut = bytearray(big)
+    struct.pack_into("<I", cut, _eocd(cut) + 12, 7)  # a directory size off by far
+    with pytest.raises(SfzError):
+        sfz.load(bytes(cut), Store(), Limits(members=100))
+    # an honest ZIP64 zip reads
+    ok = _zip64(zip_of({"a.sfz": "<region> sample=s.wav", "s.wav": wav(220)}), 2)
+    assert len(sfz.load(ok, Store()).zones) == 1
