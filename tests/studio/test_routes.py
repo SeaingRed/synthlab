@@ -580,6 +580,7 @@ EXPECTED_ROUTES = [
     (["POST"], "/loop/delete"),
     (["POST"], "/loop/edit"),
     (["POST"], "/loop/edit/done"),
+    (["POST"], "/loop/length"),
     (["POST"], "/loop/load"),
     (["POST"], "/loop/preview"),
     (["POST"], "/loop/quantise"),

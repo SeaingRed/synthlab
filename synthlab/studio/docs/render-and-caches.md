@@ -111,7 +111,9 @@ player hears (`_kick_times` therefore emits several loops of triggers, on
 the drum machine's own clock rather than the synth grid's).
 `normalize_master` scales by a high percentile of the mix and then limits,
 because peak normalization handed the volume of everything to its single
-loudest sample; the limiter runs over two repeats too, or it ducks the
+loudest sample (`RenderResult.norm_gain_db` is the gain it applied: a
+take's loop is played at the keys' level by undoing it in the player,
+never in the render — `loop-and-perform.md`, "At the keys' level"); the limiter runs over two repeats too, or it ducks the
 loop's opening attack and leaves a step in level at every wrap. Finished loops also cache as `RenderResult` in `RenderCache` keyed by
 `RenderInputs.key()` (which must include *every* input that affects
 audio — there is no free `render_key(...)` function, so an edit

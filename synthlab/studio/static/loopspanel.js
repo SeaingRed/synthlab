@@ -17,9 +17,10 @@
 //   next bar line of what plays (S.nextBar), at half its level under it,
 //   else at once — the take's audio when it is at the tempo playing (or
 //   nothing plays), else POST /loop/preview, whose X-Preview-Url is a
-//   render at that tempo (or the loop's own audio, made the first time).
-//   One at a time, a layer (transport.js's oneShot): the Loops page's
-//   deck stops it when it starts (loopdeck.js).
+//   render at that tempo (or the loop's own audio, made the first time),
+//   played at X-Preview-Gain, the keys' level (keylevel.py). One at a
+//   time, a layer (transport.js's oneShot): the Loops page's deck stops
+//   it when it starts (loopdeck.js).
 // - A panel row drags onto Perform's grids: its Edit (notes) or Open
 //   (a beat) is pressed, as if clicked.
 // Budget: <= 150 code lines (the panel's state ~35, the filter
@@ -100,7 +101,7 @@
     S.ensureCtx();
     const c = S.getCtx(), playing = S.isPlaying(), now = S.tempo();
     c.resume?.();
-    let url = btn.dataset.takeUrl;
+    let url = btn.dataset.takeUrl, db = 0; // a render at another tempo: X-Preview-Gain puts it at the keys' level, as its take
     const own = Number(btn.dataset.loopBpm) || 0;
     try {
       if (!url || (playing && own && now && Math.abs(own - now) > 0.01)) {
@@ -111,9 +112,11 @@
         const res = await S.send("/loop/preview", form, { refused: "That did not play." });
         if (!res) return;
         url = res.headers.get("X-Preview-Url");
+        db = Number(res.headers.get("X-Preview-Gain")) || 0;
       }
       const buf = await S.fetchBuffer(url), src = c.createBufferSource(), quiet = c.createGain();
-      quiet.gain.value = S.isPlaying() ? 0.5 : 1; // a listen under what plays is quieter: it never fights the deck
+      // the keys' level (X-Preview-Gain), and half of it under what plays: a listen never fights the deck
+      quiet.gain.value = 10 ** (db / 20) * (S.isPlaying() ? 0.5 : 1);
       src.buffer = buf; src.connect(quiet).connect(S.getMaster());
       const at = (S.isPlaying() && S.nextBar(c.currentTime, 0.05)) || c.currentTime;
       src.start(at);

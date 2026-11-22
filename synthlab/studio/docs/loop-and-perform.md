@@ -1111,6 +1111,38 @@ loudest note starting there — the MIDI import's write
 below 100 before this (each note in the step it began in, no timing kept)
 keeps its file until Q places it again.
 
+**The take's length: keep, trim or fit** (`routes/takes.py`
+`_length_ask`, `POST /loop/length`, `tests/studio/test_take_length_level.py`,
+`tests/browser/test_take_level.py`): a take that is not whole bars —
+recorded with nothing playing, or "to ■" off the grid (1.5 bars, a
+2.24-bar riff at 100 bpm) — is placed as any take (its bars rounded up:
+the riff a 3-bar grid, 0.76 bar of silence before it repeats), and its
+answer asks, in the `song-ask` popover tosong.py's questions use
+(songdrag.js draws it on every page, beside the take's toast):
+- **Keep N bars** — as it is: the gap before it repeats;
+- **Trim to M bars** — the longest grid inside the take (its whole bars,
+  1-4, 8, 16), the notes past its end line cut at it (a note held over it
+  ends there; one starting past it goes) — offered from one bar up;
+- **Fit the tempo** — the tempo at which the take is exactly whole bars:
+  the nearest of the bars either side that is a grid (else the nearest
+  grid), inside `limits.BPM_RANGE` (the riff: 2 bars at 89.286 bpm); every
+  note keeps its place in time, its beats scaled with the tempo.
+
+Each places the loop **from its take** (`_take_basis`: the take's bars,
+tempo and notes as played — never from the loop, so Keep after Fit is the
+take again) at the loop's rate and strength, and writes the placed notes
+as the loop's `played` (Fit's in the new tempo's beats; Q starts from
+them). The loop open on the grid by Edit follows: **one pattern undo
+step**, which also carries the tempo and the loop's notes as played back
+(`pop_pattern_undo` restores a step's `arr` fields, `bpm` among them, and
+its `played`) — the transport hears it at once (a `preview-ready`).
+Refused in words: a loop with no take of its own (a capture, a lane saved,
+a beat, a free loop), one edited on the grid since ("Q places it again"),
+one playing in a launcher slot, a trim of a take under a bar. A take that
+landed in a slot, or that runs past the longest grid (→ Song lays out the
+rest), is not asked. A take's turned controls (its curves) stay drawn
+over the grid as it was placed: a length action re-places the notes only.
+
 **A long grid** (8 or 16 bars; `tests/studio/test_loops.py`,
 `test_limits.py`): the working loop's `bars` is any of
 `limits.LOOP_BAR_CHOICES` that fits its steps (`limits.loop_bar_choices`;
@@ -1276,6 +1308,47 @@ delay's ring at -45 dB stopping 3 s after the layer's last note). Either
 fix moves the renders of existing keys, so it waits for a `RENDER_REV`
 bump.
 
+**At the keys' level** (`studio/keylevel.py`,
+`tests/studio/test_take_length_level.py`, `tests/browser/test_take_level.py`):
+a take's loop plays at the level its take was heard at while it was
+played. A loop render is normalised (`render._normalize`: the body of the
+mix to 0.89); the keys are not — keys.js's key bus plays a voice at the
+engine's level x `KEY_HEADROOM` 0.45 over the keys held ^ 0.25, into a
+-4 dB limiter whose makeup gain (the DynamicsCompressorNode's own: the
+full-range gain's inverse to the 0.6, 2.28 dB) lifts it all — so the
+owner's riff played 8.9 dB over its take. **No render moved** (every key,
+`RENDER_REV` too): the render reports the gain its normalisation applied
+(`RenderResult.norm_gain_db`), and the players apply `keylevel.playback_db`
+— the key bus's gain for the notes its synth lanes play less that — as a
+playback gain:
+- **Perform's transport while a saved loop of notes is open** (Edit, a
+  launcher slot playing it: `loop_edit` names a note lane) —
+  `preview-ready`'s `gain` (dB, `svc.ready`, from `preview_trigger` and
+  `do_render`); audio.js plays the loop's buffer at it (`level`: its
+  crossfade ramps there, a same-URL answer with a new gain glides there
+  in 30 ms) and at 1 without one. The whole mix moves: a beat under the
+  open loop keeps its balance against the notes (the render's), and is
+  that much quieter than the working loop plays it. **Done** hands the
+  notes back to the working loop, which plays at the mix's level again.
+- **A Loops row's ▶ at another tempo** (`/loop/preview`'s render):
+  `X-Preview-Gain`, which loopspanel.js applies. At the loop's own tempo
+  ▶ plays the take, recorded at that level.
+- **A loop with no audio bounced** (`_bounce`: its ▶'s first time,
+  ⤓ audio, → Song as audio) is kept at that level, as a take is.
+
+The gain for one loop is the bus's power-averaged over its notes
+(`keys_gain`: each instant weighted by the voices sounding, at the gain of
+the keys held then — a release tail, the keys up, at one voice's: a third
+of the patch's release at the note's level): a line of single notes 0.585,
+a held three-note chord 0.585 / 3 ^ 0.25, the rest between; a following
+layer is its main lane's presses (one key, one count). Measured in
+Chromium, through the master's analyser (the take's ▶ against the open
+loop on Perform's ▶): a riff of single notes 0.1-0.2 dB apart (it was
+8.2), a held three-note chord 0.4 (it was 5.1). **Not changed**: the keys
+and every other render — Synths, Drums, the working loop, a song section,
+the song's export (its own loudness targets), a beat loop (no keys played
+it), → Song as a pattern (the section is normalised song-wide).
+
 `tests/studio/test_loops.py`, `test_key_takes.py`,
 `tests/browser/test_key_takes.py` (the journey: record 2 bars ->
 Loops -> Edit -> an edit saves -> → Song -> the song plays it).
@@ -1398,8 +1471,9 @@ tweak it and build on it.
   notes (or its beat) at that tempo from the render cache
   (`/preview/{key}.wav`, `_render_loop`) — in time and in tune, where the
   take's audio would drift (or, sped up, change key): **as played** feel
-  is then the grid's, not the take's. A bank slot renders through the
-  session's kit (nothing kept).
+  is then the grid's, not the take's — played at `X-Preview-Gain`, the
+  keys' level ("At the keys' level" above). A bank slot renders through
+  the session's kit (nothing kept).
 - **Drag** a panel row onto the note grid (`#transport`) or the drum grid
   (`#perform-drums`): its Edit (notes) or Open (a beat) is pressed, as a
   click; the grid it opens on is outlined while it drags
