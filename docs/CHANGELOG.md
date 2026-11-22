@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Import SFZ**: a zip of an `.sfz` and its WAV / FLAC / OGG samples becomes
+  a sampler sound with a zone a region (keys, velocities, root, tune, gain,
+  loops, round-robin takes, the first region's amplitude envelope). Every
+  opcode it does not read is listed in the toast with its count, never
+  dropped silently; the archive is read by name, never extracted, with
+  bounds on its size, entries, compression, text, includes and defines.
 - **A spectral oscillator**: osc 1's "spectral" pill plays the sampler's
   sample resynthesised from its spectrum, with time and pitch apart — a
   scan position (drawable, a route target) and a scan rate (0.5 twice as

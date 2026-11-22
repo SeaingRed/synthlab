@@ -1048,6 +1048,52 @@ Building one:
   there). The Lab's vocal instrument is a one-sample formant sampler:
   ＋ zone adds to it.
 
+- **Import SFZ…** (`POST /fragment/sampler/sfz`, `synthlab/sfz.py`,
+  `tests/test_sfz.py`, `tests/studio/test_sfz_import.py`; a button in the
+  sound dock, the sampler panel and the zone map's toolbar, each a label
+  for the one file input beside `#patch`): a **.zip** of an `.sfz` and its
+  samples becomes the edited sound, a sampler with a zone a region, one
+  undo step, landing on Synths. A bare `.sfz` is refused in words: a clip
+  has a free name and a sample none, so matching its file names to the
+  stores would be a guess. Samples are read by libsndfile (WAV, FLAC, OGG,
+  by content, not extension; any rate 8-192 kHz, mono or stereo, more
+  channels keep the first two), into the sample store, each cut at
+  `sampler.MAX_SAMPLE_SECONDS`. The decode runs with the lock released
+  (`render_outside_lock`: it only touches the self-locking sample store),
+  the sound is loaded under it. Mapped: headers `<control>` (`default_path`,
+  `octave_offset`, `note_offset`), `<global>`, `<master>`, `<group>`,
+  `<region>` with inheritance; `#define` / `$VAR`, `#include` inside the zip;
+  `sample`, `lokey` / `hikey` / `key` / `pitch_keycenter` (numbers or
+  names, c4 = 60; `=sample` is the detected pitch), `lovel` / `hivel`,
+  `tune` (past ±100 cents the root moves), `transpose` (the root), `volume`
+  and `amplitude` (the zone's gain, clamped to -36..+12), `offset` / `end`,
+  `loop_mode` (`loop_continuous` / `loop_sustain`) with `loop_start` /
+  `loop_end` or the WAV's own `smpl` loop or the whole sample, `seq_position`
+  (the take), `trigger=attack`, and the **first region's** `ampeg_attack` /
+  `decay` / `sustain` / `release` on the Patch's amplitude envelope (a
+  differing later region is said). **Nothing is dropped silently**: every
+  other opcode is counted by the regions it is on ("Not imported: cutoff
+  ×12, pan ×4 …"), regions left out are counted with the reason (release /
+  first / legato triggers, a sample not in the zip or undecodable,
+  generated waveforms, `end=-1`), approximations are listed ("Approximated:
+  one_shot plays as a held note …"). Past `MAX_ZONES` regions the first 64
+  that import are kept and the count of the rest is said. **The zip is
+  hostile**: nothing is ever extracted, members are read by name; refused
+  are `..`, absolute, drive-letter, backslash or control-character names,
+  duplicates by case, encryption, more than `MAX_SFZ_MEMBERS` entries (the
+  central directory is walked before `zipfile` builds its table, ZIP64
+  included), over `MAX_SFZ_UNCOMPRESSED` / `MAX_SFZ_MEMBER_BYTES`, a ratio
+  over `MAX_SFZ_RATIO`; the text is bounded in bytes, lines, `#include`
+  depth / count / cycles and `#define` count and expansion (the cap is held
+  while a define is substituted, never after); numbers are finite and sane
+  or the opcode is listed; anything unexpected is one `SfzError`, a toast.
+  The limits are `limits.MAX_SFZ_*`; the upload is capped by
+  `security._PATH_UPLOAD_LIMITS`. The live keys play it from the worklet
+  while `live_zone_samples` fits `LIVE_MAX_SAMPLES`; past it the toast says
+  the keys play the rendered notes. Not read: `lorand` / `hirand`,
+  filters, LFOs, effects, `<curve>`, velocity curves and tracking, `pan`,
+  `group` / `off_by`, CC and keyswitch regions.
+
 The editor (`fragments/sampler_zones.html`, in the sampler block while
 the sound has zones, where the waveform, pitch and chops would be: they
 do not play): a **plane of keys (x, 0..127, over a keyboard strip with

@@ -527,6 +527,8 @@ EXPECTED_ROUTES = [
     (["POST"], "/fragment/sampler/record"),
     (["POST"], "/fragment/sampler/resample"),
     (["POST"], "/fragment/sampler/root"),  # "use" the detected pitch
+    # an SFZ instrument (a zip) as the sound: zones a region (synthlab/sfz.py)
+    (["POST"], "/fragment/sampler/sfz"),
     (["POST"], "/fragment/sampler/slice"),
     # a multi-sample instrument: one zone's edit, a clip as a zone, the map's
     # tools, auto-map (several clips as one sound)
@@ -730,6 +732,9 @@ RENDER_OUTSIDE_LOCK = {
     # ... and on a pool pattern: a section of its own, through a lane
     "/song/pattern/{pattern_id}/play.wav",
     "/fragment/breed/generation",
+    # Import SFZ…: the samples are decoded with the lock released (they touch
+    # only the self-locking sample store), the sound loaded under it again
+    "/fragment/sampler/sfz",
     # the first visit to an empty Breed board generates its litter
     "/view/{name}",
     # a live key: a press used to hold the lock for its render

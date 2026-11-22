@@ -38,6 +38,8 @@
     <button type="button" class="btn btn-s" hx-post="/fragment/sampler/zones" hx-vals='{"action": "spread"}' hx-swap="none"
             data-cmd="Sampler: spread the zones by their roots"
             title="each layer's zones over the whole keyboard, split half way between their roots">Spread</button>
+    <label class="btn btn-s" for="sfz-file"
+           title="a .zip of an .sfz and its samples (WAV, FLAC or OGG) becomes this sound: a sampler with a zone a region; what it does not read is listed in the toast (Ctrl+Z undoes it)">Import SFZ…</label>
     <button type="button" class="btn btn-ghost btn-s" hx-post="/fragment/sampler/zones" hx-vals='{"action": "clear"}' hx-swap="none"
             data-cmd="Sampler: clear the zones (one sample again)"
             title="drop the zone map: the first sample plays alone again (Ctrl+Z brings the map back)">Clear</button>

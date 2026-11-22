@@ -50,6 +50,8 @@ _PATH_UPLOAD_LIMITS = {
     # MAX_PROJECT_UPLOAD_BYTES by the route itself (routes/export.py)
     "/project/import": "MAX_PROJECT_ZIP_BYTES",
     "/fragment/pattern/import": "MAX_MIDI_UPLOAD_BYTES",
+    # an SFZ instrument: a zip of the .sfz and its samples (synthlab/sfz.py)
+    "/fragment/sampler/sfz": "MAX_SFZ_UPLOAD_BYTES",
     # a whole song for the Sample Lab (studio/sources.py)
     "/lab/upload": "MAX_SOURCE_UPLOAD_BYTES",
     # a drawn wavetable: a few hundred numbers as text (studio/wavetables)

@@ -55,6 +55,9 @@
             hx-trigger="change" hx-sync="this:queue all">
         <label class="btn btn-s filepick" title="import a project: a .json, or a .zip exported with its audio">Import… <input type="file" name="file" accept=".json,application/json,.zip,application/zip" hidden></label>
       </form>
+      {#- an SFZ instrument as the sound: the same file input as the sampler panel's button (below #patch) -#}
+      <label class="btn btn-s" for="sfz-file"
+             title="a .zip of an .sfz and its samples (WAV, FLAC or OGG) becomes this sound: a sampler with a zone a region; what it does not read is listed in the toast (Ctrl+Z undoes it)">Import SFZ…</label>
     </div>
   </aside>
   {# the dock scrolls, so its resize handle sits beside it in the same grid
@@ -348,6 +351,15 @@
     {% endfor %}
     </div>
     {% endfor %}
+  </form>
+
+  {#- Import SFZ…: the sampler panel's and the zone map's buttons are labels
+      for this file input (`for="sfz-file"`), which sits outside #patch (its
+      every `input` is a patch post). A multipart form that answers with the
+      whole page, the new instrument loaded (routes/sampler.py `sampler_sfz`) -#}
+  <form id="sfz-import" hx-post="/fragment/sampler/sfz" hx-encoding="multipart/form-data"
+        hx-target="body" hx-swap="innerMorph" hx-trigger="change" hx-sync="this:queue all" hidden>
+    <input type="file" id="sfz-file" name="file" accept=".zip,application/zip" aria-label="an SFZ instrument: a zip of the .sfz and its samples">
   </form>
 
   {#- your own wavetable: + from clip… and draw… (the picker's buttons open
