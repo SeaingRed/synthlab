@@ -43,11 +43,13 @@ from ..arrange import FOLLOW_OCTAVES, LAYER_ROLES
 from ..audition import PHRASES
 from ..curves import CURVABLE
 from ..fxrack import (
+    CLIP_UNITS,
     DYNAMICS_UNITS,
     FX2_UNITS,
     FX_UNITS,
     MAX_UNITS,
     MULTIBAND_UNITS,
+    UTILITY_UNITS,
     VOCAL_UNITS,
     clean_chain,
 )
@@ -90,8 +92,16 @@ _AGENT_FX_CAPS = {("width", "amount"): 1.5}
 # chain's (a mic's, not a synth's — and five more catalogue lines on every
 # request), the FX2 units (nine more lines: past the schema's budget,
 # tests/studio/test_agent.py), the dynamics units (three more) and the
-# multiband drive (one more)
-_NOT_OFFERED = VOCAL_UNITS | FX2_UNITS | DYNAMICS_UNITS | MULTIBAND_UNITS
+# multiband drive (one more); the utility (the budget again) and the
+# convolution, whose impulse is a clip of this studio's
+_NOT_OFFERED = (
+    VOCAL_UNITS
+    | FX2_UNITS
+    | DYNAMICS_UNITS
+    | MULTIBAND_UNITS
+    | UTILITY_UNITS
+    | CLIP_UNITS
+)
 AGENT_FX = {k: v for k, v in FX_UNITS.items() if k not in _NOT_OFFERED}
 
 

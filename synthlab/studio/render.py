@@ -1509,19 +1509,29 @@ def _wet(x: np.ndarray, units: list, arr, span: float) -> np.ndarray:
     wet path also carries its input undelayed (`effects._delay`: the line
     is y = x + feedback * y[-d]), so that direct term — the same unit with
     no feedback, fed only what it passes straight through — is taken out:
-    a send to a delay return adds echoes, never level to the dry track."""
+    a send to a delay return adds echoes, never level to the dry track. A
+    banded unit sends its band's output alone (`build_chain(wet=True)`):
+    the rest of the send is not passed into the return."""
     from .. import effects
 
     for u in units:
         if u.get("off"):  # bypassed
             continue
-        y = to_stereo(np.asarray(fx_chain(x, build_chain([u], arr, span=span))))
+        chain = build_chain([u], arr, span=span, wet=True)
+        y = to_stereo(np.asarray(fx_chain(x, chain)))
         if u["kind"] == "delay":
             _name, kw = unit_args(u, arr, span)
-            direct = to_stereo(x).copy()
-            if kw["ping_pong"]:
-                direct[:, 1] = 0.0  # the right line starts one echo late
-            y = y - effects._delay(direct, **{**kw, "feedback": 0.0, "mix": 1.0})
+
+            def direct(part, kw=kw):
+                part = to_stereo(part).copy()
+                if kw["ping_pong"]:
+                    part[:, 1] = 0.0  # the right line starts one echo late
+                return effects._delay(part, **{**kw, "feedback": 0.0, "mix": 1.0})
+
+            band = u.get("band")  # a banded delay: the direct term of its band
+            y = y - to_stereo(
+                effects.band_apply(x, band, direct, wet=True) if band else direct(x)
+            )
         x = y
     return x
 

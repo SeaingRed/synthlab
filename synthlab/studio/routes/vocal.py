@@ -25,7 +25,7 @@ from fastapi import Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from ...audio import read_pcm16
-from .. import limits, vocal
+from .. import irs, limits, vocal
 from .. import song_model as sm
 from .. import voice as lab
 from ..clips import clip_dir, clip_safe, free_clip_name, save_clip
@@ -74,8 +74,9 @@ def vocal_fx(form: StrForm, svc: Svc) -> Response:
         return svc.toast("No such rack edit.")
     live = lab.read_lab(s.data_dir)["live"]
     try:
+        form = irs.resolve(s.data_dir, s.sample_dir, form)  # a picked impulse
         chain, _said, _at = edit_chain(live["chain"], op, form)
-    except RackError as err:
+    except (RackError, irs.IRError) as err:
         return svc.toast(str(err))
     lab.write_lab(s.data_dir, live={**live, "chain": chain})
     return _panel(svc)

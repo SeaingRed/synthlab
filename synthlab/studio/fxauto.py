@@ -156,9 +156,10 @@ BLOCK = 64
 # the units that blend inside their own regions (a repeat's, a stop's
 # window) rather than over the whole buffer, or against a dry that is not
 # their input (the multiband drive's: its bands summed, the input through
-# two all-passes): they take the mix array themselves, where every other
+# two all-passes) or whose missing IR passes its input at any mix (the
+# convolution's): they take the mix array themselves, where every other
 # `mix` is `dry * (1 - mix) + wet * mix` with the input the dry
-OWN_MIX = frozenset({"beat_repeat", "stop", "mbdrive"})
+OWN_MIX = frozenset({"beat_repeat", "stop", "mbdrive", "convolve"})
 
 
 def _unit(x: np.ndarray, u: dict, arr: Arrangement, arrays: dict, n: int) -> np.ndarray:
@@ -179,12 +180,20 @@ def _unit(x: np.ndarray, u: dict, arr: Arrangement, arrays: dict, n: int) -> np.
     name, kw = unit_args(u, arr, len(x) / SR)
     mix = None if u["kind"] in OWN_MIX else arrays.get("mix")
     kw |= {k: v for k, v in arrays.items() if k != "mix" or mix is None}
-    if mix is None:
-        return getattr(fx, name)(**kw)(x)
-    st = fx.to_stereo(x)
-    wet = fx.to_stereo(getattr(fx, name)(**{**kw, "mix": 1.0})(st))
-    m = mix[:, None]
-    return st * (1 - m) + wet * m
+
+    def run(y: np.ndarray) -> np.ndarray:
+        if mix is None:
+            return getattr(fx, name)(**kw)(y)
+        st = fx.to_stereo(y)
+        wet = fx.to_stereo(getattr(fx, name)(**{**kw, "mix": 1.0})(st))
+        m = mix[:, None]
+        return st * (1 - m) + wet * m
+
+    # a banded unit: the same unit, its arrays and all, on its band — the
+    # band's samples are the buffer's, so a lane's value at sample i is
+    # the unit's there, and the rest passes as `build_chain`'s does
+    band = u.get("band")
+    return fx.band_apply(x, band, run) if band else run(x)
 
 
 def render(

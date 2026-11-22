@@ -755,6 +755,9 @@ were drawn on, so they play the values they did.
   | beat_repeat `mix`, stop `mix` | the unit's own blend inside its regions, `dry * (1 - ramp * mix) + wet * mix`, with the mix read at each output sample (`fxauto.OWN_MIX`); which steps repeat and where the tape stops are the pattern's, the rolls' and the period's — never the mix's | exact: bit for bit when still; each output sample is the scalar unit's at that sample's mix (0 at 24 instants) |
   | ott `depth`, limiter `gain`, transient `attack` / `sustain` (the FX2 units' lanes are in `live-voice.md`, "The FX2 units") | the OTT's blend band by band, `1 - depth[i] + depth[i] * g[i]` against each band's own gain; the limiter's dB in per sample (the held gain follows it, so a build pushed louder is held at the ceiling as the slider would be); the shaper's detector dB times the value per sample | exact, memoryless in the parameter: a still lane is the unit bit for bit (`test_song_fx_lanes.py`) |
 
+  | convolve `mix` | the unit's own blend (`fxauto.OWN_MIX`): `dry * (1 - mix) + wet * mix` per sample, and no impulse here passes the input at any mix | exact: a still lane is the unit bit for bit |
+  | utility `gain`, `width` | dB per sample, the side's share per sample (`effects._utility` takes arrays: one code path) | exact, memoryless: a still lane is the unit bit for bit |
+
   The gate, sidechain / pump and beat_repeat / stop rows
   (`tests/studio/test_song_fx_lanes_clock.py` holds their table) are the
   clocked units. A stutter or a tape stop is *placed* this way: the rack
@@ -814,6 +817,12 @@ were drawn on, so they play the values they did.
   untouched). The drawer's menu names an id-less unit by its place
   (`fx:@<index>:<kind>:<param>`), a form that only travels from the menu
   to the route and is never stored.
+- **A banded unit** (`"band"` on the unit, `docs/engine.md`, "A unit's
+  band"): its lanes are the same unit with its slider moving, on its band
+  — `fxauto._unit` runs the unit, arrays and all, inside
+  `effects.band_apply`, so a still lane is the banded unit bit for bit
+  and a moving mix is `dry * (1 - mix) + wet * mix` inside the band
+  (`tests/studio/test_fx_band.py`).
 - **Missing units.** A lane whose unit is no longer in the chain (or
   whose id now sits on a unit of another kind) is kept in the song and
   read by nothing: `sm.section_lanes` leaves it out, so the section's
@@ -1001,7 +1010,11 @@ edit is a `_commit` (one undo step, saved, `song-changed`).
   `{id, name, fx, gain}`. The defaults are `mixer.DEFAULT_RETURNS`: "A
   Reverb" (decay 2.4 s) and "B Delay" (a dotted eighth on the tempo,
   ping-pong, feedback 0.4). The return's strip has its fader and its first
-  unit's parameters — never its `mix`: a return renders fully wet.
+  unit's parameters — never its `mix`: a return renders fully wet. A
+  return unit with a `band` (stored by hand or a project: the strip draws
+  no band select) sends its band's output alone (`render._wet`,
+  `build_chain(wet=True)`) — the rest of the send is not passed into the
+  return, and a banded delay's undelayed term is its band's, taken out.
   Removing one drops every send to it: its ✕ asks first, and the toast
   names the return and the sends that went (one undo step).
 - **The keyboard**: every control is a Tab stop, in the strip's order,

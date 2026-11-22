@@ -176,6 +176,69 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   crossover, now shared, and fx-worklet.js's drive shapes: <= 3.8e-8 of
   peak); lanes on the three amounts and the mix. No existing unit moved:
   no `RENDER_REV`.
+- **A unit's band** (`effects.band_apply` / `banded`, `"band"` on a rack
+  unit; `tests/test_effects_band.py`, `tests/studio/test_fx_band.py`):
+  any unit on part of the signal — `low`, `mid` or `high` (`ott_bands`,
+  the OTT's Linkwitz-Riley crossovers at 120 Hz / 2.5 kHz) or `ms_mid` /
+  `ms_side` (mid = (L + R) / 2, side = (L - R) / 2, exact) — the rest
+  passed and summed back. Not a unit: a wrapper `fxrack.build_chain` puts
+  round one whose `band` is set (absent = the whole signal, so no stored
+  chain or key moved). **The passed part is all-passed as the band is**
+  (the other two bands summed, as the multiband drive's dry): a unit that
+  leaves its band alone — at mix 0, say — gives the input through two
+  all-passes, flat to 1e-9 (measured 4e-14), its phase turned round the
+  splits, never the raw input (raw + an all-passed band would comb). On
+  mid or side the unit hears that channel on both sides and its two
+  outputs are averaged back to one (a stereo effect — width, a doubler's
+  spread, an auto-pan — meets one channel there); a mono input has no
+  side (`ms_side` passes it, `ms_mid` is the unit on it). The unit's
+  output is not filtered back into its band: a drive's harmonics on the
+  lows reach up, as the multiband drive's do. `wet=True` is the band's
+  output alone (a mixer return, `render._wet`: what it sends is the
+  effect, never level). Causal and silent in silence whenever the unit
+  is; **loop-safe for the time remaps**: a banded beat repeat or tape
+  stop commutes with `_wrap_tile`'s fold as an EQ before it would (the
+  crossovers LTI, the remap linear and periodic) — 4.5e-14 on a render
+  whose tail dies before the buffer's end. **Refused** (`fxrack.BANDLESS`,
+  in words): the limiter, whose lookahead is a delay that would land its
+  band late against the rest. Offline units (granular, shimmer,
+  compress, vinyl) band offline as they run. No existing unit moved: no
+  `RENDER_REV`.
+- **Utility** (`effects.utility`, FX unit `utility`,
+  `tests/test_effects_utility.py`): in order, each channel's polarity
+  (`flip_l` / `flip_r`, choices off / on), the side x `width` (0 mono, 1
+  as is, 2 wide), the side's lows out under `bass_mono` Hz (0 off) — a
+  Linkwitz-Riley split at `UTILITY_Q`: the side high-passed twice, the
+  mid through the pair's all-pass, so the lows of both channels are
+  their mono sum and the mid stays flat (to 1e-9) — then `pan`
+  (`_pan_gains`, the law `pan` has on a stereo input) and `gain` dB. At
+  its defaults the input itself, bit for bit. Causal, silent in silence;
+  live twin in `band-worklet.js` (<= 1.3e-7 of peak); lanes on `gain` and
+  `width`, one code path for a scalar and an array. Not offered to the
+  sound agent (`fxrack.UTILITY_UNITS`, its schema's budget).
+- **Convolution** (`effects.convolve` / `convolve_ir`, FX unit
+  `convolve`; `tests/test_effects_convolve.py`,
+  `tests/studio/test_fx_convolve.py`): a sample from the sampler's store
+  as the impulse response — `ir` is its id (sha1 of the 16-bit PCM), so
+  every key holding the unit holds the IR by content; **an id this
+  machine lacks, or an IR with no energy, is a dry pass** (the input
+  itself at any mix, never an error). The IR is cut at
+  `CONVOLVE_MAX_SECONDS` (8 s = `studio/limits.py` `MAX_IR_SECONDS`), at
+  the asked rate (resampled from `SR`), high-passed at `lowcut` / low-passed
+  at `highcut` (RBJ, Q 0.707; at 20 Hz / 20 kHz not run), `predelay` s of
+  silence before it, then **divided by its energy** (sqrt of the
+  channels' mean sum of squares, the reverb's rule without its -1.5 dB):
+  fixed by the IR, never by the input — causal, and a white input's wet
+  at its own level whatever the recording's level. Each channel with its
+  own IR channel (a mono clip is stored stereo), an FFT convolution
+  cut to the buffer (`_ir_spectrum` keeps the IR's transform), `dry *
+  (1 - mix) + wet * mix`; a mix lane is the unit's own (`fxauto.OWN_MIX`:
+  the dry pass holds at any mix). **The tail**: a loop keeps one loop
+  length of ring (`_wrap_tile`, as every stem), a section's chain its
+  cycle's ring; a live key rings the whole IR. Live: "native", a
+  ConvolverNode on `GET /fx/ir.wav?kind=clip&id=&predelay=&lowcut=&highcut=&sr=`
+  (exactly `convolve_ir`, float32; 404 for an id not here). No existing
+  unit moved: no `RENDER_REV`.
 - `sequencer.py` — `Song`: beat-based multitrack timeline. `note_span()` is
   the one definition of how long a note's buffer is: its own length plus the
   patch's release (capped at `MAX_NOTE_TAIL`). It was a flat `dur * 1.15`

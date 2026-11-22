@@ -16,6 +16,7 @@ import re
 import secrets
 
 from .. import effects as fx
+from .. import sampler
 from ..sequencer import NOTE_NAMES, SCALES, midi
 from . import meter as _meter
 from .curves import UNIT_ID_LEN, unit_id_ok
@@ -52,6 +53,10 @@ DYNAMICS_UNITS = frozenset({"ott", "limiter", "transient"})
 # the multiband drive (fx2-worklet.js too): not offered to the sound agent,
 # for the same reason (its schema's budget)
 MULTIBAND_UNITS = frozenset({"mbdrive"})
+# the utility (band-worklet.js): not offered to the sound agent either, for
+# the same reason; the convolution needs a clip the agent cannot pick
+UTILITY_UNITS = frozenset({"utility"})
+CLIP_UNITS = frozenset({"convolve"})
 # an LFO unit's `sync` (the auto-filter's, the tremolo's): 0 its own `rate`
 # in Hz, else one cycle a note length (beats: `LFO_BEATS`, resolve_unit)
 LFO_SYNC = (
@@ -591,6 +596,37 @@ FX_UNITS: dict[str, dict] = {
         },
         "choices": {"mode": fx.DRIVE_MODES},
     },
+    # a channel's tools (`effects.utility`, a twin in band-worklet.js): gain
+    # dB, pan, width (0 mono .. 1 as is .. 2 wide), the lows mono under
+    # `bass_mono` Hz (0 off), each channel's polarity. At its defaults the
+    # input itself
+    "utility": {
+        "label": "Utility",
+        "params": {
+            "gain": (-24.0, 24.0, 0.0),
+            "pan": (-1.0, 1.0, 0.0),
+            "width": (0.0, 2.0, 1.0),
+            "bass_mono": (0.0, 500.0, 0.0),
+            "flip_l": (0.0, 1.0, 0.0),
+            "flip_r": (0.0, 1.0, 0.0),
+        },
+        "choices": {"flip_l": ("off", "on"), "flip_r": ("off", "on")},
+    },
+    # a clip's sound as the room (`effects.convolve`): `ir` names a sample by
+    # its content (sampler.py's id: a clip picked on the unit is made into
+    # one, `studio/irs.py`), "" none — a dry pass; `predelay` s before it,
+    # its lows cut under `lowcut` Hz and highs over `highcut` (at the ends:
+    # not cut). A ConvolverNode live, as the plate
+    "convolve": {
+        "label": "Convolution",
+        "params": {
+            "mix": (0.0, 1.0, 0.3),
+            "predelay": (0.0, 0.08, 0.0),
+            "lowcut": (20.0, 1000.0, 20.0),
+            "highcut": (1000.0, 20000.0, 20000.0),
+        },
+        "ir": "",
+    },
 }
 
 
@@ -907,6 +943,13 @@ FX_PRESETS: dict[str, dict[str, dict[str, float]]] = {
         "Low growl": {"low": 6.0, "mid": 1.5, "mode": 3.0},
         "Mid bite": {"mid": 5.0, "mode": 1.0, "mix": 0.8},
         "Air fizz": {"high": 8.0, "mode": 2.0, "mix": 0.6},
+    },
+    "utility": {
+        "Bass mono": {"bass_mono": 120.0},
+        "Mono": {"width": 0.0},
+        "Wide": {"width": 1.5, "bass_mono": 150.0},
+        "Polarity flip": {"flip_l": 1.0, "flip_r": 1.0},
+        "-6 dB": {"gain": -6.0},
     },
 }
 
@@ -2013,6 +2056,8 @@ def clean_chain(units) -> list[dict]:
         if "pattern" in spec:
             pat = str(u.get("pattern", spec["pattern"]))
             unit["pattern"] = pat if _PATTERN_RE.fullmatch(pat) else spec["pattern"]
+        if "ir" in spec:  # its impulse: a sample's id, or "" (none)
+            unit["ir"] = sampler.clean_id(u.get("ir"))
         # a unit's identity, kept only where it has one (`unit_id`): the
         # second unit claiming an id loses it, so an id names one unit
         if unit_id_ok(uid) and uid not in ids:
@@ -2022,8 +2067,40 @@ def clean_chain(units) -> list[dict]:
         # chain with every unit on is stored, and keyed, as it always was
         if u.get("off") is True:
             unit["off"] = True
+        # the part of the signal it works on (`effects.band_apply`): kept
+        # only when set, one of the five and a unit that may have one, so a
+        # chain with none is stored, and keyed, as it always was
+        if band_ok(kind, u.get("band")):
+            unit["band"] = u["band"]
         out.append(unit)
     return out[:MAX_UNITS]
+
+
+# A unit's band (`"band"` on the unit, `effects.BANDS`): absent, the whole
+# signal. Labels for the rack's select, in its order.
+BAND_LABELS = {
+    "": "full",
+    "low": "lows",
+    "mid": "mids",
+    "high": "highs",
+    "ms_mid": "mid",
+    "ms_side": "side",
+}
+assert tuple(BAND_LABELS)[1:] == fx.BANDS
+# the units a band is refused for, and why (a toast says it). The limiter's
+# lookahead is a delay (its latency, live and in the loop): on one band it
+# would slide that band behind the rest, so it limits the whole signal or
+# nothing
+BANDLESS = {
+    "limiter": "A limiter delays what it limits by its lookahead: on one band "
+    "that band would land late against the rest. It works on the whole signal."
+}
+
+
+def band_ok(kind, band) -> bool:
+    """Whether a unit of `kind` keeps `band`: one of `effects.BANDS`, on a
+    unit that is not `BANDLESS`."""
+    return isinstance(band, str) and band in fx.BANDS and kind not in BANDLESS
 
 
 def active(units) -> list[dict]:
@@ -2042,7 +2119,7 @@ def active(units) -> list[dict]:
 RACK_OPS = ("add", "remove", "move", "set")
 # a set's names that are a press, not a value dragged: each its own undo
 # step (`mixer.edit_rack` gives them no key to join on)
-RACK_PRESSES = ("recall", "step", "steps", "preset", "on")
+RACK_PRESSES = ("recall", "step", "steps", "preset", "on", "band", "ir")
 
 
 class RackError(ValueError):
@@ -2083,8 +2160,22 @@ def _set_unit(unit: dict, name: str, value) -> None:
             unit["off"] = True
         else:
             unit.pop("off", None)
+    elif name == "band":  # "" / "full": the whole signal again
+        band = str(value).strip()
+        if band in ("", "full"):
+            unit.pop("band", None)
+        elif band not in fx.BANDS:
+            raise RackError("No such band.")
+        elif unit["kind"] in BANDLESS:
+            raise RackError(BANDLESS[unit["kind"]])
+        else:
+            unit["band"] = band
     elif name == "pattern" and "pattern" in spec:
         unit["pattern"] = str(value)
+    elif name == "ir" and "ir" in spec:  # a sample's id (`irs.resolve` made it)
+        if str(value) and not sampler.valid_id(str(value)):
+            raise RackError("That is not an impulse this rack can play.")
+        unit["ir"] = str(value)
     elif name in ("step", "steps") and "pattern" in spec:
         pat = str(unit.get("pattern") or spec["pattern"])
         n = int(_rack_number(value, name))
@@ -2147,6 +2238,10 @@ def edit_chain(units, op: str, values) -> tuple[list[dict], str, int | None]:
         label = FX_UNITS[chain[at]["kind"]]["label"]
         if name == "on":
             said = f"{label} {'bypassed' if chain[at].get('off') else 'on'}"
+        elif name == "band":
+            said = f"{label} on {BAND_LABELS[chain[at].get('band', '')]}"
+        elif name == "ir":
+            said = f"{label} impulse"
         else:
             said = f"{label}: {value}" if name == "recall" else f"{label} {name}"
     else:
@@ -2160,8 +2255,10 @@ def rack_rows(units) -> list[dict]:
     numbered when the chain holds two of its kind), its parameters (a dict
     each: name, lo, hi, default, value, and `choices`, the labels, for one
     that is a choice), its pattern string when it has one, whether it is
-    `on` (not bypassed), its ★ presets' names, a gate's rhythms `(key,
-    label, pattern)`, and whether it is the first or the last."""
+    `on` (not bypassed), its band ("" the whole signal) and the bands it
+    may take `(key, label)` (none for a `BANDLESS` unit), its ★ presets'
+    names, a gate's rhythms `(key, label, pattern)`, and whether it is the
+    first or the last."""
     chain = clean_chain(list(units or []))
     count: dict[str, int] = {}
     rows = []
@@ -2190,7 +2287,11 @@ def rack_rows(units) -> list[dict]:
                     for name, (lo, hi, default) in spec.get("params", {}).items()
                 ],
                 "pattern": u.get("pattern"),
+                "ir": u.get("ir"),
                 "on": not u.get("off"),
+                # its band ("" the whole signal) and whether it may have one
+                "band": u.get("band", ""),
+                "bands": [] if u["kind"] in BANDLESS else list(BAND_LABELS.items()),
                 "presets": list(FX_PRESETS.get(u["kind"], {})),
                 "rhythms": (
                     [(k, g["label"], g["pattern"]) for k, g in GATE_PATTERNS.items()]
@@ -2307,17 +2408,21 @@ def build_chain(
     arr: Arrangement,
     *,
     span: float = 0.0,
+    wet: bool = False,
 ) -> list:
     """Stored chain -> effects.chain() callables. bpm-aware units (gate,
     sidechain) read timing from the arrangement. `span` is how many
     seconds the chain will run over, so the clocked triggers (sidechain,
     pump) reach its end (a song section's cycle and tail); the default
     leaves a loop's chain exactly as it was. A bypassed unit (`off`) is
-    not built: the signal passes it by."""
+    not built: the signal passes it by. A unit with a `band` is built
+    round it (`effects.banded`; `wet`: its band's output alone, a mixer
+    return's, the rest not passed)."""
     chain: list = []
     for u in active(units):
         name, kw = unit_args(u, arr, span)
-        chain.append(getattr(fx, name)(**kw))
+        f = getattr(fx, name)(**kw)
+        chain.append(fx.banded(f, u["band"], wet) if u.get("band") else f)
     return chain
 
 
@@ -2409,6 +2514,8 @@ def resolve_unit(u: dict, arr: Arrangement) -> tuple[str, dict]:
         }
     if kind == "bitcrush":
         return "bitcrush", {"bits": int(p["bits"]), "downsample": int(p["downsample"])}
+    if kind == "convolve":  # its impulse, by content
+        return "convolve", {"ir": u.get("ir", ""), **p}
     if kind == "drive":
         mode = fx.DRIVE_MODES[int(p["mode"])]
         return "drive", {"amount": p["amount"], "mix": p["mix"], "mode": mode}

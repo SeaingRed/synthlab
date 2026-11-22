@@ -28,6 +28,7 @@ import json
 from fastapi import Request, Response
 from fastapi.responses import HTMLResponse
 
+from .. import irs
 from ..fxrack import (
     CHAIN_PRESETS,
     FX_UNITS,
@@ -210,6 +211,10 @@ def fx_set(request: Request, form: StrForm, svc: Svc) -> Response:
     chain = s.fx_chain(scope)
     if chain is None:
         return Response(status_code=422)
+    try:  # a clip picked as a convolution's impulse: its sample (irs.py)
+        form = irs.resolve(s.data_dir, s.sample_dir, form)
+    except irs.IRError as err:
+        return svc.toast(str(err))
     try:
         edited, _said, at = edit_chain(chain, "set", form)
     except RackError:

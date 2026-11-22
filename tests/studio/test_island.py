@@ -221,8 +221,12 @@ def test_every_island_states_a_budget_and_keeps_it():
     # arppat.js is the arp pattern's walk for the keys arp (arppattern.py's,
     # line for line: steps, chance on a hash, tones of the key, repeats,
     # retrigger): arp.js's pure half is held to its own modes, and the walk
-    # is a second engine beside it — 82
-    assert len(islands) == 82, [p.name for p in islands]
+    # is a second engine beside it — 82;
+    # band-worklet.js is a unit's band for the live keys (the band split off,
+    # the unit run on it, the rest summed back; the split and join round a
+    # banded native unit) and the utility unit, a fifth module in the FX
+    # worklet's scope: fx-worklet.js and fx2-worklet.js are full — 83
+    assert len(islands) == 83, [p.name for p in islands]
     stubs = {
         "roll.js": 290,
         "zoom.js": 70,

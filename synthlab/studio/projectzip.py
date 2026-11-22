@@ -94,8 +94,8 @@ def project_text(payload: dict) -> str:
 
 def sample_refs(payload) -> set[str]:
     """Every valid sample id under a `sampler_sample` key anywhere in a
-    persisted payload, and every zone's under a `sampler_zones` key (a
-    multi-sample instrument)."""
+    persisted payload, every zone's under a `sampler_zones` key (a
+    multi-sample instrument) and every convolution unit's impulse (`ir`)."""
     found: set[str] = set()
     stack = [payload]
     while stack:
@@ -106,6 +106,12 @@ def sample_refs(payload) -> set[str]:
                 found.add(value)
             elif key == "sampler_zones" and isinstance(value, str):
                 found.update(sampler.zone_samples(value))
+            elif (
+                key == "ir"
+                and sampler.valid_id(value)
+                and node.get("kind") == "convolve"
+            ):
+                found.add(value)  # a convolution unit's impulse
             elif isinstance(value, (dict, list)):
                 stack.append(value)
     return found
