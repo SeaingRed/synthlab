@@ -1147,7 +1147,10 @@ amounts are CURVABLE and route targets outside the genes' destinations
 In the editor, as the oscillator panels: **each oscillator's warp** one
 block in its area (`warp-block`, as the sync block) — the mode a select
 (`osc*_warp`: off, bend +, bend −, bend ±, PD, mirror, asym, quantize,
-pwm; the deck and MIDI learn step it), the amount a knob. **Your own
+pwm; the deck and MIDI learn step it), the amount a knob, and under
+them the **second warp** the same way (`osc*_warp2`, `osc*_warp2_amt`:
+on the phase the first made — `docs/engine.md`, "Two warps at once";
+its target jack hides while it is off). **Your own
 wavetables** are radios of the picker's own group after the twelve
 built-ins (`oscfaces.own_faces`: up to eight of a table's frames drawn
 like a built-in's, its name in the accent's ink; the value `own:<id>`,
@@ -1165,7 +1168,7 @@ Character's knob line.
 **Oscillator 3** (`docs/engine.md`, "Oscillator 3") is its own section of
 the Source panel after osc 2's sync block, under the heading "Oscillator
 3": shape pills (`params.OSC3_SHAPES`, no "off"), level / octave /
-semitones / detune knobs, then its warp block. Its fields are hand-made
+semitones / detune knobs, then its warp block (both warps). Its fields are hand-made
 (`nogene`) and out of `params.live`, so `paramui.idle` has a rule of its
 own for them (`_IDLE_HAND`): at level 0 every other row of it is idle
 ("oscillator 3's level is 0"), the level a dial at 0, and bench.js folds

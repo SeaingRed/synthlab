@@ -159,7 +159,10 @@ shape"); and oscillator 3 while it sounds (its fields "default", the
 others than `osc3_level` unheard while the level is 0 — `paramui._UNHEARD`,
 which `_unheard` reads beside the shape rules — and a route onto
 `osc3_level` refused by `_slot_gate`, since it would lift a silent osc 3
-into hearing: `docs/engine.md`, "Oscillator 3").
+into hearing: `docs/engine.md`, "Oscillator 3"); and a second warp that
+bends (`osc*_warp2` / `_amt` "default", unheard while off or bending
+nothing: the voice's `warpBlock` reads one warp — `docs/engine.md`, "Two
+warps at once").
 `loopDuration()` (used to decide the
 fallback loop length for the shortcut sheet and elsewhere) lives on
 `static/audio.js`, not piano.js — piano.js reads it off

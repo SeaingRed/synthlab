@@ -466,6 +466,43 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   amount 0 (the live voice can't switch paths mid-note). The native stack
   hands a warped patch to the Python loop (~6 ms a second of a saw, ~20 a
   wavetable).
+- **Two warps at once** (Patch `osc1_warp2` / `osc1_warp2_amt`, the
+  same for osc2 and osc3; `core.warp_twice` / `warp_end_twice`,
+  `tests/test_osc3_warp2.py`): a second warp per oscillator, any of
+  `WARP_MODES`, bending **the phase the first made** —
+  `warp_phase(mode2, warp_phase(mode, t, a), a2)` — on the first's path
+  (`warped(..., mode2=, amount2=)`: the same 4x oversampling, wrap
+  polyBLEP and `WARP_TAPS`). `synth.warp_of` hands `core.osc` the warps
+  that are on, in order: the second alone is one warp, the same samples
+  as the first set to it, and both are what a warp ignores (a shape
+  outside `WARP_SHAPES`, a synced osc2). **The wrap's step**
+  (`warp_end_twice`) is where both leave the phase: the first ends at
+  `warp_end` approached from below when that is 1 (then the second's own
+  left limit, `warp_end(mode2)`), held (quantize's last step; pwm's hold
+  at exactly 1 — the second's value there, so pwm then quantize steps
+  from 1, not quantize's last step) or from above at 0 (the mirror: every
+  mode is 0 at 0) — held to the composed phase's left limit for all 64
+  pairs. The first warp's output reaches 1 (pwm's hold, the mirror's
+  peak), which a single warp's input never does: the mirror at amount 0
+  now maps 1 to 1 (`t <= c`; every t < 1 gives the samples it gave).
+  **A wavetable's mip** is taken `warp_slope(mode) x warp_slope(mode2)`
+  darker — the composition's steepest slope is at most that product, and
+  exactly it when both are steepest at the cycle's end (bend + twice at
+  0.7 / 0.5: 11.5 x 8.5, the table's first harmonic at 880 Hz — the
+  sine's numbers). Alias at 880 Hz, 0.7 then 0.5, warped / naive: saw
+  bend + then PD -43.9 / -19.1 dB, PD then mirror -70.7 / -48.0, bend +
+  twice -48.8 / -23.5, mirror twice -56.2 / -36.3; sine bend + twice
+  -32.9 / -13.1; a pair holding a quantize gains less (its steps are the
+  FIR's, never polyBLEP'd, as alone): sine pwm then quantize -31.7 /
+  -25.0; the square's mid edge -27.4 to -35.6. CPU (i9, a 1 s saw): 11.6
+  ms one warp, 14.4 two (a wavetable 22.2 / 26.9). The amounts are
+  CURVABLE and route targets (not gene choices); the six fields are
+  `nogene`, appended last, `KEY_ADDED_FIELDS` at "off" / 0, and a render
+  without a second warp never reaches `warp_twice` / `warp_end_twice`:
+  no `RENDER_REV` bump. **Not live**: the voice worklet plays one warp,
+  so the six fields are "default" and a second warp that bends sends the
+  keys to the `/note` WAV (one that is off or bends nothing — `warp_of`'s
+  rule — is unheard: `paramui._UNHEARD`).
 - **Oscillator 3** (Patch `osc3`, `osc3_level`, `osc3_octave`,
   `osc3_semi`, `osc3_detune`, `osc3_warp` / `osc3_warp_amt`;
   `Synth._osc3`, `tests/test_osc3_warp2.py`): a third waveform summed
