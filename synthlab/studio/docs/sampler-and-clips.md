@@ -947,6 +947,41 @@ key's pitch at each grain's first sample exactly as `Synth.note` builds
 it, and a route's or a curve's position likewise; not built, so not
 claimed.
 
+### The spectral shape: the same sample, time and pitch apart
+
+**Spectral** (osc1's "spectral" pill; the engine is the root
+`docs/engine.md`, "Spectral oscillator"; `samplerview.scan`,
+`tests/studio/test_sampler_studio.py`
+`test_the_spectral_shape_plays_the_sample_on_the_wav_path` and
+`test_the_scan_is_drawn_where_the_read_goes`, `tests/browser/test_sampler.py`
+`test_the_spectral_pill_keeps_the_sample_and_draws_the_scan`): a third
+pill on a sound that holds a sample. It plays `sampler_sample` — its
+span, or the loop inside it while the loop is on — at `sampler_root` with
+`sampler_keytrack`, so those rows show for it as for the sampler and the
+granular shape (one `:has()` rule names all three: `paramui.SHAPE_ROWS`),
+while the sampler's own (pitch mode, stretch, crossfade) and the grain
+rows hide. Under the **Spectral** subhead: position (drawable, a route
+target — its patch-bay jack shows while an oscillator is spectral), scan,
+timbre shift, formants (move / keep, pills), the partial low and high
+cuts and keep transients — plain sliders from the design system. The
+sampler block stays (`samplerview.has_sample`; Record, Resample, the
+pitch and its "use") and its waveform draws the read: the position's line
+(`.sw-pos`) and what the scan crosses in the note's first second
+(`.sw-scan`: one or two spans — wrapped round the loop, held at the
+span's end; outlined dashed when it runs backwards), from the fields'
+first values; `samplerview.watch` carries the position and the scan, so a
+slider's post redraws it out of band. The partial cuts count the root's
+harmonics, so set the root to the sample's pitch ("use"). The chops and
+the zones are the sampler shape's and are not drawn. **The keys take the
+server WAV**: the voice worklet has no phase vocoder, so `/patch.json`
+names `osc1` (and every `spectral_*` field off its default: "default")
+and carries no `sampler_live`; the spectral fields left on a synth block
+nothing. A twin would need the FFT and the peak picking per 256-sample
+frame in the worklet (and the analysis shipped or recomputed in the
+page); not built, so not claimed. The analysis is computed in the render
+the first time a sample plays the shape (151 ms for a 30 s stereo
+sample) and kept in memory after (`spectral.STORE`, 160 MB at most).
+
 ### Pitch detection and slice markers
 
 **Pitch detection** (`sampler.detect_pitch`: YIN over a dozen frames of

@@ -510,9 +510,9 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   per copy, so it takes the unison rules as osc1 and osc2 do), at `freq`
   x 2^octave x 2^((100 semi + detune) / 1200) — osc3 at octave 1, semi
   7, 10 cents is osc2 at octave 1 and 710 cents sample for sample.
-  Shapes `params.OSC3_SHAPES`: every oscillator shape but the sampler and
-  granular (the sample panel, the live sample payload and a project's
-  sample bundling follow osc1 / osc2); "fm", "fm4", "pluck" and
+  Shapes `params.OSC3_SHAPES`: every oscillator shape but the sampler,
+  granular and spectral (the sample panel, the live sample payload and a
+  project's sample bundling follow osc1 / osc2); "fm", "fm4", "pluck" and
   "wavetable" read the same shared fields as on the other two, its seeds
   are `seed + 200` (osc2's + 100) and a drifting note starts it at
   `drift_phase(seed, 2, copy)`. **No "off": its level is the switch** —
@@ -702,6 +702,94 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   entries at their defaults; a render of a patch without the shape never
   reaches the module (`test_patches_without_the_shape_never_reach_it`):
   no `RENDER_REV` bump.
+- **Spectral oscillator** (`synthlab/spectral.py`, shape `"spectral"`,
+  Patch `spectral_*`, `tests/test_spectral.py`): the sampler's sample
+  (its span or loop — `spectral.region`, the granular rule — its root
+  and key track) resynthesised by **a phase vocoder with identity phase
+  locking and peak shifting** (Laroche & Dolson), time and pitch apart.
+  **The analysis** (`analyse`): a 2048-point periodic Hann STFT every 512
+  samples (`N`, `HA`), each frame centred on its sample with its phase
+  referred to the centre, one per channel (one when the two are the
+  same), a spectral-flux onset strength a frame and each onset's attack
+  placed to the sample by the signal's own rise (`Analysis.attack`). It
+  depends on the sample alone: **computed once per (sample id,
+  `ANALYSIS`) and kept in a byte-bounded LRU** (`STORE`, `CACHE_BYTES`
+  160 MB; one analysis computed at a time), never on disk — a 30 s stereo
+  sample is 40.5 MB kept, 151 ms to analyse (i9 desktop; 81 MB peak while
+  it runs). **The resynthesis**: an output frame every 256 samples (`HS`)
+  reads a fractional analysis frame (magnitudes interpolated, phases from
+  the nearer), picks the peaks of the channels' summed magnitude (above
+  two neighbours each side), measures each peak's true frequency from its
+  phase advance, multiplies it by the frame's pitch ratio and moves its
+  region by the nearest whole bins — every output bin belongs to the
+  nearest moved peak and is filled from that peak's own source region
+  alone (`_mapping`: moved down, regions are trimmed, never summed over
+  each other — summing them broke the phase chain, -145 cents on a saw
+  an octave down); the peak's phase advances by the shifted frequency
+  from where the last frame left its new bin, the region's bins keep
+  their phases relative to it, and one rotation goes on every channel
+  (the stereo image keeps its interchannel phase). **The pitch is the
+  phase advance, so it is exact**: a sine and a band-limited saw at
+  -12 / -5 / +7 / +12 semitones measure 0.00 cents (the place in the
+  frame is the nearest bin; the shift is per frame, the mean ratio over
+  the hop, so glide, vibrato, bends and pitch routes reach it every
+  5.8 ms). The read is `spectral_pos` (0..1 of the region, CURVABLE, a
+  route target, read each frame) + `spectral_scan` x the note's seconds
+  in the recording's seconds (-4..4: 1 as recorded, 0.5 twice as long —
+  measured: a tone change at 0.5 s lands at 1.000 s and 2.000 s at 0.5
+  and 0.25, both tones at 0.00 cents — 0 a freeze, negative backwards),
+  wrapped round the loop or held at the span's ends (a freeze of the edge
+  frame); frames before the note's first sample read back from the first
+  read (the pre-roll). **The opening** takes the analysis's own phases,
+  carried to the read by the frequency of the nearer frame and the one
+  past it, and at the root and scan 1 so do the frames the sample's start
+  cuts short — so a sample played at its root from its start comes back
+  as recorded (a band-limited saw 64.7 dB SNR; the frame before is cut
+  short, its phase biased, which left 0.025 rad of offset on every
+  partial). `spectral_timbre` (-24..24 semitones) multiplies each region
+  by the frame's envelope **traced through its peaks** (log level,
+  straight lines, flat past the ends: a cepstral envelope sank into the
+  valleys between harmonics and blurred a formant narrower than its
+  lifter — ±200 cents off) read where the shift puts the formants, held
+  to ±40 dB; `spectral_formants` "move" (default: at timbre 0 a plain
+  transposition, no envelope read at all) or "keep" (the envelope stays
+  where the recording has it as the key moves). Measured on a 110 Hz
+  harmonic sound with a 1 kHz formant: +5 -> 1351 Hz (want 1335), -5 ->
+  738 (749), +12 -> 1993 (2000); "keep" +7 semitones -> 1005 (1000) —
+  within half a harmonic, the resolution the harmonics leave. "Keep" on
+  a sine has no envelope to keep (one peak: held flat). `spectral_low` /
+  `spectral_high` cut whole partials by the peak's number over the root
+  (0..32, 1..512; a one-partial smoothstep; 0 and 512 cut nothing and
+  skip the work): the partials cut fall over 40 dB, the kept stay within
+  2 %. `spectral_transient` (0..1, a sensitivity: onsets of strength
+  >= 1 - 0.9 x amount) acts where the read is slower than the recording
+  (`transient_reads`): the `ATTACK` frames either side of each attack the
+  read crosses forward are read at the recording's speed, timed so the
+  attack lands where the slow read would have reached it, the slow reads
+  that would have fallen there hold the window's edges, and the frame on
+  the attack takes the analysis's phases. Measured on a synthetic kick
+  (10-90 % rise 1.4 ms in the source): scan 1 rise 9.8 ms, pre-echo
+  (30 ms before over 30 ms after) -12.5 dB — the vocoder's own window;
+  scan 0.5 21.0 ms / -10.5 dB without, 8.8 ms / -18.0 dB with; scan 0.25
+  42.6 ms / -7.0 dB without, 10.8 ms / -23.5 dB with. **Honest limits**:
+  the held edges are a short plateau in a decay (at scan 0.25 the frame
+  23 ms after an attack holds ~70 ms — a hat's decay stands still that
+  long); noise (snares, hats, breath) through any phase vocoder turns
+  watery and metallic when stretched, identity locking or not; partials
+  closer than ~3 bins (under ~65 Hz apart: a low bass's harmonics) merge
+  into one peak; a frame near the span's end reads up to 23 ms of what the
+  recording holds past it. **Nothing random**: every phase is the
+  analysis's or follows from it. Stereo (n, 2), zeros (n,) with nothing
+  to play. Python loop only (no native kernel, not a `_STACK_SHAPES`
+  member): 26 ms of CPU per second of audio per oscillator copy for a
+  mono sample, 42 stereo (45 with "keep"), i9 desktop. **Not live**:
+  osc1 "spectral" is no `paramui.SHAPES` entry and the seven fields are
+  "default" — the keys take the `/note` WAV. All seven are `nogene`,
+  appended as one run at the end of `PARAMS`, `KEY_ADDED_FIELDS` entries
+  at their defaults; a render of a patch without the shape never reaches
+  the module (`test_patches_without_the_shape_never_reach_it`): no
+  `RENDER_REV` bump. The sample's rows are shared by
+  `uses_shape("sampler", ("granular", "spectral"))`.
 - **Vowel filter** (`core.VOWELS` / `core.formant`, Patch fields
   `formant_amount` / `formant_vowel` / `formant_size`): three parallel
   bandpass resonators whose centres interpolate along a→e→i→o→u. It is a

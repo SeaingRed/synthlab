@@ -155,7 +155,10 @@ in closed form — **change one, change the other**) and not for those
 (`sampler-and-clips.md`, "Formant mode on the live keys"); and the
 granular oscillator, whole (osc1 "granular" is no `SHAPES` entry, its
 `grain_*` fields "default": `sampler-and-clips.md`, "The granular
-shape"); and oscillator 3 while it sounds (its fields "default", the
+shape"); and the spectral oscillator, whole (osc1 "spectral" is no
+`SHAPES` entry, its `spectral_*` fields "default": a phase vocoder per
+256-sample frame is not in the worklet — `sampler-and-clips.md`, "The
+spectral shape"); and oscillator 3 while it sounds (its fields "default", the
 others than `osc3_level` unheard while the level is 0 — `paramui._UNHEARD`,
 which `_unheard` reads beside the shape rules — and a route onto
 `osc3_level` refused by `_slot_gate`, since it would lift a silent osc 3
