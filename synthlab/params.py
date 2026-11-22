@@ -45,7 +45,7 @@ from typing import Any
 
 import numpy as np
 
-from . import granular, sampler, wavetables
+from . import granular, sampler, spectral, wavetables
 from .core import (
     FM4_ALGO_NAMES,
     SYNC_SHAPES,
@@ -136,6 +136,8 @@ MOD_DESTINATIONS = (
     "osc1_warp2_amt",
     "osc2_warp2_amt",
     "osc3_warp2_amt",
+    # the spectral shape's scan position — no gene choice
+    "spectral_pos",
     "pitch",
 )
 ROUND6_DESTINATIONS = MOD_DESTINATIONS[
@@ -221,13 +223,14 @@ OSC1_SHAPES = (
 )
 OSC2_SHAPES = (None, "sine", "saw", "square", "triangle", "fm", "pluck", "wavetable")
 # hand-made shapes (in an oscillator's cap, never its gene): "noise",
-# "sampler", "fm4" and "granular" (appended) — a random 4-operator patch is
-# rarely a sound, a sample is no number to breed, and a longer shape gene
-# would re-draw every seeded litter
-HAND_SHAPES = ("noise", "sampler", "fm4", "granular")
-# oscillator 3's shapes: every oscillator shape but the two that play a
-# recording (the sampler's panel, its live payload and the project's
-# sample bundling follow osc1 / osc2). It has no "off": its level is
+# "sampler", "fm4", "granular" and "spectral" (appended) — a random
+# 4-operator patch is rarely a sound, a sample is no number to breed, and a
+# longer shape gene would re-draw every seeded litter
+HAND_SHAPES = ("noise", "sampler", "fm4", "granular", "spectral")
+# oscillator 3's shapes: every oscillator shape but those that play a
+# recording — sampler, granular, spectral (the sampler's panel, its live
+# payload and the project's sample bundling follow osc1 / osc2). It has no
+# "off": its level is the switch (`osc3_on`)
 OSC3_SHAPES = (
     "sine",
     "saw",
@@ -305,8 +308,8 @@ class uses_shape:
     the rows of an unused shape from these)."""
 
     shape: str
-    # more shapes that read the field too (the sample the "sampler" and
-    # "granular" shapes share)
+    # more shapes that read the field too (the sample the "sampler",
+    # "granular" and "spectral" shapes share)
     also: tuple[str, ...] = ()
 
     @property
@@ -461,11 +464,13 @@ def _env(name, lo, hi, **kw):
 
 
 _SAMPLING = uses_shape("sampler")
-# the fields the granular shape reads of the sampler's: the sample, its
-# span and loop, its root and key track
-_SAMPLE_READ = uses_shape("sampler", ("granular",))
+# the fields the granular and spectral shapes read of the sampler's: the
+# sample, its span and loop, its root and key track
+_SAMPLE_READ = uses_shape("sampler", ("granular", "spectral"))
 _GRAINING = uses_shape("granular")
 _GRAIN_WHY = "a granular setting: it plays a recording, not a bred sound"
+_SPECTRAL = uses_shape("spectral")
+_SPECTRAL_WHY = "a spectral setting: it plays a recording, not a bred sound"
 _WARP_WHY = "a hand-made phase warp: breeding never draws one"
 _OSC3_WHY = "a hand-made third oscillator: breeding never draws one"
 _VOICE_WHY = "how the keys and the loop play the sound, not the sound itself"
@@ -856,6 +861,29 @@ _ALL: list[Param] = [
     # an envelope stage's time as a sync division ("off": its seconds),
     # appended as one run: the filter envelope's and envelopes 3 / 4's
     *[_r6(f"{t}_sync", "cat", SYNC_CHOICES) for t in ENV_SYNC_TIMES],
+    # the spectral shape (synthlab/spectral.py), appended as one run: never
+    # genes (it needs a sample; new genes would re-draw every seeded
+    # litter). The scan position is drawable and a route target
+    _p(
+        "spectral_pos",
+        "lin",
+        cap=(0.0, 1.0),
+        curve=True,
+        mod=True,
+        live=_SPECTRAL,
+        nogene=_SPECTRAL_WHY,
+    ),
+    *[
+        _p(name, kind, cap=cap, live=_SPECTRAL, nogene=_SPECTRAL_WHY)
+        for name, kind, cap in (
+            ("spectral_scan", "lin", (-spectral.SCAN, spectral.SCAN)),
+            ("spectral_timbre", "lin", (-spectral.TIMBRE, spectral.TIMBRE)),
+            ("spectral_formants", "cat", spectral.FORMANTS),
+            ("spectral_low", "lin", (0.0, spectral.LOW_MAX)),
+            ("spectral_high", "log", spectral.HIGH),
+            ("spectral_transient", "lin", (0.0, 1.0)),
+        )
+    ],
 ]
 
 PARAMS: dict[str, Param] = {p.name: p for p in _ALL}

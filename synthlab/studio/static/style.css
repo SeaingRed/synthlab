@@ -3052,6 +3052,11 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
 .sampler-svg .sw-spray { fill: color-mix(in oklch, var(--text), transparent 86%); }
 .sampler-svg .sw-grain { fill: color-mix(in oklch, var(--accent), transparent 50%); }
 .sampler-svg .sw-pos { stroke: var(--text); }
+/* the spectral read (samplerview.scan): what the scan crosses in a second
+   from the position, dashed when it runs backwards */
+.sampler-svg .sw-scan { fill: color-mix(in oklch, var(--accent), transparent 60%); }
+.sampler-svg .sw-back { stroke: var(--accent); stroke-dasharray: 3 2; stroke-width: 1;
+  vector-effect: non-scaling-stroke; }
 /* a slice start's marker (layout.js drags it): a wide grab strip, a thin line */
 .sampler-wave { position: relative; }
 .slice-mark { position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -6px;

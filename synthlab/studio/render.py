@@ -427,6 +427,15 @@ KEY_ADDED_FIELDS = {
     },
     # an envelope stage as a sync division: "off" is its seconds, as always
     **{f"{t}_sync": "off" for t in ENV_SYNC_TIMES},
+    # the spectral shape: read only while an oscillator is "spectral", so
+    # at these every older key stays the key it was
+    **{
+        name: getattr(Patch(), name)
+        for name in (
+            "spectral_pos spectral_scan spectral_timbre spectral_formants "
+            "spectral_low spectral_high spectral_transient"
+        ).split()
+    },
 }
 
 

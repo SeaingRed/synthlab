@@ -55,6 +55,7 @@ from .params import (
     slot_active,
 )
 from .sampler import Settings as SamplerSettings
+from .spectral import Settings as SpectralSettings
 
 log = logging.getLogger(__name__)
 
@@ -584,6 +585,18 @@ class Patch:
     env4_attack_sync: str = "off"
     env4_decay_sync: str = "off"
     env4_release_sync: str = "off"
+    # --- the "spectral" shape (synthlab/spectral.py): the sampler's sample
+    # (its span and loop, root and key track) resynthesised from its
+    # spectrum, time and pitch apart. Read only while an oscillator is
+    # "spectral" (render.KEY_ADDED_FIELDS keeps them out of its cache keys
+    # at these) ---
+    spectral_pos: float = 0.0  # 0..1 across the region (a curve, a route target)
+    spectral_scan: float = 1.0  # the read's speed: 1 as recorded, 0 frozen
+    spectral_timbre: float = 0.0  # semitones the spectral envelope moves
+    spectral_formants: str = "move"  # | "keep": the envelope stays as keys move
+    spectral_low: float = 0.0  # partials of the root cut below (0: none)
+    spectral_high: float = 512.0  # partials of the root kept up to (512: all)
+    spectral_transient: float = 0.0  # 0..1: attacks kept sharp when stretched
 
     def tweak(self, **kw) -> Patch:
         """Return a copy with parameters changed: pad.tweak(cutoff=800)."""
@@ -1258,6 +1271,9 @@ class Synth:
             shape_kw["key_hz"] = key_hz
         if "granular" in playing:
             shape_kw["granular"] = GrainSettings.of(p)
+            shape_kw["key_hz"] = key_hz
+        if "spectral" in playing:
+            shape_kw["spectral"] = SpectralSettings.of(p)
             shape_kw["key_hz"] = key_hz
         if "fm4" in playing:
             shape_kw.update(

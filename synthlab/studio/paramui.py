@@ -325,9 +325,9 @@ _ENTRIES: list[tuple[str, Ui]] = [
     # "sampler" plays live only as _osc1_ok admits it; otherwise a sampler
     # sound's keys take the server-rendered WAV path
     ("osc1", _ui(_S, "Oscillator 1", _osc1_ok, widget="pills",
-        extra=("fm4", "sampler", "granular"),
-        hint="The main waveform. FM, FM4, pluck, wavetable, sampler and granular "
-             "show their own settings.")),
+        extra=("fm4", "sampler", "granular", "spectral"),
+        hint="The main waveform. FM, FM4, pluck, wavetable, sampler, granular "
+             "and spectral show their own settings.")),
     ("osc1_level", _ui(_S, "Osc 1 level", EXACT,
         hint="How loud oscillator 1 is in the mix.")),
     ("osc1_octave", _ui(_S, "Osc 1 octave", EXACT,
@@ -522,7 +522,31 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ("grain_scan", _ui(_S, "Scan", DEFAULT, 0.01, unit="x",
         hint="The position moving by itself: 1 walks the sample at its own "
              "speed, negative backwards, 0 holds.")),
-    ("sub_level", _ui(_S, "Sub oscillator", EXACT,
+    # the spectral shape (synthlab/spectral.py): the sample above
+    # resynthesised from its spectrum. Not in the live voice either: a
+    # spectral sound's keys take the server-rendered WAV, and these are
+    # "default" — unheard, so blocking nothing, while no oscillator plays it
+    ("spectral_pos", _ui(_S, "Spectral position", DEFAULT, 0.001,
+        subhead="Spectral", mod_label="Spectral position",
+        hint="Spectral: where in the sample (or its loop) the read starts. "
+             "Draw it or route it to move through the sound.")),
+    ("spectral_scan", _ui(_S, "Spectral scan", DEFAULT, 0.01, unit="x",
+        hint="How fast the read moves: 1 plays the sample at its own speed, "
+             "0.5 twice as long at the same pitch, 0 freezes, negative backwards.")),
+    ("spectral_timbre", _ui(_S, "Timbre shift", DEFAULT, 0.1, unit="st",
+        hint="Moves the formants up or down without changing the pitch.")),
+    ("spectral_formants", _ui(_S, "Formants", DEFAULT, widget="pills",
+        hint="Move: the formants ride the pitch, as a transposition. Keep: they "
+             "stay where the recording has them on every key.")),
+    ("spectral_low", _ui(_S, "Partial low cut", DEFAULT, 0.5,
+        hint="Removes the partials under this one (of the root's harmonics); "
+             "0 keeps them all.")),
+    ("spectral_high", _ui(_S, "Partial high cut", DEFAULT, 1.0,
+        hint="Removes the partials above this one; at the top nothing is cut.")),
+    ("spectral_transient", _ui(_S, "Keep transients", DEFAULT,
+        hint="Keeps attacks sharp when the scan is slower than the recording: "
+             "higher catches softer onsets.")),
+    ("sub_level",_ui(_S, "Sub oscillator", EXACT,
         subhead="Mixer", mod_label="Sub level",
         hint="A sine one octave below oscillator 1, for weight.")),
     # statistical, not sample for sample: numpy's generator isn't realtime,

@@ -20,7 +20,9 @@
    The granular shape plays the same sample, so the block stands for it
    too: the waveform then also draws where the grains read (the position's
    line, the spray's reach, one grain's read: `samplerview.cloud`), and
-   the chops and zones — the sampler shape's alone — are left out. #}
+   the chops and zones — the sampler shape's alone — are left out. So does
+   the spectral shape: the waveform then draws the position's line and what
+   the scan crosses in a second (`samplerview.scan`). #}
 <div id="sampler-panel" class="sampler-panel"{% if not sampler %} hidden{% endif %}
      {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
   {% if sampler %}

@@ -1216,6 +1216,12 @@ def osc(shape: str, freq, n: int, sr: int = SR, **kw) -> np.ndarray:
         return granular.render(
             freq, n, sr, kw.get("granular"), kw.get("key_hz"), kw.get("seed") or 0
         )
+    if shape == "spectral":
+        # the sampler's sample resynthesised from its spectrum
+        # (synthlab.spectral): no seed, the analysis decides every phase
+        from . import spectral
+
+        return spectral.render(freq, n, sr, kw.get("spectral"), kw.get("key_hz"))
     if shape == "fm":
         return fm(
             freq,

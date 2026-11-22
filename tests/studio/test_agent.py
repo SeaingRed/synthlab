@@ -178,9 +178,12 @@ def test_the_catalogue_is_under_half_the_schema_it_replaced():
     # the switches and curves are hand-made, out of the catalogue) to 13,565;
     # the Lorenz and Rössler LFO shapes (LFO 1-3's shape choices) and the
     # sources LFO 4-6 (whose own fields are the panel's, not the
-    # catalogue's) to 4,574 and 13,691
-    assert sizes["set_params"] < 4_650
-    assert sum(sizes.values()) < 13_900
+    # catalogue's) to 4,574 and 13,691; the spectral shape (its pill on
+    # both oscillators, a route target, its position in the curve and macro
+    # enums — its other fields hand-made, out of the catalogue) to 4,629
+    # and 13,877
+    assert sizes["set_params"] < 4_700
+    assert sum(sizes.values()) < 14_000
 
 
 def test_the_other_tools_are_generated_from_their_tables():
@@ -205,7 +208,7 @@ def test_the_other_tools_are_generated_from_their_tables():
     )
     # every declaration is plain JSON and every one has an implementation
     blob = json.dumps(atools.declarations())
-    assert len(blob) < 14_450  # the catalogue as it stands (above): 14,245
+    assert len(blob) < 14_600  # the catalogue as it stands (above): 14,439
     assert atools.TOOL_NAMES == tuple(atools.TOOLS)
 
 
