@@ -1414,6 +1414,41 @@ CASES.update(
             ),
             {},
         ),
+        # LFOs at audio rate (the ceiling is 1000 Hz): FM on the pitch, AM on
+        # a level, a fast saw on the pulse width — per sample — and a flow
+        # and a stepped LFO on the cutoff, read once a 64-sample block on
+        # both sides (it aliases, the same way); the stepped one at the
+        # live ceiling (paramui.STEPPED_LIVE_HZ)
+        "lfo_audio": (
+            Patch(
+                osc1="square",
+                lfo2_rate=440.0,
+                mod1_src="lfo2",
+                mod1_dst="pitch",
+                mod1_amt=0.02,
+                lfo3_rate=310.0,
+                lfo3_shape="triangle",
+                mod2_src="lfo3",
+                mod2_dst="osc1_level",
+                mod2_amt=-0.3,
+                lfo_shape="saw",
+                mod_lfo_rate=1000.0,
+                mod3_src="lfo",
+                mod3_dst="pwm_depth",
+                mod3_amt=0.5,
+                lfo4_shape="lorenz",
+                lfo4_rate=800.0,
+                mod4_src="lfo4",
+                mod4_dst="cutoff",
+                mod4_amt=0.3,
+                lfo5_shape="noise",
+                lfo5_rate=30.0,
+                mod5_src="lfo5",
+                mod5_dst="resonance",
+                mod5_amt=0.3,
+            ),
+            {},
+        ),
         # LFOs 4-6: an oscillator shape free running from a phase, the
         # stepped one (table stream 4), a drawing; then two more drawings
         # and every one synced

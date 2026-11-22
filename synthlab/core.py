@@ -1500,7 +1500,7 @@ ATTRACTORS = {
     "lorenz": (0.046875, 2, 0.0, 20.0),
     "rossler": (0.1875, 4, 1.0, 10.5),
 }
-_ATTR_CACHE: dict[tuple[str, int], tuple[list[float], tuple]] = {}
+_ATTR_CACHE: dict[tuple[str, int], tuple[np.ndarray, tuple]] = {}
 _ATTR_LOCK = threading.Lock()
 
 
@@ -1550,15 +1550,20 @@ def attractor_points(m: str, seed: int, count: int) -> np.ndarray:
     and extended per (flow, seed): the trajectory never changes, only how
     far a note reads into it."""
     with _ATTR_LOCK:
-        vals, s = _ATTR_CACHE.get((m, seed)) or ([], None)
+        vals, s = _ATTR_CACHE.get((m, seed)) or (None, None)
         if s is None:
             s = attractor_start(m, seed)
-            vals = [attractor_value(m, s[0])]
-        while len(vals) < count:
-            s = attractor_step(m, s)
-            vals.append(attractor_value(m, s[0]))
-        _ATTR_CACHE[(m, seed)] = (vals, s)
-        return np.asarray(vals[:count])
+            vals = np.asarray([attractor_value(m, s[0])])
+        if len(vals) < count:
+            more = []
+            for _ in range(count - len(vals)):
+                s = attractor_step(m, s)
+                more.append(attractor_value(m, s[0]))
+            vals = np.concatenate([vals, more])
+            vals.flags.writeable = False  # handed out as views
+            _ATTR_CACHE[(m, seed)] = (vals, s)
+        _ATTR_CACHE.setdefault((m, seed), (vals, s))
+        return vals[:count]
 
 
 def lfo_ext(

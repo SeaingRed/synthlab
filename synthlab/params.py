@@ -505,7 +505,10 @@ def _r6(name, kind, cap, **kw):
 
 
 _ENV_T = (0.001, 8.0)  # a general envelope's times (log sliders)
-_LFO_RATE = (0.02, 30.0)  # a general LFO's rate, Hz
+# a general LFO's rate, Hz: up to audio rate (LFO 1's gene stays 0.05-12,
+# its cap is this ceiling too; the ceiling was 30 for LFOs 2 / 3)
+LFO_RATE_MAX = 1000.0
+_LFO_RATE = (0.02, LFO_RATE_MAX)
 # The second filter, two general envelopes, two
 # general LFOs, the mod wheel and aftertouch, route slots 5-12. None is a
 # gene — a longer genome re-draws every seeded litter — so each is a
@@ -629,7 +632,7 @@ _ALL: list[Param] = [
         live=lambda p: p.formant_amount >= 0.05,
     ),
     _lin("formant_size", 0.6, 1.8, live=lambda p: p.formant_amount >= 0.05),
-    _lin("mod_lfo_rate", 0.05, 12.0, live=_lfo_rate_heard),
+    _lin("mod_lfo_rate", 0.05, 12.0, cap=(0.05, LFO_RATE_MAX), live=_lfo_rate_heard),
     _lin("env_curve", 1.0, 6.0),
     *_SLOT_AMTS,
     # appended to the lin run: hard sync's sweep

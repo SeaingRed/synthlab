@@ -262,3 +262,52 @@ def test_lfos_4_to_6_fold_while_no_route_reads_them():
         Patch(mod3_src="lfo5", mod3_dst="cutoff", mod3_amt=0.4, mod3_on="off")
     )
     assert "lfo5_rate" in bypassed
+
+
+# --- LFO rates to 1000 Hz -----------------------------------------------------------
+
+
+def test_the_general_lfos_run_to_1000_hz_and_lfo_1s_gene_stands():
+    for k in GENERAL_LFOS:
+        assert PARAMS[f"lfo{k}_rate"].cap == (0.02, 1000.0)
+    assert PARAMS["mod_lfo_rate"].gene == (0.05, 12.0)
+    assert PARAMS["mod_lfo_rate"].cap == (0.05, 1000.0)
+    p = Patch(lfo2_rate=1000.0, mod_lfo_rate=1000.0)
+    assert clamp(p) == p and clamp(Patch(lfo4_rate=5000.0)).lfo4_rate == 1000.0
+
+
+def test_an_audio_rate_lfo_on_the_pitch_makes_sidebands():
+    """LFO 2 at 440 Hz bending a 220 Hz sine: lines at 220 +- 440 k (FM),
+    which a 4 Hz LFO does not make."""
+    base = Patch(osc1="sine", filter_type="none", mod1_src="lfo2", mod1_dst="pitch")
+    p = base.tweak(mod1_amt=0.05, lfo2_rate=440.0)
+    y = Synth(p).note("A3", 1.0, gate=1.0)[:, 0][SR // 4 : SR // 4 + 32768]
+    spec = np.abs(np.fft.rfft(y * np.hanning(len(y))))
+    f = np.fft.rfftfreq(len(y), 1 / SR)
+
+    def at(hz):
+        return spec[np.argmin(np.abs(f - hz)) - 2 : np.argmin(np.abs(f - hz)) + 3].max()
+
+    floor = np.median(spec)
+    assert at(660.0) > 100 * floor and at(1100.0) > 100 * floor
+
+
+def test_a_fast_stepped_lfo_keeps_the_keys_on_the_wav():
+    """The stepped shape's live table holds 4096 steps: past 30 Hz a held
+    key would run off it, so a route reading one sends the keys to the WAV;
+    every other shape plays live at any rate."""
+    from synthlab.studio.paramui import STEPPED_LIVE_HZ, worklet_blockers
+
+    assert STEPPED_LIVE_HZ == 30.0
+    routed = Patch(mod1_src="lfo3", mod1_dst="cutoff", mod1_amt=0.4)
+    assert worklet_blockers(routed.tweak(lfo3_shape="noise", lfo3_rate=30.0)) == []
+    assert worklet_blockers(routed.tweak(lfo3_shape="noise", lfo3_rate=31.0)) == [
+        "lfo3_rate"
+    ]
+    assert worklet_blockers(routed.tweak(lfo3_shape="lorenz", lfo3_rate=900.0)) == []
+    # unrouted, or bypassed, it is not heard
+    assert worklet_blockers(Patch(lfo3_shape="noise", lfo3_rate=500.0)) == []
+    off = routed.tweak(lfo3_shape="noise", lfo3_rate=500.0, mod1_on="off")
+    assert worklet_blockers(off) == []
+    one = Patch(lfo_shape="noise", mod_lfo_rate=200.0, mod2_src="lfo", mod2_amt=0.3)
+    assert worklet_blockers(one) == ["mod_lfo_rate"]

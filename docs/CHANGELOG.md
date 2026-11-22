@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **LFOs to 1000 Hz**: the general LFOs' rates reach audio rate — FM and
+  AM on the pitch, levels and other per-sample targets (a filter target
+  reads it once a 64-sample block). Live on the keys for every shape but
+  a stepped one past 30 Hz, which plays from the server's render.
 - **LFOs 4, 5 and 6**: three more general LFOs in the Modulators panel
   (rate, shape, sync, phase, retrig / free, a drawing) and three more
   sources in the mod matrix. Folded away until a route uses one; they

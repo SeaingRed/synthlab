@@ -824,6 +824,34 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   (`paramui._IDLE_HAND`). The agent routes from them but does not set
   them (its catalogue keeps LFOs 2 / 3). Live: exact (parity cases
   `lfo456`, `lfo_drawn456`).
+  **LFO rates to 1000 Hz** (`params.LFO_RATE_MAX`): the cap of every
+  general LFO's rate (LFOs 2-6: their control's range too — a log knob
+  0.02-1000 Hz, so 2 Hz now sits at 0.43 of its travel where it sat at
+  0.63, and a macro or the XY pad on one sweeps the wider range; LFO 1's
+  gene, its slider, stays 0.05-12, only its cap rises). The engine
+  computes every LFO per sample, and so does the voice's control pass, so
+  an audio-rate LFO is FM / AM on every per-sample target — the pitch,
+  the levels, detune, pulse width, the warp amounts, the wavetable
+  position, the FM amounts, drive (a 440 Hz LFO on a 220 Hz sine's pitch
+  makes lines at 660, 1100 Hz...). The filter targets (cutoff,
+  resonance, filter 2's, the vowel: the voice's `BLOCK_RATE`) are read
+  once per 64-sample block on both sides (`core.biquad`'s coefficient
+  block, 689 Hz at 44.1 kHz): an LFO faster than ~340 Hz there is
+  sampled-and-held at the block rate and aliases — a stepped buzz, the
+  same in the loop and on the keys, not a smooth audio-rate filter FM.
+  **Live**: every shape at any rate but one — the stepped shape
+  ("noise") reads a stream the voice holds the first 4096 values of
+  (`voicetables.UNIFORM`, one a cycle): at the old 30 Hz ceiling that
+  wraps after 136 s of a held key, at 1000 Hz after 4 s. So a rate field
+  is a predicate (`paramui._stepped_ok`): a stepped LFO a playing route
+  reads, faster than `STEPPED_LIVE_HZ` (30), sends the keys to the
+  `/note` WAV. Parity case `lfo_audio` (LFO 1 a 1 kHz saw on the pulse
+  width, LFO 2 440 Hz on the pitch, LFO 3 310 Hz on the level, LFO 4 a
+  Lorenz flow at 800 Hz and LFO 5 stepped at 30 Hz on the filter: 0.00
+  dB, worst sample 4.3e-3 of peak, as the plain `default` case's 2.7e-3).
+  Cost, a 10 s note at 1 kHz (i9): the flows 136 / 228 ms the first
+  time (Lorenz / Rössler: a Python RK4 loop, then cached), 13 ms after;
+  chaos 12, smooth 17, stepped 6, drawn 8, sine 1.
 - **More filter types and filter 2** (`core.filt`, `params.FILTER_TYPES_ALL`
   appended after the six, so saved indexes stand; the gene keeps the six):
   `lowpass24` / `highpass24` (two SVFs, Butterworth at 0, the second's q

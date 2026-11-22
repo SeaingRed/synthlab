@@ -253,6 +253,33 @@ def _slot_gate(slot: str) -> Callable[[Any], bool]:
     return ok
 
 
+# The stepped LFO shape ("noise") reads a seeded stream the live voice
+# holds the first 4096 values of (voicetables.UNIFORM), one a cycle: at
+# the old 30 Hz ceiling it wraps after 136 s of a held note, at 1000 Hz
+# after 4 s. So a stepped LFO a route reads plays live up to 30 Hz; faster
+# keys take the /note WAV. Every other shape is computed, live, at any rate.
+STEPPED_LIVE_HZ = 30.0
+
+
+def _lfo_reads(p, k: int) -> bool:
+    """Does a route that plays read general LFO k (1: "lfo")?"""
+    src = "lfo" if k == 1 else f"lfo{k}"
+    return any(slot_active(p, s) and getattr(p, f"{s}_src") == src for s in MOD_SLOTS)
+
+
+def _stepped_ok(k: int) -> Callable[[Any], bool]:
+    shape, rate = (
+        ("lfo_shape", "mod_lfo_rate") if k == 1 else (f"lfo{k}_shape", f"lfo{k}_rate")
+    )
+
+    def ok(p) -> bool:
+        if getattr(p, shape) != "noise" or not _lfo_reads(p, k):
+            return True
+        return float(getattr(p, rate)) <= STEPPED_LIVE_HZ
+
+    return ok
+
+
 def _osc1_ok(p) -> bool:
     # the sampler plays live when sampler.live_ok says so: "resample" with no
     # stretch or "formant" (any scalar stretch), mono or stereo, within the
@@ -597,8 +624,8 @@ _ENTRIES: list[tuple[str, Ui]] = [
     # every LFO shape (the stepped "noise" reads core.sample_hold's seeded
     # stream from /wavetables.bin); a sync division reaches the worklet as
     # the rate /patch.json resolves against the bpm (synth.at_bpm)
-    ("mod_lfo_rate", _ui(_M, "LFO 1 rate", EXACT, 0.05, unit="Hz", subhead="LFO 1",
-        hint="Speed of LFO 1, the LFO the routes use.")),
+    ("mod_lfo_rate", _ui(_M, "LFO 1 rate", _stepped_ok(1), 0.05, unit="Hz",
+        subhead="LFO 1", hint="Speed of LFO 1, the LFO the routes use.")),
     ("lfo_shape", _ui(_M, "LFO 1 shape", EXACT, widget="select",
         option_labels=LFO_SHAPE_LABELS,
         extra=("drawn", "chaos", "smooth", "lorenz", "rossler"),
@@ -696,8 +723,10 @@ _ENTRIES: list[tuple[str, Ui]] = [
         entry
         for k in GENERAL_LFOS
         for entry in (
-            (f"lfo{k}_rate", _ui(_O, f"LFO {k} rate", EXACT, unit="Hz",
-                subhead=f"LFO {k}", hint=f"Speed of LFO {k}.")),
+            (f"lfo{k}_rate", _ui(_O, f"LFO {k} rate", _stepped_ok(k), unit="Hz",
+                subhead=f"LFO {k}",
+                hint=f"Speed of LFO {k}: slow sweeps to 1000 Hz (audio-rate "
+                     "modulation; a filter target reads it once a 64-sample block).")),
             # the two knobs side by side, then the menus
             (f"lfo{k}_phase", _ui(_O, f"LFO {k} phase", EXACT,
                 hint=f"Where in its cycle LFO {k} starts each note.")),
@@ -1007,10 +1036,7 @@ _IDLE_ASKED = tuple(
 
 def _lfo_routed(k: int) -> Callable[[Any], bool]:
     """Does a route that plays read general LFO k?"""
-    src = f"lfo{k}"
-    return lambda p: any(
-        slot_active(p, s) and getattr(p, f"{s}_src") == src for s in MOD_SLOTS
-    )
+    return lambda p: _lfo_reads(p, k)
 
 
 # hand-made fields (no genes, so `params.live` never asks about them) that
