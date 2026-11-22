@@ -293,13 +293,13 @@ def _pct(x: float) -> str:
 
 
 def marks(feel, cells, cuts=()) -> dict[tuple[str, int], tuple[str, str, str]]:
-    """What the piano roll draws of each felt note (grids.html), per cell
-    of it: `(class, style, title)`. Custom properties on the cells it
-    already has — no new element: `--fv` its velocity share (every cell),
-    `--fs` its start off its step's line (the start cell, as a share of a
-    step), `--fe` how much of its last cell it leaves silent (as a share;
-    below 0: let go past the line, `felt-past`). The title on its start
-    cell says it in words."""
+    """What the piano roll draws of each felt note (grids.html), on its
+    start cell and its last cell: `(class, style, title)`. Custom properties
+    on the cells it already has — no new element: `--fs` its start off its
+    step's line (a share of a step: `felt-s`), `--fe` how much of its last
+    cell it leaves silent (`felt-e`; let go past the line: `felt-past`).
+    The title on its start cell says it in words, its velocity share too
+    (the lane under the grid is the step's)."""
     if not feel:
         return {}
     on = starts(cells, cuts)
@@ -310,21 +310,20 @@ def marks(feel, cells, cuts=()) -> dict[tuple[str, int], tuple[str, str, str]]:
             continue
         p, s = at
         o, e, share = (float(x) for x in v)
-        end = end_line(cells, cuts, p, s)
+        last = end_line(cells, cuts, p, s) - 1
         title = (
             f"played {_pct(o)} of a step {'late' if o >= 0 else 'early'} · let go "
             f"{_pct(abs(e))} of a step {'past' if e > 0 else 'before'} the line · "
             f"{round(share * 100)}% of the step's velocity"
         )
-        for st in range(s, end):
-            style = [f"--fv: {share:.3g}"]
-            cls = "felt"
-            if st == s:
-                style.append(f"--fs: {o:.3g}")
-                cls += " felt-s"
-            if st == end - 1:
-                cut = (o if st == s else 0.0) - e
-                style.append(f"--fe: {max(0.0, cut):.3g}")
-                cls += " felt-e" + (" felt-past" if cut < 0 else "")
-            out[(p, st)] = (cls, "; ".join(style), title if st == s else "")
+        cut = (o if last == s else 0.0) - e
+        end = (
+            "felt-e" + (" felt-past" if cut < 0 else ""),
+            f"--fe: {max(0.0, cut):.3g}",
+        )
+        if last == s:
+            out[(p, s)] = (f"felt-s {end[0]}", f"--fs: {o:.3g}; {end[1]}", title)
+        else:
+            out[(p, s)] = ("felt-s", f"--fs: {o:.3g}", title)
+            out[(p, last)] = (end[0], end[1], "")
     return out

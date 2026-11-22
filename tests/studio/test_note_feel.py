@@ -343,15 +343,14 @@ def test_hostile_feel_is_conformed():
 
 def test_the_roll_draws_a_felt_note_on_the_cells_it_has():
     marks = notefeel.marks({"A2.2": F}, NOTE)
-    assert set(marks) == {("A2", 2), ("A2", 3), ("A2", 4)}
-    start, mid, end = marks[("A2", 2)], marks[("A2", 3)], marks[("A2", 4)]
-    assert start[0] == "felt felt-s" and "--fs: 0.2" in start[1]
+    assert set(marks) == {("A2", 2), ("A2", 4)}  # its start and its end
+    start, end = marks[("A2", 2)], marks[("A2", 4)]
+    assert start[0] == "felt-s" and start[1] == "--fs: 0.2"
     assert "late" in start[2] and "60% of the step's velocity" in start[2]
-    assert mid == ("felt", "--fv: 0.6", "")
-    assert end[0] == "felt felt-e" and "--fe: 0.3" in end[1]  # let go 0.3 early
+    assert end == ("felt-e", "--fe: 0.3", "")  # let go 0.3 of a step early
     # one cell long, let go past the line: drawn whole, its handle lit
     one = notefeel.marks({"C3.8": [-0.2, 0.3, 1.0]}, [["C3", 8]])
-    assert one[("C3", 8)][0] == "felt felt-s felt-e felt-past"
+    assert one[("C3", 8)][0] == "felt-s felt-e felt-past"
     assert notefeel.marks({}, NOTE) == {}
 
 
@@ -374,7 +373,7 @@ def test_perform_and_the_drawer_draw_the_feel(tmp_path):
         page = c.get("/view/perform").text
         at = page.index('name="cell.A2.2"')
         cell = page[at : at + 300]
-        assert "felt felt-s" in cell and "--fs: 0.2" in cell
+        assert "felt-s" in cell and "--fs: 0.2" in cell
         assert 'hx-post="/fragment/pattern/notes/snap"' in page
         # snapped from the roll: on the grid, drawn as any note
         r = c.post(
