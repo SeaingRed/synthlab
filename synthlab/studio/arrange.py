@@ -905,9 +905,12 @@ def _lane_timeline(
                 # sounding length over NOTE_GATE, so every reader of the
                 # timeline (the gate, a mono line, the MIDI note-off) gets
                 # that length back
+                # (in beats to a billionth: so a take's own decimals come
+                # back as the very floats it was posted in, and a gate on a
+                # half-sample tie rounds as the take's would)
                 o, e, share = (float(x) for x in f)
-                at = (start + o) * step_beats
-                held = max(run + e - o, notefeel.MIN_STEPS) * step_beats
+                at = round((start + o) * step_beats, 9)
+                held = round(max(run + e - o, notefeel.MIN_STEPS) * step_beats, 9)
                 dur = held / NOTE_GATE
                 vel = min(1.0, vel * share)
             else:
