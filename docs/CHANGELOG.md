@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **A granular oscillator**: osc 1's "granular" pill plays the sampler's
+  sample as a cloud of grains — position (drawable, a route target),
+  size, density (up to 256 sounding), position and pitch spray, window,
+  direction and scan — through the same envelope, filters and FX. The
+  sampler panel draws where the grains read. Deterministic (every grain's
+  draw a hash), so renders cache; the keys play it from the server's
+  render, not the live voice.
 - **A long take reaches the song whole**: → Song on a loop recorded past
   its 4-bar grid lays out every bar played as sections in a row, each an
   editable pattern in the sound that played it. The take's toast, its row
