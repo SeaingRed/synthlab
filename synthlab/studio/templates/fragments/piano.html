@@ -302,22 +302,25 @@
     <div class="kbd-grp kbd-rec" role="group" aria-labelledby="kbd-rec-cap" data-menu-section="Rec">
       {#- (the caption is read, not drawn — ⏺ Rec names the group: its room went to ⟲ at 1920 comfy) -#}
       <span class="caps visually-hidden" id="kbd-rec-cap">Rec</span>
-      <button type="button" id="key-rec" class="btn btn-s btn-rec key-rec" aria-pressed="false" data-max-take-seconds="{{ limits.MAX_KEY_TAKE_SECONDS | int }}" data-max-free-seconds="{{ limits.MAX_FREE_TAKE_SECONDS | int }}"
+      <button type="button" id="key-rec" class="btn btn-s btn-rec key-rec" data-key-rec aria-pressed="false" data-max-take-seconds="{{ limits.MAX_KEY_TAKE_SECONDS | int }}" data-max-free-seconds="{{ limits.MAX_FREE_TAKE_SECONDS | int }}"
               data-cmd="Record a take of the keys" data-keys="Alt+R"
-              title="Record what you play over the loop — the keys alone, not the beat — from its next bar line, with the notes: its audio and a loop, in the Loops panel. With a slot selected on the Loops page's launcher it lands there and plays from it — an empty slot a new loop, a filled one overdubbed or replaced (the choice beside) (Alt+R; at most {{ limits.MAX_KEY_TAKE_SECONDS | int }} s — 16 bars from 64 bpm up)">⏺ Rec</button>
-      {#- keyrec.js: into the launcher's selected slot (slots.js) — shown
-          only while one of a lane of notes is selected (the Loops page);
-          new when it is empty, else overdub | replace (per browser) -#}
-      <span class="seg key-how" id="key-how" role="group" aria-label="⏺ Rec into the selected slot" hidden>
-        <button type="button" data-key-how="new" aria-pressed="true" disabled title="The selected slot is empty: the take is a new loop there, and plays from it">new</button>
+              title="Record what you play over the loop — the keys alone, not the beat — from its next bar line, with the notes: its audio and a loop, in the Loops panel. With a cell selected on the Loops page's launcher it lands there and plays from it — a new loop, or the cell overdubbed or replaced (the choice beside; the Loops page's deck has this same ⏺ Rec) (Alt+R; at most {{ limits.MAX_KEY_TAKE_SECONDS | int }} s — 16 bars from 64 bpm up)">⏺ Rec</button>
+      {#- keyrec.js: where the take lands in the launcher (slots.js's
+          selected cell) — shown while one of a lane of notes is selected
+          (the Loops page; its deck's Rec ▾ shows it always): a new loop
+          (the cell when empty, else the lane's next empty one), or the
+          filled cell overdubbed | replaced (per browser) -#}
+      <span class="seg key-how" id="key-how" role="group" aria-label="⏺ Rec into the selected cell" hidden>
+        <button type="button" data-key-how="new" aria-pressed="true" data-cmd="Rec lands as a new loop"
+                title="A new loop: in the selected cell when it is empty, else the lane's next empty one — it never overwrites a loop — and it plays from there">new</button>
         <button type="button" data-key-how="overdub" aria-pressed="false" data-cmd="Rec into a filled slot: overdub"
-                title="Overdub: the take's notes merge into the selected slot's loop, from the bar it began on (a repeated note is a cut) — one undo step; the take is kept too">overdub</button>
+                title="Overdub: the take's notes merge into the selected cell's loop, from the bar it began on (a repeated note is a cut) — one undo step; the take is kept too">overdub</button>
         <button type="button" data-key-how="replace" aria-pressed="false" data-cmd="Rec into a filled slot: replace"
-                title="Replace: the take's loop takes the selected slot and plays from it (the old loop stays in the Loops)">replace</button>
+                title="Replace: the take's loop takes the selected cell and plays from it (the old loop stays in the Loops)">replace</button>
       </span>
-      <button type="button" id="key-capture" class="btn btn-s btn-icon" data-cmd="Capture what you just played on the keys" data-keys="Alt+T" aria-label="capture what you just played"
+      <button type="button" id="key-capture" class="btn btn-s btn-icon" data-key-capture data-cmd="Capture what you just played on the keys" data-keys="Alt+T" aria-label="capture what you just played"
               title="⟲ Capture (Alt+T): what you just played on the keys or MIDI — without ⏺ Rec — as a loop: the last bars the length says, or (to ■) the latest phrase from its bar line, rounded up to 1, 2, 4 or 8 bars. Notes only, at the tempo playing; into the selected slot when it is empty, else the lane's next empty slot — it never overwrites a loop">⟲</button>
-      <button type="button" id="key-count" class="btn btn-s" aria-pressed="true" data-cmd="Rec: count one bar in first, on / off"
+      <button type="button" id="key-count" class="btn btn-s" data-key-count aria-pressed="true" data-cmd="Rec: count one bar in first, on / off"
               title="Count one bar in before ⏺ Rec records (lit): the loop's bar when it plays, else four blips at the tempo"><i class="led" aria-hidden="true"></i>count-in</button>
       <select id="key-bars" class="field field-s" aria-label="how long a take is"
               title="How long a take is: whole bars, then it stops by itself — or to ■: until you press ⏺ again, rounded up to the bar — or free: from your first note to ■, no bars, then shape it into a loop">
@@ -325,7 +328,7 @@
         <option value="0" selected>to ■</option>
         <option value="free" title="free: no count-in, no bar line — from your first note to ■, up to {{ limits.MAX_FREE_TAKE_SECONDS | int }} s; then shape it into a loop">free</option>
       </select>
-      <button type="button" id="key-beat" class="btn btn-s" aria-pressed="false" data-cmd="Rec: record the beat too, on / off"
+      <button type="button" id="key-beat" class="btn btn-s" data-key-beat aria-pressed="false" data-cmd="Rec: record the beat too, on / off"
               title="Record the beat with the keys (lit) — the whole mix, as you hear it. Unlit, a take is the keys alone"><i class="led" aria-hidden="true"></i>+ beat</button>
     </div>
     {#- the mic's two: the talkbox (talkbox.js: the mic speaks through the
