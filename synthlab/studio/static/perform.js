@@ -182,6 +182,11 @@
     if (p && on === "1" && !p.matches(":popover-open")) p.showPopover();
     document.getElementById("play-open")?.setAttribute("aria-expanded", String(!!p?.matches(":popover-open")));
   }
+  // the dock's Pads ▴ (every page's; #perform-play is the Loops page's alone): anchored to it
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest?.("#play-open"), p = b && document.getElementById("perform-play");
+    if (p) p.togglePopover({ source: b });
+  });
   document.addEventListener("DOMContentLoaded", reopen);
   document.addEventListener("htmx:after:settle", reopen);
 })();

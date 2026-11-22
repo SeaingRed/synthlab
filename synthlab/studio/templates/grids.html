@@ -195,7 +195,7 @@
     </div>
 {%- endmacro %}
 
-{#- ghosts (roll.js: per browser) -#}
+{#- ghosts (per browser, in roll.js) -#}
 {% macro roll_ghosts(roll=none) -%}
       <button type="button" class="btn btn-s pt wide" data-roll-ghosts aria-pressed="true"
               title="{% if roll and roll.ghost_names %}Ghost notes: {{ roll.ghost_names | join(', ') }}, drawn dimly behind this lane's{% else %}Ghost notes: the other lanes' notes, drawn dimly behind this one's (there are none yet){% endif %}"
