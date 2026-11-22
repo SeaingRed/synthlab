@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from synthlab.core import FM4_ALGOS, WAVETABLES
 from synthlab.studio import oscfaces
-from synthlab.studio.paramui import PARAM_GROUPS, SHAPE_DEPS
+from synthlab.studio.paramui import ENV_SYNC_FIELDS, PARAM_GROUPS, SHAPE_DEPS
 from synthlab.studio.server import create_app
 
 FM4_KNOBS = [f"fm4_{k}{i}" for k in ("ratio", "level", "decay") for i in (1, 2, 3, 4)]
@@ -156,9 +156,13 @@ def test_sync_is_one_block_and_drift_sits_under_warmth(client):
     assert re.findall(r'id="row-(\w+)"', character)[:3] == ["drive", "drift", "glide"]
     assert "subhead" not in character  # six knobs, one line (style.css 17.1)
     assert 'class="param param-knob" id="row-drift"' in character
-    # nothing lost or doubled by the moves
+    # nothing lost or doubled by the moves (an envelope time's sync is a
+    # select at the end of the time's own row, paramui.ENV_SYNC_FIELDS)
     for _, specs in PARAM_GROUPS:
         for spec in specs:
+            if spec.name in ENV_SYNC_FIELDS:
+                assert html.count(f'name="{spec.name}"') == 1, spec.name
+                continue
             assert html.count(f'id="row-{spec.name}"') == 1, spec.name
     assert set(SHAPE_DEPS["fm4"]) == {"fm4_algo", "fm4_feedback", *FM4_KNOBS}
 
