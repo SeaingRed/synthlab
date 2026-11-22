@@ -587,6 +587,7 @@
       patch[param] = value;
       voiceNode?.port.postMessage({ type: "mod", param, value });
       window.synthlab.liveMod(param, value);
+      window.synthlab.keyMove?.(param, value); // ⏺ Rec keeps it (keyrec.js)
     }
     if (readout && parts.length) readout.textContent = parts.join(" · ");
   }

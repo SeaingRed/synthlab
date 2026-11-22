@@ -263,6 +263,15 @@
     if (last && at - last[0] < 0.02) last[1] = v;
     else if (m && m.length < 4000) m.push([r3(at), v]); // limits.MAX_TAKE_MOVE_POINTS
   };
+  document.addEventListener("input", (e) => {
+    const el = e.target, id = el?.id || "";
+    if (!rec || !(el instanceof Element)) return;
+    const range = el.type === "range";
+    if (range && id.startsWith("p-")) S.keyMove(id.slice(2), el.dataset.log ? S.logVal(el) : +el.value);
+    else if (range && id.startsWith("macro-")) S.keyMove(`macro:${id.slice(6)}`, +el.value);
+    else if (range && id.startsWith("fx-")) S.keyMove(`fx:${id.split("-").pop()}`, +el.value);
+    else if (el.form?.id === "patch" && el.name && !range) S.keyMove(el.name, el.selectedIndex ?? +el.checked);
+  }, true);
   const movesOf = (r) => JSON.stringify({ moves: r.moves,
     from: Object.fromEntries(Object.keys(r.moves).filter((k) => typeof r.from0[k] === "number").map((k) => [k, r.from0[k]])) });
 
