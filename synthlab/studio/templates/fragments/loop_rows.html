@@ -57,7 +57,7 @@
 
 {% macro quantise_menu(r, newest=false) %}
 <details class="kt-pick lp-pick lp-q">
-  <summary class="btn btn-s" data-menu="Quantise…" title="place the notes as played on the grid again: a rate and a strength (0 = as played: each note in the step it began in; 100 = every note on its nearest step). The notes as played are never changed">Q {{ r.quantise }}%</summary>
+  <summary class="btn btn-s" data-menu="Quantise…" title="place the notes as played on the grid again: a rate and a strength (0 = as played: each note on its nearest step, its timing inside the step kept — it plays as you played it; 100 = every note on its step, no timing kept). The notes as played are never changed">Q {{ r.quantise }}%</summary>
   {#- (a plain string, escaped once where it is written: built with ~ around
       `| e` it came out with its own quotes escaped and broke at a space) -#}
   {% set ask = "“" ~ r.name ~ "” was edited on the grid: place the notes as played again over it?" %}
@@ -73,7 +73,7 @@
     <button type="button" hx-post="/loop/quantise" hx-swap="none"{% if r.edited %} hx-confirm="{{ ask }}"{% endif %}
             hx-vals='{{ (r.ref | combine({"steps": r.steps, "strength": q})) | tojson }}'{% if newest and q == 0 %} data-cmd="Newest loop: as played" data-cmd-group="Loops"{% elif newest and q == 100 %} data-cmd="Newest loop: quantise 100%" data-cmd-group="Loops"{% endif %}
             aria-pressed="{{ 'true' if q == r.quantise else 'false' }}"
-            title="{{ 'as played: each note in the step it began in' if q == 0 else 'a note within ' ~ q ~ '% of half a step of a line goes onto it' }}">{{ 'as played' if q == 0 else q ~ '%' }}</button>
+            title="{{ 'as played: every note keeps its timing inside its step' if q == 0 else 'on the steps: no timing inside one' if q == 100 else 'each note pulled ' ~ q ~ '% of the way to its step, the rest of its timing kept' }}">{{ 'as played' if q == 0 else q ~ '%' }}</button>
     {% endfor %}
   </span>
   {% if r.cleanable %}

@@ -99,18 +99,35 @@ def test_a_take_is_kept_with_its_loop_the_notes_as_played_and_placed(client):
     assert loop["sound"] is not None  # the sound that played it
 
 
-def test_the_strength_places_a_note_from_where_it_began_to_its_nearest_step():
+def test_the_strength_keeps_each_notes_timing_inside_its_step_below_100():
     late, early = [[0.06, 0.25, 60, 1]], [[0.96, 0.25, 62, 1]]  # 0.24 / 3.84 steps
 
-    def starts(notes, q):
+    def placed(notes, q):
         lane = loops.place(notes, "4/4", 1, 16, q)
-        return sorted(int(s) for _p, s in lane["cells"])
+        return sorted(int(s) for _p, s in lane["cells"]), lane["note_nudge"]
 
-    assert starts(late, 0) == [0] and starts(late, 100) == [0]
-    # as played, a note a hair before beat 2 is in the step it began in
-    assert starts(early, 0) == [3]
-    assert starts(early, 25) == [3]  # 0.16 off is past 25% of half a step
-    assert starts(early, 50) == [4] and starts(early, 100) == [4]
+    # 100: on the nearest step, no timing inside one (as it always was)
+    assert placed(late, 100) == ([0], {}) and placed(early, 100) == ([4], {})
+    # as played (0): the nearest step, the rest of its timing that step's
+    # `note_nudge` (free record's rule, `place_free`) — a hair late on 0, a
+    # hair early on beat 2
+    assert placed(late, 0) == ([0], {"0": 0.24})
+    assert placed(early, 0) == ([4], {"4": -0.16})
+    # between: pulled that share of the way to the step, the rest kept
+    assert placed(early, 50) == ([4], {"4": -0.08})
+    assert placed(early, 25) == ([4], {"4": -0.12})
+    # a held note keeps its length to the step: its end on the line nearest
+    # where it ended (0.4 + 3.4 steps ends at 3.8: four steps, not three)
+    held = [[0.1, 0.85, 64, 1]]
+    assert placed(held, 0) == ([0, 1, 2, 3], {"0": 0.4})
+    assert placed(held, 100)[0] == [0, 1, 2]
+    # played early onto the grid's end line: its first step, early (the
+    # render wraps it to the end, where it was played) — a loop is a circle
+    pickup = [[0, 1, 60, 1], [3.95, 0.05, 64, 1]]  # 15.8 steps of 16
+    cells, nudge = placed(pickup, 0)
+    assert ["E4", 0] in loops.place(pickup, "4/4", 1, 16, 0)["cells"]
+    assert nudge == {"0": -0.1}  # the mean of C4's 0 and E4's -0.2
+    assert ["E4", 0] not in loops.place(pickup, "4/4", 1, 16, 100)["cells"]
     # the rate: eighths in 4/4, and in 3/4 the meter's own steps
     assert loops.place(early, "4/4", 1, 8, 100)["cells"] == [["D4", 2]]
     assert [n for n, _w in loops.rates("3/4")] == [3, 6, 12, 24]
@@ -228,9 +245,12 @@ def test_quantise_places_the_notes_as_played_again_and_the_grid_follows(client):
     )
     assert r.status_code == 200 and "as played" in r.headers["HX-Trigger"]
     loop = loops.load(s.data_dir, "keys-1")
-    assert ("C2", 3) in _cells(loop["lane"])  # where it began, a hair early
+    # on its step, a hair early: the timing inside the step kept
+    assert ("C2", 4) in _cells(loop["lane"])
+    assert loop["lane"]["note_nudge"] == {"0": 0.08, "4": -0.16}
     assert loop["quantise"] == 0 and loop["played"] == NOTES
-    assert ("C2", 3) in [(p, int(st)) for p, st in s.arrangement.cells]
+    assert ("C2", 4) in [(p, int(st)) for p, st in s.arrangement.cells]
+    assert s.arrangement.note_nudge == {"0": 0.08, "4": -0.16}
     client.post(
         "/loop/quantise",
         data={"name": "keys-1", "steps": "8", "strength": "100"},
@@ -754,6 +774,29 @@ def test_to_song_lays_out_every_bar_played_a_section_each_grid(client):
     # one song undo step takes both sections back
     client.post("/song/undo", headers=_hx("song"))
     assert s.song["sections"] == []
+
+
+def test_as_played_the_timing_reaches_the_rest_and_the_song(client):
+    """Below 100 the bars past the grid keep their timing too (`rest_lanes`:
+    a note held over a lane's line starts again on it), and → Song's
+    patterns carry every lane's `note_nudge`."""
+    (lane,) = loops.rest_lanes(LONG, "4/4", 16, 16, 0)
+    assert lane["note_nudge"] == {"20": 0.04}  # beat 69.01: a hair late
+    assert loops.rest_lanes(LONG, "4/4", 16, 16, 100)[0]["note_nudge"] == {}
+    name = unquote(_take(client, notes=LONG, bars="18").headers["X-Loop-Name"])
+    s = _st(client)
+    client.post("/loop/quantise", data={"name": name, "strength": "0"}, headers=PERFORM)
+    loop = loops.load(s.data_dir, name)
+    assert loop["lane"]["note_nudge"] == {}  # the grid's notes are all on lines
+    client.post("/loop/song", data={"name": name}, headers=PERFORM)
+    first, second = s.song["sections"]
+    pats = [
+        s.song["patterns"][p]
+        for sec in (first, second)
+        for p in sec["cells"].values()
+        if p
+    ]
+    assert [p.get("note_nudge", {}) for p in pats] == [{}, {"20": 0.04}]
 
 
 def test_rest_lanes_are_empty_when_the_take_fits():

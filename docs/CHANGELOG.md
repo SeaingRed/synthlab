@@ -8,6 +8,11 @@
   16, the roll scrolls rather than squeezing, and → Song makes one
   pattern of it ("Open in Perform" brings it back whole). The drum grid
   keeps 1-4 bars; nothing saved or rendered before changes.
+- **Q "as played" keeps the timing**: below 100% each note of a take's
+  loop sits on its nearest step with the rest of its timing kept inside
+  it, and a held note ends where it was released — the loop plays back
+  like the take, on the grid, in the song and in a bounce. 100% stays on
+  the steps.
 - **A long take reaches the song whole**: → Song on a loop recorded past
   its 4-bar grid lays out every bar played as sections in a row, each an
   editable pattern in the sound that played it. The take's toast, its row

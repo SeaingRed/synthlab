@@ -810,20 +810,34 @@ row, Edit's toast; → Song lays every bar out, below), at the
 **rate** — the meter's own steps (`meter.step_choices`: 1/4, 1/8, 1/16,
 1/32 in 4/4; 3, 6, 12, 24 a bar in 3/4; no quarter-note step in an x/8
 meter; **no triplets**, which the note grid has no steps for in a duple
-meter) — the meter's sixteenths first. A note starts on **its step by the
-strength**: within `strength`% of half a step of a grid line it goes onto
-that line, else it stays in the step it began in (`loops._step_of`: 100
-= every note on its nearest step, the default; 0 = **as played**, each
-note in the step it began in). It is held for its length in whole steps
-(at least one); one starting where its row still sounds is a cut; a
-step's velocity is the loudest note starting there — the MIDI import's
-write (`midi_bridge.to_grid`) on every pitch the notes play. **The step
-grid holds no timing inside a step**: "as played" timing is kept in the
-loop (`played`) and heard in its audio; the grid, the pattern a song
-plays and a bounce are on the steps. (A **free loop** —
-free record's shaper, "Free record and the shaper" below — does keep its
-timing on the grid: `note_nudge`, the drum hits' `nudge` for notes, and
-its Q keeps it below 100%. A take's loop is placed as here.)
+meter) — the meter's sixteenths first. The **strength** says how much of
+its timing a note keeps (`loops._spans`, `tests/studio/test_loops.py`):
+
+- **100** (the default): every note on its nearest step, held for its
+  length in whole steps (at least one) — on the steps, no timing inside
+  one (a loop placed at 100 is the grid it always was).
+- **below 100, the timing as played** (free record's rule, `place_free`):
+  each note heard where `shaped_start` puts it — `strength`% of the way to
+  its nearest line, **0 = exactly as played** — on the step nearest that,
+  the rest of its start that step's **`note_nudge`** (a share of a step,
+  -0.5..0.5: "Free record and the shaper", "Timing inside a step on the
+  note grid"; the notes starting on one step share the mean, as they share
+  a velocity — a rolled chord on one step is one start). **A held note
+  keeps its length to the step**: its end on the step line nearest where
+  it ended as played (at least one step), and the render moves only its
+  start, so it releases where it was released. The roll draws a nudged
+  start off its step line. When nothing was played past the grid the
+  loop is a circle: a note played early onto the grid's end line is its
+  first step, early, which the render wraps to the end (as a free loop's).
+  So **Q "as played" plays back like the take**: the grid, the render, ▶
+  in time at another tempo, → Song (the pattern carries `note_nudge`; its
+  sections' chunks keep it) and a bounce all play the timing.
+
+One starting where its row still sounds is a cut; a step's velocity is the
+loudest note starting there — the MIDI import's write
+(`midi_bridge.to_grid`) on every pitch the notes play. A loop placed
+below 100 before this (each note in the step it began in, no timing kept)
+keeps its file until Q places it again.
 
 **A long grid** (8 or 16 bars; `tests/studio/test_loops.py`,
 `test_limits.py`): the working loop's `bars` is any of
