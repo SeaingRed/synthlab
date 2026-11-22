@@ -2019,6 +2019,13 @@ def stat_metrics(engs: list[np.ndarray], runs: list[np.ndarray], gate: float) ->
 
 LIMITS = {"level": 0.5, "harm_rms": 1.0, "harm_max": 3.0, "env_p95": 1.0}
 STAT_LIMITS = {"level": 0.5, "bands": 1.5, "env_p95": 1.0}
+# A random source whose 50 ms envelope differs from ITSELF past the limit,
+# so no live voice could meet it: the allowance is the engine's own spread
+# between two sets of its noise seeds, measured, with room. Snare Riser is
+# white noise through a 500 Hz bandpass (narrow: its frames' level swings
+# far more than broadband noise's) — engine vs engine 1.35 / 1.53 dB at C4
+# (seeds 0-3 against 4-7 and 8-11, 2026-11-22), the live voice 1.6.
+STAT_ENV_ALLOW = {"sound:recipe:Snare Riser": 2.0}
 
 
 def _over(got: dict, limits: dict) -> dict:
@@ -2036,8 +2043,12 @@ def _check(rendered, tag, pitch, engine):
     res = rendered[(tag, pitch)]
     got = res[engine]
     if res["random"]:
-        bad = _over(got, STAT_LIMITS)
-        assert not bad, f"{tag} {pitch} (statistical): {bad} (limits {STAT_LIMITS})"
+        limits = {
+            **STAT_LIMITS,
+            "env_p95": STAT_ENV_ALLOW.get(tag, STAT_LIMITS["env_p95"]),
+        }
+        bad = _over(got, limits)
+        assert not bad, f"{tag} {pitch} (statistical): {bad} (limits {limits})"
     else:
         bad = _over(got, LIMITS)
         assert not bad, f"{tag} {pitch}: {bad} (limits {LIMITS})"
