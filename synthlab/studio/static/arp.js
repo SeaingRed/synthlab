@@ -24,6 +24,10 @@
 // - Modes: up, down, up-down, random (a seeded shuffle a cycle: the same
 //   every time it starts), as played, chord (the held notes as stabs);
 //   octaves 1-4 (chord: a stab an octave higher each step).
+// - ▦ pattern: the arp pattern (arppat.js — the grid arp's too, the edited
+//   lane's): its rate, mode, octaves and each step's on / velocity /
+//   transpose / gate / chance / repeats; when a note is struck is `struck`,
+//   for its retrig.
 // Per browser (localStorage synthlab.arp); the deck, the palette and Alt+A
 // reach the switch. arpSchedule is the pure half (cycle / pick / stepAt),
 // run under node by tests/studio/test_keys_arp.py.
@@ -33,7 +37,7 @@
   "use strict";
   const S = (window.synthlab ??= {});
   const RATES = { "1/4": 1, "1/8": 1 / 2, "1/8T": 1 / 3, "1/16": 1 / 4, "1/16T": 1 / 6, "1/32": 1 / 8 }; // beats a step
-  const GLYPH = { up: "↑", down: "↓", updown: "↕", random: "⚄", played: "♪", chord: "≡" };
+  const GLYPH = { up: "↑", down: "↓", updown: "↕", random: "⚄", played: "♪", chord: "≡", pattern: "▦" };
   // one cycle of steps, each the notes it plays: the held notes low to high
   // (as played for "played") over `oct` octaves
   function cycle(held, mode, oct) {
@@ -74,7 +78,8 @@
   const LOOK = 0.06; // posted this far ahead of its time (the worklet holds it to its block)
   const held = () => S.piano?.arpHeld?.() || [];
   const ctx = () => S.getCtx();
-  const stepSec = () => RATES[set.rate] * 60 / (S.tempo?.() || 120);
+  const pattern = () => set.mode === "pattern" && !!S.arpPattern?.hits;
+  const stepSec = () => (pattern() ? S.arpPattern.beats() : RATES[set.rate]) * 60 / (S.tempo?.() || 120);
   const grid = () => !!S.isPlaying?.() && S.loopStart?.() != null;
   // the loop's last bar line at or before `t` (a bar is S.barBeats at S.tempo: the meter's; nextBar keeps it on the loop)
   const barLine = (t) => S.nextBar(t - (S.barBeats?.() || 4) * 60 / (S.tempo?.() || 120) + 1e-4, 0);
@@ -105,10 +110,13 @@
       // steps the timers slept through (a hidden tab) are skipped, not played in a heap
       if (run.t < ctx().currentTime - 0.05) Object.assign(run, stepAt(run.ref, ctx().currentTime, step, set.swing));
       const at = Math.max(run.t, ctx().currentTime);
-      const vel = notes[notes.length - 1].vel ?? 1, end = at + Math.max(0.1, Math.min(1, set.gate)) * step;
-      for (const m of pick(notes, set.mode, set.oct, run.n++)) {
-        const id = `arp:${++seq}`;
-        S.piano.noteOn(id, m, vel, at);
+      const vel = notes[notes.length - 1].vel ?? 1, gate = Math.max(0.1, Math.min(1, set.gate));
+      // [offset, midi, velocity scale, gate]: a pattern's step may rest, repeat, transpose
+      const hits = pattern() ? S.arpPattern.hits(run, notes, grid()) : pick(notes, set.mode, set.oct, run.n).map((m) => [0, m, 1, gate]);
+      run.n++;
+      for (const [off, m, scale, g] of hits) {
+        const id = `arp:${++seq}`, t0 = at + off * step, end = t0 + g * step;
+        S.piano.noteOn(id, m, vel * scale, t0);
         setTimeout(() => S.piano.noteOff(id, end), Math.max(0, (end - ctx().currentTime - LOOK) * 1000));
       }
       // the next step: from the loop's latest bar line while it plays (a
@@ -127,8 +135,11 @@
     return latching || !h.length || h.some((x) => x.key);
   }
   // the held notes moved: start, stop, and the read-out's chord (keysbar.js: chord-on / chord-off)
+  let count = 0;
   function changed() {
     const h = held();
+    if (run && h.length > count) run.struck = ctx().currentTime; // a note struck (a pattern's retrig "note": arppat.js)
+    count = h.length;
     if (h.length && !run) start();
     if (!h.length) stop();
     document.dispatchEvent(h.length ? new CustomEvent("chord-on", { detail: { id: "arp", notes: h.map((x) => x.midi), arp: GLYPH[set.mode] } })

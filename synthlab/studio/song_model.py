@@ -1992,7 +1992,8 @@ def _flat(
         breaks=tuple(range(lo + main_p, hi, main_p)),
         arp=(
             (tuple(pitches), 0, main_p, *gate)
-            if a.arp_mode != "off" and (pitches := _arp_pitches(a.cells, main_p))
+            if a.arp_mode != "off"
+            and (pitches := _arp_pitches(a.cells, main_p, a.arp_mode == "pattern"))
             else ()
         ),
     )
@@ -2007,11 +2008,24 @@ LOOP_CHANCE_PASSES = 4
 def loop_chance(inp) -> bool:
     """Does a loop's `RenderInputs` rest any note by chance — its main
     lane's `note_chance` or a layer's (a following layer rolls its main
-    lane's) — in a render that plays the synth?"""
+    lane's), or a step of the arp pattern a grid arp plays — in a render
+    that plays the synth?"""
     if "synth" not in inp.parts:
         return False
-    return bool(inp.arr.note_chance) or any(
-        isinstance(lay, dict) and lay.get("note_chance") for lay in inp.layers
+    from .arppattern import rests_by_chance  # lazy: as the others here
+
+    a = inp.arr
+    return (
+        bool(a.note_chance)
+        or rests_by_chance(a.arp_mode, a.arp_pattern)
+        or any(
+            isinstance(lay, dict)
+            and (
+                lay.get("note_chance")
+                or rests_by_chance(lay.get("arp_mode"), lay.get("arp_pattern"))
+            )
+            for lay in inp.layers
+        )
     )
 
 
@@ -2078,12 +2092,22 @@ def _block_steps(block, cycle: int, steps: int) -> tuple[int, int]:
     return lo * steps, hi * steps
 
 
-def _arp_pitches(cells, period: int) -> list[str]:
+def _arp_pitches(cells, period: int, played: bool = False) -> list[str]:
     """The pitches a pattern's arp cycles through: the rows with a note
     inside its own grid — what a loop arpeggiates (`arrange._playing_steps`:
     a run must start inside the grid, so a row plays exactly when it has a
     cell there). A note kept, hidden, past a shrunk grid used to join a
-    section's arp and not the loop's."""
+    section's arp and not the loop's. `played` (the arp pattern's lanes:
+    arp_mode "pattern"): in the order they first play, as the loop's
+    (`arrange.played_order`) — only those lanes, so no other key moves."""
+    if played:
+        from .arrange import played_order  # lazy: arrange imports state
+
+        first: dict[str, list[int]] = {}
+        for c in cells:
+            if 0 <= int(c[1]) < period:
+                first.setdefault(c[0], []).append(int(c[1]))
+        return played_order(first)
     return sorted({c[0] for c in cells if 0 <= int(c[1]) < period})
 
 
@@ -2109,8 +2133,9 @@ def _tile_layer(lay: dict, period: int, total: int, block=None) -> dict:
         out["note_nudge"] = _tile_keys(lay["note_nudge"], period, total, lo, hi)
     if lay.get("note_chance"):  # every pass rolls afresh (`chance_tile`)
         out["note_chance"] = chance_tile(lay["note_chance"], period, total, lo, hi)
-    if lay.get("arp_mode", "off") != "off" and (
-        pitches := _arp_pitches(lay.get("cells") or [], period)
+    mode = lay.get("arp_mode", "off")
+    if mode != "off" and (
+        pitches := _arp_pitches(lay.get("cells") or [], period, mode == "pattern")
     ):
         out["arp"] = [pitches, 0, period, *(block or ())]
     return out

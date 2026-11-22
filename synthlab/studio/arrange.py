@@ -30,7 +30,7 @@ from ..sequencer import (
     render_each,
 )
 from ..synth import Patch, Synth, at_bpm
-from . import limits
+from . import arppattern, limits
 from . import meter as _meter
 from .curves import CURVABLE, curve_array, lane_array
 from .drumlab import specs_of
@@ -43,6 +43,10 @@ from .state import (
     drum_row_sounds,
     pitch_rows,
 )
+
+# the grid arp's modes (`Arrangement.arp_mode`): "pattern" plays the lane's
+# `arp_pattern` (arppattern.py), the rest the arp they always were
+ARP_MODES = ("off", "up", "down", "updown", "pattern")
 
 # -- note memo -------------------------------------------------------------
 # A loop edit moves one note; the stem it lives in re-renders whole. Every
@@ -270,7 +274,7 @@ def arrangement_from_form(
     slides.sort()
 
     arp_mode = str(form.get("arp_mode", "off"))
-    if arp_mode not in ("off", "up", "down", "updown"):
+    if arp_mode not in ARP_MODES:
         arp_mode = "off"
     try:
         arp_octaves = int(form.get("arp_octaves", 1))
@@ -867,6 +871,8 @@ def _lane_timeline(
     notes its roll says (`note_plays`): under an arp, step by step."""
     timeline: list[tuple] = []
     chance = getattr(arr, "note_chance", None)
+    if arr.arp_mode == "pattern":
+        return _pattern_timeline(by_pitch, arr, step_beats, arp)
     if arr.arp_mode != "off":
         pitches = list(arp[0]) if arp else list(by_pitch)
         seq = _arp_sequence(pitches, arr.arp_mode, arr.arp_octaves)
@@ -902,6 +908,72 @@ def _lane_timeline(
     if gap := strum_beats(arr):
         return _strummed(timeline, gap, step_beats / 8)
     return timeline
+
+
+def played_order(by_pitch: dict[str, list[int]]) -> list[str]:
+    """A lane's rows in the order they first play (ties low to high): the
+    grid arp's "as played" chord (arppattern.cycle)."""
+    return sorted(by_pitch, key=lambda p: (min(by_pitch[p]), midi(p)))
+
+
+def _pattern_timeline(
+    by_pitch: dict[str, list[int]], arr: Arrangement, step_beats: float, arp: tuple
+) -> list[tuple]:
+    """The grid arp in "pattern" mode (`arr.arp_pattern`, arppattern.py):
+    `_lane_timeline`'s tuples. The chord it holds is the grid arp's — every
+    row with a note, the whole loop (`arp[0]`, a section's, in the order
+    they first play) — and the pattern walks it step by step: a step every
+    `rate` beats, counted from each bar line (the meter's bar,
+    `bar_beats`: a step past the bar's end starts the next bar's count, as
+    the keys arp re-anchors at every bar line), the odd steps of a bar
+    late by the loop's swing. `retrig` "note" starts the walk again at
+    every pass of the loop's pattern (its chord is struck there: `arp[2]`
+    steps a pass, from the block's start in a trimmed one), "bar" at
+    every bar, "free" never. A section's chunk walks from the cycle's
+    start (`arp[1]`: where the chunk sits) and keeps its own bars' notes,
+    so the chunks rendered apart are the cycle rendered whole. A hit
+    sounds `gate` of its step (`dur` is that over `NOTE_GATE`); its
+    velocity is the grid's lane at the step it falls on times the step's
+    `vel`; the grid's chance lane rolls there too, after the step's own."""
+    pat = arppattern.of(arr)
+    held = [midi(p) for p in (arp[0] if arp else played_order(by_pitch))]
+    if not held:
+        return []
+    spb = int(arr.steps_per_bar)
+    beats = bar_beats(arr)
+    rate = arppattern.rate_beats(pat, step_beats)
+    per_bar = arppattern.steps_in(beats, rate)
+    start_bar, period, lo, hi = 0, max(1, arr.bars), 0, None
+    if arp:
+        start_bar, period = int(arp[1]) // spb, max(1, int(arp[2]) // spb)
+        if len(arp) >= 5:  # a trimmed block: from its first bar, silent past it
+            lo, hi = int(arp[3]) // spb, int(arp[4]) // spb
+    key = arppattern.key_of(arr.root, arr.scale_name)
+    chance = getattr(arr, "note_chance", None)
+    run = arppattern.Run()
+    out: list[tuple] = []
+    for bar in range(lo, start_bar + arr.bars):
+        if hi is not None and bar >= hi:
+            break
+        if pat["retrig"] == "bar" or (
+            pat["retrig"] == "note" and (bar - lo) % period == 0
+        ):
+            run.restart()
+        for j in range(per_bar):
+            hits = arppattern.step(run, held, pat, key)
+            if bar < start_bar or not hits:
+                continue
+            base = (bar - start_bar) * beats + j * rate
+            shift = arr.swing * rate if j % 2 else 0.0
+            g = int(base / step_beats + 1e-9)  # the grid step it falls on
+            vel = arr.velocities.get(str(g), 0.9)
+            for off, m, scale, gate in hits:
+                if chance and not note_plays(chance, g, (m,)):
+                    continue
+                at = base + shift + off * rate
+                dur = gate / NOTE_GATE * rate
+                out.append((at, dur, name_of(m), vel * scale, False))
+    return out
 
 
 FOLLOW_OCTAVES = (-2, -1, 0, 1)  # how far a following layer may transpose
@@ -971,6 +1043,10 @@ def follow_layer(
     else:
         out.pop("arp_mode", None)
         out.pop("arp_octaves", None)
+    if arr.arp_mode == "pattern" and arr.arp_pattern:  # the pattern it plays
+        out["arp_pattern"] = arr.arp_pattern
+    else:
+        out.pop("arp_pattern", None)
     if arr.strum and arr.arp_mode == "off":
         out["strum"] = arr.strum
     else:
@@ -1000,7 +1076,8 @@ def layer_arrangement(arr: Arrangement, lay: dict) -> Arrangement:
     layer's own sequencing. A layer dict carries `velocities` only when
     they differ from the main lane's (`song_bridge.lane_render`; without
     them it plays the main lane's), and `slides`/`arp_mode`/`arp_octaves`/
-    `strum`/`note_chance` only when set — never the main lane's."""
+    `arp_pattern`/`strum`/`note_chance` only when set — never the main
+    lane's."""
     vel = lay.get("velocities")
     return replace(
         arr,
@@ -1012,6 +1089,7 @@ def layer_arrangement(arr: Arrangement, lay: dict) -> Arrangement:
         strum=float(lay.get("strum") or 0.0),
         note_nudge=dict(lay.get("note_nudge") or {}),
         note_chance=dict(lay.get("note_chance") or {}),
+        arp_pattern=dict(lay.get("arp_pattern") or {}),
     )
 
 

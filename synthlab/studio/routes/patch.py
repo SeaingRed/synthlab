@@ -127,6 +127,7 @@ def _merge_arrangement(svc: StudioService, form: dict) -> Arrangement:
         keep["note_chance"] = s.arrangement.note_chance
     for k in lane_fields("chords"):  # the loop's chord track: its own route sets it
         keep[k] = getattr(s.arrangement, k)
+    keep["arp_pattern"] = s.arrangement.arp_pattern  # its own route sets it too
     return replace(new, **keep)
 
 

@@ -11,6 +11,14 @@
   the first two in every unison voice. Off at level 0 (its section folds
   away), so no sound changes; while it sounds, the keys play it from the
   server's render, not the live voice.
+- **An arp pattern**: up to 16 steps, each on / off, velocity, transpose
+  (tones of the loop's key), gate, chance and repeats, with a rate,
+  direction (up, down, up-down, as played, random), octaves and a
+  retrigger (per note, per bar, free) — one pattern both arps play: the
+  grid arp's new "▦ pattern" mode renders it (the loop, a section, the
+  MIDI file) and the keys arp's ▦ mode plays it live. An editor opens
+  from the grid arp's ▦ on the Loops page and from the keys arp's ⚙,
+  with 12 slots kept with the session. Nothing saved before moves.
 - **A granular oscillator**: osc 1's "granular" pill plays the sampler's
   sample as a cloud of grains — position (drawable, a route target),
   size, density (up to 256 sounding), position and pitch spray, window,

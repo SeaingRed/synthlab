@@ -325,8 +325,10 @@ compact side bar, the comfy top bar and a touch context
 
 ## JS islands and their line budgets
 
-Eighty-one budgeted JS files (`tests/studio/test_island.py` pins the
-count; `pagemotion.js`, <= 120, is the page transition — "The page
+Eighty-two budgeted JS files (`tests/studio/test_island.py` pins the
+count; `arppat.js`, <= 80, is the arp pattern's walk for the keys arp —
+arppattern.py's, line for line, loaded after arp.js whose `pick` it uses:
+`loop-and-perform.md`, "The arp pattern"; `pagemotion.js`, <= 120, is the page transition — "The page
 transition" above — loaded after motion.js; `pagefill.js`, <= 200, is the filled pages' live parts — the Song editor's rows fitted to its pane and its ghost
 repeats, the Mix master's read-outs, a Breed litter's entrance: `song.md`,
 "Song view" and "The mixer"; `sounds-and-breeding.md`, "What a card

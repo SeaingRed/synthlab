@@ -176,7 +176,7 @@ def window(p: dict, phase: int, bars: int) -> dict:
         "velocities": keyed(p.get("velocities") or {}),
         "slides": sorted(x for s in p.get("slides") or [] if (x := to(s)) is not None),
     }
-    for k in ("arp_mode", "arp_octaves", "strum"):
+    for k in ("arp_mode", "arp_octaves", "strum", "arp_pattern"):
         if k in p:
             out[k] = p[k]
     # timing inside a step and the chance lane follow their steps (absent

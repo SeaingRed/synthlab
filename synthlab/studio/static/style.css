@@ -1288,6 +1288,30 @@ html[data-embed] .keys-dock { display: none; }
 .arp-pop output { color: var(--signal-text); }
 .arp-pop[popover] { position-anchor: --arp-set; position-area: top span-right;
   position-try-fallbacks: flip-block, flip-inline; inset: auto; margin: 0 0 var(--s1); }
+/* the arp pattern's editor (fragments/arp_pattern.html): a popover of every
+   page anchored to whichever ▦ opened it (the grid arp's, the keys arp's
+   ⚙ row); a column a step, each value a small number field whose fill is
+   its share (velocity, gate, chance: --fill), a step off dimmed */
+.arp-pat[popover] { inset: auto; margin: var(--s1) 0; position-area: top span-right;
+  position-try-fallbacks: flip-block, flip-inline; width: max-content; max-width: calc(100vw - 32px); }
+.arp-pat:popover-open { display: grid; gap: var(--s2); }
+.ap-form { display: grid; gap: var(--s2); margin: 0; }
+.ap-head, .ap-set, .ap-slots { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.ap-head h3 { margin: 0; }
+.ap-plays { color: var(--text-dim); font-size: var(--fs-xs); }
+.ap-plays b { color: var(--accent-text); font-weight: inherit; }
+.ap-head .btn { margin-left: auto; }
+.ap-set label, .ap-slots label { display: inline-flex; align-items: center; gap: var(--s1); color: var(--text-dim); font-size: var(--fs-xs); }
+.ap-lane { border-collapse: collapse; font-size: var(--fs-xs); }
+.ap-lane th { color: var(--text-dim); font-weight: inherit; text-align: right; padding: 0 var(--s1); white-space: nowrap; }
+.ap-lane thead th { text-align: center; font-variant-numeric: tabular-nums; }
+.ap-lane thead th.ap-off { color: var(--text-faint); }
+.ap-lane td { padding: 1px; text-align: center; }
+.ap-lane .field { width: 4.2ch; min-width: 0; padding: 0 2px; text-align: center; font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield; }
+.ap-lane .field::-webkit-inner-spin-button { display: none; }
+.ap-lane .ap-bar { background-image: linear-gradient(to top, color-mix(in oklab, var(--accent), transparent 72%) var(--fill), transparent var(--fill)); }
+.ap-slot[data-filled] { color: var(--accent-text); box-shadow: inset 0 -2px 0 var(--accent); }
 /* a key the arp holds (piano.js `arped`): ringed in the accent while the
    arp plays it; the note sounding is lit as any (.down). No transition */
 .pkey.arped:not(.down) { box-shadow: inset 0 0 0 2px var(--accent); }

@@ -153,7 +153,7 @@
           popover, as the typing rows'). In Play beside hold and latch, a
           section of its own (its menu): a captioned group of its own did
           not fit — the toolbar had 4 px to spare at 1920 px on Synths -#}
-      {% set ARP_MODES = [("up", "↑", "up: low to high"), ("down", "↓", "down: high to low"), ("updown", "↕", "up and down"), ("random", "⚄", "random: a shuffle a cycle, the same each time it starts"), ("played", "♪", "as played: in the order the notes were struck"), ("chord", "≡", "chord: the held notes as repeated stabs")] %}
+      {% set ARP_MODES = [("up", "↑", "up: low to high"), ("down", "↓", "down: high to low"), ("updown", "↕", "up and down"), ("random", "⚄", "random: a shuffle a cycle, the same each time it starts"), ("played", "♪", "as played: in the order the notes were struck"), ("chord", "≡", "chord: the held notes as repeated stabs"), ("pattern", "▦", "pattern: the arp pattern — its rate, direction, octaves and steps (▦ pattern… edits it; the grid arp plays the same one)")] %}
       <div class="kbd-arp" role="group" aria-label="keys arp" data-menu-section="Arp">
         <button type="button" id="arp-btn" class="btn btn-s arp-btn" aria-pressed="false" data-cmd="Keys arp: on / off" data-keys="Alt+A"
                 title="Keys arp (Alt+A): a chord you hold — typed, clicked, MIDI, the latch's — plays as an arpeggio on the tempo, on the loop's beat while it plays; it says its mode, rate and octaves. Not the loop's “grid arp” (the Loops page, under FEEL). With latch it keeps running: play over it; latch again (or ■) stops it"><i class="led" aria-hidden="true"></i>arp <span id="arp-face" class="arp-face">↑ 1/8</span></button>
@@ -174,6 +174,9 @@
             <input type="range" id="arp-gate" min="0.1" max="1" step="0.05" value="0.5" style="--fill: 50%" aria-label="arp gate, of a step"></label>
           <label title="the off-beat steps later, as the loop's swing">swing <output id="arp-swing-out">0%</output>
             <input type="range" id="arp-swing" min="0" max="0.6" step="0.05" value="0" style="--fill: 0%" aria-label="arp swing"></label>
+          {#- the arp pattern's editor (fragments/arp_pattern.html): the ▦ mode plays it -#}
+          <button type="button" class="btn btn-s" popovertarget="arp-pat" data-cmd="Keys arp: edit the arp pattern"
+                  title="The arp pattern the ▦ mode plays — its steps (on, velocity, transpose, gate, chance, repeats), rate, direction, octaves, retrigger and the 12 slots. The grid arp plays the same pattern">▦ pattern…</button>
           {#- keyrec.js: ⟲ Capture of the arp's own notes -#}
           <button type="button" id="arp-print" class="btn btn-s" data-cmd="Print the keys arp to a loop"
                   title="Print: what the keys arp just played — its notes, as they sounded — as a loop (the last bars the Rec length says, or its latest phrase), into the launcher's selected slot as ⏺ Rec lands">⤓ print</button>

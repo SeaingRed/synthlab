@@ -406,6 +406,9 @@ EXPECTED_ROUTES = [
     (["POST"], "/fragment/agent/budget"),
     (["POST"], "/fragment/agent/turn"),
     (["POST"], "/fragment/agent/undo"),
+    # the arp pattern's editor (routes/arp.py): the lane's pattern, the slots
+    (["POST"], "/fragment/arp/pattern"),
+    (["POST"], "/fragment/arp/slot"),
     (["POST"], "/fragment/arrangement"),
     (["POST"], "/fragment/bass/key"),
     (["POST"], "/fragment/bass/phone-audition"),

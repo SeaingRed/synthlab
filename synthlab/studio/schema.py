@@ -68,6 +68,8 @@ ARR_OPTIONAL = (
     "note_nudge",
     # the note grid's chance lane: absent while no step has one
     "note_chance",
+    # the arp pattern (arppattern.py): absent until one is written
+    "arp_pattern",
 )
 # an optional field whose unset value is not falsy: the meter, unset at 4/4
 # (`meter.py`; a loop or a section in another meter, and a section's ramp,
@@ -642,7 +644,7 @@ def _clip_name(x) -> str:
 SLOT_LANES = limits.LAYER_SLOTS + 1
 # the session's keys ABSENT WHEN UNSET (`_payload_post`), as `ARR_OPTIONAL`
 # are an arrangement's: none of them is in a file that never used it
-PAYLOAD_OPTIONAL = ("perform_slots",)
+PAYLOAD_OPTIONAL = ("perform_slots", "arp_slots")
 
 
 def _slot_row_empty(row: dict) -> bool:
@@ -659,6 +661,8 @@ def _payload_post(out: dict, raw: dict) -> dict:
         out["perform_slots"] = rows
     else:
         out.pop("perform_slots", None)
+    if not any(out.get("arp_slots") or ()):  # no arp pattern slot holds one
+        out.pop("arp_slots", None)
     return out
 
 
@@ -838,6 +842,44 @@ def nodes() -> SimpleNamespace:
         max_len=limits.MAX_GRID_STEPS,
     )
 
+    # the arp pattern (arppattern.py): up to 16 steps and the arp's own
+    # settings; every value clamped, a bad step its default, no step at all
+    # the default steps. An Arrangement's is ABSENT while unset
+    # (`ARR_OPTIONAL`): `arp_pattern_field` keeps {} as {}
+    from . import arppattern as ap
+
+    arp_step = Record(
+        {
+            "on": Bool(True),
+            "vel": Num(0.0, 1.0, ap.STEP_DEFAULT["vel"]),
+            "tr": Num(*ap.TR_RANGE, 0, integer=True),
+            "gate": Num(*ap.GATE_RANGE, ap.STEP_DEFAULT["gate"]),
+            "chance": Num(0.0, 1.0, 1.0),
+            "rep": Num(*ap.REP_RANGE, 1, integer=True),
+        }
+    )
+    arp_pattern = Record(
+        {
+            "steps": ListOf(
+                arp_step,
+                max_len=ap.STEPS_MAX,
+                min_len=1,
+                default=lambda: ap.default()["steps"],
+            ),
+            "rate": Choice(tuple(ap.RATES), "grid"),
+            "mode": Choice(ap.MODES, "up"),
+            "oct": Num(*ap.OCT_RANGE, 1, integer=True),
+            "retrig": Choice(ap.RETRIGS, "note"),
+        }
+    )
+
+    def _arp_pattern_or_none(x) -> dict:
+        if x in (None, {}):
+            return {}
+        return arp_pattern.conform(x)
+
+    arp_pattern_field = Leaf(_arp_pattern_or_none, dict, example=ap.default())
+
     # (the chord track's nodes come before the Arrangement's: the loop has one too)
     from .song_model import CHORD_QUALITIES
 
@@ -906,8 +948,10 @@ def nodes() -> SimpleNamespace:
         ),
         "slides": ListOf(step, max_len=limits.MAX_GRID_STEPS, unique=int),
         "cuts": cells,
-        "arp_mode": Choice(("off", "up", "down", "updown")),
+        # "pattern": the lane's `arp_pattern` (appended: no saved value moves)
+        "arp_mode": Choice(("off", "up", "down", "updown", "pattern")),
         "arp_octaves": Num(1, 3, integer=True),
+        "arp_pattern": arp_pattern_field,
         "drum_bars": grid_choice,
         "drum_steps": spb_any,
         "drum_swing": Num(0.0, 0.6),
@@ -1014,7 +1058,7 @@ def nodes() -> SimpleNamespace:
         return out
 
     def seq_post(out: dict) -> dict:
-        for k in ("strum", "note_nudge", "note_chance"):
+        for k in ("strum", "note_nudge", "note_chance", "arp_pattern"):
             if not out.get(k):
                 out.pop(k, None)
         return out
@@ -1047,6 +1091,7 @@ def nodes() -> SimpleNamespace:
                         "strum": Opt(arr_fields["strum"]),
                         "note_nudge": Opt(arr_fields["note_nudge"]),
                         "note_chance": Opt(arr_fields["note_chance"]),
+                        "arp_pattern": Opt(arr_fields["arp_pattern"]),
                     },
                     post=lambda out, raw: seq_post(out),
                 )
@@ -1321,7 +1366,7 @@ def nodes() -> SimpleNamespace:
         return _unset(
             out,
             *("gen", "fam", "var", "strum", "hits", "swing"),
-            *("note_nudge", "note_chance"),
+            *("note_nudge", "note_chance", "arp_pattern"),
         )
 
     def pattern_kind(kind: str, extra: dict[str, Node]) -> Node:
@@ -1372,6 +1417,8 @@ def nodes() -> SimpleNamespace:
             # from before them gains a key or moves its content hash
             "note_nudge": note_nudge,
             "note_chance": note_chance,
+            # the arp pattern a loop's grid arp plays (absent when unset)
+            "arp_pattern": arr_fields["arp_pattern"],
         },
     )
     song_pattern = Tagged("kind", {"drums": pattern_drums, "notes": pattern_notes})
@@ -1788,6 +1835,18 @@ def nodes() -> SimpleNamespace:
         # row holds anything: `_payload_post`), so no session saved before
         # it, nor one that never used it, gains a key
         "perform_slots": Opt(ListOf(slot_row, max_len=limits.MAX_SLOT_ROWS)),
+        # the arp pattern's 12 slots (arppattern.SLOTS): a pattern each or
+        # None. ABSENT WHEN UNSET (no slot holds one: `_payload_post`), as
+        # the launcher is
+        "arp_slots": Opt(
+            FixedList(
+                Opt(arp_pattern),
+                ap.SLOTS,
+                fill=lambda i: None,
+                default=lambda: [None] * ap.SLOTS,
+                strict=False,
+            )
+        ),
     }
 
     # one node per resettable key: what revert/reset (_scope_set) and a
@@ -1857,6 +1916,8 @@ def nodes() -> SimpleNamespace:
         DRUM_HITS=drum_hits,
         ROW_SWING=row_swing,
         STRUM=strum,
+        # the arp pattern (routes/arp.py conforms a post through it)
+        ARP_PATTERN=arp_pattern,
         JAM_EVENTS=ListOf(jam_event, max_len=limits.MAX_JAM_EVENTS),
         BASELINES=baselines,
         SCOPES=scopes,

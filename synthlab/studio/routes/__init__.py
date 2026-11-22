@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from . import (
     agent,
+    arp,
     audio,
     booth,
     breed,
@@ -52,6 +53,7 @@ ROUTERS: list = [
     patch.router,
     drums.router,
     pattern.router,
+    arp.router,
     perform.router,
     coach.router,
     presets.router,

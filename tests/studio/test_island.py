@@ -217,8 +217,12 @@ def test_every_island_states_a_budget_and_keeps_it():
     # roll.js and motion.js had no room for them — 80;
     # pagemotion.js is the page transition (the old page
     # leaving in htmx's view transition, the new one's modules arriving on
-    # GSAP): motion.js, whose entrance it replaced, sat at 264 of 265 — 81
-    assert len(islands) == 81, [p.name for p in islands]
+    # GSAP): motion.js, whose entrance it replaced, sat at 264 of 265 — 81;
+    # arppat.js is the arp pattern's walk for the keys arp (arppattern.py's,
+    # line for line: steps, chance on a hash, tones of the key, repeats,
+    # retrigger): arp.js's pure half is held to its own modes, and the walk
+    # is a second engine beside it — 82
+    assert len(islands) == 82, [p.name for p in islands]
     stubs = {
         "roll.js": 290,
         "zoom.js": 70,
@@ -318,6 +322,7 @@ def test_no_other_scripts_in_page(tmp_path):
         srcs.append("/static/gsap.min.js")
     assert sorted(srcs) == [
         "/static/arp.js",
+        "/static/arppat.js",
         "/static/audio.js",
         "/static/bench.js",
         "/static/chords.js",

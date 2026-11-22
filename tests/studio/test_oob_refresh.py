@@ -405,6 +405,43 @@ def _panel_preset(client) -> None:
     )
 
 
+_ARP_POST = {
+    "n": "4",
+    "rate": "1/8",
+    "mode": "down",
+    "oct": "2",
+    "retrig": "bar",
+    **{f"{k}.0": v for k, v in (("on", "on"), ("vel", "50"), ("tr", "2"))},
+    **{f"{k}.0": v for k, v in (("gate", "40"), ("chance", "100"), ("rep", "2"))},
+}
+
+
+def _grid_arp_pattern(client) -> None:
+    """The grid arp plays the pattern: an edit of it moves the loop."""
+    s = _st(client)
+    s.arrangement = replace(s.arrangement, arp_mode="pattern")
+
+
+def _arp_pattern_set(client) -> None:
+    client.post("/fragment/arp/pattern", data=_ARP_POST, headers=_hx("perform"))
+
+
+def _arp_slot_filled(client) -> None:
+    client.post(
+        "/fragment/arp/pattern",
+        data={**_ARP_POST, "rate": "1/16"},
+        headers=_hx("editor"),
+    )
+    client.post(
+        "/fragment/arp/slot",
+        data={"slot": "2", "action": "save"},
+        headers=_hx("editor"),
+    )
+    client.post(
+        "/fragment/arp/pattern", data={"action": "clear"}, headers=_hx("editor")
+    )
+
+
 def _edited(client) -> None:
     client.post("/fragment/patch", data={"cutoff": "700"}, headers=_hx("editor"))
 
@@ -769,6 +806,25 @@ CASES: list[Case] = [
     C("/fragment/beat/pick", "perform", {"beat_pick": "bank:2"}),
     C("/fragment/arrangement", "perform", _grid_post, suppressed={"transport"}),
     C("/fragment/chords/grid", "editor", {"code": "Am F C G"}),
+    # the arp pattern's editor (every page's popover): the edited lane's
+    # pattern — the loop re-renders only while the grid arp plays it — and
+    # the 12 slots
+    C("/fragment/arp/pattern", "editor", _ARP_POST),
+    C("/fragment/arp/pattern", "perform", _ARP_POST, _grid_arp_pattern),
+    C("/fragment/arp/pattern", "perform", {"action": "clear"}, _arp_pattern_set),
+    C("/fragment/arp/slot", "editor", {"slot": "2", "action": "save"}),
+    C(
+        "/fragment/arp/slot",
+        "song",
+        {"slot": "2", "action": "recall"},
+        _arp_slot_filled,
+    ),
+    C(
+        "/fragment/arp/slot",
+        "perform",
+        {"slot": "2", "action": "clear"},
+        _arp_slot_filled,
+    ),
     C("/fragment/chords/code", "editor", {"code": "Am F"}),
     C("/fragment/morph", "editor", {"slot": "a", "t": "0.6"}, _slot_a),
     C("/fragment/panel/reset", "editor", {"group": "Filter"}, _edited),

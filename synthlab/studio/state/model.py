@@ -69,6 +69,7 @@ RESET_SCOPES: dict[str, tuple[str, tuple[str, ...]]] = {
             "arr.scale_name",
             "arr.arp_mode",
             "arr.arp_octaves",
+            "arr.arp_pattern",
             "arr.strum",
             "arr.note_nudge",
             "arr.note_chance",
@@ -127,7 +128,8 @@ class Arrangement:
     bars: int = field(default=1, metadata=_lane("grid"))
     steps_per_bar: int = field(default=4, metadata=_lane("grid"))
     swing: float = field(default=0.0, metadata=_lane("grid"))
-    arp_mode: str = field(default="off", metadata=_lane("grid"))  # off|up|down|updown
+    # off|up|down|updown|pattern ("pattern": `arp_pattern` below)
+    arp_mode: str = field(default="off", metadata=_lane("grid"))
     arp_octaves: int = field(default=1, metadata=_lane("grid"))
     # "cell": the note grid's own content.
     cells: list[list] = field(
@@ -207,6 +209,12 @@ class Arrangement:
     # every note starting there (the roll's decision 3). ABSENT when unset
     # wherever an arrangement is written down, as the ones above
     note_nudge: dict[str, float] = field(default_factory=dict, metadata=_lane("cell"))
+    # the arp pattern (arppattern.py): the steps and settings the grid arp
+    # plays in its "pattern" mode and the keys arp in its own — the edited
+    # lane's, per slot (`LAYER_SEQ_OPTIONAL`). No form carries it (its own
+    # route sets it: routes/arp.py). ABSENT when unset wherever an
+    # arrangement is written down, as the ones above
+    arp_pattern: dict = field(default_factory=dict, metadata=_lane("grid"))
 
     @classmethod
     def from_dict(cls, d: dict) -> Arrangement:
@@ -464,7 +472,12 @@ LAYER_SEQ_KEYS: tuple[str, ...] = (
 # before it existed reads the same): the strum, 0 when not there, and the
 # steps' chance and the timing inside a step (free record),
 # {} when not there
-LAYER_SEQ_OPTIONAL: tuple[str, ...] = ("strum", "note_chance", "note_nudge")
+LAYER_SEQ_OPTIONAL: tuple[str, ...] = (
+    "strum",
+    "note_chance",
+    "note_nudge",
+    "arp_pattern",  # the arp pattern, {} when not there
+)
 
 
 def seq_of(arr) -> dict:
@@ -481,6 +494,7 @@ def seq_changes(seq: dict) -> dict:
     out["strum"] = float(seq.get("strum") or 0.0)
     out["note_chance"] = dict(seq.get("note_chance") or {})
     out["note_nudge"] = dict(seq.get("note_nudge") or {})
+    out["arp_pattern"] = copy.deepcopy(seq.get("arp_pattern") or {})
     return out
 
 
@@ -639,6 +653,7 @@ def materialise(lay: dict, arr: Arrangement) -> dict:
         **({"strum": arr.strum} if arr.strum else {}),
         **({"note_nudge": dict(arr.note_nudge)} if arr.note_nudge else {}),
         **({"note_chance": dict(arr.note_chance)} if arr.note_chance else {}),
+        **({"arp_pattern": copy.deepcopy(arr.arp_pattern)} if arr.arp_pattern else {}),
     }
     return out
 

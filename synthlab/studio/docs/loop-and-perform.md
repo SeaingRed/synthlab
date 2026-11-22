@@ -696,6 +696,81 @@ layer slot keeps its own in its `seq`; `state.LAYER_SEQ_OPTIONAL`).
 `tests/studio/test_note_chance.py`, `test_song_chance.py`;
 `tests/browser/test_song_chance.py`.
 
+### The arp pattern
+
+**One step pattern, both arps** (`arppattern.py`): up to 16 steps, each
+**on** (off is a rest: it takes no note of the run), **vel** (a scale on
+the note's own velocity — the grid's velocity lane at the step the note
+falls on, the key's strike), **tr** (transpose in **tones of the loop's
+key**, `scale_shift`: +2 in A minor takes A to C; a note off the scale
+keeps its distance above the tone under it), **gate** (of its step),
+**chance** and **rep** (repeats: the step's time split into that many
+hits); and the arp's own settings — **rate** ("grid", the note grid's
+step, or 1/4 … 1/32 with the triplets), **dir** (up, down, up-down, as
+played, random), **oct** (1-4) and **retrig** (note, bar, free).
+
+- **Where it lives**: `Arrangement.arp_pattern`, the edited lane's — a
+  slot keeps its own in its `seq` (`LAYER_SEQ_OPTIONAL`), a follower plays
+  its main lane's (`follow_layer`), a song pattern carries it
+  (`song_bridge._NOTE_OPTIONAL`, `schema` pattern node), a section opened
+  as the loop brings it back. **Absent while unset** (`schema.
+  ARR_OPTIONAL`): no session file, loop file or key gains it, and every
+  arp renders as it did (`RENDER_REV` did not move). No form carries it
+  (`_merge_arrangement` keeps it): its own route sets it. Not a pattern
+  undo step, as the grid arp's mode is not. A saved loop does not keep it
+  (`LOOP_FIELDS` keeps no arp setting).
+- **The grid arp plays it in its "▦ pattern" mode** (`arp_mode`
+  "pattern", appended to the choices; FEEL on the Loops page, the Song
+  drawer's arp select), through `arrange._pattern_timeline` — THE
+  schedule, so the loop, a section's chunks and the MIDI file agree. Its
+  chord is the grid arp's: **every row with a note, held the whole
+  loop** (in the order the rows first play, for "as played"). A step
+  every `rate` beats, **counted from each bar line** (the meter's bar,
+  `bar_beats`; a step running past it, as 1/4 in 7/8, starts the next
+  bar's count on the bar line — as the keys arp re-anchors), the odd steps
+  of a bar late by the loop's swing. A hit sounds `gate` of its step
+  (`dur` is that over `NOTE_GATE`). The grid's chance lane still rolls at
+  the step a note falls on, after the step's own. **The default pattern**
+  (eight steps, each on, vel 1, gate 0.9, up, a grid step, retrig note)
+  **is the "up" arp note for note.**
+- **The walk** (`arppattern.Run`, `step`): each step that is on takes the
+  next note of the run (the held notes over `oct` octaves in `dir`'s
+  order — arp.js's own `cycle` / `pick`: "random" a seeded shuffle a
+  cycle); a rest takes none, a step its chance rests still takes one.
+  **retrig** starts the walk again: "note" when the chord is struck (on
+  the grid: every pass of the loop's pattern, from a trimmed block's
+  start), "bar" at every bar line, "free" never. **Chance is a hash**
+  (`roll`: `core.hash_u` of the step and the pattern's pass — the pass
+  count never restarts, so a 50 % step varies pass to pass and a
+  re-render rolls the same). A working loop whose grid arp plays a step
+  under 100 % renders four passes (`song_model.loop_chance`), as the chance
+  lane does.
+- **The keys arp plays the same pattern** in its ▦ mode
+  (`keys-and-midi.md`, "The keys arp"): static/arppat.js is the walk line
+  for line, reading the pattern, the key and the grid's step off the
+  editor. `tests/studio/test_arp_pattern.py` runs arppat.js under node
+  against arppattern.py over every direction, octaves, rests, transposes,
+  repeats, chance and restarts — the same hits — and holds the grid's
+  timeline to that walk laid on its steps.
+- **The editor** (`fragments/arp_pattern.html`, region `arp-pattern`, a
+  popover base.html draws on every page, morphed so it stays open): the
+  grid arp's ▦ beside its select and the keys arp's "▦ pattern…" in its
+  ⚙ open it. A column a step (on, vel %, tr, gate %, chance %, rep — a
+  value's share fills its field), the settings above, and the **12
+  slots** (`arp_slots`, the session's, absent while none holds one): a
+  filled slot recalls onto the lane, an empty one saves into it, "to N ·
+  save" overwrites, ✕ empties. Routes: `POST /fragment/arp/pattern`
+  (`action=clear`: back to none), `POST /fragment/arp/slot` (`save`,
+  `recall`, `clear`); both `routes/arp.py`, the loop re-rendered only
+  while the grid arp plays the pattern.
+- **Limits**: a section renders one cycle (the lcm of its lanes' bars)
+  and repeats it, so "free" starts again there and the rolls repeat with
+  it. The chord is the grid's every row, never the notes held at a step
+  (a chunk of a long section does not see the notes before it).
+
+`tests/studio/test_arp_pattern.py`; `tests/browser/test_arp_pattern.py`.
+**Nobody has listened**: whether a pattern grooves.
+
 ### The lane heads (Perform)
 
 **The lane heads** (pick up the synths you made and switch layers
