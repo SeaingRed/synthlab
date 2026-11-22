@@ -979,6 +979,31 @@ patch=, chain=, mix=True, arrangement=, parts=("synth",))` — into the
 clip store, the session untouched), ★ Keep and "clear takes" (an older
 take). The list does not offer them: Edit and → Song are the flow.
 
+**Like for like** (`tests/studio/test_loops.py`,
+`test_like_for_like_play_edit_and_song_render_the_same_loop`): a loop's
+▶ (the render it plays without audio of its own, or at another tempo —
+`takes._render_loop`, which → Song as audio bounces too), its Edit on the
+grid (Perform's render of the edited lane's synths) and its → Song
+section render the same notes, with the timing as played (Q below 100),
+in the same sound: the patch, a following layer, a layer with notes of
+its own, the main lane's FX and a curve. ▶ and Edit are one render (one
+key); the section is the same samples up to the 16-bit WAVs once it is
+normalized as a loop is (a section is raw: the song normalizes once,
+song-wide, `render._normalize`). Not verified: ▶ at the loop's own tempo
+plays the take's recorded audio — the live voice, which nobody has
+compared by ear to the render. **One difference is left, not built**
+(the strict xfail beside it): a lane's FX ring past its last note + 4
+beats + 1 s is cut in a loop render (`render.stem_fx` runs over the dry
+render, `Song.render`'s length) and rings on in a section rendered in
+chunks (`render._cycle_stems`: past `MAX_LOOP_SECONDS`, 10 s — every
+8 or 16-bar loop under 192 bpm — to its last chunk's start + 4 beats +
+1 s). A layer
+whose notes are all early in a long loop, under a delay or a reverb,
+loses its tail in ▶ and Edit and keeps it in the song (measured: a
+delay's ring at -45 dB stopping 3 s after the layer's last note). Either
+fix moves the renders of existing keys, so it waits for a `RENDER_REV`
+bump.
+
 `tests/studio/test_loops.py`, `test_key_takes.py`,
 `tests/browser/test_key_takes.py` (the journey: record 2 bars ->
 Loops -> Edit -> an edit saves -> → Song -> the song plays it).
@@ -1488,7 +1513,8 @@ sized into a loop.
   there, as a velocity does (the roll's rule) — so the shaper's
   notes that start on one step take the mean of their offsets. It is read
   in `arrange._lane_timeline` (the ONE note schedule: the render, a
-  section's chunks — none carry it yet — and the MIDI file):
+  section's chunks — `song_model._crop_nudge`: a note nudged early on a
+  chunk's first step plays on that step — and the MIDI file):
   the start moves by it after swing, the END stays where it was (as a
   strum's), never under an eighth of a step; a note moved before the
   loop's first beat wraps to its end (the loop is a circle, as a drum hit's
@@ -1504,9 +1530,11 @@ sized into a loop.
   grid's own post too); pattern undo holds it; the launcher's windows and
   regrids carry it (`loop_window`, `regrid_lane`). No gesture writes one:
   the shaper and Q do.
-- **A song's patterns keep no timing inside a step** (not built): → Song
-  as a pattern plays a free loop on its steps; → Song as audio keeps the
-  feel. The drawer's roll tools leave it out.
+- **A song's pattern keeps it**: → Song as a pattern writes the loop's
+  `note_nudge` into the pool pattern (`song_bridge.note_data`), and the
+  section renders it (a take's loop or a free one: "Like for like" under
+  "Loops: one Rec, one loop"). The drawer's roll tools leave it out (no
+  gesture writes it there).
 
 Routes (`routes/freerec.py`): `POST /take/keys/free`, `GET
 /fragment/free/shaper`, `POST /take/keys/free/hear`, `POST

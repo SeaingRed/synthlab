@@ -13,6 +13,11 @@
   it, and a held note ends where it was released — the loop plays back
   like the take, on the grid, in the song and in a bounce. 100% stays on
   the steps.
+- **A loop sounds the same everywhere**: a test holds a loop's ▶, its
+  Edit on the grid and its → Song section to the same notes, timing and
+  sound (layers, FX, curves). One known gap: an effect's tail on a lane
+  whose notes end early in a long loop is cut in ▶ and Edit but rings
+  on in the song.
 - **⏺ Rec runs to 60 s**, as a free take does (it stopped at 30 s): the
   length select offers 16 bars, and the take's audio is kept whole.
 - **A long take reaches the song whole**: → Song on a loop recorded past

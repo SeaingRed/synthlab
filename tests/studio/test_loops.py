@@ -21,9 +21,10 @@ import json
 import re
 import time
 import wave
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from urllib.parse import unquote
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
@@ -797,6 +798,99 @@ def test_as_played_the_timing_reaches_the_rest_and_the_song(client):
         if p
     ]
     assert [p.get("note_nudge", {}) for p in pats] == [{}, {"20": 0.04}]
+
+
+# --- like for like: ▶, Edit and → Song hear the same loop ---------------------------
+
+# eight bars as played, off the grid: a held note, a hair late and early
+PLAYED = [
+    [0.02, 1.5, 45, 0.8],
+    [0.96, 0.5, 48, 0.6],
+    [2.1, 0.7, 52, 1.0],
+    [12, 2, 57, 0.9],
+    [29.5, 2.4, 55, 0.7],
+]
+
+
+def _three_renders(client, own_cells, *, follow=True, curve=True):
+    """A loop recorded over a sound with FX on the main lane (drive, a
+    delay), optionally a curve and a following layer, and a layer with
+    notes of its own (`own_cells` on the loop's grid; it copies the FX);
+    placed as played (Q 0). Its ▶ render (`takes._render_loop`: what ▶
+    plays without audio of its own, or at another tempo, and what → Song
+    as audio bounces), Edit's (Perform's render of the edited lane's
+    synths) and its → Song section's — the section raw, so normalized as a
+    loop is (`render._normalize`: a section is not, the song normalizes
+    once, song-wide); at a gain under 1, so its WAV does not clip."""
+    from synthlab.studio import render
+    from synthlab.studio.routes import takes
+
+    s, svc = _st(client), client.app.state.svc
+    s.layers[s.active_layer]["fx"] = [{"kind": "drive"}, {"kind": "delay"}]
+    if curve:
+        s.curves = {"cutoff": [[0.0, 0.3], [1.0, 0.8]]}
+    if follow:
+        client.post("/fragment/layer/add", headers=PERFORM)  # follows the main lane
+        s.set_follow(s.active_layer, -1)
+    client.post("/fragment/layer/add", data={"own": "1"}, headers=PERFORM)
+    s.arrangement = replace(s.arrangement, cells=own_cells)
+    s.select_layer(0)
+    name = unquote(_take(client, notes=PLAYED, bars="8").headers["X-Loop-Name"])
+    r = client.post("/loop/quantise", data={"name": name, "strength": "0"})
+    assert r.status_code == 200
+    loop = loops.load(s.data_dir, name)
+    assert loop["lane"]["bars"] == 8 and loop["lane"]["note_nudge"]
+    extras = loop["sound"][1]
+    assert len(extras["layers"]) == 1 + follow and extras["main_fx"]
+    assert bool(extras["curves"]) == curve
+
+    played = takes._render_loop(svc, loop).audio()
+    r = client.post("/loop/edit", data={"name": name}, headers=PERFORM)
+    assert r.status_code == 200
+    assert s.arrangement.note_nudge == loop["lane"]["note_nudge"]
+    edited = svc.render("perform", parts=("synth",)).audio()
+
+    r = client.post("/loop/song", data={"name": name}, headers=PERFORM)
+    assert r.status_code == 200
+    song, master = svc.song_snapshot()
+    (sec,) = song["sections"]
+    pats = [song["patterns"][p] for p in sec["cells"].values() if p]
+    assert len(pats) == 2 + follow and sec["bars"] == 8
+    assert any(p.get("note_nudge") == loop["lane"]["note_nudge"] for p in pats)
+    raw = svc.section_result(song, 0, loop=True, gain=0.25, master_fx=master)
+    heard = render._normalize(raw.audio() / 0.25)[0]
+    return played, edited, heard
+
+
+def test_like_for_like_play_edit_and_song_render_the_same_loop(client):
+    """A loop's ▶, its Edit on the grid and its → Song section render the
+    same notes — the timing as played (`note_nudge`) — in the same sound:
+    its patch, a following layer, a layer with notes of its own, the main
+    lane's FX (the layer's copy too) and a curve. ▶ and Edit are one
+    render; the section is the same samples, up to the 16-bit WAVs."""
+    own = [["E2", 0], ["E2", 1], ["A2", 6], ["E2", 120], ["E2", 121]]
+    played, edited, heard = _three_renders(client, own)
+    np.testing.assert_array_equal(played, edited)  # one render
+    assert played.shape == heard.shape
+    assert np.abs(played - heard).max() < 1e-3
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a lane's FX ring past its last note + 4 beats + 1 s is cut in a "
+    "loop render (render.stem_fx runs over the dry render, Song.render's "
+    "length) and rings on in a section rendered in chunks (render."
+    "_cycle_stems: to its last chunk's start + 4 beats + 1 s). Either fix "
+    "moves renders of existing keys: RENDER_REV",
+)
+def test_a_lanes_fx_ring_past_its_notes_is_not_yet_like_for_like(client):
+    """Not built: the layer's notes are all in bar 1, its delay rings past
+    bar 3 — cut there in ▶ and Edit, heard in the song's section."""
+    played, edited, heard = _three_renders(
+        client, [["E2", 0], ["E2", 1], ["A2", 6]], follow=False, curve=False
+    )
+    np.testing.assert_array_equal(played, edited)
+    assert np.abs(played - heard).max() < 1e-3
 
 
 def test_rest_lanes_are_empty_when_the_take_fits():
