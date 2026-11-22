@@ -45,7 +45,7 @@ from typing import Any
 
 import numpy as np
 
-from . import sampler, wavetables
+from . import granular, sampler, wavetables
 from .core import (
     FM4_ALGO_NAMES,
     SYNC_SHAPES,
@@ -122,6 +122,8 @@ MOD_DESTINATIONS = (
     "fm4_level3",
     "fm4_level4",
     "formant_vowel",
+    # the granular shape's position — no gene choice
+    "grain_pos",
     "pitch",
 )
 ROUND6_DESTINATIONS = MOD_DESTINATIONS[
@@ -194,9 +196,10 @@ OSC1_SHAPES = (
 )
 OSC2_SHAPES = (None, "sine", "saw", "square", "triangle", "fm", "pluck", "wavetable")
 # hand-made shapes (in an oscillator's cap, never its gene): "noise",
-# "sampler" and "fm4" — a random 4-operator patch is
-# rarely a sound, and a longer shape gene would re-draw every seeded litter
-HAND_SHAPES = ("noise", "sampler", "fm4")
+# "sampler", "fm4" and "granular" (appended) — a random 4-operator patch is
+# rarely a sound, a sample is no number to breed, and a longer shape gene
+# would re-draw every seeded litter
+HAND_SHAPES = ("noise", "sampler", "fm4", "granular")
 FILTER_TYPES = ("ladder", "lowpass", "bandpass", "highpass", "notch", "none")
 # how many voices a patch plays at once (sequencer.mono_lines),
 # and when it glides
@@ -244,9 +247,16 @@ class uses_shape:
     the rows of an unused shape from these)."""
 
     shape: str
+    # more shapes that read the field too (the sample the "sampler" and
+    # "granular" shapes share)
+    also: tuple[str, ...] = ()
+
+    @property
+    def shapes(self) -> tuple[str, ...]:
+        return (self.shape, *self.also)
 
     def __call__(self, p) -> bool:
-        return self.shape in (p.osc1, p.osc2)
+        return any(s in (p.osc1, p.osc2) for s in self.shapes)
 
 
 def slot_active(p, slot: str) -> bool:
@@ -388,6 +398,11 @@ def _env(name, lo, hi, **kw):
 
 
 _SAMPLING = uses_shape("sampler")
+# the fields the granular shape reads of the sampler's: the sample, its
+# span and loop, its root and key track
+_SAMPLE_READ = uses_shape("sampler", ("granular",))
+_GRAINING = uses_shape("granular")
+_GRAIN_WHY = "a granular setting: it plays a recording, not a bred sound"
 _WARP_WHY = "a hand-made phase warp: breeding never draws one"
 _VOICE_WHY = "how the keys and the loop play the sound, not the sound itself"
 _SAMPLE_WHY = "a sampler setting: it shapes a recording, not a bred sound"
@@ -619,20 +634,22 @@ _ALL: list[Param] = [
     # the "sampler" shape (synthlab/sampler.py): which part of a recording
     # plays and how. Never genes: a bred start point or chop only garbles
     # somebody's recording, and a sample isn't a number to mutate
+    # (the granular shape reads the sample, its span, loop, root and key
+    # track too: `_SAMPLE_READ`)
     *[
-        _p(name, kind, cap=cap, curve=curve, live=_SAMPLING, nogene=_SAMPLE_WHY)
-        for name, kind, cap, curve in (
-            ("sampler_root", "int", (0, 127), False),
-            ("sampler_start", "lin", (0.0, 1.0), False),
-            ("sampler_end", "lin", (0.0, 1.0), False),
-            ("sampler_loop", "cat", sampler.ON_OFF, False),
-            ("sampler_loop_start", "lin", (0.0, 1.0), False),
-            ("sampler_loop_end", "lin", (0.0, 1.0), False),
-            ("sampler_xfade", "lin", (0.0, 0.5), False),
-            ("sampler_keytrack", "cat", ("on", "off"), False),
-            ("sampler_mode", "cat", sampler.MODES, False),
+        _p(name, kind, cap=cap, curve=curve, live=live, nogene=_SAMPLE_WHY)
+        for name, kind, cap, curve, live in (
+            ("sampler_root", "int", (0, 127), False, _SAMPLE_READ),
+            ("sampler_start", "lin", (0.0, 1.0), False, _SAMPLE_READ),
+            ("sampler_end", "lin", (0.0, 1.0), False, _SAMPLE_READ),
+            ("sampler_loop", "cat", sampler.ON_OFF, False, _SAMPLE_READ),
+            ("sampler_loop_start", "lin", (0.0, 1.0), False, _SAMPLE_READ),
+            ("sampler_loop_end", "lin", (0.0, 1.0), False, _SAMPLE_READ),
+            ("sampler_xfade", "lin", (0.0, 0.5), False, _SAMPLING),
+            ("sampler_keytrack", "cat", ("on", "off"), False, _SAMPLE_READ),
+            ("sampler_mode", "cat", sampler.MODES, False, _SAMPLING),
             # drawable: a stretch curve warps time across the note
-            ("sampler_stretch", "lin", (0.25, 4.0), True),
+            ("sampler_stretch", "lin", (0.25, 4.0), True, _SAMPLING),
         )
     ],
     # not the sound: never bred, clamped, drawn or routed
@@ -641,7 +658,7 @@ _ALL: list[Param] = [
     _p("voice_fx", "meta"),
     # the sampler's content hash and chops: strings the sampler routes set,
     # cleaned by `clamp` (META_CLEAN), never numbers
-    _p("sampler_sample", "meta", live=_SAMPLING),
+    _p("sampler_sample", "meta", live=_SAMPLE_READ),
     _p("sampler_slices", "meta", live=_SAMPLING),
     # appended as one run: hand-made, never
     # genes — a random warp on every bred oscillator is rarely a sound, a
@@ -677,6 +694,30 @@ _ALL: list[Param] = [
     # the sampler's zone map (a multi-sample instrument): a
     # string the zone routes set, cleaned by `clamp` (META_CLEAN)
     _p("sampler_zones", "meta", live=_SAMPLING),
+    # the granular shape (synthlab/granular.py), appended as one run: never
+    # genes (a cloud needs a sample; new genes would re-draw every seeded
+    # litter). The position is drawable and a route target
+    _p(
+        "grain_pos",
+        "lin",
+        cap=(0.0, 1.0),
+        curve=True,
+        mod=True,
+        live=_GRAINING,
+        nogene=_GRAIN_WHY,
+    ),
+    *[
+        _p(name, kind, cap=cap, live=_GRAINING, nogene=_GRAIN_WHY)
+        for name, kind, cap in (
+            ("grain_size", "log", granular.SIZE),
+            ("grain_density", "log", granular.DENSITY),
+            ("grain_spray", "lin", (0.0, 1.0)),
+            ("grain_pitch_spray", "lin", (0.0, granular.PITCH_SPRAY)),
+            ("grain_shape", "lin", (0.0, 1.0)),
+            ("grain_dir", "cat", granular.DIRECTIONS),
+            ("grain_scan", "lin", (-granular.SCAN, granular.SCAN)),
+        )
+    ],
 ]
 
 PARAMS: dict[str, Param] = {p.name: p for p in _ALL}

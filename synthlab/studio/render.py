@@ -386,6 +386,15 @@ KEY_ADDED_FIELDS = {
     # a multi-sample instrument: no zone map plays the one
     # sample, as before. A map names every sample by its content hash
     "sampler_zones": "",
+    # the granular shape: read only while an oscillator is "granular", so
+    # at these every older key stays the key it was
+    **{
+        name: getattr(Patch(), name)
+        for name in (
+            "grain_pos grain_size grain_density grain_spray grain_pitch_spray "
+            "grain_shape grain_dir grain_scan"
+        ).split()
+    },
 }
 
 
