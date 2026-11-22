@@ -45,7 +45,8 @@ eval(fs.readFileSync(
   process.argv[2].replace("voice-worklet", "sampler-worklet"), "utf8"));
 eval(fs.readFileSync(
   process.argv[2].replace("voice-worklet", "grain-worklet"), "utf8"));
-const spec = JSON.parse(process.argv[3]);
+// a file: a whole patch an event is past Windows' command line
+const spec = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 const v = new Voice();
 const N = Math.round(spec.seconds * sampleRate), out = new Float32Array(N);
 const ev = spec.events.sort((a, b) => a[0] - b[0]);
@@ -75,9 +76,14 @@ def _whoop() -> dict:
 def run(events, seconds, tmp_path):
     harness = tmp_path / "harness.cjs"
     harness.write_text(HARNESS, encoding="utf-8")
-    spec = json.dumps({"events": events, "seconds": seconds})
+    spec = (
+        tmp_path / "spec.json"
+    )  # every event carries the whole patch: too long for argv
+    spec.write_text(
+        json.dumps({"events": events, "seconds": seconds}), encoding="utf-8"
+    )
     res = subprocess.run(
-        ["node", str(harness), str(WORKLET), spec],
+        ["node", str(harness), str(WORKLET), str(spec)],
         capture_output=True, text=True, check=True, timeout=60,
     )  # fmt: skip
     got = json.loads(res.stdout)
