@@ -21,9 +21,14 @@
 //   One at a time, a layer (transport.js's oneShot): the Loops page's
 //   deck stops it when it starts (loopdeck.js).
 // - A panel row drags onto Perform's grids: its Edit (notes) or Open
-//   (a beat) is pressed, as if clicked.
-// Budget: <= 150 code lines (the panel's state ~35, the filter
-// and sort ~50, ▶ in time ~30, the drag ~20).
+//   (a beat) is pressed, as if clicked (onto a launcher cell: slots.js).
+// - A row's double-click, or Enter on it (every Loops list), is its Edit
+//   (Open): its other actions are its right-click menu (menu.js). On the
+//   Loops page an Edit of a loop a launcher cell holds selects that cell
+//   instead (slots.js: the editor shows it, every edit saves to it).
+// Budget: <= 155 code lines (the panel's state ~35, the filter
+// and sort ~50, ▶ in time ~30, the drag ~20; 150 -> 155: Edit by a
+// double-click or Enter, and into the cell that holds the loop).
 
 (() => {
   "use strict";
@@ -150,6 +155,27 @@
     if (root.dataset.loops !== "over" || !dock() || e.target.closest?.("#loops-dock, [popover], dialog, #ctx-menu")) return;
     toggle(false);
   }, true);
+  // ---- Edit: a row's double-click or Enter (its Open for a beat, an idea, a section) --------
+  // On the Loops page a loop a launcher cell holds is edited by SELECTING that cell (the one
+  // selection: the cell selected, else the one playing, else the first) — its menu's Edit, a
+  // drop on a grid and the palette's "Edit the newest loop" too; a loop no cell holds: /loop/edit
+  const edit = (row) => row?.querySelector(":scope > .lp-acts .lp-edit")?.click();
+  function cellOf(row) {
+    const name = row?.dataset.loopName, cells = name ? [...document.querySelectorAll(`#slots .sl-cell[data-loop="${CSS.escape(name)}"]`)] : [];
+    return cells.find((c) => c.getAttribute("aria-selected") === "true") || cells.find((c) => c.dataset.state === "playing") || cells[0];
+  }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest?.(".lp-row .lp-edit:not(.lp-scene)"), c = b && cellOf(b.closest(".lp-row"));
+    if (!c) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    c.querySelector(".sl-slot")?.click();
+  }, true); // (before htmx hears the button)
+  document.addEventListener("dblclick", (e) => {
+    if (!e.target.closest?.("button, a, input, summary")) edit(e.target.closest?.(".lp-row"));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey && e.target.matches?.(".lp-row")) { e.preventDefault(); edit(e.target); }
+  });
   let dragged = null;
   document.addEventListener("dragstart", (e) => {
     dragged = e.target.closest?.("#loops-panel .lp-row[data-drag-loop]") || null;

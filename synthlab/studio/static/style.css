@@ -3331,7 +3331,11 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
 .lp-pick .seg button { font-size: var(--fs-xs); white-space: nowrap; }
 /* open, a menu takes a line of its own under the row's actions: nothing it holds
    stretches the buttons beside it */
-.lp-acts { flex-wrap: wrap; align-items: center; }
+/* a row's actions are its right-click menu's (menu.js reads them here):
+   never drawn, in every Loops list */
+.lp-row > .lp-acts { display: none; }
+.lp-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.lp-row { cursor: default; user-select: none; } /* (a double-click edits: it selects no word) */
 .lp-pick[open] { flex-wrap: wrap; }
 .lp-list .lp-q[open] { flex-basis: 100%; order: 9; }
 .lp-all { flex: none; }
@@ -3407,23 +3411,21 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
 .lp-none { display: none; padding: var(--s2); }
 #loops-dock[data-none] .lp-none { display: block; }
 .lp-body > .kt-lane { margin-top: auto; padding: var(--s1); border-top: 1px solid var(--line); }
-/* a row: ▶, its roll, its name over its detail, ★ — then its tags, when it
-   has any, and its actions, each on a line of its own under them */
+/* a row: ▷, its name over its facts, ★ — nothing else is drawn: every
+   other action is its right-click menu (loop_rows.html: the controls are
+   there, `.lp-acts`, never shown). One tab stop: Enter edits, the Menu
+   key opens its menu (loopspanel.js) */
 .lp-panel-list { flex-direction: column; overflow: visible; gap: 1px; }
-.lp-panel-list > .lp-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto;
-  grid-template-areas: "play roll name star" "tags tags tags tags" "acts acts acts acts";
-  align-items: center; gap: var(--s0) var(--s1); flex: none; padding: var(--s1); }
+.lp-panel-list > .lp-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "play name star"; align-items: center; gap: 0 var(--s1); flex: none;
+  padding: var(--s0) var(--s1); }
 .lp-panel-list > .lp-row:hover { border-color: var(--line-strong); }
 .lp-panel-list .lp-play { grid-area: play; }
-.lp-panel-list .lp-roll { grid-area: roll; width: 48px; }
 .lp-panel-list .lp-name { grid-area: name; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; line-height: 1.25; font-size: var(--fs-xs); }
 .lp-panel-list .lp-name small { display: block; overflow: hidden; text-overflow: ellipsis; color: var(--text-dim);
   font-size: var(--fs-2xs); }
 .lp-panel-list .lp-star { grid-area: star; }
-.lp-panel-list .lp-tags { grid-area: tags; }
-.lp-panel-list .lp-acts { grid-area: acts; justify-content: flex-end; flex-wrap: wrap; }
-.lp-panel-list > .lp-row.lp-editing .lp-name { grid-column: roll / star; }
 .lp-panel-list > .lp-row[draggable="true"] { cursor: grab; }
 /* a row dragged over Perform's grids: the one it opens on lights */
 html[data-lp-drag="notes"] .perform-view #transport,
@@ -7174,7 +7176,7 @@ html[data-motion="calm"] .pm-sweep { display: none; }
   font-family: var(--font-panel); font-stretch: calc(var(--panel-wdth) * 1%);
   font-variation-settings: "wdth" var(--panel-wdth); font-variant-numeric: tabular-nums;
   font-size: var(--fs-2xs); color: var(--text-dim); }
-.lp-facts .fc { flex: none; overflow: hidden; text-overflow: ellipsis; padding-inline-end: var(--s15); }
+.lp-facts .fc { flex: none; box-sizing: content-box; overflow: hidden; text-overflow: ellipsis; padding-inline-end: var(--s15); }
 .lp-facts .fc i { font-style: normal; margin-inline-start: 1px; color: var(--text-faint); }
 .lp-facts .c-len { width: 7.5ch; }
 .lp-facts .c-grid { width: 4.5ch; }

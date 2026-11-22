@@ -17,6 +17,8 @@
 //                               row is named by the control's aria-label.
 //                               A pressed toggle (`aria-pressed`, a ticked
 //                               box) is drawn ticked.
+//   data-menu-group="→ Song"    on a box of such controls: one "→ Song ▸"
+//                               row, a submenu of them (← comes back).
 // A row runs by activating its control (`click()`), so it goes through the
 // same htmx attributes, route, confirm and OOB refresh as a hand, is
 // disabled while the control is, and cannot outlive it.
@@ -67,10 +69,11 @@
 // A menu popover opened by its own button (`popovertarget`: the panel
 // presets, the pattern tools' menus) takes the same arrows, ↓ / ↑ from its
 // button too; Esc on one gives the focus back to that button.
-// Budget: <= 145 code lines (90 -> 140: a section's own menu,
+// Budget: <= 150 code lines (90 -> 140: a section's own menu,
 // its dials onto the deck, the submenus of the sections round it; 140 ->
 // 143: a module's workspace rows; -> 145: a menu
-// popover's button walks into it).
+// popover's button walks into it; -> 150: a thing's `data-menu-group`
+// boxes as submenus — a Loops row's → Song and Quantise).
 
 (() => {
   "use strict";
@@ -95,11 +98,17 @@
     if (c.getAttribute("aria-pressed") === "true" || c.checked) b.setAttribute("aria-checked", "true");
     return b;
   }
-  // a thing's rows: its own declared controls
+  // a thing's rows: its own declared controls — those under a `data-menu-group="→ Song"` box
+  // are one "→ Song ▸" row, a submenu of them (a Loops row's Q: its rates and strengths)
+  const boxOf = (c) => c.parentElement.closest("[data-menu-group], [data-ctx]");
+  function rowsIn(box, thing) {
+    return [...box.querySelectorAll("[data-menu], [data-menu-group]")].filter((c) => boxOf(c) === box && c.closest("[data-ctx]") === thing)
+      .map((c) => (c.dataset.menuGroup ? row(c.dataset.menuGroup, () => show([backTo(thing.dataset.ctx), cap(c.dataset.menuGroup), ...rowsIn(c, thing)]), false, "", true)
+        : rowOf(c, c.dataset.menu || c.getAttribute("aria-label") || c.textContent.trim())));
+  }
   function ofThing(thing) {
-    const items = [...thing.querySelectorAll("[data-menu]")].filter((c) => c.closest("[data-ctx]") === thing);
-    if (!items.length) return [];
-    return [cap(thing.dataset.ctx), ...items.map((c) => rowOf(c, c.dataset.menu || c.getAttribute("aria-label") || c.textContent.trim()))];
+    const rows = rowsIn(thing, thing);
+    return rows.length ? [cap(thing.dataset.ctx), ...rows] : [];
   }
 
   // ---- a section's rows ---------------------------------------------------

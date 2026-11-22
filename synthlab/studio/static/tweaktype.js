@@ -98,6 +98,7 @@
 
   // ---- a name: the one popover every hx-prompt asks in ----------------------
   let asker = null, named = null, pop = null;
+  const shown = (el) => { while (el && !el.checkVisibility?.()) el = el.parentElement; return el; }; // a Loops row's menu control (never drawn): its row
   document.addEventListener("click", (e) => { asker = e.target.closest?.("[hx-prompt]") || null; }, true);
   function namePop() {
     if (pop) { if (!pop.isConnected) document.body.append(pop); return pop; } // a body morph drops it
@@ -134,7 +135,7 @@
     // sound's, read off its own region so the bar never redraws for it); blank is an
     // answer too — each route has its own
     box.value = el.dataset.name ?? document.querySelector(el.dataset.nameFrom || null)?.textContent.trim() ?? "";
-    p.showPopover({ source: el }); // the control is its anchor (and its menu stays open)
+    p.showPopover({ source: shown(el) || el }); // the control is its anchor (and its menu stays open)
     box.select();
     return null;
   };
@@ -170,11 +171,11 @@
     if (p.matches(":popover-open")) p.hidePopover();
     p.held = d; p.from = el;
     p.querySelector(".confirm-q").textContent = d.ctx.confirm;
-    const anchored = el?.isConnected && el.checkVisibility?.();
+    const anchored = el?.isConnected && (el.closest(".lp-acts") ? shown(el) : el.checkVisibility?.() && el);
     p.classList.toggle("confirm-free", !anchored); // a control in a closed menu: the window's centre
     const g = !window.synthlab?.calm?.() && window.gsap; // the entrance: a drop, a bloom, the answers after
     p.classList.toggle("by-gsap", !!g); // (and no CSS transition fighting it)
-    p.showPopover(anchored ? { source: el } : undefined);
+    p.showPopover(anchored ? { source: anchored } : undefined);
     p.querySelector(".btn-primary").focus({ preventScroll: true });
     if (g) {
       g.fromTo(p, { opacity: 0, y: -10, scale: 0.92 }, { opacity: 1, y: 0, scale: 1, duration: 0.32, ease: "back.out(1.8)", clearProps: "transform" });

@@ -228,7 +228,7 @@ def test_a_section_launch_shows_its_notes_and_ctrl_z_puts_the_loop_back(studio, 
     row = page.locator('#loops-panel .lp-row[data-what="section"]').first
     assert sid in row.locator(".lp-scene").get_attribute("hx-vals")
     with page.expect_response("**/fragment/perform/scene/section"):
-        row.locator(".lp-scene").click()
+        row.dblclick()  # a row's double-click: its Open (a section: a scene)
     page.wait_for_selector('#transport .rowlabel[data-pitch="E4"]')
     studio.settle()
     shown = page.locator("#transport .grid.roll .gridrow:not(.sliderow) .cell:checked")

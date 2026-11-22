@@ -138,7 +138,7 @@ def test_a_free_loop_with_chance_plays_its_feel_in_the_song_and_varies_by_pass(
     assert pat["note_chance"] == loop["note_chance"]
     # the loop on the grid, ▶: four passes as its cycle, the playheads on one
     with page.expect_response("**/loop/edit"):
-        row.locator(".lp-edit").click()
+        row.dblclick()  # a row's double-click: Edit
     page.click("#play")
     studio.wait_sound()
     page.wait_for_function(

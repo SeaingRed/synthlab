@@ -364,7 +364,7 @@ def test_rec_takes_what_plays_into_clips_and_offers_the_sampler(studio, server):
     row = page.locator(f'#key-takes [data-ctx="loop {clips[-1].stem}"]')
     row.wait_for()
     with page.expect_response("**/loop/edit") as answer:
-        row.locator(".lp-edit").click()
+        row.dblclick()  # a row's double-click: Edit
     assert answer.value.ok
     page.wait_for_selector('#view[data-view="perform"]')
     studio.settle()

@@ -205,7 +205,7 @@ def test_free_rec_a_phrase_shape_it_and_make_a_loop_that_keeps_its_timing(
         assert abs(near - t) < 0.012, (t, heard_at)
         assert abs(near - round(t / step) * step) > 0.004  # not on the step
     # Edit: on the grid, notes drawn off their step lines
-    row.locator(".lp-edit").click()
+    row.dblclick()  # a row's double-click: Edit
     page.wait_for_selector(".grid.roll .cell.nudged")
     studio.settle()
     assert page.locator(".grid.roll .cell.nudged").count() == len(

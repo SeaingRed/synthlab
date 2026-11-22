@@ -190,15 +190,16 @@ def test_one_rec_is_a_loop_to_edit_on_perform_and_put_in_the_song(studio, server
     row = page.locator(f'#key-takes [data-ctx="loop {name}"]')
     row.wait_for()
     assert row.locator(".kt-play").count() == 1
-    assert row.locator(".lp-roll path").get_attribute("d")
+    assert row.locator(".lp-facts").is_visible()  # its facts, beside its name
     # and the clip library's Loops, every page's ("All loops")
     page.locator("#key-takes .lp-all").click()
     page.wait_for_selector(f'#clip-drawer .cd-loops [data-ctx="loop {name}"]')
     page.keyboard.press("Escape")
     page.wait_for_selector("#clip-drawer:not(:popover-open)", state="attached")
-    # Edit: Perform's grid, the notes at their steps, as this loop
+    # Edit (a double-click on its row): Perform's grid, the notes at their
+    # steps, as this loop
     with page.expect_response("**/loop/edit"):
-        row.locator(".lp-edit").click()
+        row.dblclick()
     page.wait_for_selector('#view[data-view="perform"]')
     page.wait_for_selector("#transport .ed-head.is-saved")
     # the address bar follows (a reload stays on Perform)
@@ -221,10 +222,12 @@ def test_one_rec_is_a_loop_to_edit_on_perform_and_put_in_the_song(studio, server
     assert edited["played"] == loop["played"]
     # → Song as a pattern, from Perform's Loops panel
     studio.settle()
+    # (its right-click menu: → Song ▸ as a pattern)
     bin_row = page.locator(f'#loops-panel [data-ctx="loop {name}"]')
-    bin_row.locator(".lp-pick > summary").first.click()
+    bin_row.click(button="right")
+    page.locator("#ctx-menu .menu-item", has_text="→ Song").click()
     with page.expect_response("**/loop/song"):
-        bin_row.locator('.lp-pick button:has-text("pattern")').click()
+        page.locator("#ctx-menu .menu-item", has_text="as a pattern").click()
     song = server.state.song
     sec = song["sections"][-1]
     (tid, pid), *_ = sec["cells"].items()
@@ -282,9 +285,10 @@ def test_from_the_strip_delete_and_the_bin_loops_the_lane_it_then_edits(studio, 
     rows = page.locator("#key-takes .lp-row")
     rows.nth(1).wait_for()
     assert rows.nth(0).get_attribute("data-ctx") == f"loop {second}"  # newest first
-    # ✕ deletes the loop and its audio
+    # ✕ Delete (its right-click menu) deletes the loop and its audio
     with page.expect_response("**/loop/delete"):
-        page.locator(f'#key-takes [data-ctx="loop {second}"] .kt-drop').click()
+        page.locator(f'#key-takes [data-ctx="loop {second}"]').click(button="right")
+        page.locator("#ctx-menu .menu-item", has_text="Delete").click()
         confirm_it(page)
     page.wait_for_selector(f'#key-takes [data-ctx="loop {second}"]', state="detached")
     assert not loops.exists(server.data_dir, second)

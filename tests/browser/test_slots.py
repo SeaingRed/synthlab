@@ -335,7 +335,7 @@ def test_keys_quantise_keep_and_a_section_as_a_scene(studio, server):
     row = page.locator('#loops-panel .lp-row[data-what="section"]')
     assert row.count() == 1 and sid in row.locator(".lp-scene").get_attribute("hx-vals")
     with page.expect_response("**/fragment/perform/scene/section"):
-        row.locator(".lp-scene").click()
+        row.dblclick()  # a row's double-click: its Open (a section: a scene)
     page.locator('#slots .sl-row[data-row="1"] .sl-scene small').wait_for()
     assert s.slot_rows()[1]["name"] == "Verse"
     assert s.slot_rows()[1]["slots"][0] and s.slot_rows()[1]["slots"][4]
