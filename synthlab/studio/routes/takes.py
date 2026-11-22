@@ -260,8 +260,8 @@ def _loop_from_take(
     (`played`, never rewritten) placed on a grid of the take's bars
     (`loops.grid_bars`) at `steps` a bar (the meter's sixteenths unasked)
     and `strength` (`loops.place`: unasked "as played", 0 — every note on
-    its nearest step with its own feel, so the loop plays the take), `sound` (the one that played it), the
-    take's tempo, key and meter; its audio is the take (`clip` False: a
+    its nearest step with its own feel, so the loop plays the take),
+    `sound` (the one that played it), the take's tempo, key and meter; its audio is the take (`clip` False: a
     ⟲ Capture's, which has none). The loop's name. OSError past
     `limits.MAX_LOOPS`."""
     meter = _take_meter(meta)

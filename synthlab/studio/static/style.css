@@ -5540,6 +5540,18 @@ html[data-ghosts="off"] .roll .cell.ghost { --ghost: none; }
 .grid.roll .gridrow:not(.sliderow) .cell.nudged:checked { position: relative; z-index: 1;
   translate: calc(var(--mx, 0px) + var(--nudge) * var(--step-w)) var(--my, 0);
   box-shadow: inset 2px 0 0 var(--signal); }
+/* each note's own feel (`note_feel`, a take as played: notefeel.marks): its
+   cells fainter as it was struck softer (`--fv`), its start cell off its
+   step line (`--fs`, a share of the cell), its last cell silent past where
+   it was let go (`--fe`, clipped from the right; let go past the line: the
+   end handle in the signal colour). Classes and properties on the cells
+   the grid has: no element per note */
+.grid.roll .gridrow:not(.sliderow) .cell.felt:checked { opacity: calc(0.5 + 0.5 * var(--fv, 1)); }
+.grid.roll .gridrow:not(.sliderow) .cell.felt-s:checked { position: relative; z-index: 1;
+  translate: calc(var(--mx, 0px) + var(--fs, 0) * 100%) var(--my, 0);
+  box-shadow: inset 2px 0 0 var(--signal); }
+.grid.roll .gridrow:not(.sliderow) .cell.felt-e:checked { clip-path: inset(0 calc(var(--fe, 0) * 100%) 0 0); }
+.grid.roll .gridrow:not(.sliderow) .cell.felt-past:checked { border-right-color: var(--signal); }
 /* (carried notes are not what the pointer is over: the step beneath them is).
    `.carrying` is roll.js's class for a move under way — never
    `.roll[style*="--mx"]`: an ancestor's [style] in a selector made EVERY

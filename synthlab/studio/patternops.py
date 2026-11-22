@@ -722,8 +722,11 @@ def relength(lane: dict, rows, sel, end_of) -> tuple[dict, list[tuple]]:
     """Every selected note given a new end, `end_of(note) -> step`: at
     least one step long, never past the window, and never over a note
     that starts later on its row (that note keeps its start). A start
-    never moves, so velocities and slides stay where they are. Returns
-    (lane, the selected notes as they now are)."""
+    never moves, so velocities and slides stay where they are. A felt
+    note (`note_feel`) keeps its start and its velocity share, and its end
+    SNAPS to the new line (the roll's snap: a length set by hand is on the
+    steps, with no gate). Returns (lane, the selected notes as they now
+    are)."""
     total, notes, chosen, _rest = _window(lane, rows, sel)
     by_row: dict = {}
     for row, a, _b in notes:
@@ -736,7 +739,14 @@ def relength(lane: dict, rows, sel, end_of) -> tuple[dict, list[tuple]]:
             b = min([b, *(s for s in by_row[row] if s > a)])
             after.append((row, a, b))
         out.append((row, a, b, None, notefeel.key(row, a)))
-    return _write(lane, total, rows, [], out), after
+    lane2 = _write(lane, total, rows, [], out)
+    if lane2.get("note_feel"):
+        felt = dict(lane2["note_feel"])
+        for row, a, _b in after:
+            if (v := felt.get(notefeel.key(row, a))) is not None:
+                felt[notefeel.key(row, a)] = [v[0], 0.0, v[2]]
+        lane2["note_feel"] = felt
+    return lane2, after
 
 
 def resize_notes(lane: dict, rows, sel, by: int) -> tuple[dict, list[tuple]]:

@@ -29,6 +29,6 @@
                             title="Strum: a chord's notes start this many ms apart, low to high (negative: high to low). 0 = together. An arp plays one note a step, so it has nothing to strum"></label>
         <output for="drawer-strum" data-unit="ms">{{ p.get('strum', 0) | round | int }} ms</output>
       </div>
-      {{ note_grid(d.rows, p.bars * p.steps_per_bar, p.cells, p.slides, p.velocities, root_rows=d.roll.roots, steps_per_bar=p.steps_per_bar, cuts=p.cuts or [], roll=d.roll, zoom="drawer", span=d.span, oct=d.oct, bar_meter=p.get("meter") or "4/4") }}
+      {{ note_grid(d.rows, p.bars * p.steps_per_bar, p.cells, p.slides, p.velocities, root_rows=d.roll.roots, steps_per_bar=p.steps_per_bar, cuts=p.cuts or [], roll=d.roll, zoom="drawer", span=d.span, oct=d.oct, bar_meter=p.get("meter") or "4/4", feel=p.get("note_feel")) }}
     </form>
     </div>

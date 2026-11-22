@@ -268,10 +268,15 @@ def test_the_rolls_edits_carry_each_notes_feel():
     assert _roll("remove", ln, sel="2:2:A2:A2")["note_feel"] == {
         "C3.8": [0.0, 0.0, 1.0]
     }
-    # a length change keeps where between the lines it is let go
+    # a length set by hand keeps the start and the velocity, and its end
+    # snaps to the new line (no gate); the other notes keep theirs
     longer = _roll("resize", ln, sel="2:2:A2:A2", by="2")
-    assert longer["note_feel"]["A2.2"] == F
-    assert _roll("double", ln, sel="2:2:A2:A2")["note_feel"]["A2.2"] == F
+    assert longer["note_feel"] == {"A2.2": [0.2, 0.0, 0.6], "C3.8": [0.0, 0.0, 1.0]}
+    assert ["A2", 6] in longer["cells"]
+    assert _roll("double", ln, sel="2:2:A2:A2")["note_feel"]["A2.2"] == [0.2, 0.0, 0.6]
+    # a cell painted on after it lengthens it (the grid's own post): the
+    # release keeps its place against the new end line
+    assert schema.clean_feel({"A2.2": F}, NOTE + [["A2", 5]]) == {"A2.2": F}
     # a chord stamped over a felt note's start replaces it with fresh notes
     stamped = _roll("stamp", ln, row="A2", step="2", q="triad", len="1")
     assert "A2.2" not in stamped["note_feel"]
@@ -334,3 +339,50 @@ def test_hostile_feel_is_conformed():
     big = {f"A2.{i}": [0, 0, 1] for i in range(20000)}
     out = schema.conform({"cells": [], "note_feel": big}, schema.nodes().ARRANGEMENT)
     assert "note_feel" not in out  # bounded, then none names a note
+
+
+def test_the_roll_draws_a_felt_note_on_the_cells_it_has():
+    marks = notefeel.marks({"A2.2": F}, NOTE)
+    assert set(marks) == {("A2", 2), ("A2", 3), ("A2", 4)}
+    start, mid, end = marks[("A2", 2)], marks[("A2", 3)], marks[("A2", 4)]
+    assert start[0] == "felt felt-s" and "--fs: 0.2" in start[1]
+    assert "late" in start[2] and "60% of the step's velocity" in start[2]
+    assert mid == ("felt", "--fv: 0.6", "")
+    assert end[0] == "felt felt-e" and "--fe: 0.3" in end[1]  # let go 0.3 early
+    # one cell long, let go past the line: drawn whole, its handle lit
+    one = notefeel.marks({"C3.8": [-0.2, 0.3, 1.0]}, [["C3", 8]])
+    assert one[("C3", 8)][0] == "felt felt-s felt-e felt-past"
+    assert notefeel.marks({}, NOTE) == {}
+
+
+def test_perform_and_the_drawer_draw_the_feel(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from synthlab.studio.server import create_app
+
+    with TestClient(create_app(data_dir=tmp_path)) as c:
+        s = c.app.state.studio
+        s.arrangement = replace(
+            s.arrangement,
+            root="A2",
+            scale_name="minor",
+            bars=1,
+            steps_per_bar=16,
+            cells=[list(x) for x in NOTE],
+            note_feel={"A2.2": F},
+        )
+        page = c.get("/view/perform").text
+        at = page.index('name="cell.A2.2"')
+        cell = page[at : at + 300]
+        assert "felt felt-s" in cell and "--fs: 0.2" in cell
+        assert 'hx-post="/fragment/pattern/notes/snap"' in page
+        # snapped from the roll: on the grid, drawn as any note
+        r = c.post(
+            "/fragment/pattern/notes/snap",
+            data={"sel": "2:2:A2:A2", "span": "1", "oct": "0"},
+            headers={
+                "HX-Request": "true",
+                "HX-Current-URL": "http://testserver/view/perform",
+            },
+        )
+        assert r.status_code == 200 and s.arrangement.note_feel == {}
