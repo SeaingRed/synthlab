@@ -101,11 +101,13 @@
      hx-swap="none". The rows stay in the DOM (morphs and preset loads keep
      working); they just don't take half the Source panel. #}
   <style>
-    {% for shape, deps in shape_deps.items() %}
-    #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked))
-      :is({% for d in deps %}#row-{{ d }}, #sub-{{ d }}, {% endfor %}.shape-{{ shape }}) { display: none; }
+    {#- a row more than one shape reads (the sample: sampler and granular)
+        hides only while none of them is picked -#}
+    {% for shapes, deps in shape_rows.items() %}
+    #view{% for shape in shapes %}:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked)){% endfor %}
+      :is({% for d in deps %}#row-{{ d }}, #sub-{{ d }}{{ ", " if not loop.last }}{% endfor %}{% if shapes | length == 1 %}, .shape-{{ shapes[0] }}{% endif %}) { display: none; }
     {% endfor %}
-    #view:not(:has([name="osc1"][value="sampler"]:checked)) #sampler-panel { display: none; }
+    #view:not(:has([name="osc1"][value="sampler"]:checked)):not(:has([name="osc1"][value="granular"]:checked)) #sampler-panel { display: none; }
     {#- filter 2's rows while it plays; a drawn LFO's drawing while
         its shape is "drawn"; a target jack while its module can be heard
         (or a lead is plugged into it) -#}
@@ -116,7 +118,7 @@
     #view:has([name="filter2_route"][value="off"]:checked) .pb-jack[data-dst^="filter2_"]:not([data-on]),
     #view:has([name="osc2"][value=""]:checked) .pb-jack[data-dst="fm_amount"]:not([data-on]),
     #view:has([name="osc2_sync"][value="off"]:checked) .pb-jack[data-dst="sync_pitch"]:not([data-on]) { display: none; }
-    {% for shape, dsts in (("wavetable", ("wt_pos",)), ("fm", ("fm_index",)), ("fm4", ("fm4_level1", "fm4_level2", "fm4_level3", "fm4_level4"))) %}
+    {% for shape, dsts in (("wavetable", ("wt_pos",)), ("fm", ("fm_index",)), ("fm4", ("fm4_level1", "fm4_level2", "fm4_level3", "fm4_level4")), ("granular", ("grain_pos",))) %}
     #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked))
       :is({% for d in dsts %}.pb-jack[data-dst="{{ d }}"]{{ ", " if not loop.last }}{% endfor %}):not([data-on]) { display: none; }
     {% endfor %}
@@ -147,7 +149,7 @@
     {% set layout = [["Source"], ["Filter", "Vowel"], ["Amp envelope", "Character", "Mod matrix"], ["Motion", "Modulators"]] %}
     {% set named = layout | sum(start=[]) %}
     {% set by = dict(groups) %}
-    {% set notes = {"Source": "FM, FM4, pluck, wavetable and sampler settings appear here when an oscillator uses that shape.",
+    {% set notes = {"Source": "FM, FM4, pluck, wavetable, sampler and granular settings appear here when an oscillator uses that shape.",
                     "Vowel": "Shapes the sound like a sung vowel. Raise Vowel amount to hear it; automate the vowel for talking sounds.",
                     "Motion": "The modulators: LFO 1, the filter LFO, vibrato, tremolo, pulse width, the pitch envelope and bend, the wheels. The mod matrix routes them.",
                     "Modulators": "Envelopes 3 and 4 and LFOs 2 and 3: they move nothing until a route in the mod matrix reads them."} %}

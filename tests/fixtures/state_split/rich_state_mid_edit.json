@@ -165,7 +165,15 @@
     "mod12_src": "none",
     "mod12_dst": "cutoff",
     "mod12_amt": 0.0,
-    "sampler_zones": ""
+    "sampler_zones": "",
+    "grain_pos": 0.0,
+    "grain_size": 0.08,
+    "grain_density": 20.0,
+    "grain_spray": 0.0,
+    "grain_pitch_spray": 0.0,
+    "grain_shape": 0.0,
+    "grain_dir": "forward",
+    "grain_scan": 0.0
   },
   "arrangement": {
     "bpm": 124.0,
@@ -426,7 +434,15 @@
     "mod12_src": "none",
     "mod12_dst": "cutoff",
     "mod12_amt": 0.0,
-    "sampler_zones": ""
+    "sampler_zones": "",
+    "grain_pos": 0.0,
+    "grain_size": 0.08,
+    "grain_density": 20.0,
+    "grain_spray": 0.0,
+    "grain_pitch_spray": 0.0,
+    "grain_shape": 0.0,
+    "grain_dir": "forward",
+    "grain_scan": 0.0
   },
   "slot_b": {
     "name": "b",
@@ -593,7 +609,15 @@
     "mod12_src": "none",
     "mod12_dst": "cutoff",
     "mod12_amt": 0.0,
-    "sampler_zones": ""
+    "sampler_zones": "",
+    "grain_pos": 0.0,
+    "grain_size": 0.08,
+    "grain_density": 20.0,
+    "grain_spray": 0.0,
+    "grain_pitch_spray": 0.0,
+    "grain_shape": 0.0,
+    "grain_dir": "forward",
+    "grain_scan": 0.0
   },
   "slot_prev": {
     "name": "dark",
@@ -760,7 +784,15 @@
     "mod12_src": "none",
     "mod12_dst": "cutoff",
     "mod12_amt": 0.0,
-    "sampler_zones": ""
+    "sampler_zones": "",
+    "grain_pos": 0.0,
+    "grain_size": 0.08,
+    "grain_density": 20.0,
+    "grain_spray": 0.0,
+    "grain_pitch_spray": 0.0,
+    "grain_shape": 0.0,
+    "grain_dir": "forward",
+    "grain_scan": 0.0
   },
   "curves": {
     "cutoff": [
@@ -978,7 +1010,15 @@
           "mod12_src": "none",
           "mod12_dst": "cutoff",
           "mod12_amt": 0.0,
-          "sampler_zones": ""
+          "sampler_zones": "",
+          "grain_pos": 0.0,
+          "grain_size": 0.08,
+          "grain_density": 20.0,
+          "grain_spray": 0.0,
+          "grain_pitch_spray": 0.0,
+          "grain_shape": 0.0,
+          "grain_dir": "forward",
+          "grain_scan": 0.0
         },
         "curves": {
           "cutoff": [
@@ -1355,7 +1395,15 @@
         "mod12_src": "none",
         "mod12_dst": "cutoff",
         "mod12_amt": 0.0,
-        "sampler_zones": ""
+        "sampler_zones": "",
+        "grain_pos": 0.0,
+        "grain_size": 0.08,
+        "grain_density": 20.0,
+        "grain_spray": 0.0,
+        "grain_pitch_spray": 0.0,
+        "grain_shape": 0.0,
+        "grain_dir": "forward",
+        "grain_scan": 0.0
       },
       "cells": [
         [
@@ -1584,7 +1632,15 @@
         "mod12_src": "none",
         "mod12_dst": "cutoff",
         "mod12_amt": 0.0,
-        "sampler_zones": ""
+        "sampler_zones": "",
+        "grain_pos": 0.0,
+        "grain_size": 0.08,
+        "grain_density": 20.0,
+        "grain_spray": 0.0,
+        "grain_pitch_spray": 0.0,
+        "grain_shape": 0.0,
+        "grain_dir": "forward",
+        "grain_scan": 0.0
       },
       "cells": [],
       "muted": false,
@@ -1789,7 +1845,15 @@
         "mod12_src": "none",
         "mod12_dst": "cutoff",
         "mod12_amt": 0.0,
-        "sampler_zones": ""
+        "sampler_zones": "",
+        "grain_pos": 0.0,
+        "grain_size": 0.08,
+        "grain_density": 20.0,
+        "grain_spray": 0.0,
+        "grain_pitch_spray": 0.0,
+        "grain_shape": 0.0,
+        "grain_dir": "forward",
+        "grain_scan": 0.0
       },
       "cells": [],
       "muted": false,
@@ -1981,7 +2045,15 @@
           "mod12_src": "none",
           "mod12_dst": "cutoff",
           "mod12_amt": 0.0,
-          "sampler_zones": ""
+          "sampler_zones": "",
+          "grain_pos": 0.0,
+          "grain_size": 0.08,
+          "grain_density": 20.0,
+          "grain_spray": 0.0,
+          "grain_pitch_spray": 0.0,
+          "grain_shape": 0.0,
+          "grain_dir": "forward",
+          "grain_scan": 0.0
         },
         "cells": [
           [
@@ -2198,7 +2270,15 @@
           "mod12_src": "none",
           "mod12_dst": "cutoff",
           "mod12_amt": 0.0,
-          "sampler_zones": ""
+          "sampler_zones": "",
+          "grain_pos": 0.0,
+          "grain_size": 0.08,
+          "grain_density": 20.0,
+          "grain_spray": 0.0,
+          "grain_pitch_spray": 0.0,
+          "grain_shape": 0.0,
+          "grain_dir": "forward",
+          "grain_scan": 0.0
         },
         "cells": [],
         "muted": false,
@@ -2392,7 +2472,15 @@
           "mod12_src": "none",
           "mod12_dst": "cutoff",
           "mod12_amt": 0.0,
-          "sampler_zones": ""
+          "sampler_zones": "",
+          "grain_pos": 0.0,
+          "grain_size": 0.08,
+          "grain_density": 20.0,
+          "grain_spray": 0.0,
+          "grain_pitch_spray": 0.0,
+          "grain_shape": 0.0,
+          "grain_dir": "forward",
+          "grain_scan": 0.0
         },
         "cells": [],
         "muted": true,
@@ -2650,7 +2738,15 @@
           "mod12_src": "none",
           "mod12_dst": "cutoff",
           "mod12_amt": 0.0,
-          "sampler_zones": ""
+          "sampler_zones": "",
+          "grain_pos": 0.0,
+          "grain_size": 0.08,
+          "grain_density": 20.0,
+          "grain_spray": 0.0,
+          "grain_pitch_spray": 0.0,
+          "grain_shape": 0.0,
+          "grain_dir": "forward",
+          "grain_scan": 0.0
         },
         "curves": {
           "cutoff": [
@@ -2857,7 +2953,15 @@
           "mod12_src": "none",
           "mod12_dst": "cutoff",
           "mod12_amt": 0.0,
-          "sampler_zones": ""
+          "sampler_zones": "",
+          "grain_pos": 0.0,
+          "grain_size": 0.08,
+          "grain_density": 20.0,
+          "grain_spray": 0.0,
+          "grain_pitch_spray": 0.0,
+          "grain_shape": 0.0,
+          "grain_dir": "forward",
+          "grain_scan": 0.0
         },
         "curves": {
           "cutoff": [
@@ -3045,7 +3149,15 @@
           "mod12_src": "none",
           "mod12_dst": "cutoff",
           "mod12_amt": 0.0,
-          "sampler_zones": ""
+          "sampler_zones": "",
+          "grain_pos": 0.0,
+          "grain_size": 0.08,
+          "grain_density": 20.0,
+          "grain_spray": 0.0,
+          "grain_pitch_spray": 0.0,
+          "grain_shape": 0.0,
+          "grain_dir": "forward",
+          "grain_scan": 0.0
         },
         "curves": {
           "cutoff": [

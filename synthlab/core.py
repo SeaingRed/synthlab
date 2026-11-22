@@ -1165,6 +1165,13 @@ def osc(shape: str, freq, n: int, sr: int = SR, **kw) -> np.ndarray:
         from . import sampler
 
         return sampler.render(freq, n, sr, kw.get("sampler"), kw.get("key_hz"))
+    if shape == "granular":
+        # the sampler's sample as a cloud of grains (synthlab.granular)
+        from . import granular
+
+        return granular.render(
+            freq, n, sr, kw.get("granular"), kw.get("key_hz"), kw.get("seed") or 0
+        )
     if shape == "fm":
         return fm(
             freq,

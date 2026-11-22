@@ -270,9 +270,9 @@ _ENTRIES: list[tuple[str, Ui]] = [
     # "sampler" plays live only as _osc1_ok admits it; otherwise a sampler
     # sound's keys take the server-rendered WAV path
     ("osc1", _ui(_S, "Oscillator 1", _osc1_ok, widget="pills",
-        extra=("fm4", "sampler"),
-        hint="The main waveform. FM, FM4, pluck, wavetable and sampler show their "
-             "own settings.")),
+        extra=("fm4", "sampler", "granular"),
+        hint="The main waveform. FM, FM4, pluck, wavetable, sampler and granular "
+             "show their own settings.")),
     ("osc1_level", _ui(_S, "Osc 1 level", EXACT,
         hint="How loud oscillator 1 is in the mix.")),
     ("osc1_octave", _ui(_S, "Osc 1 octave", EXACT,
@@ -364,7 +364,7 @@ _ENTRIES: list[tuple[str, Ui]] = [
     # period late — its header and the parity corpus say how close that
     # is). What is refused is the WSOLA stretch ("resample" mode with a
     # stretch off 1: a similarity search per grain) and a drawn stretch
-    ("sampler_root", _ui(_S, "Sample root", EXACT, subhead="Sampler shape",
+    ("sampler_root", _ui(_S, "Sample root", EXACT, subhead="Sample",
         hint="Sampler: the note that plays the sample at its own pitch (a chop's "
              "first slice).")),
     ("sampler_mode", _ui(_S, "Sample pitch mode", EXACT, widget="pills",
@@ -388,6 +388,30 @@ _ENTRIES: list[tuple[str, Ui]] = [
         hint="Sampler: where the loop jumps back.")),
     ("sampler_xfade", _ui(_S, "Loop crossfade", EXACT, 0.001, unit="s",
         hint="Blend across the loop point so it doesn't click.")),
+    # the granular shape (synthlab/granular.py): the sample above as a
+    # cloud of grains. Not in the live voice: a granular sound's keys take
+    # the server-rendered WAV (osc1 "granular" is no SHAPES entry), and
+    # these are "default" — and unheard, so blocking nothing, while no
+    # oscillator plays the shape
+    ("grain_pos", _ui(_S, "Grain position", DEFAULT, 0.001, subhead="Granular",
+        mod_label="Grain position",
+        hint="Granular: where in the sample (or its loop) the grains are read. "
+             "Draw it or route it to move the cloud.")),
+    ("grain_size", _ui(_S, "Grain size", DEFAULT, 0.001, unit="s",
+        hint="How long each grain lasts: short is a buzz, long a smear.")),
+    ("grain_density", _ui(_S, "Grain density", DEFAULT, 0.5, unit="/s",
+        hint="Grains started a second (at most 256 sounding at once).")),
+    ("grain_spray", _ui(_S, "Position spray", DEFAULT,
+        hint="Scatters each grain's place around the position.")),
+    ("grain_pitch_spray", _ui(_S, "Pitch spray", DEFAULT, 0.1, unit="st",
+        hint="Detunes each grain by up to this many semitones either way.")),
+    ("grain_shape", _ui(_S, "Grain window", DEFAULT,
+        hint="0: soft grains (a Hann window); 1: flat grains with short fades.")),
+    ("grain_dir", _ui(_S, "Grain direction", DEFAULT, widget="pills",
+        hint="Forward, reverse, or each grain either way.")),
+    ("grain_scan", _ui(_S, "Scan", DEFAULT, 0.01, unit="x",
+        hint="The position moving by itself: 1 walks the sample at its own "
+             "speed, negative backwards, 0 holds.")),
     ("sub_level", _ui(_S, "Sub oscillator", EXACT,
         subhead="Mixer", mod_label="Sub level",
         hint="A sine one octave below oscillator 1, for weight.")),
@@ -758,26 +782,28 @@ def spec_of(name: str) -> ParamSpec | None:
 # Which Source-panel rows are audible only when an osc pill selects a shape:
 # read from the shape rules in params (the breeder's own liveness), and
 # rendered as :has() dimming selectors in editor.html.
+# A row more than one shape reads (the sampler's sample, span and loop,
+# which the granular shape plays too) is listed under each.
 SHAPE_DEPS: dict[str, tuple[str, ...]] = {}
+# The same rows grouped by the shapes that show them: a row hides only
+# while none of its shapes is picked (editor.html's :has() rules).
+SHAPE_ROWS: dict[tuple[str, ...], tuple[str, ...]] = {}
 for _name, _u in UI.items():
     _rule = PARAMS[_name].live
     if _u.group == "Source" and isinstance(_rule, uses_shape):
-        SHAPE_DEPS.setdefault(_rule.shape, ())
-        SHAPE_DEPS[_rule.shape] += (_name,)
+        for _shape in _rule.shapes:
+            SHAPE_DEPS[_shape] = (*SHAPE_DEPS.get(_shape, ()), _name)
+        SHAPE_ROWS[_rule.shapes] = (*SHAPE_ROWS.get(_rule.shapes, ()), _name)
 
 
 # --- the live voice's gate ---------------------------------------------------
 
 
 def _unheard(name: str, p) -> bool:
-    """A "default" field of a shape no oscillator plays (the sampler's):
+    """A "default" field of a shape no oscillator plays (the granular one's):
     the engine never reads it, so any value is reproduced."""
     rule = PARAMS[name].live
-    return (
-        UI[name].worklet == DEFAULT
-        and isinstance(rule, uses_shape)
-        and rule.shape not in (p.osc1, p.osc2)
-    )
+    return UI[name].worklet == DEFAULT and isinstance(rule, uses_shape) and not rule(p)
 
 
 def worklet_blockers(p) -> list[str]:

@@ -48,7 +48,7 @@ from ..drumfactory import DRUM_KITS
 from ..factory import FACTORY
 from ..fxrack import CHAIN_PRESETS, FX_UNITS, clean_chain
 from ..library import tags as library_tags
-from ..paramui import PARAM_GROUPS, SHAPE_DEPS, idle
+from ..paramui import PARAM_GROUPS, SHAPE_DEPS, SHAPE_ROWS, idle
 from ..recipes import cards as recipe_cards
 from ..recipes import core_cards
 from ..recipes import tags as recipe_tags
@@ -212,6 +212,7 @@ class Page:
             "view_title": view_title(view),
             "groups": PARAM_GROUPS,
             "shape_deps": SHAPE_DEPS,
+            "shape_rows": SHAPE_ROWS,
             "filter_response": filter_response_svg(s.patch),
             "env_amp": self.env_amp_svg(s.patch),
             "env_filter": self.env_filter_svg(s.patch),

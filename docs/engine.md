@@ -595,6 +595,44 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   shipped patch hashed before / after, native and `SYNTHLAB_NATIVE=0`):
   no `RENDER_REV` bump, and `sampler_zones` is a `KEY_ADDED_FIELDS`
   entry.
+- **Granular oscillator** (`synthlab/granular.py`, shape `"granular"`,
+  Patch `grain_*`, `tests/test_granular.py`): the sampler's sample —
+  `sampler_sample`, its span, or with `sampler_loop` "on" the loop inside
+  it (`granular.region`), its root and key track — played as a cloud of
+  grains **scheduled on the output clock**: grain k starts at floor(k x
+  sr / density) (`onsets`), lasts `grain_size` (5 ms-1 s) under a
+  raised-cosine window whose fades run from the whole grain (`grain_shape`
+  0: Hann) to 5 % a side (1), and reads at the key's ratio to the root —
+  times `grain_pitch_spray` semitones x a draw — from where its audio
+  begins: `grain_pos` (0..1 of the region, read at the grain's first
+  sample: CURVABLE and a route target) + `grain_scan` x the seconds since
+  note-on over the region's length (1 walks it in real time, negative
+  backwards) + `grain_spray` x a draw in -0.5..0.5, wrapped round the
+  region; `grain_dir` forward / reverse (the same audio backwards) / both
+  (a draw each). `grain_density` (1-500 a second) is held to 256 / size,
+  **at most 256 sounding**. **Every draw is `core.hash_u(seed, 3k + i)`,
+  the seed crc32 of "grain:<MIDI>:<copy>"** (the note's pitch and the
+  oscillator copy: a unison voice, osc2's + 100) — never a random stream,
+  so the note memo and every cache key hold. The cloud's level is
+  1 / sqrt(overlap x the window's mean square) once grains overlap (an
+  incoherent sum at unit power; grains of one held spot of a pure tone
+  partly cancel, as they would anywhere) — the settings', never the
+  audio's: causal. Stereo (n, 2), zeros (n,) with nothing to play; chops,
+  zones, the stretch, the pitch mode and the crossfade are the sampler
+  shape's alone. The fields share the sample's rows by
+  `uses_shape("sampler", ("granular",))` (a rule may name several shapes;
+  `paramui.SHAPE_ROWS` hides a row only while none is picked). Python
+  loop only (not a `_STACK_SHAPES` member, no native kernel): measured on
+  an i9 desktop, 3.4 ms of CPU per second of audio per oscillator copy at
+  the defaults (20 a second, 80 ms), 19 ms at 100 a second x 100 ms, 72
+  at 200 x 200 ms, 0.52 s at the 256-sounding ceiling of 1 s grains. **Not
+  live**: the voice worklet has no twin, so osc1 "granular" is no
+  `paramui.SHAPES` entry and the `grain_*` fields are "default" — a
+  granular sound's keys take the `/note` WAV. All eight fields are
+  `nogene`, appended at the end of `PARAMS`, and `KEY_ADDED_FIELDS`
+  entries at their defaults; a render of a patch without the shape never
+  reaches the module (`test_patches_without_the_shape_never_reach_it`):
+  no `RENDER_REV` bump.
 - **Vowel filter** (`core.VOWELS` / `core.formant`, Patch fields
   `formant_amount` / `formant_vowel` / `formant_size`): three parallel
   bandpass resonators whose centres interpolate along a→e→i→o→u. It is a

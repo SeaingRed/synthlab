@@ -431,7 +431,7 @@ def sampler_root(request: Request, svc: Svc) -> Response:
     (`sampler_root`), one undo step. The root's slider row comes back
     OOB, or the #patch form's next post would send the old root back."""
     s: StudioState = svc.state
-    if not sv.sampling(s.patch) or not s.patch.sampler_sample:
+    if not sv.has_sample(s.patch) or not s.patch.sampler_sample:
         return Response(status_code=422)
     key = sv.detected_root(s.patch.sampler_sample, sv.PITCH_SHOWN)
     if key is None:

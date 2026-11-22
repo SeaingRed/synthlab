@@ -36,6 +36,7 @@ from .core import (
     osc,
     soft_clip,
 )
+from .granular import Settings as GrainSettings
 from .params import (
     FILTER_TYPES,
     LFO_SHAPES,
@@ -480,6 +481,19 @@ class Patch:
     # Set, it plays instead of sampler_sample / sampler_slices: a zone by
     # the note's key, velocity and round-robin strike. "" = one sample
     sampler_zones: str = ""
+    # --- the "granular" shape (synthlab/granular.py): the sampler's sample
+    # (its span and loop, root and key track) as a cloud of grains on the
+    # output clock. Read only while an oscillator is "granular", so every
+    # default is "no cloud" (render.KEY_ADDED_FIELDS keeps them out of its
+    # cache keys) ---
+    grain_pos: float = 0.0  # 0..1 across the region (a curve, a route target)
+    grain_size: float = 0.08  # seconds a grain lasts
+    grain_density: float = 20.0  # grains a second (at most 256 sounding)
+    grain_spray: float = 0.0  # 0..1 of the region: each grain's place, scattered
+    grain_pitch_spray: float = 0.0  # semitones either way, each grain its own
+    grain_shape: float = 0.0  # 0 a Hann window .. 1 flat with short fades
+    grain_dir: str = "forward"  # | "reverse" | "both" (each grain its own)
+    grain_scan: float = 0.0  # the position moving by itself: 1 = real time
 
     def tweak(self, **kw) -> Patch:
         """Return a copy with parameters changed: pad.tweak(cutoff=800)."""
@@ -1112,6 +1126,9 @@ class Synth:
         }
         if "sampler" in (p.osc1, p.osc2):
             shape_kw["sampler"] = SamplerSettings.of(p, velocity, rr)
+            shape_kw["key_hz"] = key_hz
+        if "granular" in (p.osc1, p.osc2):
+            shape_kw["granular"] = GrainSettings.of(p)
             shape_kw["key_hz"] = key_hz
         if "fm4" in (p.osc1, p.osc2):
             shape_kw.update(

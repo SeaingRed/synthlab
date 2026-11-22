@@ -910,6 +910,43 @@ is 57% of a render quantum), 0.18 ms by FFT (4096-point; 1.6% per voice,
 quantum: 107% of it). It would need the FFT in the WebAssembly module and
 the searches spread over the hop before each grain; not built.
 
+### The granular shape: the same sample as a cloud
+
+**Granular** (osc1's "granular" pill; the engine is the root
+`docs/engine.md`, "Granular oscillator"; `samplerview.cloud`,
+`tests/studio/test_sampler_studio.py`
+`test_the_granular_shape_plays_the_sample_on_the_wav_path`,
+`tests/browser/test_sampler.py`
+`test_the_granular_pill_keeps_the_sample_and_draws_the_cloud`): a pill
+away from the sampler on a sound that already holds a sample. It plays
+`sampler_sample` — its span, or the loop inside it while the loop is on —
+at `sampler_root` with `sampler_keytrack`, so those rows show for either
+shape (one `:has()` rule names both: `paramui.SHAPE_ROWS`), while the
+sampler's alone (pitch mode, stretch, crossfade) hide. Under the
+**Granular** subhead: position, size, density, position spray, pitch
+spray, window, direction (pills) and scan — plain sliders from the
+design system, the position drawable and a route target (its patch-bay
+jack shows while an oscillator is granular). The sampler block stays
+(`samplerview.has_sample`: Record, Resample, the pitch and its "use",
+which `POST /fragment/sampler/root` allows for either shape) and its
+waveform also draws where the grains read: the spray's reach
+(`.sw-spray`, one or two spans: the region is circular), one grain's read
+at the root from the position (`.sw-grain`) and the position's line
+(`.sw-pos`), from the fields' first values; `samplerview.watch` carries
+the position, spray and size, so a slider's post redraws it out of band
+as the start and end do. The chops and the zones are the sampler shape's
+and are not drawn (`context`'s `chops`); a granular sound plays neither,
+and the chop / zone routes still refuse a sound with no sampler
+oscillator. **The keys take the server WAV**: the voice worklet has no
+granular twin, so `/patch.json` names `osc1` (and every `grain_*` field
+off its default: "default") and carries no `sampler_live`; the grain
+fields left on a synth block nothing. A twin would be possible — every
+draw is `core.hash_u` of the grain's index and a crc32 seed, the
+schedule a function of the output clock — but it would have to read the
+key's pitch at each grain's first sample exactly as `Synth.note` builds
+it, and a route's or a curve's position likewise; not built, so not
+claimed.
+
 ### Pitch detection and slice markers
 
 **Pitch detection** (`sampler.detect_pitch`: YIN over a dozen frames of

@@ -152,7 +152,10 @@ on a formant-mode sampler only, a route to `pitch` / `osc1_detune` /
 reads the pitch one root period ahead, which the voice can foresee for
 its own motion (`grain-worklet.js` `ahead`: the pitch terms of `ctl()`
 in closed form — **change one, change the other**) and not for those
-(`sampler-and-clips.md`, "Formant mode on the live keys"). `loopDuration()` (used to decide the
+(`sampler-and-clips.md`, "Formant mode on the live keys"); and the
+granular oscillator, whole (osc1 "granular" is no `SHAPES` entry, its
+`grain_*` fields "default": `sampler-and-clips.md`, "The granular
+shape"). `loopDuration()` (used to decide the
 fallback loop length for the shortcut sheet and elsewhere) lives on
 `static/audio.js`, not piano.js — piano.js reads it off
 `window.synthlab.loopDuration()`. Any new Patch field that the
