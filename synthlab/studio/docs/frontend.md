@@ -299,11 +299,16 @@ is morphed, never replaced (the reset menu's region is
 `hx-swap-oob="outerMorph"`: an edit elsewhere redraws its dots with the
 menu open). menu.js's arrows walk a `.menu` popover's `.menu-item`
 rows, ↓ / ↑ from its button too, and Esc gives the button the focus
-back. Ids are unique per page: a macro rendered twice names its menus by
+back. **Tools ▾** (`.pt-more`, Perform's note grid and drum rack) is
+one of these: a toolbar's rest, a row a group, its caption first; it
+stays open while you work in it — an action redraws its region, which
+draws it shut, and grid.js opens the new one again — until Esc or a
+click away. Ids are unique per page: a macro rendered twice names its menus by
 its `target` (`ptm-dvel-drum-bank`, `ptm-dvel-loop`). The rule's CSS is
 one block (style.css section 15, "a menu that is a popover"). The
-`<details>` that stay are disclosures that open in place (a rack, a
-loop row's Quantise and → Song picks, the Lab's chop clean).
+`<details>` that stay are disclosures that open in place (a rack, the
+Lab's chop clean); a loop row's Quantise and → Song are its right-click
+menu's submenus now.
 
 ### A drawer that must stay open: a popover, morphed
 
@@ -771,10 +776,10 @@ grid area `keys`) gives its edges (`--keys-l` / `--keys-r` on the dock).
   `data-edge` left / top: it sits on the pane's near edge). dense.css
   reads them only while set (`.song-view[style*="--drawer-w"]`) and
   keeps the playlist its room with `min()`. **Folds**:
-  `[data-fold=<id>]` hides `#id .fold-body` (the drum rack, the keys dock, the Loops page's lane inspector and Play); `data-fold-auto="<media query>"` folds it where the query holds until it is first pressed; `data-fold-page` keeps it per page (the keys dock, every page's: `synthlab.fold.<id>@<view>`, falling back to the one key).
+  `[data-fold=<id>]` hides `#id .fold-body` (the drum rack, the keys dock, the Loops page's lane inspector); `data-fold-auto="<media query>"` folds it where the query holds until it is first pressed; `data-fold-page` keeps it per page (the keys dock, every page's: `synthlab.fold.<id>@<view>`, falling back to the one key).
 - **Tabs**: `[data-tab-of=<id>][data-tab-pick=<name>]`
   shows one part of the box `#id` at a time — `data-tab` on the box, which
-  its CSS reads (the Loops page's Play module: pads | XY | FX | beats,
+  its CSS reads (the Loops page's Play: pads | XY | FX | beats,
   style.css 42) — per box per browser (`synthlab.tab.<id>`), re-applied
   after every swap as a fold is (a morph puts the server's default back);
   the buttons' `aria-selected` follow.
@@ -958,8 +963,9 @@ session state; **the server's markup is always the default order**, and
     96 px, its five lanes stacked under them);
   - **the pages**: Synths and Kit as above; Voice's racks end with
     their content (the bench under them); Loops — the Loops list and the
-    editor's grids fill, and the right column's last module, Play, keeps
-    its height under the inspector, which fills (its body scrolls);
+    editor's grids fill, and the right column is the lane inspector
+    alone, which fills (its body scrolls; Play is a popover the keyboard
+    dock's Tools open, no module of the dock);
     Song — the pool and the playlist scroll inside themselves, the master
     meters run the playlist's height, the editor pane is the editor;
     Mix — the strips' faders and the returns take the height, the master
@@ -1005,7 +1011,9 @@ session state; **the server's markup is always the default order**, and
   workspace.js's `REV`, bumped when the page's markup moved too far for an
   old layout to fit (a carved tree names modules and places that are
   gone). On load a record under an older key of that page is deleted:
-  Perform is `perform@2`, so a layout saved under `perform` (an older
+  Perform is `perform@3` (3: its right column the lane inspector alone,
+  Play and → Song out of the dock), so a layout saved under `perform@2`
+  or `perform` (an older
   markup) is dropped, not mis-applied. Synths is `editor@2` (its
   right-hand blocks each a module), and a record saved under `editor`
   is **carried over**, not dropped
@@ -1045,9 +1053,9 @@ session state; **the server's markup is always the default order**, and
   Song page's drawer splitters, the Lab's own). The docked pages have
   none of the gaps Synths' split closes (a block no member because a
   module or an id'd wrapper holds it; a column with a bare foot): the
-  Loops page's Play module holds pads / XY / FX / beats as its tabs and
-  the lane inspector holds ✦ Coach — both by design (one module, its
-  tabs); Drums' `fx.rack` holds one rack (the drum bus), so the
+  Loops page's Play (a popover, no member) holds pads / XY / FX / beats
+  as its tabs and the lane inspector holds ✦ Coach — both by design (one
+  box, its tabs); Drums' `fx.rack` holds one rack (the drum bus), so the
   module is the rack; Clips' three are all members. Mix (its master strip
   holds the master rack) and Voice (its two racks in `#fx-rack`) have
   that shape, but no dock at all yet.
@@ -2110,7 +2118,17 @@ hands the focus back. As with commands, there is no list of menus:
   the same route, confirm and refresh as a hand; it is disabled while the
   control is, ticked while the control is pressed or checked, red when
   the control is a `.btn-danger`. `data-menu` with no value takes the
-  control's `aria-label`.
+  control's `aria-label`. **The controls need not be drawn**: a row
+  `click()`s them, so a thing may keep its actions in the page, hidden
+  with CSS (never `[hidden]`: a hidden control is no row), and show only
+  what a glance needs — a Loops row shows ▷, its name, its facts and ★,
+  every other action its menu's (`loop-and-perform.md`, "The Loops
+  panel").
+- **`data-menu-group="→ Song"`** on a box of such controls under the
+  thing: one "→ Song ▸" row, a submenu of them (→ opens it, ← or "◂"
+  comes back) — a Loops row's → Song (pattern | audio) and Quantise
+  (its rates and strengths, ✦, ↶); the note grid's Q is one in the piano
+  roll's menu.
 - **`data-ctx-pop="id"`**: the thing already owns a menu on the page — a
   popover or a `<details>` its ⋯ button opens (a Song section's and
   track's, a drum row's tools), or the Song grid's one shared
