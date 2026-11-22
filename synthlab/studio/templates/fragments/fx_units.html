@@ -138,6 +138,20 @@ hx-post="{{ r.url if one else r.url[op] }}" hx-vals='{{ all | tojson }}'
     </label>
     {% endif %}
     {% endfor %}
+    {% if u.ir is not none %}
+    {#- the convolution's impulse: a clip of this studio's (under
+        limits.MAX_IR_SECONDS / MAX_IR_BYTES), posted as `clip:<name>` and
+        made into a sample by its content (irs.py) — the unit keeps the id -#}
+    <label class="fx-param fx-choice fx-ir">impulse
+      <select class="field field-s" name="value" id="fx-{{ r.id }}-{{ idx }}-ir" aria-label="{{ u.label }} impulse"
+              title="A clip as the room: its sound is what every note rings through (up to {{ limits.MAX_IR_SECONDS | int }} s)"
+              data-cmd="{{ cmd }}: impulse ({{ r.title }})" data-cmd-group="{{ group }}"
+              {{ post(r, "set", {"index": idx | string, "name": "ir"}) }} hx-include="this"
+              {{ r.value | safe }} hx-trigger="change" hx-sync="this:queue last">
+        {% for value, label, sel in ir_choices(u.ir) %}<option value="{{ value }}" {% if sel %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
     {% if u.pattern is not none %}
     <label class="fx-param fx-pattern">pattern
       <input type="text" class="field field-s" name="value" value="{{ u.pattern }}" maxlength="32"

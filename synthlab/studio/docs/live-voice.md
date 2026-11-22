@@ -511,6 +511,20 @@ returns its input. **Measured <= 1.3e-7 of peak** on the synth note
 (gain and pan, width, bass mono on a doubled note, every tool at once
 with a second utility on the highs), the defaults exactly the input.
 
+### The convolution
+
+**The convolution** (`convolve`: an impulse, mix, predelay, lowcut,
+highcut; `docs/engine.md`, "Convolution") is "native" in `FX_LIVE`: the
+reverb's stage in livefx.js (dry and wet gains round a ConvolverNode,
+`disableNormalization`), loaded from `GET /fx/ir.wav?kind=clip&id=...`
+— `effects.convolve_ir` at the context's rate, the gain in it, so the
+node plays the loop's IR (`tests/studio/test_fx_convolve.py`: the served
+IR is `convolve_ir` to float32; the unit is dry + that convolution to
+1e-6). `fxlive.live_chain` reads the IR from the render's cache; an id
+this studio lacks comes as no URL and mix 0 — the dry pass the loop
+renders. A live key rings the whole IR; the loop keeps one loop length
+of it (`_wrap_tile`).
+
 ## Hard sync, FM4, wavetables and drift
 
 Hard sync, the 4-operator FM shape, eight more wavetables and analog drift

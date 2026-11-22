@@ -3343,3 +3343,99 @@ def utility(gain=0.0, pan=0.0, width=1.0, bass_mono=0.0, flip_l=0.0, flip_r=0.0)
         flip_l=flip_l,
         flip_r=flip_r,
     )
+
+
+# ----------------------------------------------------------------------------
+# convolution — a recorded impulse response (a clip made into a sample: the
+# sampler's content-addressed store, `sampler.get`) as a reverb, a cabinet,
+# a body. Named by content, so every key that holds the unit holds the IR;
+# a missing IR is a dry pass. Its gain is the IR's own (1 / ||ir||), never
+# matched to what it is fed: causal, and the live keys' ConvolverNode loads
+# exactly `convolve_ir` (GET /fx/ir.wav?kind=clip).
+# ----------------------------------------------------------------------------
+
+# an IR's length, cut there (studio/limits.py MAX_IR_SECONDS)
+CONVOLVE_MAX_SECONDS = 8.0
+CONVOLVE_CUTS = (20.0, 20000.0)  # lowcut / highcut at these ends: no filter
+_CONVOLVE_IRS: OrderedDict[tuple, np.ndarray] = OrderedDict()
+_CONVOLVE_KEEP = 8
+_CONVOLVE_LOCK = threading.Lock()
+
+
+def convolve_ir(ir="", predelay=0.0, lowcut=20.0, highcut=20000.0, sr=SR):
+    """The IR the convolution plays, gain included, or None (no such sample
+    here, or one with no energy): the sample `ir` (stereo, the store's
+    16-bit grid) cut to `CONVOLVE_MAX_SECONDS`, at `sr`, high-passed at
+    `lowcut` and low-passed at `highcut` (RBJ, Q 0.707, each channel; at
+    `CONVOLVE_CUTS`' ends not run), `predelay` seconds of silence before
+    it, then divided by its energy (sqrt of the channels' mean sum of
+    squares): a white input's wet comes out at its own level, whatever the
+    recording's level was."""
+    from . import sampler
+
+    src = sampler.get(ir)
+    if src is None or not len(src):
+        return None
+    x = np.asarray(src, dtype=np.float64)[: int(CONVOLVE_MAX_SECONDS * SR)]
+    if int(sr) != SR:
+        from math import gcd
+
+        from scipy.signal import resample_poly
+
+        g = gcd(int(sr), SR)
+        x = resample_poly(x, int(sr) // g, SR // g, axis=0)
+    if float(lowcut) > CONVOLVE_CUTS[0]:
+        x = _lfilter(*biquad_coeffs("highpass", float(lowcut), 0.707, sr), x)
+    if float(highcut) < CONVOLVE_CUTS[1]:
+        x = _lfilter(*biquad_coeffs("lowpass", float(highcut), 0.707, sr), x)
+    pre = int(round(max(0.0, float(predelay)) * sr))
+    if pre:
+        x = np.vstack([np.zeros((pre, 2)), x])
+    energy = float(np.sqrt(np.mean(np.sum(x**2, axis=0))))
+    if not energy > 1e-12:
+        return None
+    return x / energy
+
+
+def _convolve_room(key: tuple) -> np.ndarray | None:
+    """`convolve_ir(*key)`, kept for the render path (read-only, a few by
+    their arguments; a missing IR is never kept, so one imported later is
+    found)."""
+    with _CONVOLVE_LOCK:
+        room = _CONVOLVE_IRS.get(key)
+        if room is not None:
+            _CONVOLVE_IRS.move_to_end(key)
+            return room
+    room = convolve_ir(*key)
+    if room is None:
+        return None
+    room.flags.writeable = False
+    with _CONVOLVE_LOCK:
+        _CONVOLVE_IRS[key] = room
+        while len(_CONVOLVE_IRS) > _CONVOLVE_KEEP:
+            _CONVOLVE_IRS.popitem(last=False)
+    return room
+
+
+def _convolve(x, ir="", mix=0.3, predelay=0.0, lowcut=20.0, highcut=20000.0, sr=SR):
+    """`x` convolved with the IR (`convolve_ir`, each channel with its own),
+    blended `dry * (1 - mix) + wet * mix` — `mix` may be a per-sample array
+    (a lane). No IR here: the input itself, at any mix."""
+    key = (str(ir), float(predelay), float(lowcut), float(highcut), int(sr))
+    room = _convolve_room(key)
+    if room is None or len(x) == 0:
+        return x
+    st = to_stereo(x)
+    n = len(st)
+    nfft = sp_fft.next_fast_len(n + len(room) - 1, True)
+    spec = sp_fft.rfft(st, nfft, axis=0) * _ir_spectrum("convolve", key, room, nfft)
+    wet = sp_fft.irfft(spec, nfft, axis=0)[:n]
+    m = _per_sample(mix, st)
+    out = st * (1 - m) + wet * m
+    return out if is_stereo(x) else out.mean(axis=1)
+
+
+def convolve(ir="", mix=0.3, predelay=0.0, lowcut=20.0, highcut=20000.0):
+    return partial(
+        _convolve, ir=ir, mix=mix, predelay=predelay, lowcut=lowcut, highcut=highcut
+    )

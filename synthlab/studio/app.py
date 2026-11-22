@@ -25,7 +25,7 @@ from fastapi.templating import Jinja2Templates
 
 from .. import percussion
 from ..params import taper
-from . import beatgen, limits, meter, modmixes, oscfaces, security, workspace
+from . import beatgen, irs, limits, meter, modmixes, oscfaces, security, workspace
 from .fxrack import chain_browser
 from .mapview import bright_pct
 from .paramui import (
@@ -226,6 +226,10 @@ def create_app(
     # studio's store, drawn wherever param_row.html draws the picker
     svc.templates.env.globals["own_tables"] = lambda: oscfaces.own_faces(
         svc.state.wavetable_dir
+    )
+    # the convolution unit's impulse select (irs.choices): this studio's clips
+    svc.templates.env.globals["ir_choices"] = lambda current: irs.choices(
+        svc.state.data_dir, current or ""
     )
     # the session state under its historical name (tests and tools read it)
     app.state.studio = svc.state

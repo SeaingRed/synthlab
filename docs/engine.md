@@ -216,6 +216,29 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   live twin in `band-worklet.js` (<= 1.3e-7 of peak); lanes on `gain` and
   `width`, one code path for a scalar and an array. Not offered to the
   sound agent (`fxrack.UTILITY_UNITS`, its schema's budget).
+- **Convolution** (`effects.convolve` / `convolve_ir`, FX unit
+  `convolve`; `tests/test_effects_convolve.py`,
+  `tests/studio/test_fx_convolve.py`): a sample from the sampler's store
+  as the impulse response — `ir` is its id (sha1 of the 16-bit PCM), so
+  every key holding the unit holds the IR by content; **an id this
+  machine lacks, or an IR with no energy, is a dry pass** (the input
+  itself at any mix, never an error). The IR is cut at
+  `CONVOLVE_MAX_SECONDS` (8 s = `studio/limits.py` `MAX_IR_SECONDS`), at
+  the asked rate (resampled from `SR`), high-passed at `lowcut` / low-passed
+  at `highcut` (RBJ, Q 0.707; at 20 Hz / 20 kHz not run), `predelay` s of
+  silence before it, then **divided by its energy** (sqrt of the
+  channels' mean sum of squares, the reverb's rule without its -1.5 dB):
+  fixed by the IR, never by the input — causal, and a white input's wet
+  at its own level whatever the recording's level. Each channel with its
+  own IR channel (a mono clip is stored stereo), an FFT convolution
+  cut to the buffer (`_ir_spectrum` keeps the IR's transform), `dry *
+  (1 - mix) + wet * mix`; a mix lane is the unit's own (`fxauto.OWN_MIX`:
+  the dry pass holds at any mix). **The tail**: a loop keeps one loop
+  length of ring (`_wrap_tile`, as every stem), a section's chain its
+  cycle's ring; a live key rings the whole IR. Live: "native", a
+  ConvolverNode on `GET /fx/ir.wav?kind=clip&id=&predelay=&lowcut=&highcut=&sr=`
+  (exactly `convolve_ir`, float32; 404 for an id not here). No existing
+  unit moved: no `RENDER_REV`.
 - `sequencer.py` — `Song`: beat-based multitrack timeline. `note_span()` is
   the one definition of how long a note's buffer is: its own length plus the
   patch's release (capped at `MAX_NOTE_TAIL`). It was a flat `dur * 1.15`

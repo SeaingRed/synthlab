@@ -96,6 +96,7 @@ FX_LIVE: dict[str, str] = {
     "transient": "js",
     "mbdrive": "js",
     "utility": "js",
+    "convolve": "native",
     "spring": "native",
     "gate": "clock",
     "pump": "clock",
@@ -422,6 +423,18 @@ def live_chain(units, arr: Arrangement, drums: bool) -> list[dict]:
                 f"/fx/ir.wav?kind=plate&decay={kw['decay']:.6g}"
                 f"&tone={kw['tone']:.6g}&predelay={kw['predelay']:.6g}"
             )
+        elif u["kind"] == "convolve":
+            # its IR as the loop plays it (`effects.convolve_ir`); none here:
+            # no IR and mix 0 — the dry pass the loop is, exactly
+            cuts = (float(kw["predelay"]), float(kw["lowcut"]), float(kw["highcut"]))
+            room = fx._convolve_room((str(kw["ir"]), *cuts, fx.SR))
+            unit["ir"] = (
+                None
+                if room is None
+                else f"/fx/ir.wav?kind=clip&id={kw['ir']}&predelay={kw['predelay']:.6g}"
+                f"&lowcut={kw['lowcut']:.6g}&highcut={kw['highcut']:.6g}"
+            )
+            unit["mix"] = 0.0 if room is None else kw["mix"]
         elif u["kind"] == "spring":
             unit["ir"] = (
                 f"/fx/ir.wav?kind=spring&decay={kw['decay']:.6g}"

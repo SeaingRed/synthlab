@@ -156,9 +156,10 @@ BLOCK = 64
 # the units that blend inside their own regions (a repeat's, a stop's
 # window) rather than over the whole buffer, or against a dry that is not
 # their input (the multiband drive's: its bands summed, the input through
-# two all-passes): they take the mix array themselves, where every other
+# two all-passes) or whose missing IR passes its input at any mix (the
+# convolution's): they take the mix array themselves, where every other
 # `mix` is `dry * (1 - mix) + wet * mix` with the input the dry
-OWN_MIX = frozenset({"beat_repeat", "stop", "mbdrive"})
+OWN_MIX = frozenset({"beat_repeat", "stop", "mbdrive", "convolve"})
 
 
 def _unit(x: np.ndarray, u: dict, arr: Arrangement, arrays: dict, n: int) -> np.ndarray:

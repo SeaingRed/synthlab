@@ -36,6 +36,10 @@ MAX_CLIP_META_BYTES = 64_000  # one clips/<name>.meta.json in a bundle
 MAX_MIDI_UPLOAD_BYTES = 1_000_000
 MAX_MIDI_TRACKS = 64
 MAX_MIDI_EVENTS = 200_000
+# a clip picked as the convolution unit's impulse (studio/irs.py): its length
+# (= effects.CONVOLVE_MAX_SECONDS, which cuts any IR there) and its file
+MAX_IR_SECONDS = 8.0
+MAX_IR_BYTES = 6_000_000
 
 # --- the Sample Lab (studio/sources.py, routes/lab.py) -----------------------
 # /lab/upload: a whole song as WAV / FLAC / MP3 / OGG. A ten-minute stereo

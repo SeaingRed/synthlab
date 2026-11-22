@@ -1048,6 +1048,28 @@ past the cap, an offline field) render at velocity 1 and strike 0.
 step only once the patch has moved off `before` (called first, it
 would keep nothing, and Ctrl+Z would skip past the edit).
 
+## A clip as an impulse (the convolution unit)
+
+**A clip as an impulse** (`studio/irs.py`, `tests/studio/test_fx_convolve.py`):
+the convolution unit (`docs/engine.md`, "Convolution") draws an
+"impulse" select on its module: "no impulse", then every clip of the
+store no longer than `limits.MAX_IR_SECONDS` (8 s) and no larger than
+`MAX_IR_BYTES` (6 MB) (`irs.choices`, a template global). A choice posts
+`name=ir`, `value=clip:<name>` to the rack's own route; every rack route
+(the session's, a Song audio track's, the booth's, the vocal chain's)
+hands its form to `irs.resolve`, which loads the clip, checks its length
+again on the decoded audio, and `sampler.save`s it into the session's
+sample store — **content-addressed as samples are**, so the unit stores
+the sample's id and the same clip picked twice is one file. A clip over a
+cap, gone, or unreadable is refused in words (a toast); `fxrack.edit_chain`
+itself takes only an id (anything else is refused), and `clean_chain`
+keeps only a well-formed one (`""` otherwise). A press: one undo step
+(`RACK_PRESSES`). Which clip an impulse came from is remembered by the
+clip's content hash for as long as the server runs; after a restart the
+select names it "impulse <id>" (and "(missing)" when this studio lacks
+it) until a clip is picked again. A project bundle carries the sample
+(`projectzip.sample_refs` reads a convolution unit's `ir`).
+
 ## The audio travels in the bundle, not in project.json
 
 **The audio travels in the bundle, not in project.json**: `GET

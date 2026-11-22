@@ -182,8 +182,12 @@ def test_the_unit_is_registered_with_its_mode_a_choice_and_three_presets():
         "mbdrive",
         {"low": 12.0, "mid": 1.0, "high": 1.0, "mode": "fuzz", "mix": 1.0},
     )
-    # appended: every unit before it keeps its place
-    assert list(FX_UNITS)[-1] == "mbdrive" and list(FX_PRESETS)[-1] == "mbdrive"
+    # appended: every unit before it keeps its place (the utility and the
+    # convolution came after it, appended in their turn)
+    units = list(FX_UNITS)
+    assert units[units.index("transient") + 1] == "mbdrive"
+    assert units[units.index("mbdrive") + 1 :] == ["utility", "convolve"]
+    assert list(FX_PRESETS)[-2:] == ["mbdrive", "utility"]
     # kept from the sound agent, as the dynamics units are (its schema's budget)
     from synthlab.studio.agent.tools import AGENT_FX
 

@@ -4607,6 +4607,8 @@ h4.subhead[data-rest="folded"]::before, legend[data-rest="folded"] > .panel-name
 .fx-band { flex: none; width: auto; min-height: 18px; padding-block: 0; font-size: var(--fs-2xs);
   color: var(--text-dim); }
 .fx-band:has(option:checked:not([value="full"])) { color: var(--signal-text); border-color: var(--signal); }
+/* the convolution's impulse: a clip's name, cut short in its knob's place */
+.fx-ir > select { max-width: 18ch; }
 .fx-acts { display: inline-flex; opacity: 0.55; }
 .fx-unit:is(:hover, :focus-within) .fx-acts { opacity: 1; }
 .fx-acts .btn { min-height: 18px; width: 18px; min-width: 18px; }

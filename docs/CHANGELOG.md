@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **A convolution unit**: pick any clip of up to 8 s as the impulse — a
+  room, a cabinet, a body — with mix, predelay and a low and high cut.
+  The clip is kept by its content, travels in a project bundle, and the
+  keys play it live through the same impulse. A missing impulse passes
+  the sound through untouched.
 - **A utility unit**: gain, pan, width (mono to twice as wide), the lows
   made mono under a frequency, and each channel's polarity — on every
   rack, live on the keys, its gain and width automatable in a song.

@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 
 from ...audio import read_pcm16
 from ...core import SR
-from .. import booth, events
+from .. import booth, events, irs
 from .. import song_model as sm
 from .. import voice as lab
 from ..clips import delete_clip, free_clip_name, save_clip
@@ -72,8 +72,9 @@ def booth_fx(form: StrForm, svc: Svc) -> Response:
         return svc.toast("No such rack edit.")
     b = lab.read_lab(s.data_dir)["booth"]
     try:
+        form = irs.resolve(s.data_dir, s.sample_dir, form)  # a picked impulse
         chain, _said, _at = edit_chain(b["chain"], op, form)
-    except RackError as err:
+    except (RackError, irs.IRError) as err:
         return svc.toast(str(err))
     lab.write_lab(s.data_dir, booth={**b, "chain": chain})
     return _panel(svc)

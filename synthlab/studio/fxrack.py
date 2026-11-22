@@ -16,6 +16,7 @@ import re
 import secrets
 
 from .. import effects as fx
+from .. import sampler
 from ..sequencer import NOTE_NAMES, SCALES, midi
 from . import meter as _meter
 from .curves import UNIT_ID_LEN, unit_id_ok
@@ -55,6 +56,7 @@ MULTIBAND_UNITS = frozenset({"mbdrive"})
 # the utility (band-worklet.js): not offered to the sound agent either, for
 # the same reason; the convolution needs a clip the agent cannot pick
 UTILITY_UNITS = frozenset({"utility"})
+CLIP_UNITS = frozenset({"convolve"})
 # an LFO unit's `sync` (the auto-filter's, the tremolo's): 0 its own `rate`
 # in Hz, else one cycle a note length (beats: `LFO_BEATS`, resolve_unit)
 LFO_SYNC = (
@@ -609,6 +611,21 @@ FX_UNITS: dict[str, dict] = {
             "flip_r": (0.0, 1.0, 0.0),
         },
         "choices": {"flip_l": ("off", "on"), "flip_r": ("off", "on")},
+    },
+    # a clip's sound as the room (`effects.convolve`): `ir` names a sample by
+    # its content (sampler.py's id: a clip picked on the unit is made into
+    # one, `studio/irs.py`), "" none — a dry pass; `predelay` s before it,
+    # its lows cut under `lowcut` Hz and highs over `highcut` (at the ends:
+    # not cut). A ConvolverNode live, as the plate
+    "convolve": {
+        "label": "Convolution",
+        "params": {
+            "mix": (0.0, 1.0, 0.3),
+            "predelay": (0.0, 0.08, 0.0),
+            "lowcut": (20.0, 1000.0, 20.0),
+            "highcut": (1000.0, 20000.0, 20000.0),
+        },
+        "ir": "",
     },
 }
 
@@ -2039,6 +2056,8 @@ def clean_chain(units) -> list[dict]:
         if "pattern" in spec:
             pat = str(u.get("pattern", spec["pattern"]))
             unit["pattern"] = pat if _PATTERN_RE.fullmatch(pat) else spec["pattern"]
+        if "ir" in spec:  # its impulse: a sample's id, or "" (none)
+            unit["ir"] = sampler.clean_id(u.get("ir"))
         # a unit's identity, kept only where it has one (`unit_id`): the
         # second unit claiming an id loses it, so an id names one unit
         if unit_id_ok(uid) and uid not in ids:
@@ -2100,7 +2119,7 @@ def active(units) -> list[dict]:
 RACK_OPS = ("add", "remove", "move", "set")
 # a set's names that are a press, not a value dragged: each its own undo
 # step (`mixer.edit_rack` gives them no key to join on)
-RACK_PRESSES = ("recall", "step", "steps", "preset", "on", "band")
+RACK_PRESSES = ("recall", "step", "steps", "preset", "on", "band", "ir")
 
 
 class RackError(ValueError):
@@ -2153,6 +2172,10 @@ def _set_unit(unit: dict, name: str, value) -> None:
             unit["band"] = band
     elif name == "pattern" and "pattern" in spec:
         unit["pattern"] = str(value)
+    elif name == "ir" and "ir" in spec:  # a sample's id (`irs.resolve` made it)
+        if str(value) and not sampler.valid_id(str(value)):
+            raise RackError("That is not an impulse this rack can play.")
+        unit["ir"] = str(value)
     elif name in ("step", "steps") and "pattern" in spec:
         pat = str(unit.get("pattern") or spec["pattern"])
         n = int(_rack_number(value, name))
@@ -2217,6 +2240,8 @@ def edit_chain(units, op: str, values) -> tuple[list[dict], str, int | None]:
             said = f"{label} {'bypassed' if chain[at].get('off') else 'on'}"
         elif name == "band":
             said = f"{label} on {BAND_LABELS[chain[at].get('band', '')]}"
+        elif name == "ir":
+            said = f"{label} impulse"
         else:
             said = f"{label}: {value}" if name == "recall" else f"{label} {name}"
     else:
@@ -2262,6 +2287,7 @@ def rack_rows(units) -> list[dict]:
                     for name, (lo, hi, default) in spec.get("params", {}).items()
                 ],
                 "pattern": u.get("pattern"),
+                "ir": u.get("ir"),
                 "on": not u.get("off"),
                 # its band ("" the whole signal) and whether it may have one
                 "band": u.get("band", ""),
@@ -2488,6 +2514,8 @@ def resolve_unit(u: dict, arr: Arrangement) -> tuple[str, dict]:
         }
     if kind == "bitcrush":
         return "bitcrush", {"bits": int(p["bits"]), "downsample": int(p["downsample"])}
+    if kind == "convolve":  # its impulse, by content
+        return "convolve", {"ir": u.get("ir", ""), **p}
     if kind == "drive":
         mode = fx.DRIVE_MODES[int(p["mode"])]
         return "drive", {"amount": p["amount"], "mix": p["mix"], "mode": mode}

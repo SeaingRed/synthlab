@@ -755,6 +755,7 @@ were drawn on, so they play the values they did.
   | beat_repeat `mix`, stop `mix` | the unit's own blend inside its regions, `dry * (1 - ramp * mix) + wet * mix`, with the mix read at each output sample (`fxauto.OWN_MIX`); which steps repeat and where the tape stops are the pattern's, the rolls' and the period's — never the mix's | exact: bit for bit when still; each output sample is the scalar unit's at that sample's mix (0 at 24 instants) |
   | ott `depth`, limiter `gain`, transient `attack` / `sustain` (the FX2 units' lanes are in `live-voice.md`, "The FX2 units") | the OTT's blend band by band, `1 - depth[i] + depth[i] * g[i]` against each band's own gain; the limiter's dB in per sample (the held gain follows it, so a build pushed louder is held at the ceiling as the slider would be); the shaper's detector dB times the value per sample | exact, memoryless in the parameter: a still lane is the unit bit for bit (`test_song_fx_lanes.py`) |
 
+  | convolve `mix` | the unit's own blend (`fxauto.OWN_MIX`): `dry * (1 - mix) + wet * mix` per sample, and no impulse here passes the input at any mix | exact: a still lane is the unit bit for bit |
   | utility `gain`, `width` | dB per sample, the side's share per sample (`effects._utility` takes arrays: one code path) | exact, memoryless: a still lane is the unit bit for bit |
 
   The gate, sidechain / pump and beat_repeat / stop rows

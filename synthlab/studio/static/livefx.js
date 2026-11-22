@@ -53,6 +53,8 @@
 // sampler's fetch (`sampler(l, url, "wtable")`) and holds `ready` the same way.
 // 194 -> 205: a unit's band (band-worklet.js, a fifth module in the FX scope:
 // a banded native unit between its split and its join, both disposed with it).
+// The convolution (a clip's IR, effects.convolve_ir: GET /fx/ir.wav?kind=clip)
+// is the same node; no IR here comes as mix 0 and no URL: the dry pass.
 // Budget: <= 205 code lines.
 
 (() => {
@@ -170,7 +172,7 @@
       node.port.postMessage({ type: "clock", t0: S.loopStart?.() ?? 0 });
       return { inp: node, out: node, fx: node, set: (r) => node.port.postMessage({ type: "units", units: r.units }) };
     }
-    if (u.kind === "reverb" || u.kind === "plate" || u.kind === "spring") { // effects._reverb / _plate / _spring: st * (1 - mix) + conv(st, its ir) * mix
+    if (u.kind === "reverb" || u.kind === "plate" || u.kind === "spring" || u.kind === "convolve") { // effects._reverb / _plate / _spring / _convolve: st * (1 - mix) + conv(st, its ir) * mix
       const inp = ctx.createGain(), out = ctx.createGain(), dry = ctx.createGain(), wet = ctx.createGain();
       const conv = new ConvolverNode(ctx, { disableNormalization: true });
       inp.connect(dry).connect(out); inp.connect(conv).connect(wet).connect(out);
@@ -179,7 +181,7 @@
         const v = r.units[0];
         dry.gain.setTargetAtTime(1 - v.mix, ctx.currentTime, 0.02);
         wet.gain.setTargetAtTime(v.mix, ctx.currentTime, 0.02);
-        if (v.ir !== url) { url = v.ir; ir(url).then((b) => { if (url === v.ir) conv.buffer = b; }).catch(() => { if (url === v.ir) url = null; }); } // failed: asked again on the next set
+        if (v.ir && v.ir !== url) { url = v.ir; ir(url).then((b) => { if (url === v.ir) conv.buffer = b; }).catch(() => { if (url === v.ir) url = null; }); } // failed: asked again on the next set
       };
       set(run);
       return { inp, out, set };
