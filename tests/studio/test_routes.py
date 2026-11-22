@@ -502,6 +502,7 @@ EXPECTED_ROUTES = [
     (["POST"], "/fragment/perform/scene/section"),
     (["POST"], "/fragment/perform/scene/song"),  # a scene → a section
     (["POST"], "/fragment/perform/slot/clear"),
+    (["POST"], "/fragment/perform/slot/hear"),
     (["POST"], "/fragment/perform/slot/keep"),
     (["POST"], "/fragment/perform/slot/launch"),
     (["POST"], "/fragment/perform/slot/move"),
