@@ -9,7 +9,9 @@ again; ★ and tags are kept on the loop; ▶ on a loop with no audio asks for
 it (a render at the tempo playing) and the master carries it; a row dragged
 onto the note grid opens it there as the loop, and an edit saves back to
 it; ✚ Keep on the drum rack keeps the grid's beat, which the panel then
-lists as a beat, and Open puts a beat on the drum grid. Levels are the
+lists as a beat, and Open puts a beat on the drum grid; a 16-bar loop
+opens whole on the roll, which keeps its step width and scrolls, and a
+note clicked in bar 16 saves to it. Levels are the
 page's analyser's — nobody has listened: whether the preview lands on the
 bar line by ear, and the sound, are unchecked.
 """
@@ -216,3 +218,65 @@ def test_a_row_dragged_onto_the_grid_edits_it_and_a_kept_beat_is_a_beat(studio, 
     assert server.state.arrangement.cells == cells
     page.click('[data-lp-kind="all"]')
     assert studio.unexplained() == []
+
+
+def test_a_sixteen_bar_loop_opens_whole_and_the_roll_scrolls(studio, server):
+    """The note grid holds 16 bars at 1/16 (`limits.LOOP_BAR_CHOICES`): Edit
+    puts all of a 16-bar loop on Perform's roll, which keeps its step width
+    and scrolls rather than squeezing 256 steps into the pane; a note
+    clicked in bar 16 saves to the loop."""
+    s, d = server.state, server.data_dir
+    cells = [["A2", 0], ["C3", 124], ["E3", 252]]
+    arr = Arrangement(
+        bpm=120, root="A2", scale_name="minor", bars=16, steps_per_bar=16, cells=cells
+    )
+    payload = s.sound_payload()
+    payload["patch"] = {**payload["patch"], "name": "Long lead"}
+    name = loops.save(d, "long lead riff", arr, payload)
+    page = studio.open("perform")
+    page.evaluate(
+        "() => localStorage.setItem('synthlab.loops',"
+        " JSON.stringify({open: true, pin: true}))"
+    )
+    page.reload()
+    page.wait_for_selector("#loops-dock .lp-head")
+    studio.settle()
+    with page.expect_response("**/loop/edit"):
+        _row(page, "long lead").locator(".lp-edit").click()
+    page.wait_for_selector("#transport .lp-edit-note")
+    studio.settle()
+    assert (s.arrangement.bars, s.arrangement.steps_per_bar) == (16, 16)
+    roll = page.locator("#transport .grid.roll")
+    assert roll.get_attribute("data-bars") == "16"
+    assert page.locator("#transport .grid.roll .ruler b").count() == 16
+    # the 16 and 8 chips are on the transport, 16 pressed
+    assert page.locator('#transport .barchip[aria-pressed="true"]').inner_text() == "16"
+    got = page.evaluate(
+        """() => {
+          const g = document.querySelector('#transport .grid.roll');
+          const a = g.querySelector('input.cell[name="cell.A2.0"]');
+          const b = g.querySelector('input.cell[name="cell.A2.1"]');
+          const pans = (el) => el.scrollWidth > el.clientWidth + 1
+            && getComputedStyle(el).overflowX !== 'visible';
+          let p = g;
+          while (p && !pans(p)) p = p.parentElement;
+          const x = (el) => el.getBoundingClientRect().x;
+          return {step: x(b) - x(a), scrolls: !!p,
+                  pane: p ? p.clientWidth : 0, wide: p ? p.scrollWidth : 0};
+        }"""
+    )
+    assert got["step"] >= 16 and got["scrolls"] and got["wide"] > got["pane"], got
+    # a click in bar 16: on the grid and in the loop
+    cell = '#transport input.cell[name="cell.A2.250"]'
+    page.locator(cell).scroll_into_view_if_needed()
+    clear_of_dock(page, cell)
+    page.locator(cell).click()
+    _wait(
+        page,
+        lambda: ["A2", 250] in loops.load(d, name)["lane"]["cells"],
+        "the edit saved",
+    )
+    lane = loops.load(d, name)["lane"]
+    assert lane["bars"] == 16 and ["E3", 252] in lane["cells"]
+    assert studio.unexplained() == []
+    page.goto("about:blank")  # (the 32 s loop's WAV: let its connection go)
