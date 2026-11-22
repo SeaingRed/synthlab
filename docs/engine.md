@@ -176,6 +176,34 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   crossover, now shared, and fx-worklet.js's drive shapes: <= 3.8e-8 of
   peak); lanes on the three amounts and the mix. No existing unit moved:
   no `RENDER_REV`.
+- **A unit's band** (`effects.band_apply` / `banded`, `"band"` on a rack
+  unit; `tests/test_effects_band.py`, `tests/studio/test_fx_band.py`):
+  any unit on part of the signal — `low`, `mid` or `high` (`ott_bands`,
+  the OTT's Linkwitz-Riley crossovers at 120 Hz / 2.5 kHz) or `ms_mid` /
+  `ms_side` (mid = (L + R) / 2, side = (L - R) / 2, exact) — the rest
+  passed and summed back. Not a unit: a wrapper `fxrack.build_chain` puts
+  round one whose `band` is set (absent = the whole signal, so no stored
+  chain or key moved). **The passed part is all-passed as the band is**
+  (the other two bands summed, as the multiband drive's dry): a unit that
+  leaves its band alone — at mix 0, say — gives the input through two
+  all-passes, flat to 1e-9 (measured 4e-14), its phase turned round the
+  splits, never the raw input (raw + an all-passed band would comb). On
+  mid or side the unit hears that channel on both sides and its two
+  outputs are averaged back to one (a stereo effect — width, a doubler's
+  spread, an auto-pan — meets one channel there); a mono input has no
+  side (`ms_side` passes it, `ms_mid` is the unit on it). The unit's
+  output is not filtered back into its band: a drive's harmonics on the
+  lows reach up, as the multiband drive's do. `wet=True` is the band's
+  output alone (a mixer return, `render._wet`: what it sends is the
+  effect, never level). Causal and silent in silence whenever the unit
+  is; **loop-safe for the time remaps**: a banded beat repeat or tape
+  stop commutes with `_wrap_tile`'s fold as an EQ before it would (the
+  crossovers LTI, the remap linear and periodic) — 4.5e-14 on a render
+  whose tail dies before the buffer's end. **Refused** (`fxrack.BANDLESS`,
+  in words): the limiter, whose lookahead is a delay that would land its
+  band late against the rest. Offline units (granular, shimmer,
+  compress, vinyl) band offline as they run. No existing unit moved: no
+  `RENDER_REV`.
 - `sequencer.py` — `Song`: beat-based multitrack timeline. `note_span()` is
   the one definition of how long a note's buffer is: its own length plus the
   patch's release (capped at `MAX_NOTE_TAIL`). It was a flat `dur * 1.15`

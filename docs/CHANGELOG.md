@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **A unit on part of the signal**: every rack unit but the limiter has a
+  band select on its head — full, lows, mids, highs (the OTT's
+  crossover) or mid / side. The unit works on that part; the rest passes
+  and is summed back in phase. Live on the keys wherever the unit is.
+  Nothing stored moves: a unit without a band is the unit it was.
 - **Two warps at once**: each oscillator's warp block gains a second
   warp, bending the phase the first made (PD then mirror, a bend then
   quantize...), band-limited as one warp is. Off by default, so no sound

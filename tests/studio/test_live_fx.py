@@ -62,6 +62,8 @@ eval(fs.readFileSync(process.argv[6], "utf8")); // eq-worklet.js: the same scope
 eval(fs.readFileSync(process.argv[3].replace("fx-worklet", "vox-worklet"), "utf8"));
 // fx2-worklet.js (the FX2 units): the same scope too
 eval(fs.readFileSync(process.argv[3].replace("fx-worklet", "fx2-worklet"), "utf8"));
+// band-worklet.js (a unit's band, the utility): the same scope too
+eval(fs.readFileSync(process.argv[3].replace("fx-worklet", "band-worklet"), "utf8"));
 const jobs = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
 const bin = fs.readFileSync(process.argv[5]);
 const hl = bin.readUInt32LE(0);
@@ -411,6 +413,36 @@ UNITS: dict[str, list[dict]] = {
         {"kind": "ott", "params": {"depth": 0.2, "time": 1.5}},
         {"kind": "limiter", "params": {"gain": 9.0}},
         {"kind": "autofilter", "params": {"env": 1.0, "sens": 12.0, "mode": 1.0}},
+    ],
+    # a unit's band (band-worklet.js): each band, a memoryless unit, a
+    # stateful one, a stereo one on one channel, a clocked one, the OTT on
+    # the side, and a stack with bands and none
+    "band_drive_low": [
+        {"kind": "drive", "params": {"amount": 6.0, "mix": 0.9}, "band": "low"}
+    ],
+    "band_delay_mid": [
+        {"kind": "delay", "params": {"time": 0.13, "mix": 0.5}, "band": "mid"}
+    ],
+    "band_eq_high": [{"kind": "eq", "params": {"high": 9.0}, "band": "high"}],
+    # (the note is mono: a doubler spreads it first, so the side has a signal)
+    "band_chorus_side": [
+        {"kind": "doubler", "params": {"spread": 1.0}},
+        {"kind": "chorus", "params": {"depth": 6.0, "mix": 0.8}, "band": "ms_side"},
+    ],
+    "band_doubler_mid": [{"kind": "doubler", "params": {}, "band": "ms_mid"}],
+    "band_pump_low": [
+        {"kind": "pump", "params": {"depth": 0.9, "beats": 0.5}, "band": "low"}
+    ],
+    "band_ott_side": [
+        {"kind": "doubler", "params": {"spread": 0.8, "time": 0.04}},
+        {"kind": "ott", "params": {"depth": 1.0}, "band": "ms_side"},
+    ],
+    "band_drive_mix0": [{"kind": "drive", "params": {"mix": 0.0}, "band": "high"}],
+    "band_stack": [
+        {"kind": "tape", "params": {"drive": 9.0}, "band": "low"},
+        {"kind": "chorus", "params": {}},
+        {"kind": "width", "params": {"amount": 2.0}, "band": "high"},
+        {"kind": "transient", "params": {"attack": 1.0}, "band": "ms_mid"},
     ],
     "stack": [
         {"kind": "drive", "params": {"amount": 2.0}},

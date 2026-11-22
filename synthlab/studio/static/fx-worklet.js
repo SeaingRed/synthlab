@@ -32,7 +32,9 @@
 // ping-pong, formant and frequency shifters, exciter, vocoder) are
 // fx2-worklet.js, a fourth module in this scope: `synthlabFx2`'s hooks
 // here (three lines, within the budget), `wander` handed out with the rest.
-// Budget: <= 310 code lines.
+// 310 -> 314: a unit's band (band-worklet.js, a fifth module in this scope:
+// its state on the unit, the run round the unit's own, its rest when culled).
+// Budget: <= 314 code lines.
 
 const TAU = 2 * Math.PI;
 const LOOK = 1 << 15; // history per channel: 0.68 s at 48 kHz (chorus/flanger read ~30 ms back)
@@ -79,6 +81,7 @@ const soft = (x, a) => (a > 0 ? Math.tanh(x * a) / Math.tanh(a) : x); // core.so
 globalThis.synthlabFx = { Hist, rbj, biq, panGains, wander }; // vox- and fx2-worklet.js's: their units run in this scope
 const vox = () => globalThis.synthlabVox; // the pitch shifter and the vocal units (vox-worklet.js)
 const fx2 = () => globalThis.synthlabFx2; // fx2-worklet.js's units
+const band = () => globalThis.synthlabBand; // a unit's band (band-worklet.js)
 
 class SynthlabFx extends AudioWorkletProcessor {
   constructor(options) {
@@ -152,6 +155,7 @@ class SynthlabFx extends AudioWorkletProcessor {
       s.f = [0, 1, 2, 3].map((j) => Object.assign(rbj("bandpass", u.centre, u.q, sr), old.f ? { z1: old.f[j].z1, z2: old.f[j].z2 } : {}));
       s.tail = 16384;
     } else if (u.kind === "eq") Object.assign(s, globalThis.synthlabEq.init(u, old, sr)); // eq-worklet.js
+    s.bs = u.band && band() ? band().init(u, old.bs, sr) : null; s.tail += s.bs?.tail || 0; // its band (null: the whole signal)
     return s;
   }
 
@@ -166,7 +170,7 @@ class SynthlabFx extends AudioWorkletProcessor {
     if (this.still - N <= this.tail) for (const s of this.units) this.run(s, L, R, N);
     else { // culled: silent in, every tail rung out; a pitch grain's splice in silence is none
       L.fill(0); R.fill(0);
-      for (const s of this.units) for (const m of [vox(), fx2()]) if (m?.kinds.has(s.u.kind)) m.quiet(s);
+      for (const s of this.units) { for (const m of [vox(), fx2()]) if (m?.kinds.has(s.u.kind)) m.quiet(s); if (s.bs) band().quiet(s.bs); }
     }
     this.n += N;
     this.ms += clock() - t0;
@@ -174,8 +178,9 @@ class SynthlabFx extends AudioWorkletProcessor {
     return !this.dead;
   }
 
-  // One unit over the block, in place.
-  run(s, L, R, N) {
+  // One unit over the block, in place: on its band (band-worklet.js), or the whole signal
+  run(s, L, R, N) { if (s.bs) band().run(s.bs, L, R, N, (l, r) => this.unit(s, l, r, N)); else this.unit(s, L, R, N); }
+  unit(s, L, R, N) {
     const u = s.u, sr = sampleRate, k = u.kind, n0 = this.n;
     if (k === "drive" || k === "fold" || k === "clip") { // effects.drive_shape / sine fold / _clip, blended
       const f = k === "drive" ? this.shape(u) : k === "clip" ? this.clipper(u) : (x) => Math.sin(x * u.amount * Math.PI) * 0.8;

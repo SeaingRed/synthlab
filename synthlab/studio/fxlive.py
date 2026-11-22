@@ -400,7 +400,8 @@ def live_chain(units, arr: Arrangement, drums: bool) -> list[dict]:
     plus what the browser needs to reach it — the reverb's IR URL, the
     clock of a pump (seconds per beat trigger) or of a sidechain (the kick
     hits inside the drum loop, none when the view renders no drums: the
-    loop's sidechain ducks on nothing then too, `render.chain_arr`)."""
+    loop's sidechain ducks on nothing then too, `render.chain_arr`) — and a
+    banded unit's band with the crossover it splits at (band-worklet.js)."""
     out: list[dict] = []
     for u in active(units):
         name, kw = resolve_unit(u, arr)
@@ -470,5 +471,7 @@ def live_chain(units, arr: Arrangement, drums: bool) -> list[dict]:
             # worklet repeats every hit each loop, so it ducked where no
             # kick sounds; a muted or soloed-out kick row leaves none
             unit["hits"] = sorted(s * step for s in kick_steps(arr)) if drums else []
+        if u.get("band"):  # its band (band-worklet.js): which, and the crossover
+            unit |= {"band": u["band"], "band_split": fx.OTT_SPLIT, "band_q": fx.OTT_Q}
         out.append(unit)
     return out

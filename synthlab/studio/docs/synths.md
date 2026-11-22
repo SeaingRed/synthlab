@@ -269,7 +269,7 @@ wider margins:
   tweak" (Ctrl+Z here, the reset menu's ↩ on every page that has one)
   takes it back as it takes back a knob of the sound. A knob's drag is
   one step (posts with one key inside `UNDO_COALESCE_S`); a press (a
-  preset, a step, the length, a rhythm: `fxrack.RACK_PRESSES`) is a step
+  preset, a step, the length, a rhythm, the power key, a band: `fxrack.RACK_PRESSES`) is a step
   of its own, and a patch tweak never joins an FX step. The ring is the
   edited slot's, so a master or drum-bus step pushed on layer 1 is undone
   from layer 1; a step is skipped outside the track edit it was taken in

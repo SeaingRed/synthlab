@@ -51,7 +51,9 @@
 // the `JS` set, fx2-worklet.js's too — no new line. So does the multiband drive.
 // 193 -> 194: a lane's own wavetable rides the
 // sampler's fetch (`sampler(l, url, "wtable")`) and holds `ready` the same way.
-// Budget: <= 194 code lines.
+// 194 -> 205: a unit's band (band-worklet.js, a fifth module in the FX scope:
+// a banded native unit between its split and its join, both disposed with it).
+// Budget: <= 205 code lines.
 
 (() => {
   "use strict";
@@ -138,7 +140,7 @@
   }
 
   // A chain's shape: which kinds, in order, grouped the way the graph is
-  const shape = (units) => units.map((u) => (JS.has(u.kind) ? "js" : u.kind)).join(">");
+  const shape = (units) => units.map((u) => (JS.has(u.kind) ? "js" : u.kind + (u.band ? `/${u.band}` : ""))).join(">");
   function runs(units) { // consecutive JS units share one worklet node
     const out = [];
     for (const u of units) {
@@ -150,8 +152,17 @@
   }
   const qdb = (q) => 20 * Math.log10(Math.max(q, 1e-4)); // RBJ Q -> Web Audio's dB
 
-  // One stage of a chain: {inp, out, set(units)}
+  // One stage of a chain: {inp, out, set(units)}; a banded native unit
+  // between a split and a join (band-worklet.js: its band in, the rest round it)
   function stage(run) {
+    const s = plain(run), u = run.units[0], node = (join) => new AudioWorkletNode(ctx, "synthlab-band", {
+      numberOfInputs: join ? 2 : 1, numberOfOutputs: join ? 1 : 2, outputChannelCount: join ? [2] : [2, 2], processorOptions: { unit: u, join } });
+    if (run.js || !u.band) return s;
+    const sp = node(false), jn = node(true);
+    sp.connect(s.inp, 0); s.out.connect(jn, 0, 0); sp.connect(jn, 1, 1);
+    return { inp: sp, out: jn, set: s.set, bands: [sp, jn] };
+  }
+  function plain(run) {
     const u = run.units[0];
     if (run.js) {
       const node = watch(new AudioWorkletNode(ctx, "synthlab-fx", { outputChannelCount: [2], processorOptions: { units: run.units } }));
@@ -187,6 +198,7 @@
   // A replaced worklet node: its processor is told to stop (process() returns
   // false), or it ran on with its port open for as long as the page lived
   const drop = (n) => { if (n) { n.port.postMessage({ type: "dispose" }); try { n.disconnect(); } catch {} } };
+  const dropStage = (s) => [s.fx, ...(s.bands || [])].forEach(drop);
 
   // A chain from `inp` to `out`, rebuilt only when its shape changes
   function chain(old, units, inp, out) {
@@ -194,7 +206,7 @@
       runs(units).forEach((r, i) => old.stages[i].set(r));
       return old;
     }
-    if (old) { try { inp.disconnect(); } catch {} old.stages.forEach((s) => { try { s.out.disconnect(); } catch {} drop(s.fx); }); }
+    if (old) { try { inp.disconnect(); } catch {} old.stages.forEach((s) => { try { s.out.disconnect(); } catch {} dropStage(s); }); }
     const stages = runs(units).map(stage);
     let cur = inp;
     for (const s of stages) { cur.connect(s.inp); cur = s.out; }
@@ -221,7 +233,7 @@
     stack = [...(p.heard === false ? [] : [{ ...p, layers: undefined, edited: true }]), ...(p.layers || [])];
     while (layers.length > stack.length) {
       const l = layers.pop();
-      drop(l.node); l.chain?.stages.forEach((s) => drop(s.fx));
+      drop(l.node); l.chain?.stages.forEach(dropStage);
       try { l.gain.disconnect(); } catch {}
     }
     stack.forEach((lp, i) => {
@@ -293,7 +305,8 @@
     ctx = S.getCtx();
     await Promise.all([ctx.audioWorklet.addModule("/static/voice-worklet.js"), ctx.audioWorklet.addModule("/static/sampler-worklet.js"), ctx.audioWorklet.addModule("/static/grain-worklet.js"),
       ctx.audioWorklet.addModule("/static/fx-worklet.js"), ctx.audioWorklet.addModule("/static/eq-worklet.js"),
-      ctx.audioWorklet.addModule("/static/vox-worklet.js"), ctx.audioWorklet.addModule("/static/fx2-worklet.js"), loadTables(p?.tables), loadWasm()]);
+      ctx.audioWorklet.addModule("/static/vox-worklet.js"), ctx.audioWorklet.addModule("/static/fx2-worklet.js"),
+      ctx.audioWorklet.addModule("/static/band-worklet.js"), loadTables(p?.tables), loadWasm()]);
     masterIn ??= ctx.createGain();
     setStack(p);
     return { port: { postMessage: post } };

@@ -2022,8 +2022,40 @@ def clean_chain(units) -> list[dict]:
         # chain with every unit on is stored, and keyed, as it always was
         if u.get("off") is True:
             unit["off"] = True
+        # the part of the signal it works on (`effects.band_apply`): kept
+        # only when set, one of the five and a unit that may have one, so a
+        # chain with none is stored, and keyed, as it always was
+        if band_ok(kind, u.get("band")):
+            unit["band"] = u["band"]
         out.append(unit)
     return out[:MAX_UNITS]
+
+
+# A unit's band (`"band"` on the unit, `effects.BANDS`): absent, the whole
+# signal. Labels for the rack's select, in its order.
+BAND_LABELS = {
+    "": "full",
+    "low": "lows",
+    "mid": "mids",
+    "high": "highs",
+    "ms_mid": "mid",
+    "ms_side": "side",
+}
+assert tuple(BAND_LABELS)[1:] == fx.BANDS
+# the units a band is refused for, and why (a toast says it). The limiter's
+# lookahead is a delay (its latency, live and in the loop): on one band it
+# would slide that band behind the rest, so it limits the whole signal or
+# nothing
+BANDLESS = {
+    "limiter": "A limiter delays what it limits by its lookahead: on one band "
+    "that band would land late against the rest. It works on the whole signal."
+}
+
+
+def band_ok(kind, band) -> bool:
+    """Whether a unit of `kind` keeps `band`: one of `effects.BANDS`, on a
+    unit that is not `BANDLESS`."""
+    return isinstance(band, str) and band in fx.BANDS and kind not in BANDLESS
 
 
 def active(units) -> list[dict]:
@@ -2042,7 +2074,7 @@ def active(units) -> list[dict]:
 RACK_OPS = ("add", "remove", "move", "set")
 # a set's names that are a press, not a value dragged: each its own undo
 # step (`mixer.edit_rack` gives them no key to join on)
-RACK_PRESSES = ("recall", "step", "steps", "preset", "on")
+RACK_PRESSES = ("recall", "step", "steps", "preset", "on", "band")
 
 
 class RackError(ValueError):
@@ -2083,6 +2115,16 @@ def _set_unit(unit: dict, name: str, value) -> None:
             unit["off"] = True
         else:
             unit.pop("off", None)
+    elif name == "band":  # "" / "full": the whole signal again
+        band = str(value).strip()
+        if band in ("", "full"):
+            unit.pop("band", None)
+        elif band not in fx.BANDS:
+            raise RackError("No such band.")
+        elif unit["kind"] in BANDLESS:
+            raise RackError(BANDLESS[unit["kind"]])
+        else:
+            unit["band"] = band
     elif name == "pattern" and "pattern" in spec:
         unit["pattern"] = str(value)
     elif name in ("step", "steps") and "pattern" in spec:
@@ -2147,6 +2189,8 @@ def edit_chain(units, op: str, values) -> tuple[list[dict], str, int | None]:
         label = FX_UNITS[chain[at]["kind"]]["label"]
         if name == "on":
             said = f"{label} {'bypassed' if chain[at].get('off') else 'on'}"
+        elif name == "band":
+            said = f"{label} on {BAND_LABELS[chain[at].get('band', '')]}"
         else:
             said = f"{label}: {value}" if name == "recall" else f"{label} {name}"
     else:
@@ -2160,8 +2204,10 @@ def rack_rows(units) -> list[dict]:
     numbered when the chain holds two of its kind), its parameters (a dict
     each: name, lo, hi, default, value, and `choices`, the labels, for one
     that is a choice), its pattern string when it has one, whether it is
-    `on` (not bypassed), its ★ presets' names, a gate's rhythms `(key,
-    label, pattern)`, and whether it is the first or the last."""
+    `on` (not bypassed), its band ("" the whole signal) and the bands it
+    may take `(key, label)` (none for a `BANDLESS` unit), its ★ presets'
+    names, a gate's rhythms `(key, label, pattern)`, and whether it is the
+    first or the last."""
     chain = clean_chain(list(units or []))
     count: dict[str, int] = {}
     rows = []
@@ -2191,6 +2237,9 @@ def rack_rows(units) -> list[dict]:
                 ],
                 "pattern": u.get("pattern"),
                 "on": not u.get("off"),
+                # its band ("" the whole signal) and whether it may have one
+                "band": u.get("band", ""),
+                "bands": [] if u["kind"] in BANDLESS else list(BAND_LABELS.items()),
                 "presets": list(FX_PRESETS.get(u["kind"], {})),
                 "rhythms": (
                     [(k, g["label"], g["pattern"]) for k, g in GATE_PATTERNS.items()]
@@ -2307,17 +2356,21 @@ def build_chain(
     arr: Arrangement,
     *,
     span: float = 0.0,
+    wet: bool = False,
 ) -> list:
     """Stored chain -> effects.chain() callables. bpm-aware units (gate,
     sidechain) read timing from the arrangement. `span` is how many
     seconds the chain will run over, so the clocked triggers (sidechain,
     pump) reach its end (a song section's cycle and tail); the default
     leaves a loop's chain exactly as it was. A bypassed unit (`off`) is
-    not built: the signal passes it by."""
+    not built: the signal passes it by. A unit with a `band` is built
+    round it (`effects.banded`; `wet`: its band's output alone, a mixer
+    return's, the rest not passed)."""
     chain: list = []
     for u in active(units):
         name, kw = unit_args(u, arr, span)
-        chain.append(getattr(fx, name)(**kw))
+        f = getattr(fx, name)(**kw)
+        chain.append(fx.banded(f, u["band"], wet) if u.get("band") else f)
     return chain
 
 

@@ -3224,3 +3224,66 @@ def _mbdrive(x, low=1.0, mid=1.0, high=1.0, mode="soft", mix=1.0, sr=SR):
 
 def mbdrive(low=1.0, mid=1.0, high=1.0, mode="soft", mix=1.0):
     return partial(_mbdrive, low=low, mid=mid, high=high, mode=mode, mix=mix)
+
+
+# ----------------------------------------------------------------------------
+# a unit's band — any rack unit on part of the signal: the lows, mids or highs
+# (the OTT's crossover, `ott_bands`) or the mid or side channel. The other
+# part passes and is summed back. Not a unit: a wrapper round one
+# (`fxrack.build_chain` puts it round a unit whose `band` is set).
+# ----------------------------------------------------------------------------
+
+BANDS = ("low", "mid", "high", "ms_mid", "ms_side")
+_FREQ_BANDS = BANDS[:3]
+
+
+def band_apply(x, band, fn, wet=False, sr=SR):
+    """`fn` (a unit: mono or stereo in, the same shape out) on one band of
+    `x`, the rest passed and summed back in phase with it.
+
+    "low" / "mid" / "high": `ott_bands`' three bands (Linkwitz-Riley at
+    `OTT_SPLIT`), `fn` on its band, the other two summed onto its output.
+    The bands sum to the input through two all-passes, so the part that
+    passes is all-passed as the band is: a unit that leaves its band as it
+    is (at mix 0, say) gives the all-passed input — flat in level, its
+    phase turned round 120 Hz and 2.5 kHz — never the raw input, whose sum
+    with an all-passed band would comb. "ms_mid" / "ms_side": mid = (L +
+    R) / 2, side = (L - R) / 2, exact (no filter); `fn` hears its channel
+    on both sides and its two outputs are averaged back to one, L = mid +
+    side and R = mid - side after. A mono input has no side: "ms_mid" is
+    `fn` on it, "ms_side" leaves it as it is.
+
+    `wet`: the band's output alone (a mixer return: what it sends is the
+    effect, never level) — "ms_mid" as (y, y), "ms_side" as (y, -y). An
+    unknown band is the whole signal."""
+    x = np.asarray(x)
+    if band not in BANDS or len(x) == 0:
+        return fn(x)
+    if band in _FREQ_BANDS:
+        parts = ott_bands(x, sr)
+        i = _FREQ_BANDS.index(band)
+        y = np.asarray(fn(parts[i]))
+        if wet:
+            return y
+        a, b = (parts[j] for j in range(3) if j != i)
+        return y + (a + b)
+    if not is_stereo(x) and band == "ms_side":  # no side to work on
+        return np.zeros_like(x, dtype=np.float64) if wet else x
+    st = to_stereo(x)
+    mid = (st[:, 0] + st[:, 1]) * 0.5
+    side = (st[:, 0] - st[:, 1]) * 0.5
+    own = mid if band == "ms_mid" else side
+    y = to_stereo(np.asarray(fn(np.column_stack([own, own])))).mean(axis=1)
+    if wet:
+        res = np.column_stack([y, y if band == "ms_mid" else -y])
+    elif band == "ms_mid":
+        res = np.column_stack([y + side, y + -side])
+    else:
+        res = np.column_stack([mid + y, mid + -y])
+    return res if is_stereo(x) else res.mean(axis=1)
+
+
+def banded(effect, band, wet=False):
+    """`effect` (a prepared unit) on `band` of whatever it is handed
+    (`band_apply`)."""
+    return partial(band_apply, band=band, fn=effect, wet=wet)

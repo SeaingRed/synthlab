@@ -464,6 +464,42 @@ bit for bit in every mode. **Cost**: 0.003 CPU s per s of stereo noise
 in NumPy (nine biquads a channel and three shapes); live, 18 biquads and
 up to six shapes a sample; not measured in a browser.
 
+### A unit's band
+
+**A unit's band** (`"band"` on any rack unit but the limiter:
+`docs/engine.md`, "A unit's band"; `tests/studio/test_fx_band.py`,
+`test_live_fx.py`'s `band_*` cases) is live wherever its unit is. Its
+twin is `static/band-worklet.js`, a fifth module in the FX worklet's
+scope (`synthlabBand`; fx-worklet.js and fx2-worklet.js are full), on
+the OTT's crossover (fx2-worklet.js's `crossover` / `split`, now handed
+out): `fxlive.live_chain` sends the band with the crossover
+(`band_split`, `band_q`).
+
+- **A unit fx-worklet.js runs** (the "js" and "clock" ones): the
+  processor's `run` splits each sample into the band and the rest (two
+  buffers of their own), runs the unit's own code on the band in place,
+  and sums the two back — `effects.band_apply`'s arithmetic, the rest the
+  other two bands summed (or the other channel). Its crossover's state
+  is the unit's (`s.bs`), kept through a slider drag, at rest when the
+  node is culled, and its ring counts in the unit's tail.
+- **A native unit** (reverb, plate, spring, lowpass, highpass — a Web
+  Audio node): livefx.js builds it between two `synthlab-band` nodes, the
+  first splitting (output 0 the band, into the node; output 1 the rest),
+  the second joining (input 0 the node's output, input 1 the rest: on mid
+  or side the node's two channels averaged, as the engine averages the
+  unit's). The chain's `shape` names a native unit's band, so a band
+  changed rebuilds it; both nodes are disposed with it.
+
+**Measured**: nine banded cases on the synth note (each band; a drive, a
+delay, an EQ, a chorus and an OTT on the side of a doubled note, a
+doubler on the mid, a pump on the lows, a drive at mix 0 on the highs, a
+stack of four with bands and none) **<= 2.0e-7 of peak** (the OTT on the
+side; the rest <= 7.5e-8), 1/3-octave bands 0.000 dB; the split and
+join round a stand-in for a native node (each channel its own gain),
+every band, <= 7.7e-8 (float32 between the nodes). A banded unit is
+"offline" exactly when its unit is: granular, shimmer, compress, vinyl,
+beat repeat and the tape stop stay offline on any band.
+
 ## Hard sync, FM4, wavetables and drift
 
 Hard sync, the 4-operator FM shape, eight more wavetables and analog drift

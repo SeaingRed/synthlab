@@ -814,6 +814,12 @@ were drawn on, so they play the values they did.
   untouched). The drawer's menu names an id-less unit by its place
   (`fx:@<index>:<kind>:<param>`), a form that only travels from the menu
   to the route and is never stored.
+- **A banded unit** (`"band"` on the unit, `docs/engine.md`, "A unit's
+  band"): its lanes are the same unit with its slider moving, on its band
+  — `fxauto._unit` runs the unit, arrays and all, inside
+  `effects.band_apply`, so a still lane is the banded unit bit for bit
+  and a moving mix is `dry * (1 - mix) + wet * mix` inside the band
+  (`tests/studio/test_fx_band.py`).
 - **Missing units.** A lane whose unit is no longer in the chain (or
   whose id now sits on a unit of another kind) is kept in the song and
   read by nothing: `sm.section_lanes` leaves it out, so the section's
@@ -1001,7 +1007,11 @@ edit is a `_commit` (one undo step, saved, `song-changed`).
   `{id, name, fx, gain}`. The defaults are `mixer.DEFAULT_RETURNS`: "A
   Reverb" (decay 2.4 s) and "B Delay" (a dotted eighth on the tempo,
   ping-pong, feedback 0.4). The return's strip has its fader and its first
-  unit's parameters — never its `mix`: a return renders fully wet.
+  unit's parameters — never its `mix`: a return renders fully wet. A
+  return unit with a `band` (stored by hand or a project: the strip draws
+  no band select) sends its band's output alone (`render._wet`,
+  `build_chain(wet=True)`) — the rest of the send is not passed into the
+  return, and a banded delay's undelayed term is its band's, taken out.
   Removing one drops every send to it: its ✕ asks first, and the toast
   names the return and the sends that went (one undo step).
 - **The keyboard**: every control is a Tab stop, in the strip's order,

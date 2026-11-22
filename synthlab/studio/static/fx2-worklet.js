@@ -258,5 +258,5 @@
     if (s.u.kind === "limiter") { s.q.len = 0; s.sm = 1; s.box.fill(1); s.sum = s.w + 1; s.d.forEach((v) => v.fill(0)); }
   }
 
-  globalThis.synthlabFx2 = { kinds, init, run, quiet };
+  globalThis.synthlabFx2 = { kinds, init, run, quiet, crossover, split, allpass }; // the last three: band-worklet.js's too
 })();
