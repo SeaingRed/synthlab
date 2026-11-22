@@ -173,7 +173,14 @@
     "grain_pitch_spray": 0.0,
     "grain_shape": 0.0,
     "grain_dir": "forward",
-    "grain_scan": 0.0
+    "grain_scan": 0.0,
+    "osc3": "saw",
+    "osc3_level": 0.0,
+    "osc3_octave": 0,
+    "osc3_semi": 0,
+    "osc3_detune": 0.0,
+    "osc3_warp": "off",
+    "osc3_warp_amt": 0.0
   },
   "arrangement": {
     "bpm": 124.0,
@@ -442,7 +449,14 @@
     "grain_pitch_spray": 0.0,
     "grain_shape": 0.0,
     "grain_dir": "forward",
-    "grain_scan": 0.0
+    "grain_scan": 0.0,
+    "osc3": "saw",
+    "osc3_level": 0.0,
+    "osc3_octave": 0,
+    "osc3_semi": 0,
+    "osc3_detune": 0.0,
+    "osc3_warp": "off",
+    "osc3_warp_amt": 0.0
   },
   "slot_b": {
     "name": "b",
@@ -617,7 +631,14 @@
     "grain_pitch_spray": 0.0,
     "grain_shape": 0.0,
     "grain_dir": "forward",
-    "grain_scan": 0.0
+    "grain_scan": 0.0,
+    "osc3": "saw",
+    "osc3_level": 0.0,
+    "osc3_octave": 0,
+    "osc3_semi": 0,
+    "osc3_detune": 0.0,
+    "osc3_warp": "off",
+    "osc3_warp_amt": 0.0
   },
   "slot_prev": {
     "name": "dark",
@@ -792,7 +813,14 @@
     "grain_pitch_spray": 0.0,
     "grain_shape": 0.0,
     "grain_dir": "forward",
-    "grain_scan": 0.0
+    "grain_scan": 0.0,
+    "osc3": "saw",
+    "osc3_level": 0.0,
+    "osc3_octave": 0,
+    "osc3_semi": 0,
+    "osc3_detune": 0.0,
+    "osc3_warp": "off",
+    "osc3_warp_amt": 0.0
   },
   "curves": {
     "cutoff": [
@@ -1018,7 +1046,14 @@
           "grain_pitch_spray": 0.0,
           "grain_shape": 0.0,
           "grain_dir": "forward",
-          "grain_scan": 0.0
+          "grain_scan": 0.0,
+          "osc3": "saw",
+          "osc3_level": 0.0,
+          "osc3_octave": 0,
+          "osc3_semi": 0,
+          "osc3_detune": 0.0,
+          "osc3_warp": "off",
+          "osc3_warp_amt": 0.0
         },
         "curves": {
           "cutoff": [
@@ -1403,7 +1438,14 @@
         "grain_pitch_spray": 0.0,
         "grain_shape": 0.0,
         "grain_dir": "forward",
-        "grain_scan": 0.0
+        "grain_scan": 0.0,
+        "osc3": "saw",
+        "osc3_level": 0.0,
+        "osc3_octave": 0,
+        "osc3_semi": 0,
+        "osc3_detune": 0.0,
+        "osc3_warp": "off",
+        "osc3_warp_amt": 0.0
       },
       "cells": [
         [
@@ -1640,7 +1682,14 @@
         "grain_pitch_spray": 0.0,
         "grain_shape": 0.0,
         "grain_dir": "forward",
-        "grain_scan": 0.0
+        "grain_scan": 0.0,
+        "osc3": "saw",
+        "osc3_level": 0.0,
+        "osc3_octave": 0,
+        "osc3_semi": 0,
+        "osc3_detune": 0.0,
+        "osc3_warp": "off",
+        "osc3_warp_amt": 0.0
       },
       "cells": [],
       "muted": false,
@@ -1853,7 +1902,14 @@
         "grain_pitch_spray": 0.0,
         "grain_shape": 0.0,
         "grain_dir": "forward",
-        "grain_scan": 0.0
+        "grain_scan": 0.0,
+        "osc3": "saw",
+        "osc3_level": 0.0,
+        "osc3_octave": 0,
+        "osc3_semi": 0,
+        "osc3_detune": 0.0,
+        "osc3_warp": "off",
+        "osc3_warp_amt": 0.0
       },
       "cells": [],
       "muted": false,
@@ -2053,7 +2109,14 @@
           "grain_pitch_spray": 0.0,
           "grain_shape": 0.0,
           "grain_dir": "forward",
-          "grain_scan": 0.0
+          "grain_scan": 0.0,
+          "osc3": "saw",
+          "osc3_level": 0.0,
+          "osc3_octave": 0,
+          "osc3_semi": 0,
+          "osc3_detune": 0.0,
+          "osc3_warp": "off",
+          "osc3_warp_amt": 0.0
         },
         "cells": [
           [
@@ -2278,7 +2341,14 @@
           "grain_pitch_spray": 0.0,
           "grain_shape": 0.0,
           "grain_dir": "forward",
-          "grain_scan": 0.0
+          "grain_scan": 0.0,
+          "osc3": "saw",
+          "osc3_level": 0.0,
+          "osc3_octave": 0,
+          "osc3_semi": 0,
+          "osc3_detune": 0.0,
+          "osc3_warp": "off",
+          "osc3_warp_amt": 0.0
         },
         "cells": [],
         "muted": false,
@@ -2480,7 +2550,14 @@
           "grain_pitch_spray": 0.0,
           "grain_shape": 0.0,
           "grain_dir": "forward",
-          "grain_scan": 0.0
+          "grain_scan": 0.0,
+          "osc3": "saw",
+          "osc3_level": 0.0,
+          "osc3_octave": 0,
+          "osc3_semi": 0,
+          "osc3_detune": 0.0,
+          "osc3_warp": "off",
+          "osc3_warp_amt": 0.0
         },
         "cells": [],
         "muted": true,
@@ -2746,7 +2823,14 @@
           "grain_pitch_spray": 0.0,
           "grain_shape": 0.0,
           "grain_dir": "forward",
-          "grain_scan": 0.0
+          "grain_scan": 0.0,
+          "osc3": "saw",
+          "osc3_level": 0.0,
+          "osc3_octave": 0,
+          "osc3_semi": 0,
+          "osc3_detune": 0.0,
+          "osc3_warp": "off",
+          "osc3_warp_amt": 0.0
         },
         "curves": {
           "cutoff": [
@@ -2961,7 +3045,14 @@
           "grain_pitch_spray": 0.0,
           "grain_shape": 0.0,
           "grain_dir": "forward",
-          "grain_scan": 0.0
+          "grain_scan": 0.0,
+          "osc3": "saw",
+          "osc3_level": 0.0,
+          "osc3_octave": 0,
+          "osc3_semi": 0,
+          "osc3_detune": 0.0,
+          "osc3_warp": "off",
+          "osc3_warp_amt": 0.0
         },
         "curves": {
           "cutoff": [
@@ -3157,7 +3248,14 @@
           "grain_pitch_spray": 0.0,
           "grain_shape": 0.0,
           "grain_dir": "forward",
-          "grain_scan": 0.0
+          "grain_scan": 0.0,
+          "osc3": "saw",
+          "osc3_level": 0.0,
+          "osc3_octave": 0,
+          "osc3_semi": 0,
+          "osc3_detune": 0.0,
+          "osc3_warp": "off",
+          "osc3_warp_amt": 0.0
         },
         "curves": {
           "cutoff": [
