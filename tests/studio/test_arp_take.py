@@ -134,9 +134,9 @@ def test_a_1_8t_arp_take_lands_on_12_steps_with_every_note_on_a_line(client):
 def test_the_owners_take_the_arp_counted_from_each_press():
     """The owner's take (2026-11-22, an arp at 1/8T over three octaves with
     nothing playing): the keys arp counted its steps from each press, not
-    from the take's bars, so no grid holds its notes; the sixteenths miss
-    by up to half a step, and the pick goes to the rate nearest them. A take
-    from silence now counts from its own bars (keyrec.js S.keyRecGrid)."""
+    from the take's bars, so no grid holds its notes on its lines and it
+    stays on the sixteenths. A take from silence now counts from its own
+    bars (keyrec.js S.keyRecGrid), and lands on 12."""
     owner = [  # its first notes (beats from the take's downbeat, 100 bpm)
         [1.252, 0.333, 98, 1.0],
         [1.635, 0.333, 74, 1.0],
@@ -145,10 +145,13 @@ def test_the_owners_take_the_arp_counted_from_each_press():
         [3.918, 0.333, 74, 1.0],
         [4.202, 0.333, 86, 1.0],
     ]
-    picked = loops.pick_steps(owner, "4/4", 100.0)
-    worst = max(abs(x) for x in loops.offsets_ms(owner, "4/4", picked, 100.0))
-    sixteenths = max(abs(x) for x in loops.offsets_ms(owner, "4/4", 16, 100.0))
-    assert worst < sixteenths
+    # no rate holds its notes on its lines: the sixteenths, as before
+    assert loops.pick_steps(owner, "4/4", 100.0) == 16
+    # the same arp counted from the take's bars: 12 a bar
+    on_bars = [
+        [round(k / 3 + (0.05 if k % 2 else 0), 3), 0.333, 74, 1.0] for k in range(24)
+    ]
+    assert loops.pick_steps(on_bars, "4/4", 100.0) == 12
 
 
 def test_a_triplet_grid_holds_its_lines_through_the_tools():

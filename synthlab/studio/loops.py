@@ -94,6 +94,12 @@ GRID_BARS = limits.LOOP_BAR_CHOICES  # a placed take's grid: the note grid's own
 # lines its note starts sit on within this much a note (ms, on average)
 # are a tie, and the first in the order of preference takes it
 PICK_TIE_MS = 6.0
+# ... and a rate other than the sixteenths must hold the notes ON its lines:
+# their mean |offset| at most this share of its step (notes on no grid sit
+# a quarter of a step off any rate's lines on average — a finer rate always
+# "fits" them better in milliseconds, and would win every loosely played
+# take). 0.1 keeps an arp's swing up to 20 % (its odd notes that far late)
+PICK_ON_LINES = 0.1
 
 
 def loop_dir(data_dir: Path) -> Path:
@@ -284,15 +290,20 @@ def pick_steps(notes, meter: str, bpm: float) -> int:
     the one whose lines its note starts sit on best — the least total
     |offset| in milliseconds (`offsets_ms`) — where a rate within
     `PICK_TIE_MS` a note of the best is a tie the first in the order
-    takes. A 1/8T arp lands on 12 a bar (its notes on the lines but for
-    its swing), a riff of sixteenths on 16, a 1/16T roll on 24; no notes,
-    the sixteenths."""
+    takes; a rate other than the sixteenths only when the notes sit on its
+    lines (`PICK_ON_LINES`). A 1/8T arp lands on 12 a bar (its notes on the
+    lines but for its swing), a riff of sixteenths on 16, a 1/16T roll on
+    24; a take on no grid, or no notes, the sixteenths."""
     order = pick_order(meter)
     starts = [n for n in notes if float(n[0]) >= 0]
     if not starts:
         return order[0]
     cost = {n: sum(abs(x) for x in offsets_ms(starts, meter, n, bpm)) for n in order}
-    best = min(cost.values())
+    step_ms = {n: _meter.bar_beats(meter) / n * 60000.0 / float(bpm) for n in order}
+    order = [order[0]] + [
+        n for n in order[1:] if cost[n] / len(starts) <= PICK_ON_LINES * step_ms[n]
+    ]
+    best = min(cost[n] for n in order)
     tie = best + PICK_TIE_MS * len(starts)
     return next(n for n in order if cost[n] <= tie + 1e-9)
 

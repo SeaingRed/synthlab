@@ -1174,10 +1174,14 @@ STARTS sit on best — the least total |offset| in milliseconds at its tempo
 (every grid before; they hold every 1/8 and 1/4 line, so nothing coarser is
 offered), then its triplets coarsest first, then 1/32. A rate within
 `PICK_TIE_MS` (6 ms) a note of the best is a tie, and the first in that
-order takes it: a 1/8T arp lands on 12 steps a bar with its notes on the
-lines (but for its swing: the odd steps late, as the arp played them), a
-1/16T roll on 24, a riff of sixteenths played loosely on 16, quarter-note
-chords on 16. The rate is said in the take's toast ("on 1/8T (12 a bar)":
+order takes it — and a rate other than the sixteenths only when the notes
+sit ON its lines (`PICK_ON_LINES`: their mean |offset| at most 0.1 of its
+step; notes on no grid sit a quarter of a step off any rate's lines, so a
+finer rate always "fits" them better in milliseconds and would take every
+loosely played take). A 1/8T arp lands on 12 steps a bar with its notes on
+the lines (but for its swing, up to 20 %: the odd steps late, as the arp
+played them), a 1/16T roll on 24, a riff of sixteenths played loosely on
+16, quarter-note chords on 16, a take on no grid on 16. The rate is said in the take's toast ("on 1/8T (12 a bar)":
 `X-Loop-Rate`, keyrec.js; the rest-of-the-take toast says it too). A loop
 keeps its rate from then on: Q, the length question and Edit place at the
 loop's own (`/loop/length` at `lane.steps_per_bar`), and nothing saved
@@ -1185,10 +1189,11 @@ moved (no loop file, key or `RENDER_REV`). **The owner's take**
 (2026-11-22, 1/8T over three octaves, 100 bpm, nothing playing) re-placed:
 the arp had counted from each press, not from the take's bars (0.25 beat
 off the take's triplet lines, a different phase each press), so no grid
-holds it — it picks 1/32, mean 17.0 ms, worst 31.2 ms off its lines (on
-1/16: mean 37.1, worst 70.8; on 1/8T: mean 58.4, worst 79.2). A take from
-silence now counts the arp from its own bars (keys-and-midi.md, "The keys
-arp"), which lands such a take on 12 a bar.
+holds it on its lines: it stays on 1/16, mean 37.1 ms, worst 70.8 ms off
+them (1/32: mean 17.0, worst 31.2 — a quarter of its step, as notes on no
+grid are; 1/8T: mean 58.4, worst 79.2). A take from silence now counts the
+arp from its own bars (keys-and-midi.md, "The keys arp"), which lands such
+a take on 12 a bar, every note on a line.
 
 One starting where its row still sounds is a cut; a step's velocity is the
 loudest note starting there — the MIDI import's write
