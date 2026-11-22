@@ -201,6 +201,13 @@ SYNC_DIVISIONS: dict[str, float] = {
     "1/8T": 1.0 / 3.0,
 }
 SYNC_CHOICES = tuple(SYNC_DIVISIONS)
+# the envelope stage times that may be given as a sync division instead of
+# seconds (each one's `<time>_sync` field; synth.at_bpm resolves them)
+ENV_SYNC_TIMES = tuple(
+    f"{env}_{stage}"
+    for env in ("filter", "env3", "env4")
+    for stage in ("attack", "decay", "release")
+)
 
 OSC1_SHAPES = (
     "sine",
@@ -846,6 +853,9 @@ _ALL: list[Param] = [
             _p(f"lfo{k}_draw", "meta"),
         )
     ],
+    # an envelope stage's time as a sync division ("off": its seconds),
+    # appended as one run: the filter envelope's and envelopes 3 / 4's
+    *[_r6(f"{t}_sync", "cat", SYNC_CHOICES) for t in ENV_SYNC_TIMES],
 ]
 
 PARAMS: dict[str, Param] = {p.name: p for p in _ALL}

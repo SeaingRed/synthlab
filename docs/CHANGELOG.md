@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Tempo-synced envelopes**: the filter envelope's and envelopes 3 and
+  4's attack, decay and release can each be a beat division (1/16, 1/4,
+  a bar...) instead of seconds, following the tempo — in the loop and on
+  the live keys alike.
 - **LFOs to 1000 Hz**: the general LFOs' rates reach audio rate — FM and
   AM on the pitch, levels and other per-sample targets (a filter target
   reads it once a 64-sample block). Live on the keys for every shape but

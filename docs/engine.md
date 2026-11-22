@@ -852,6 +852,22 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   Cost, a 10 s note at 1 kHz (i9): the flows 136 / 228 ms the first
   time (Lorenz / Rössler: a Python RK4 loop, then cached), 13 ms after;
   chaos 12, smooth 17, stepped 6, drawn 8, sine 1.
+  **Envelope stages as sync divisions** (Patch `<time>_sync` for each of
+  `params.ENV_SYNC_TIMES` — the filter envelope's, envelope 3's and 4's
+  attack, decay and release: 9 fields, `SYNC_CHOICES`, "off" by
+  default, appended): `synth.at_bpm` writes a division's seconds (beats x
+  60 / bpm) into the time field just before rendering — the call LFO sync
+  already rides, so every place that resolves a synced LFO (the loop's
+  `build_song` / `arrange`, a key's `/note`, `/patch.json`, the lanes'
+  `key_voices`, genome, recipes) resolves these with it and a live key
+  plays the loop's seconds. Sustain is a level, not a time; the amp
+  envelope keeps seconds (its release is what lands a note: a release
+  that moved with the tempo would move every note's tail). Off, `at_bpm`
+  is the no-op it was (it returns the patch itself) and the fields are
+  `KEY_ADDED_FIELDS` entries: no older key moves. Live: the worklet
+  reads the resolved seconds as it reads any time (parity case
+  `env_sync`, 0.00 dB); a drag on a synced time is dead there, as a
+  synced LFO's rate is. The agent does not set them.
 - **More filter types and filter 2** (`core.filt`, `params.FILTER_TYPES_ALL`
   appended after the six, so saved indexes stand; the gene keeps the six):
   `lowpass24` / `highpass24` (two SVFs, Butterworth at 0, the second's q

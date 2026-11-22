@@ -1,5 +1,6 @@
 """More modulation: a route's switch and the curve on its source, two
-chaotic flows as LFO shapes, LFOs 4-6.
+chaotic flows as LFO shapes, LFOs 4-6 and their rates to 1000 Hz, envelope
+stages as sync divisions.
 
 Each is opt-in — a route "on" with its curve at 0 is the route as it always
 was, so a patch that leaves them at their defaults renders bit for bit as
@@ -19,11 +20,13 @@ from synthlab import core
 from synthlab import synth as synth_mod
 from synthlab.core import SR
 from synthlab.params import (
+    ENV_SYNC_TIMES,
     GENERAL_LFO_SHAPES,
     GENERAL_LFOS,
     MOD_SLOTS,
     MOD_SOURCES,
     PARAMS,
+    SYNC_CHOICES,
     clamp,
     live,
     slot_active,
@@ -311,3 +314,50 @@ def test_a_fast_stepped_lfo_keeps_the_keys_on_the_wav():
     assert worklet_blockers(off) == []
     one = Patch(lfo_shape="noise", mod_lfo_rate=200.0, mod2_src="lfo", mod2_amt=0.3)
     assert worklet_blockers(one) == ["mod_lfo_rate"]
+
+
+# --- envelope stages as sync divisions ------------------------------------------
+
+ENV_SYNC = [f"{t}_sync" for t in ENV_SYNC_TIMES]
+
+
+def test_the_envelope_syncs_are_appended_hand_made_and_out_of_older_keys():
+    from synthlab.studio.render import KEY_ADDED_FIELDS, keyed_patch
+
+    assert ENV_SYNC_TIMES == tuple(
+        f"{e}_{t}"
+        for e in ("filter", "env3", "env4")
+        for t in ("attack", "decay", "release")
+    )
+    names = list(PARAMS)
+    at = names.index(ENV_SYNC[0])
+    assert names[at : at + len(ENV_SYNC)] == ENV_SYNC
+    assert at > names.index("lfo6_draw")
+    for name in ENV_SYNC:
+        assert PARAMS[name].gene is None and PARAMS[name].cap == SYNC_CHOICES
+        assert KEY_ADDED_FIELDS[name] == "off" == getattr(Patch(), name)
+    assert not set(ENV_SYNC) & set(keyed_patch(Patch()))
+    # off everywhere: at_bpm hands the patch back untouched
+    p = Patch(filter_attack=0.3)
+    assert synth_mod.at_bpm(p, 97.0) is p
+
+
+@pytest.mark.parametrize("bpm", [90.0, 128.0])
+def test_a_synced_stage_is_its_division_at_the_tempo(bpm):
+    p = Patch(
+        filter_attack_sync="1/16",
+        env3_decay_sync="1/4.",
+        env4_release_sync="1 bar",
+        filter_decay=0.7,  # unsynced: kept
+    )
+    q = synth_mod.at_bpm(p, bpm)
+    beat = 60.0 / bpm
+    assert q.filter_attack == pytest.approx(0.25 * beat)
+    assert q.env3_decay == pytest.approx(1.5 * beat)
+    assert q.env4_release == pytest.approx(4.0 * beat)
+    assert q.filter_decay == 0.7
+    # what renders is the resolved envelope: the filter opens over a 1/16
+    flt = Patch(filter_env=6000.0, cutoff=200.0, filter_sustain=1.0, filter_attack=2.0)
+    synced = synth_mod.at_bpm(flt.tweak(filter_attack_sync="1/16"), bpm)
+    env = synth_mod._filter_env(synced, SR, SR, None, 1.0)
+    assert env[int(0.25 * beat * SR) + 64] == pytest.approx(1.0, abs=0.02)

@@ -21,6 +21,7 @@ import numpy as np
 
 from .. import sampler
 from ..params import (
+    ENV_SYNC_TIMES,
     FILTER_TYPES_ALL,
     GENERAL_LFOS,
     GENES,
@@ -182,6 +183,8 @@ LFO_SHAPE_LABELS = {
     "lorenz": "Lorenz",
     "rossler": "Rössler",
 }
+# each envelope time's sync division, drawn in the time's own row
+ENV_SYNC_FIELDS = frozenset(f"{t}_sync" for t in ENV_SYNC_TIMES)
 # a route row's fields, every slot (the mod matrix draws them): its switch,
 # source, target, amount and source curve
 ROUTE_FIELDS = frozenset(
@@ -278,6 +281,12 @@ def _stepped_ok(k: int) -> Callable[[Any], bool]:
         return float(getattr(p, rate)) <= STEPPED_LIVE_HZ
 
     return ok
+
+
+def _env_name(time: str) -> str:
+    """'filter_attack' -> 'Filter', 'env3_decay' -> 'Env 3'."""
+    env = time.split("_")[0]
+    return "Filter" if env == "filter" else f"Env {env[3:]}"
 
 
 def _osc1_ok(p) -> bool:
@@ -739,6 +748,17 @@ _ENTRIES: list[tuple[str, Ui]] = [
                 hint=f"Retrig: LFO {k} starts every note at its phase. Free: each "
                      "note picks the cycle up at a place of its own.")),
         )
+    ],
+
+    # an envelope stage's time as a sync division: drawn inside its time's
+    # row (param_row.html, `ENV_SYNC_FIELDS`), not a row of its own; it
+    # reaches the worklet as the seconds /patch.json resolves (at_bpm)
+    *[
+        (f"{t}_sync", _ui(_F if t.startswith("filter") else _O,
+            f"{_env_name(t)} {t.split('_')[1]} sync", EXACT, widget="select",
+            hint=f"Lock the {t.split('_')[1]} to the tempo: a beat division "
+                 "instead of seconds. Off uses the time set."))
+        for t in ENV_SYNC_TIMES
     ],
 
     # no control

@@ -37,7 +37,7 @@ from synthlab.studio.agent.config import AgentConfig, load_config, parse_dotenv,
 from synthlab.studio.audition import PHRASES
 from synthlab.studio.curves import CURVABLE
 from synthlab.studio.fxrack import FX_UNITS
-from synthlab.studio.paramui import MACRO_PARAMS, UI, spec_of
+from synthlab.studio.paramui import ENV_SYNC_FIELDS, MACRO_PARAMS, UI, spec_of
 from synthlab.studio.server import create_app
 from synthlab.synth import Patch
 
@@ -113,6 +113,7 @@ def test_set_params_covers_every_ui_param_with_registry_bounds():
         for n, u in UI.items()
         if u.group is not None
         and (not PARAMS[n].nogene or n.startswith(atools._R6_AGENT))
+        and n not in ENV_SYNC_FIELDS  # an envelope time's division: the panel's
     }
     assert "pitch_bend" not in shown  # a performance control, not the sound
     assert "mod_wheel" not in shown and "mod5_src" not in shown

@@ -169,6 +169,17 @@
   {% else %}
   <output for="p-{{ spec.name }}" {% if spec.unit %}data-unit="{{ spec.unit }}"{% endif %}>{{ fmt(patch_values[spec.name]) }}{% if spec.unit %} {{ spec.unit }}{% endif %}</output>
   {% endif %}
+  {#- an envelope time that may be a sync division (paramui.ENV_SYNC_FIELDS):
+      its select, in the row — off, the time above plays; a division, the
+      time stands back (style.css) and at_bpm writes the division's seconds -#}
+  {% set sync = spec_of(spec.name ~ "_sync") if (spec.name ~ "_sync") in env_syncs else none %}
+  {% if sync %}
+  <select id="p-{{ sync.name }}" name="{{ sync.name }}" class="env-sync" aria-label="{{ sync.label }}" title="{{ sync.hint }}">
+    {% for value, label in sync.options %}
+    <option value="{{ value }}" {% if patch_values[sync.name] == value %}selected{% endif %}>{{ "♩ off" if value == "off" else label }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
   {% if spec.name in curvable %}
   <button type="button"
           class="curve-toggle {{ 'has-curve' if spec.name in has_curve }}"

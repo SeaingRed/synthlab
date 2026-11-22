@@ -38,6 +38,7 @@ from .core import (
 )
 from .granular import Settings as GrainSettings
 from .params import (
+    ENV_SYNC_TIMES,
     FILTER_TYPES,
     GENERAL_LFOS,
     LFO_SHAPES,
@@ -571,6 +572,18 @@ class Patch:
     lfo6_phase: float = 0.0
     lfo6_mode: str = "retrig"
     lfo6_draw: str = ""
+    # an envelope stage's time as a sync division (params.SYNC_DIVISIONS):
+    # "off" is its seconds; else `at_bpm` writes the division's seconds at
+    # the song's tempo into the time field just before rendering
+    filter_attack_sync: str = "off"
+    filter_decay_sync: str = "off"
+    filter_release_sync: str = "off"
+    env3_attack_sync: str = "off"
+    env3_decay_sync: str = "off"
+    env3_release_sync: str = "off"
+    env4_attack_sync: str = "off"
+    env4_decay_sync: str = "off"
+    env4_release_sync: str = "off"
 
     def tweak(self, **kw) -> Patch:
         """Return a copy with parameters changed: pad.tweak(cutoff=800)."""
@@ -641,8 +654,10 @@ def synced_rate(division: str, bpm: float) -> float | None:
 
 
 def at_bpm(p: Patch, bpm: float) -> Patch:
-    """Resolve any synced LFO rate against `bpm`. A no-op for an unsynced
-    patch, so it is safe to call on every render path."""
+    """Resolve any synced LFO rate, and any envelope stage given as a
+    division (`ENV_SYNC_TIMES`: its seconds at `bpm`), against `bpm`. A
+    no-op for an unsynced patch, so it is safe to call on every render
+    path."""
     kw: dict[str, float] = {}
     rate = synced_rate(p.lfo_sync, bpm)
     if rate is not None:
@@ -654,6 +669,10 @@ def at_bpm(p: Patch, bpm: float) -> Patch:
         rate = synced_rate(getattr(p, f"lfo{k}_sync"), bpm)
         if rate is not None:
             kw[f"lfo{k}_rate"] = rate
+    for name in ENV_SYNC_TIMES:
+        beats = SYNC_DIVISIONS.get(getattr(p, f"{name}_sync"), 0.0)
+        if beats > 0:
+            kw[name] = beats * 60.0 / bpm  # seconds
     return replace(p, **kw) if kw else p
 
 

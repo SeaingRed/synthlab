@@ -173,7 +173,7 @@ def test_the_mod_matrix_is_a_patch_bay_over_the_form_fields(client):
 def test_every_patch_field_is_still_posted_once(client):
     """The panels moved into columns and the matrix into its own module: no
     field was lost or doubled on the way."""
-    from synthlab.studio.paramui import PARAM_GROUPS
+    from synthlab.studio.paramui import ENV_SYNC_FIELDS, PARAM_GROUPS
 
     form = _view(client, "editor")
     form = form[form.index('<form id="patch"') :].split("</form>")[0]
@@ -189,7 +189,9 @@ def test_every_patch_field_is_still_posted_once(client):
             )
             radios = form.count(f'type="radio" name="{spec.name}"')
             assert n == 1 or radios >= 2, spec.name
-            assert form.count(f'id="row-{spec.name}"') == 1
+            # (an envelope time's sync division sits in the time's row)
+            rows = 0 if spec.name in ENV_SYNC_FIELDS else 1
+            assert form.count(f'id="row-{spec.name}"') == rows
     assert (
         form.count('class="pcol"') == 4
         # Modulators among them; .patch-panel: styled wherever it stands

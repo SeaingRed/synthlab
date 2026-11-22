@@ -1449,6 +1449,33 @@ CASES.update(
             ),
             {},
         ),
+        # envelope stages as sync divisions, resolved at BPM as /patch.json
+        # does (at_bpm): the filter envelope's three, envelopes 3 and 4's
+        "env_sync": (
+            Patch(
+                filter_env=5000.0,
+                filter_sustain=0.2,
+                filter_attack_sync="1/16",
+                filter_decay_sync="1/8T",
+                filter_release_sync="1/8",
+                env3_attack_sync="1/8",
+                env3_decay_sync="1/4",
+                env3_release_sync="1/16",
+                env3_sustain=0.3,
+                mod1_src="env3",
+                mod1_dst="osc1_level",
+                mod1_amt=-0.5,
+                env4_attack_sync="1/16",
+                env4_decay_sync="1/8.",
+                env4_release_sync="1/8T",
+                env4_sustain=0.4,
+                mod2_src="env4",
+                mod2_dst="pitch",
+                mod2_amt=0.05,
+                release=0.4,
+            ),
+            {},
+        ),
         # LFOs 4-6: an oscillator shape free running from a phase, the
         # stepped one (table stream 4), a drawing; then two more drawings
         # and every one synced
@@ -1659,6 +1686,11 @@ FIELD_CASES: dict[str, str] = {
     "lfo4_draw": "lfo_drawn456",
     "lfo5_draw": "lfo_drawn456",
     "lfo6_draw": "lfo456",
+    **{
+        f"{e}_{t}_sync": "env_sync"
+        for e in ("filter", "env3", "env4")
+        for t in ("attack", "decay", "release")
+    },
     "mod_wheel": "wheels",
     "aftertouch": "wheels",
 }

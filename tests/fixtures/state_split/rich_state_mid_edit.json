@@ -228,7 +228,16 @@
     "lfo6_sync": "off",
     "lfo6_phase": 0.0,
     "lfo6_mode": "retrig",
-    "lfo6_draw": ""
+    "lfo6_draw": "",
+    "filter_attack_sync": "off",
+    "filter_decay_sync": "off",
+    "filter_release_sync": "off",
+    "env3_attack_sync": "off",
+    "env3_decay_sync": "off",
+    "env3_release_sync": "off",
+    "env4_attack_sync": "off",
+    "env4_decay_sync": "off",
+    "env4_release_sync": "off"
   },
   "arrangement": {
     "bpm": 124.0,
@@ -552,7 +561,16 @@
     "lfo6_sync": "off",
     "lfo6_phase": 0.0,
     "lfo6_mode": "retrig",
-    "lfo6_draw": ""
+    "lfo6_draw": "",
+    "filter_attack_sync": "off",
+    "filter_decay_sync": "off",
+    "filter_release_sync": "off",
+    "env3_attack_sync": "off",
+    "env3_decay_sync": "off",
+    "env3_release_sync": "off",
+    "env4_attack_sync": "off",
+    "env4_decay_sync": "off",
+    "env4_release_sync": "off"
   },
   "slot_b": {
     "name": "b",
@@ -782,7 +800,16 @@
     "lfo6_sync": "off",
     "lfo6_phase": 0.0,
     "lfo6_mode": "retrig",
-    "lfo6_draw": ""
+    "lfo6_draw": "",
+    "filter_attack_sync": "off",
+    "filter_decay_sync": "off",
+    "filter_release_sync": "off",
+    "env3_attack_sync": "off",
+    "env3_decay_sync": "off",
+    "env3_release_sync": "off",
+    "env4_attack_sync": "off",
+    "env4_decay_sync": "off",
+    "env4_release_sync": "off"
   },
   "slot_prev": {
     "name": "dark",
@@ -1012,7 +1039,16 @@
     "lfo6_sync": "off",
     "lfo6_phase": 0.0,
     "lfo6_mode": "retrig",
-    "lfo6_draw": ""
+    "lfo6_draw": "",
+    "filter_attack_sync": "off",
+    "filter_decay_sync": "off",
+    "filter_release_sync": "off",
+    "env3_attack_sync": "off",
+    "env3_decay_sync": "off",
+    "env3_release_sync": "off",
+    "env4_attack_sync": "off",
+    "env4_decay_sync": "off",
+    "env4_release_sync": "off"
   },
   "curves": {
     "cutoff": [
@@ -1293,7 +1329,16 @@
           "lfo6_sync": "off",
           "lfo6_phase": 0.0,
           "lfo6_mode": "retrig",
-          "lfo6_draw": ""
+          "lfo6_draw": "",
+          "filter_attack_sync": "off",
+          "filter_decay_sync": "off",
+          "filter_release_sync": "off",
+          "env3_attack_sync": "off",
+          "env3_decay_sync": "off",
+          "env3_release_sync": "off",
+          "env4_attack_sync": "off",
+          "env4_decay_sync": "off",
+          "env4_release_sync": "off"
         },
         "curves": {
           "cutoff": [
@@ -1733,7 +1778,16 @@
         "lfo6_sync": "off",
         "lfo6_phase": 0.0,
         "lfo6_mode": "retrig",
-        "lfo6_draw": ""
+        "lfo6_draw": "",
+        "filter_attack_sync": "off",
+        "filter_decay_sync": "off",
+        "filter_release_sync": "off",
+        "env3_attack_sync": "off",
+        "env3_decay_sync": "off",
+        "env3_release_sync": "off",
+        "env4_attack_sync": "off",
+        "env4_decay_sync": "off",
+        "env4_release_sync": "off"
       },
       "cells": [
         [
@@ -2025,7 +2079,16 @@
         "lfo6_sync": "off",
         "lfo6_phase": 0.0,
         "lfo6_mode": "retrig",
-        "lfo6_draw": ""
+        "lfo6_draw": "",
+        "filter_attack_sync": "off",
+        "filter_decay_sync": "off",
+        "filter_release_sync": "off",
+        "env3_attack_sync": "off",
+        "env3_decay_sync": "off",
+        "env3_release_sync": "off",
+        "env4_attack_sync": "off",
+        "env4_decay_sync": "off",
+        "env4_release_sync": "off"
       },
       "cells": [],
       "muted": false,
@@ -2293,7 +2356,16 @@
         "lfo6_sync": "off",
         "lfo6_phase": 0.0,
         "lfo6_mode": "retrig",
-        "lfo6_draw": ""
+        "lfo6_draw": "",
+        "filter_attack_sync": "off",
+        "filter_decay_sync": "off",
+        "filter_release_sync": "off",
+        "env3_attack_sync": "off",
+        "env3_decay_sync": "off",
+        "env3_release_sync": "off",
+        "env4_attack_sync": "off",
+        "env4_decay_sync": "off",
+        "env4_release_sync": "off"
       },
       "cells": [],
       "muted": false,
@@ -2548,7 +2620,16 @@
           "lfo6_sync": "off",
           "lfo6_phase": 0.0,
           "lfo6_mode": "retrig",
-          "lfo6_draw": ""
+          "lfo6_draw": "",
+          "filter_attack_sync": "off",
+          "filter_decay_sync": "off",
+          "filter_release_sync": "off",
+          "env3_attack_sync": "off",
+          "env3_decay_sync": "off",
+          "env3_release_sync": "off",
+          "env4_attack_sync": "off",
+          "env4_decay_sync": "off",
+          "env4_release_sync": "off"
         },
         "cells": [
           [
@@ -2828,7 +2909,16 @@
           "lfo6_sync": "off",
           "lfo6_phase": 0.0,
           "lfo6_mode": "retrig",
-          "lfo6_draw": ""
+          "lfo6_draw": "",
+          "filter_attack_sync": "off",
+          "filter_decay_sync": "off",
+          "filter_release_sync": "off",
+          "env3_attack_sync": "off",
+          "env3_decay_sync": "off",
+          "env3_release_sync": "off",
+          "env4_attack_sync": "off",
+          "env4_decay_sync": "off",
+          "env4_release_sync": "off"
         },
         "cells": [],
         "muted": false,
@@ -3085,7 +3175,16 @@
           "lfo6_sync": "off",
           "lfo6_phase": 0.0,
           "lfo6_mode": "retrig",
-          "lfo6_draw": ""
+          "lfo6_draw": "",
+          "filter_attack_sync": "off",
+          "filter_decay_sync": "off",
+          "filter_release_sync": "off",
+          "env3_attack_sync": "off",
+          "env3_decay_sync": "off",
+          "env3_release_sync": "off",
+          "env4_attack_sync": "off",
+          "env4_decay_sync": "off",
+          "env4_release_sync": "off"
         },
         "cells": [],
         "muted": true,
@@ -3406,7 +3505,16 @@
           "lfo6_sync": "off",
           "lfo6_phase": 0.0,
           "lfo6_mode": "retrig",
-          "lfo6_draw": ""
+          "lfo6_draw": "",
+          "filter_attack_sync": "off",
+          "filter_decay_sync": "off",
+          "filter_release_sync": "off",
+          "env3_attack_sync": "off",
+          "env3_decay_sync": "off",
+          "env3_release_sync": "off",
+          "env4_attack_sync": "off",
+          "env4_decay_sync": "off",
+          "env4_release_sync": "off"
         },
         "curves": {
           "cutoff": [
@@ -3676,7 +3784,16 @@
           "lfo6_sync": "off",
           "lfo6_phase": 0.0,
           "lfo6_mode": "retrig",
-          "lfo6_draw": ""
+          "lfo6_draw": "",
+          "filter_attack_sync": "off",
+          "filter_decay_sync": "off",
+          "filter_release_sync": "off",
+          "env3_attack_sync": "off",
+          "env3_decay_sync": "off",
+          "env3_release_sync": "off",
+          "env4_attack_sync": "off",
+          "env4_decay_sync": "off",
+          "env4_release_sync": "off"
         },
         "curves": {
           "cutoff": [
@@ -3927,7 +4044,16 @@
           "lfo6_sync": "off",
           "lfo6_phase": 0.0,
           "lfo6_mode": "retrig",
-          "lfo6_draw": ""
+          "lfo6_draw": "",
+          "filter_attack_sync": "off",
+          "filter_decay_sync": "off",
+          "filter_release_sync": "off",
+          "env3_attack_sync": "off",
+          "env3_decay_sync": "off",
+          "env3_release_sync": "off",
+          "env4_attack_sync": "off",
+          "env4_decay_sync": "off",
+          "env4_release_sync": "off"
         },
         "curves": {
           "cutoff": [

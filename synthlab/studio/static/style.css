@@ -4301,6 +4301,16 @@ select.field { padding-right: 20px; }
 :where(#patch, .patch-panel) .param > input[type="range"]:not(.knob) { width: 100%; min-width: 0; }
 :where(#patch, .patch-panel) .param > select { grid-column: 2 / 4; min-width: 0; }
 :where(#patch, .patch-panel) .param > .seg { grid-column: 2 / -1; justify-self: start; flex-wrap: wrap; max-width: 100%; }
+/* an envelope time with its sync division (param_row.html): the select
+   after the read-out; while it names a division the time stands back —
+   at_bpm writes the division's seconds over it */
+:where(#patch, .patch-panel) .param:has(> select.env-sync):not(.param-knob) {
+  grid-template-columns: minmax(60px, 7.5em) minmax(0, 1fr) max-content max-content var(--h-s); }
+:where(#patch, .patch-panel) .param > select.env-sync { grid-column: auto; font-size: var(--fs-2xs);
+  padding-inline: var(--s1) var(--s4); max-width: 9ch; }
+:where(#patch, .patch-panel) .param-knob > select.env-sync { order: 4; justify-self: center; }
+:where(#patch, .patch-panel) .param:has(> select.env-sync option:checked:not([value="off"])) > input[type="range"] { opacity: 0.4; }
+:where(#patch, .patch-panel) .param:has(> select.env-sync option:checked:not([value="off"])) > output { color: var(--text-faint); }
 :where(#patch, .patch-panel) .param > .seg > label { text-transform: none; letter-spacing: 0; color: var(--text-dim); }
 :where(#patch, .patch-panel) .param > .seg > label:has(:checked) { color: var(--text); }
 /* (a script or a test that clicks the radio itself must reach it) */

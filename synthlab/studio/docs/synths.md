@@ -201,7 +201,12 @@ wider margins:
   last column under Motion): envelopes 3 and 4 (five knobs each: attack,
   decay, sustain, release — log knobs, 1 ms to 8 s — curve) and LFOs 2
   to 6 (rate and phase knobs, shape and sync selects, retrig / free
-  pills). LFOs 4-6 rest folded to their headings while no route that
+  pills). **A synced envelope stage**: the filter envelope's and
+  envelopes 3 / 4's attack, decay and release rows each end in a small
+  select (`<time>_sync`, `paramui.ENV_SYNC_FIELDS`, drawn by
+  param_row.html in the time's own row — no row of its own, so a macro's
+  OOB row carries it): "♩ off" plays the time; a division plays that many
+  beats at the tempo and the time stands back. LFOs 4-6 rest folded to their headings while no route that
   plays reads them (their rows idle: `paramui._IDLE_HAND`), so the panel
   is as long as it was until one is used; fifteen source jacks in the
   bay. **A drawn LFO** (LFO 1 in Motion, 2 and 3 here):

@@ -112,7 +112,9 @@
 // RK4 a point, ATTR_P points a cycle, in lfoX: attrF / attrStep / attrVal).
 // 1213 -> 1223: LFOs 4, 5 and 6 (sources 13-15: phases p4-p6, their
 // shapes / rates / drawings read in wire(), lfoG for any of 2-6).
-// Budget: <= 1223 code lines.
+// 1223 -> 1224: an envelope stage given as a division arrives as seconds
+// (at_bpm), so a drag on its time is dead while it is synced ("mod").
+// Budget: <= 1224 code lines.
 
 const D = { // Patch defaults for anything a message left out
   osc1: "saw", osc1_level: 0.8, osc1_octave: 0, osc1_detune: 0, osc2: null, osc2_level: 0.5,
@@ -329,8 +331,10 @@ class SynthlabVoice extends AudioWorkletProcessor {
     if (m.type === "params") { Object.assign(this.T, m.p); this.dirty = true; return; }
     if (m.type === "mod") {
       // a synced LFO's rate arrives resolved in /patch.json: its Hz slider is dead
+      // (and a synced envelope stage's seconds: params.ENV_SYNC_TIMES, its `_sync`)
       const sync = { mod_lfo_rate: "lfo_sync", filter_lfo_rate: "filter_lfo_sync",
-        ...Object.fromEntries(LFOS.map((k) => [`lfo${k}_rate`, `lfo${k}_sync`])) }[m.param];
+        ...Object.fromEntries(LFOS.map((k) => [`lfo${k}_rate`, `lfo${k}_sync`])) }[m.param]
+        ?? (/^(filter|env3|env4)_(attack|decay|release)$/.test(m.param) ? `${m.param}_sync` : null);
       if (sync && (this.T[sync] ?? "off") !== "off") return;
       this.T[m.param === "level" ? "osc1_level" : m.param] = m.value; this.dirty = true;
       return;

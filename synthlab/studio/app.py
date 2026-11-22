@@ -29,6 +29,7 @@ from . import beatgen, limits, meter, modmixes, oscfaces, security, workspace
 from .fxrack import chain_browser
 from .mapview import bright_pct
 from .paramui import (
+    ENV_SYNC_FIELDS,
     MOD_SOURCE_LABELS,
     MOD_TARGET_LABELS,
     ROUTE_FIELDS,
@@ -164,6 +165,8 @@ def make_templates() -> Jinja2Templates:
     # every route slot's three fields (twelve slots): the mod
     # matrix draws them, every other panel leaves them out
     templates.env.globals["route_fields"] = ROUTE_FIELDS
+    # an envelope time's sync division: a select in the time's own row
+    templates.env.globals["env_syncs"] = ENV_SYNC_FIELDS
     # the FX racks' chain browser: every chain preset, grouped (fx_rack.html)
     templates.env.globals["chain_browser"] = chain_browser()
     # a drum row's "Percussion" choices (synthlab/percussion.py)

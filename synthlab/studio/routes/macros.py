@@ -71,7 +71,10 @@ def param_rows_oob(svc: StudioService, names: list[str]) -> str:
     return "".join(
         tpl.render(
             spec=spec_of(n),
-            patch_values={n: getattr(s.patch, n)},
+            # (a time's sync division is drawn in its row)
+            patch_values={
+                k: getattr(s.patch, k) for k in (n, f"{n}_sync") if hasattr(s.patch, k)
+            },
             curvable=set(CURVABLE),
             has_curve={k for k, pts in s.curves.items() if len(pts) >= 2},
             oob=True,

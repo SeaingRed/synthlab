@@ -294,7 +294,7 @@
       {% endif %}
       {#- (the FM4 shape's other thirteen fields and sync pitch are drawn
           inside their blocks: the FM4 panel, the sync block) -#}
-      {% for spec in specs if spec.name not in route_fields
+      {% for spec in specs if spec.name not in route_fields and spec.name not in env_syncs
                               and not (spec.name[:4] == "fm4_" and spec.name != "fm4_algo") and spec.name != "sync_pitch"
                               and not (spec.name[:3] == "osc" and spec.name[5:] in ("warp_amt", "warp2", "warp2_amt"))
                               and not (spec.name[:8] == "filter2_" and spec.name != "filter2_route") %}

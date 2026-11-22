@@ -13,7 +13,9 @@
 - a route's switch (its lamp) bypasses it and switches it back on, its
   curve knob posts;
 - LFOs 4-6 rest folded while nothing routes them; opened, one takes a
-  chaotic flow and a route from it plays on the worklet.
+  chaotic flow and a route from it plays on the worklet;
+- an envelope stage's sync division (a select in its time's row): the
+  keys' patch carries the division in seconds, the time stands back.
 
 Nobody listens: each proves the sound changed, not that it is good.
 """
@@ -302,3 +304,31 @@ def test_lfos_4_to_6_rest_folded_until_opened_and_route_like_any(studio, server)
     _wait(page, lambda: server.state.patch.mod1_src == "lfo5", "the route posted")
     _patch_follows(page, "mod1_src", "lfo5")
     assert page.evaluate("() => window.synthlab.piano.patch().worklet_ok") is True
+
+
+def test_an_envelope_stage_takes_a_division_and_the_keys_get_its_seconds(
+    studio, server
+):
+    page = _open(studio, server, filter_env=4000.0)
+    row = page.locator("#row-filter_attack")
+    assert row.locator("select#p-filter_attack_sync").count() == 1
+    page.select_option("#p-filter_attack_sync", "1/4")
+    _wait(page, lambda: server.state.patch.filter_attack_sync == "1/4", "it posted")
+    bpm = page.evaluate("() => window.synthlab.piano.patch().bpm")
+    _wait(
+        page,
+        lambda: (
+            abs(
+                page.evaluate("() => window.synthlab.piano.patch().filter_attack")
+                - 60.0 / bpm
+            )
+            < 1e-9
+        ),
+        "the keys' patch carries the beat in seconds",
+    )
+    assert page.evaluate("() => window.synthlab.piano.patch().worklet_ok") is True
+    # the time it overrides stands back
+    op = page.evaluate(
+        "() => getComputedStyle(document.querySelector('#p-filter_attack')).opacity"
+    )
+    assert float(op) < 1.0

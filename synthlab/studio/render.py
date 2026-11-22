@@ -28,7 +28,7 @@ from ..effects import chain as fx_chain
 from ..effects import limit as fx_limit
 from ..effects import pan as fx_pan
 from ..effects import to_stereo
-from ..params import MOD_SLOTS
+from ..params import ENV_SYNC_TIMES, MOD_SLOTS
 from ..sequencer import Song
 from ..synth import Patch, Synth
 from .arrange import (
@@ -421,6 +421,8 @@ KEY_ADDED_FIELDS = {
         for k in (4, 5, 6)
         for t in ("rate", "shape", "sync", "phase", "mode", "draw")
     },
+    # an envelope stage as a sync division: "off" is its seconds, as always
+    **{f"{t}_sync": "off" for t in ENV_SYNC_TIMES},
 }
 
 
