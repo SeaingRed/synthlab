@@ -259,15 +259,6 @@ def _osc2_ok(p) -> bool:
     return p.osc2 is None or p.osc2 in SHAPES
 
 
-def _osc3_gate(name: str) -> Callable[[Any], bool]:
-    """An oscillator-3 field's live rule: anything goes while osc 3 is
-    silent (the engine never reads it); while it plays, `osc3_level` (a
-    "default" field) already blocks, so this one only names itself when it
-    too is off its default."""
-    default = getattr(Patch(), name)
-    return lambda p: not osc3_on(p) or getattr(p, name) == default
-
-
 def _filter_ok(p) -> bool:
     return p.filter_type in FILTERS
 
@@ -330,28 +321,28 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ("sync_pitch", _ui(_S, "Sync pitch", EXACT, 0.1, unit="st", mod_label="Sync pitch",
         hint="Hard sync: semitones oscillator 2 sits above. Sweep it (a route from "
              "the filter envelope, a curve) for the sync lead.")),
-    # oscillator 3 (synth._osc_stack): not in the live voice — while its
-    # level is up a sound's keys take the server-rendered WAV (the level is
-    # the field that says so); at 0 nothing else of it is heard, so nothing
-    # else of it blocks
-    ("osc3", _ui(_S, "Oscillator 3", _osc3_gate("osc3"), widget="pills",
+    # oscillator 3 (synth._osc_stack): not in the live voice, so "default"
+    # — while its level is up a sound's keys take the server-rendered WAV;
+    # at 0 nothing else of it is heard, so nothing else of it blocks
+    # (`_UNHEARD`)
+    ("osc3", _ui(_S, "Oscillator 3", DEFAULT, widget="pills",
         subhead="Oscillator 3",
         hint="A third waveform layered on the first two. Raise its level to hear "
              "it.")),
     ("osc3_level", _ui(_S, "Osc 3 level", DEFAULT, mod_label="Osc 3 level",
         hint="How loud oscillator 3 is in the mix: 0 is off.")),
-    ("osc3_octave", _ui(_S, "Osc 3 octave", _osc3_gate("osc3_octave"),
+    ("osc3_octave", _ui(_S, "Osc 3 octave", DEFAULT,
         hint="Shift oscillator 3 by whole octaves.")),
-    ("osc3_semi", _ui(_S, "Osc 3 semitones", _osc3_gate("osc3_semi"), unit="st",
+    ("osc3_semi", _ui(_S, "Osc 3 semitones", DEFAULT, unit="st",
         hint="Shift oscillator 3 by semitones: 7 a fifth, 12 an octave.")),
-    ("osc3_detune", _ui(_S, "Osc 3 detune", _osc3_gate("osc3_detune"), 0.5, unit="ct",
+    ("osc3_detune", _ui(_S, "Osc 3 detune", DEFAULT, 0.5, unit="ct",
         mod_label="Osc 3 detune",
         hint="Detune oscillator 3 in cents against the other two.")),
-    ("osc3_warp", _ui(_S, "Osc 3 warp", _osc3_gate("osc3_warp"), widget="select",
+    ("osc3_warp", _ui(_S, "Osc 3 warp", DEFAULT, widget="select",
         option_labels=WARP_LABELS,
         hint="Bend oscillator 3's phase before its shape reads it (sine, saw, square, "
              "triangle, wavetable).")),
-    ("osc3_warp_amt", _ui(_S, "Osc 3 warp amount", _osc3_gate("osc3_warp_amt"),
+    ("osc3_warp_amt", _ui(_S, "Osc 3 warp amount", DEFAULT,
         mod_label="Osc 3 warp",
         hint="How far oscillator 3's warp bends. Draw it or route to it to sweep "
              "the timbre.")),
@@ -841,11 +832,36 @@ for _name, _u in UI.items():
 # --- the live voice's gate ---------------------------------------------------
 
 
+def _osc3_silent(p) -> bool:
+    return not osc3_on(p)
+
+
+# hand-made "default" fields the engine does not read under the patch's
+# other settings (no shape rule says so): oscillator 3's at level 0
+_UNHEARD: dict[str, Callable[[Any], bool]] = {
+    name: _osc3_silent
+    for name in (
+        "osc3",
+        "osc3_octave",
+        "osc3_semi",
+        "osc3_detune",
+        "osc3_warp",
+        "osc3_warp_amt",
+    )
+}
+
+
 def _unheard(name: str, p) -> bool:
-    """A "default" field of a shape no oscillator plays (the granular one's):
-    the engine never reads it, so any value is reproduced."""
+    """A "default" field the engine never reads under `p`'s other settings
+    — a shape no oscillator plays (the granular one's), or a `_UNHEARD`
+    rule's (a silent osc 3's): any value is reproduced."""
+    if UI[name].worklet != DEFAULT:
+        return False
     rule = PARAMS[name].live
-    return UI[name].worklet == DEFAULT and isinstance(rule, uses_shape) and not rule(p)
+    if isinstance(rule, uses_shape) and not rule(p):
+        return True
+    hand = _UNHEARD.get(name)
+    return hand is not None and hand(p)
 
 
 def worklet_blockers(p) -> list[str]:

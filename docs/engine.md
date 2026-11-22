@@ -494,10 +494,10 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   desktop, a 1 s note, saw + square): 2.0 ms native -> 2.8 with an osc3
   saw (the whole stack now in the loop), 5.5 at unison 4 (2.9 without).
   **Not live**: the voice worklet has no third oscillator, so
-  `osc3_level` is "default" and its other fields gated on it
-  (`paramui._osc3_gate`), a route onto `osc3_level` refused by the slot
-  gate (`_WAV_TARGETS`): while osc3 sounds, a sound's keys take the
-  `/note` WAV.
+  its fields are "default" — the others unheard while the level is 0
+  (`paramui._UNHEARD`), so a silent osc3 blocks nothing — and a route
+  onto `osc3_level` is refused by the slot gate (`_WAV_TARGETS`): while
+  osc3 sounds, a sound's keys take the `/note` WAV.
 - **Your own wavetables** (`synthlab/wavetables.py`, Patch
   `wt_custom`): a clip or a sample sliced into 4-64 single cycles (equal
   slices, or one period of its YIN pitch at each point) or up to four
