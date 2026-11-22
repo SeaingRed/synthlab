@@ -600,3 +600,22 @@ def test_a_zip64_end_record_is_walked_too():
     # an honest ZIP64 zip reads
     ok = _zip64(zip_of({"a.sfz": "<region> sample=s.wav", "s.wav": wav(220)}), 2)
     assert len(sfz.load(ok, Store()).zones) == 1
+
+
+def test_a_zip64_locator_naming_a_decoy_record_is_refused():
+    """zipfile reads the ZIP64 record 56 bytes before the locator and ignores
+    the offset the locator holds; the check must look at the same record."""
+    big = _many(20)
+    at = _eocd(big)
+    real = _zip64(big, 20)[at : at + 56]  # claims twenty, the true count
+    cd_size, cd_off = struct.unpack_from("<II", big, at + 12)
+    decoy = struct.pack(
+        "<4sQHHIIQQQQ", b"PK\x06\x06", 44, 45, 45, 0, 0, 1, 1, cd_size, cd_off
+    )
+    loc = struct.pack("<4sIQI", b"PK\x06\x07", 0, at, 1)  # names the decoy
+    eocd = bytearray(big[at:])
+    struct.pack_into("<HH", eocd, 8, 0xFFFF, 0xFFFF)
+    struct.pack_into("<II", eocd, 12, 0xFFFFFFFF, 0xFFFFFFFF)
+    forged = big[:at] + decoy + real + loc + bytes(eocd)
+    with pytest.raises(SfzError, match="inconsistent"):
+        sfz.load(forged, Store(), Limits(members=100))

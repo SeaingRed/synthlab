@@ -134,8 +134,12 @@ def _check_directory(data: bytes, members: int) -> None:
         loc = at - 20
         if loc < 0 or data[loc : loc + 4] != b"PK":
             raise SfzError("That zip's directory is inconsistent.")
-        rec = struct.unpack_from("<Q", data, loc + 8)[0]
-        if rec + 56 > loc or data[rec : rec + 4] != b"PK":
+        # where `zipfile` reads the record: 56 bytes before the locator, the
+        # locator's own offset ignored. Ours must be the same place, or a
+        # decoy at the offset it names would be checked while another is used
+        rec = loc - 56
+        named = struct.unpack_from("<Q", data, loc + 8)[0]
+        if rec < 0 or named != rec or data[rec : rec + 4] != b"PK":
             raise SfzError("That zip's directory is inconsistent.")
         entries, cd_size = struct.unpack_from("<QQ", data, rec + 32)
         end = rec
