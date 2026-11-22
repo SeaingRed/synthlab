@@ -1393,6 +1393,181 @@ CASES.update(
     }
 )
 
+# The Lorenz and Rössler flows; LFOs 4-6
+CASES.update(
+    {
+        # the two chaotic flows: LFO 1 and LFO 2, slow and fast (a fast one
+        # walks hundreds of points into its trajectory over the note)
+        "lfo_flows": (
+            Patch(
+                lfo_shape="lorenz",
+                mod_lfo_rate=2.0,
+                mod1_src="lfo",
+                mod1_dst="cutoff",
+                mod1_amt=0.5,
+                lfo2_shape="rossler",
+                lfo2_rate=40.0,
+                lfo2_phase=0.3,
+                mod2_src="lfo2",
+                mod2_dst="osc1_detune",
+                mod2_amt=0.3,
+            ),
+            {},
+        ),
+        # LFOs at audio rate (the ceiling is 1000 Hz): FM on the pitch, AM on
+        # a level, a fast saw on the pulse width — per sample — and a flow
+        # and a stepped LFO on the cutoff, read once a 64-sample block on
+        # both sides (it aliases, the same way); the stepped one at the
+        # live ceiling (paramui.STEPPED_LIVE_HZ)
+        "lfo_audio": (
+            Patch(
+                osc1="square",
+                lfo2_rate=440.0,
+                mod1_src="lfo2",
+                mod1_dst="pitch",
+                mod1_amt=0.02,
+                lfo3_rate=310.0,
+                lfo3_shape="triangle",
+                mod2_src="lfo3",
+                mod2_dst="osc1_level",
+                mod2_amt=-0.3,
+                lfo_shape="saw",
+                mod_lfo_rate=1000.0,
+                mod3_src="lfo",
+                mod3_dst="pwm_depth",
+                mod3_amt=0.5,
+                lfo4_shape="lorenz",
+                lfo4_rate=800.0,
+                mod4_src="lfo4",
+                mod4_dst="cutoff",
+                mod4_amt=0.3,
+                lfo5_shape="noise",
+                lfo5_rate=30.0,
+                mod5_src="lfo5",
+                mod5_dst="resonance",
+                mod5_amt=0.3,
+            ),
+            {},
+        ),
+        # envelope stages as sync divisions, resolved at BPM as /patch.json
+        # does (at_bpm): the filter envelope's three, envelopes 3 and 4's
+        "env_sync": (
+            Patch(
+                filter_env=5000.0,
+                filter_sustain=0.2,
+                filter_attack_sync="1/16",
+                filter_decay_sync="1/8T",
+                filter_release_sync="1/8",
+                env3_attack_sync="1/8",
+                env3_decay_sync="1/4",
+                env3_release_sync="1/16",
+                env3_sustain=0.3,
+                mod1_src="env3",
+                mod1_dst="osc1_level",
+                mod1_amt=-0.5,
+                env4_attack_sync="1/16",
+                env4_decay_sync="1/8.",
+                env4_release_sync="1/8T",
+                env4_sustain=0.4,
+                mod2_src="env4",
+                mod2_dst="pitch",
+                mod2_amt=0.05,
+                release=0.4,
+            ),
+            {},
+        ),
+        # LFOs 4-6: an oscillator shape free running from a phase, the
+        # stepped one (table stream 4), a drawing; then two more drawings
+        # and every one synced
+        "lfo456": (
+            Patch(
+                lfo4_shape="triangle",
+                lfo4_rate=4.5,
+                lfo4_phase=0.25,
+                lfo4_mode="free",
+                lfo5_mode="free",
+                lfo6_mode="free",
+                mod1_src="lfo4",
+                mod1_dst="osc1_detune",
+                mod1_amt=0.5,
+                lfo5_shape="noise",
+                lfo5_rate=7.0,
+                lfo5_phase=0.5,
+                mod2_src="lfo5",
+                mod2_dst="cutoff",
+                mod2_amt=0.4,
+                lfo6_shape="drawn",
+                lfo6_draw="0:1,0.5:-1,0.8:0.2",
+                lfo6_rate=3.0,
+                lfo6_phase=0.6,
+                mod7_src="lfo6",
+                mod7_dst="osc1_level",
+                mod7_amt=-0.4,
+            ),
+            {},
+        ),
+        "lfo_drawn456": (
+            Patch(
+                lfo4_shape="drawn",
+                lfo4_draw="0:0,0.25:1,0.5:0,0.75:-1",
+                lfo4_sync="1/8",
+                mod1_src="lfo4",
+                mod1_dst="osc1_detune",
+                mod1_amt=0.5,
+                lfo5_shape="drawn",
+                lfo5_draw="0.1:-1,0.6:1",
+                lfo5_sync="1/4",
+                mod2_src="lfo5",
+                mod2_dst="cutoff",
+                mod2_amt=0.4,
+                lfo6_shape="saw",
+                lfo6_sync="1/16",
+                mod3_src="lfo6",
+                mod3_dst="pitch",
+                mod3_amt=0.03,
+            ),
+            {},
+        ),
+    }
+)
+
+# A route's switch and source curve (synth.route_curve) in every slot:
+# twelve routes, each curved its own way (bipolar and 0..1 sources, the
+# pitch among the targets); the same twelve each bypassed — the voice must
+# hear none of them
+_ROUTES12 = (
+    ("lfo2", "cutoff", 0.5),
+    ("aenv", "osc1_level", -0.4),
+    ("lfo", "pitch", 0.04),
+    ("velocity", "drive", 0.5),
+    ("fenv", "resonance", 0.4),
+    ("lfo3", "osc1_detune", 0.4),
+    ("env3", "tremolo_depth", 0.5),
+    ("key", "filter_env", 0.3),
+    ("random", "sub_level", 0.4),
+    ("lfo4", "vibrato_depth", 0.3),
+    ("env4", "pwm_depth", 0.5),
+    ("lfo5", "filter_lfo_depth", 0.4),
+)
+_CURVES12 = (0.7, -0.6, -1.0, 1.0, 0.3, -0.3, 0.5, -0.8, 0.9, 0.4, -0.5, 0.6)
+
+
+def _routes12(**per_slot) -> dict:
+    out = {"osc1": "square", "lfo2_rate": 3.0, "mod_lfo_rate": 5.0, "lfo5_rate": 6.0}
+    out["env3_attack"] = 0.2
+    for i, (slot, (src, dst, amt)) in enumerate(zip(MOD_SLOTS, _ROUTES12, strict=True)):
+        out |= {f"{slot}_src": src, f"{slot}_dst": dst, f"{slot}_amt": amt}
+        out |= {f"{slot}_{k}": v[i] for k, v in per_slot.items()}
+    return out
+
+
+CASES.update(
+    {
+        "route_curve": (Patch(**_routes12(curve=_CURVES12)), {"vel": 0.6}),
+        "route_switch": (Patch(**_routes12(on=("off",) * 12)), {"vel": 0.6}),
+    }
+)
+
 # Every field the gate lets through (WORKLET_FIELDS, and every GATED
 # predicate) names the case that proves it.
 FIELD_CASES: dict[str, str] = {
@@ -1485,6 +1660,8 @@ FIELD_CASES: dict[str, str] = {
         + tuple(f"fm4_{k}{i}" for k in ("ratio", "level", "decay") for i in range(1, 5))
     },
     **{f"{s}_{k}": s for s in MOD_SLOTS for k in ("src", "dst", "amt")},
+    **{f"{s}_on": "route_switch" for s in MOD_SLOTS},
+    **{f"{s}_curve": "route_curve" for s in MOD_SLOTS},
     # filter 2, the general modulators
     **{
         f"filter2_{k}": "f2_serial"
@@ -1503,6 +1680,17 @@ FIELD_CASES: dict[str, str] = {
     "lfo_draw": "lfo_drawn",
     "lfo2_draw": "lfo_drawn23",
     "lfo3_draw": "lfo_drawn23",
+    **{f"lfo{e}_{k}": "lfo456" for e in (4, 5, 6) for k in ("rate", "shape", "phase")},
+    **{f"lfo{e}_mode": "lfo456" for e in (4, 5, 6)},
+    **{f"lfo{e}_sync": "lfo_drawn456" for e in (4, 5, 6)},
+    "lfo4_draw": "lfo_drawn456",
+    "lfo5_draw": "lfo_drawn456",
+    "lfo6_draw": "lfo456",
+    **{
+        f"{e}_{t}_sync": "env_sync"
+        for e in ("filter", "env3", "env4")
+        for t in ("attack", "decay", "release")
+    },
     "mod_wheel": "wheels",
     "aftertouch": "wheels",
 }

@@ -28,6 +28,7 @@ from ..effects import chain as fx_chain
 from ..effects import limit as fx_limit
 from ..effects import pan as fx_pan
 from ..effects import to_stereo
+from ..params import ENV_SYNC_TIMES, MOD_SLOTS
 from ..sequencer import Song
 from ..synth import Patch, Synth
 from .arrange import (
@@ -413,6 +414,19 @@ KEY_ADDED_FIELDS = {
         for k in (1, 2, 3)
         for part in ("warp2", "warp2_amt")
     },
+    # each route's switch and source curve: "on" and 0 are the route as it
+    # always was
+    **{f"{s}_on": "on" for s in MOD_SLOTS},
+    **{f"{s}_curve": 0.0 for s in MOD_SLOTS},
+    # LFOs 4-6: read only by a route from them, so at these every older
+    # key stays the key it was
+    **{
+        f"lfo{k}_{t}": getattr(Patch(), f"lfo{k}_{t}")
+        for k in (4, 5, 6)
+        for t in ("rate", "shape", "sync", "phase", "mode", "draw")
+    },
+    # an envelope stage as a sync division: "off" is its seconds, as always
+    **{f"{t}_sync": "off" for t in ENV_SYNC_TIMES},
 }
 
 

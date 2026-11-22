@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **Tempo-synced envelopes**: the filter envelope's and envelopes 3 and
+  4's attack, decay and release can each be a beat division (1/16, 1/4,
+  a bar...) instead of seconds, following the tempo — in the loop and on
+  the live keys alike.
+- **LFOs to 1000 Hz**: the general LFOs' rates reach audio rate — FM and
+  AM on the pitch, levels and other per-sample targets (a filter target
+  reads it once a 64-sample block). Live on the keys for every shape but
+  a stepped one past 30 Hz, which plays from the server's render.
+- **LFOs 4, 5 and 6**: three more general LFOs in the Modulators panel
+  (rate, shape, sync, phase, retrig / free, a drawing) and three more
+  sources in the mod matrix. Folded away until a route uses one; they
+  play on the live keys.
+- **Chaotic LFO shapes**: every general LFO's shape menu gains Lorenz and
+  Rössler — a line wandering round a chaotic flow, never repeating, the
+  same on every render and on the live keys.
+- **A route's switch and curve**: each mod-matrix row gains an on / off
+  switch (off keeps the route but bypasses it) and a curve knob that bends
+  its source before the amount — up rises early, down late. On and
+  straight by default, so no sound changes; both play on the live keys.
 - **Two warps at once**: each oscillator's warp block gains a second
   warp, bending the phase the first made (PD then mirror, a bend then
   quantize...), band-limited as one warp is. Off by default, so no sound

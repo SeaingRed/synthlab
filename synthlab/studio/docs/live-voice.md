@@ -591,21 +591,28 @@ voice's to the last f32 bit on every one.
 - **The modulation** lives in the JS control pass, as every route always
   has (a voice with routes runs it; the module's `control()` is
   route-free): `route(x, sv, bs)` reads each source from `this.SV` by its
-  `SOURCES` number — LFO 1 (`lfoX` for its new shapes), LFO 2 / 3
-  (`lfoG`: their phases `v.p2` / `v.p3` start at `lfoN_phase` plus, when
-  free, `driftU(seed, 0x40000 + k)`), the filter / amp envelopes,
+  `SOURCES` number — LFO 1 (`lfoX` for its new shapes), LFOs 2-6
+  (`lfoG`, sources 5, 6, 13-15: their phases `v.p2` .. `v.p6` start at
+  `lfoN_phase` plus, when free, `driftU(seed, 0x40000 + k)`; their shapes,
+  rates and drawings read in `wire()`), the filter / amp envelopes,
   velocity, envelopes 3 / 4 (`envK`, their release levels taken at
   note-off, revived like the filter envelope's), the wheels (the patch's
   `mod_wheel` / `aftertouch` smoothed, plus the live `wheel_cc` / `at_cc`
   from the "modwheel" / "aftertouch" messages, clipped to 0..1), the key
   and the note's random value (`driftInit`). `lfoX`: the drawing parsed in
   `wire()` and read as `np.interp` does; chaos the logistic map advanced
-  as the phase crosses each cycle (`v.lx[k]`); smooth the hashed pair of
+  as the phase crosses each cycle (`v.lx[k]`); the Lorenz and Rössler
+  flows (`attrF` / `attrStep`, core.attractor_step's RK4 in the same
+  order) advanced a point as the phase crosses each eighth of a cycle,
+  their seeded start and warm-up run when the shape is first read; smooth the hashed pair of
   the cycle, smoothstepped; LFO 2 / 3's stepped from the table's streams 1
   / 2. The new targets reach what the module reads: `WP` (wt_pos), `FA`
   (cross FM — a route switches the cross path on), `IX` (fm index), `E1..E4`
   (the fm4 levels); filter 2's cutoff / resonance and the vowel at the
-  block start (`BLOCK_RATE`).
+  block start (`BLOCK_RATE`). A bypassed slot (`modN_on` "off") is not
+  wired, as `params.slot_active` refuses it; a slot's curve (`modN_curve`)
+  bends the source in `route()` before its amount, by `synth.route_curve`'s
+  arithmetic (`ROUTE_K` = `ROUTE_CURVE_K`).
 
 Cost, 16 voices at 48 kHz (an x86-64 desktop, the bench's harness over hand-made
 variants), JS / WebAssembly: the default ladder 5.2 / 3.8 %, low 12 4.4 /

@@ -4325,6 +4325,16 @@ select.field { padding-right: 20px; }
 :where(#patch, .patch-panel) .param > input[type="range"]:not(.knob) { width: 100%; min-width: 0; }
 :where(#patch, .patch-panel) .param > select { grid-column: 2 / 4; min-width: 0; }
 :where(#patch, .patch-panel) .param > .seg { grid-column: 2 / -1; justify-self: start; flex-wrap: wrap; max-width: 100%; }
+/* an envelope time with its sync division (param_row.html): the select
+   after the read-out; while it names a division the time stands back —
+   at_bpm writes the division's seconds over it */
+:where(#patch, .patch-panel) .param:has(> select.env-sync):not(.param-knob) {
+  grid-template-columns: minmax(60px, 7.5em) minmax(0, 1fr) max-content max-content var(--h-s); }
+:where(#patch, .patch-panel) .param > select.env-sync { grid-column: auto; font-size: var(--fs-2xs);
+  padding-inline: var(--s1) var(--s4); max-width: 9ch; }
+:where(#patch, .patch-panel) .param-knob > select.env-sync { order: 4; justify-self: center; }
+:where(#patch, .patch-panel) .param:has(> select.env-sync option:checked:not([value="off"])) > input[type="range"] { opacity: 0.4; }
+:where(#patch, .patch-panel) .param:has(> select.env-sync option:checked:not([value="off"])) > output { color: var(--text-faint); }
 :where(#patch, .patch-panel) .param > .seg > label { text-transform: none; letter-spacing: 0; color: var(--text-dim); }
 :where(#patch, .patch-panel) .param > .seg > label:has(:checked) { color: var(--text); }
 /* (a script or a test that clicks the radio itself must reach it) */
@@ -4460,11 +4470,22 @@ h4.subhead[data-rest="folded"]::before, legend[data-rest="folded"] > .panel-name
   pointer-events: none; }
 .pb-cables .cable.neg path { stroke-dasharray: 5 3; }
 .pb-cables .cable.drag path { stroke-dasharray: 2 3; opacity: 0.7; }
+.pb-cables .cable.off { opacity: 0.3; } /* a bypassed route: its lead stays, faint */
 .pb-cables text { font-size: var(--fs-2xs); fill: var(--cable); text-anchor: middle;
   paint-order: stroke; stroke: var(--bg-inset); stroke-width: 3px; font-variant-numeric: tabular-nums; }
-/* a route: lamp, source, target, amount, its value, invert, unplug */
+/* a route: its lamp (the switch), source, target, amount, its value, the
+   source's curve, its value, invert, unplug */
 .route { flex: 1 1 100%; display: grid; align-items: center; gap: 0 var(--s1); min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.25fr) auto 6ch auto auto; min-height: var(--h-l); }
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.25fr) auto 6ch auto auto auto;
+  min-height: var(--h-l); }
+/* the switch: a power key, as an FX unit's — two radios in one cell, of
+   which only the one to press shows (the other stays focusable: the arrows
+   step the group); the lamp is lit while the route plays */
+.route-sw { display: inline-grid; width: 18px; height: 18px; border-radius: var(--r-round); }
+.route-sw > label { grid-area: 1 / 1; display: grid; place-items: center; cursor: pointer; }
+.route-sw > label > input { position: absolute; opacity: 0; pointer-events: none; }
+.route-sw > label:has(:checked) { opacity: 0; pointer-events: none; }
+.route-sw:has(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 1px; }
 :where(#patch, .patch-panel) .route > .param { display: contents; }
 :where(#patch, .patch-panel) .route > .param > * { order: 0; }
 :where(#patch, .patch-panel) .route > .param > label { position: absolute; width: 1px; height: 1px; overflow: hidden;
@@ -4472,12 +4493,19 @@ h4.subhead[data-rest="folded"]::before, legend[data-rest="folded"] > .panel-name
 :where(#patch, .patch-panel) .route > .param > select { grid-column: auto; }
 :where(#patch, .patch-panel) .route > .param > .curve-spacer { display: none; }
 :where(#patch, .patch-panel) .route > .param > output { justify-self: stretch; text-align: right; }
-.route:not(:has(select[name$="_src"] option[value="none"]:checked)) .route-led {
+/* the curve is a small knob (.knob-s) read by its arc (from the middle:
+   0 is straight) — its number would take the target's room */
+:where(#patch, .patch-panel) .route > .param > output[for$="_curve"] { display: none; }
+.route:not(:has(select[name$="_src"] option[value="none"]:checked)):not(:has([name$="_on"][value="off"]:checked)) .route-led {
   background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 /* an unplugged route: its controls stand back, its read-out and its ± ✕
-   are the faint tone (text dimmed by an opacity reads 1.9:1) */
-.route:has(select[name$="_src"] option[value="none"]:checked) > .param:not(:first-of-type) > :is(select, input) { opacity: 0.4; }
-.route:has(select[name$="_src"] option[value="none"]:checked) > .param:not(:first-of-type) > output,
+   are the faint tone (text dimmed by an opacity reads 1.9:1); a bypassed
+   one (its switch off) the same, all but the switch */
+.route:has(select[name$="_src"] option[value="none"]:checked) > .param:not(.route-power, :has([name$="_src"])) > :is(select, input) { opacity: 0.4; }
+.route:has([name$="_on"][value="off"]:checked) > .param:not(.route-power) > :is(select, input) { opacity: 0.4; }
+.route:has([name$="_on"][value="off"]:checked) > .param:not(.route-power) > output,
+.route:has([name$="_on"][value="off"]:checked) > .btn,
+.route:has(select[name$="_src"] option[value="none"]:checked) > .param:not(.route-power, :has([name$="_src"])) > output,
 .route:has(select[name$="_src"] option[value="none"]:checked) > .btn { color: var(--text-faint); }
 
 /* twelve routes — slots 5-12 stand only while they
@@ -6345,7 +6373,7 @@ input[type="range"].knob.fader {
 .pb-dst .pb-jack > span { overflow: hidden; text-overflow: ellipsis; }
 /* the source column as wide as its longest name ("Filter envelope" was cut),
    the amount as wide as "-100%" (it read "0...."): the target takes the rest */
-.route { grid-template-columns: auto minmax(max-content, 0.7fr) minmax(0, 1.7fr) auto max-content auto auto; }
+.route { grid-template-columns: auto minmax(max-content, 0.7fr) minmax(0, 1.7fr) auto max-content auto auto auto; }
 :where(#patch, .patch-panel) .route select { font-size: var(--fs-xs); padding-inline: var(--s1) var(--s4); }
 :where(#patch, .patch-panel) .route output { font-size: var(--fs-xs); min-width: 5ch; overflow: visible; }
 /* the rail: icons throughout (the deck's too), and the density toggle a

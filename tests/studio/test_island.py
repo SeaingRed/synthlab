@@ -521,7 +521,12 @@ def test_voice_worklet_served_within_budget_and_not_a_script_tag(tmp_path):
     # of its own; the zone pick is sampler-worklet.js's (35 -> 64)
     # 1176 -> 1180: a note due later (the keys arp's `at`)
     # waits for its quantum (`due`)
-    assert len(_code_lines(WORKLET)) <= 1180
+    # 1180 -> 1186: a route's switch and the curve on its source (route())
+    # 1186 -> 1213: the Lorenz and Rössler flows as LFO shapes (lfoX and
+    # the RK4 step it repeats from core.attractor_step)
+    # 1213 -> 1223: LFOs 4-6 (their phases, defaults and sources)
+    # 1223 -> 1224: a synced envelope stage's dead time slider ("mod")
+    assert len(_code_lines(WORKLET)) <= 1224
     sampler_js = WORKLET.with_name("sampler-worklet.js")
     assert client.get("/static/sampler-worklet.js").status_code == 200
     assert len(_code_lines(sampler_js)) <= 64  # + the zone map

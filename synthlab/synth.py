@@ -38,7 +38,9 @@ from .core import (
 )
 from .granular import Settings as GrainSettings
 from .params import (
+    ENV_SYNC_TIMES,
     FILTER_TYPES,
+    GENERAL_LFOS,
     LFO_SHAPES,
     MOD_DESTINATIONS,
     MOD_RANGES,
@@ -523,6 +525,65 @@ class Patch:
     osc2_warp2_amt: float = 0.0
     osc3_warp2: str = "off"
     osc3_warp2_amt: float = 0.0
+    # each route slot's switch ("off" bypasses it: the slot keeps its
+    # source, target and amount but routes nothing) and the curve on its
+    # source (-1..1, `route_curve`; 0 = the source as it is)
+    mod1_on: str = "on"
+    mod2_on: str = "on"
+    mod3_on: str = "on"
+    mod4_on: str = "on"
+    mod5_on: str = "on"
+    mod6_on: str = "on"
+    mod7_on: str = "on"
+    mod8_on: str = "on"
+    mod9_on: str = "on"
+    mod10_on: str = "on"
+    mod11_on: str = "on"
+    mod12_on: str = "on"
+    mod1_curve: float = 0.0
+    mod2_curve: float = 0.0
+    mod3_curve: float = 0.0
+    mod4_curve: float = 0.0
+    mod5_curve: float = 0.0
+    mod6_curve: float = 0.0
+    mod7_curve: float = 0.0
+    mod8_curve: float = 0.0
+    mod9_curve: float = 0.0
+    mod10_curve: float = 0.0
+    mod11_curve: float = 0.0
+    mod12_curve: float = 0.0
+    # LFOs 4, 5 and 6 (route sources "lfo4".."lfo6"): general LFOs as 2
+    # and 3 are — rate, shape, sync, start phase, retrig / free, a drawing
+    lfo4_rate: float = 1.0
+    lfo4_shape: str = "sine"
+    lfo4_sync: str = "off"
+    lfo4_phase: float = 0.0
+    lfo4_mode: str = "retrig"
+    lfo4_draw: str = ""
+    lfo5_rate: float = 4.0
+    lfo5_shape: str = "sine"
+    lfo5_sync: str = "off"
+    lfo5_phase: float = 0.0
+    lfo5_mode: str = "retrig"
+    lfo5_draw: str = ""
+    lfo6_rate: float = 0.25
+    lfo6_shape: str = "sine"
+    lfo6_sync: str = "off"
+    lfo6_phase: float = 0.0
+    lfo6_mode: str = "retrig"
+    lfo6_draw: str = ""
+    # an envelope stage's time as a sync division (params.SYNC_DIVISIONS):
+    # "off" is its seconds; else `at_bpm` writes the division's seconds at
+    # the song's tempo into the time field just before rendering
+    filter_attack_sync: str = "off"
+    filter_decay_sync: str = "off"
+    filter_release_sync: str = "off"
+    env3_attack_sync: str = "off"
+    env3_decay_sync: str = "off"
+    env3_release_sync: str = "off"
+    env4_attack_sync: str = "off"
+    env4_decay_sync: str = "off"
+    env4_release_sync: str = "off"
 
     def tweak(self, **kw) -> Patch:
         """Return a copy with parameters changed: pad.tweak(cutoff=800)."""
@@ -593,8 +654,10 @@ def synced_rate(division: str, bpm: float) -> float | None:
 
 
 def at_bpm(p: Patch, bpm: float) -> Patch:
-    """Resolve any synced LFO rate against `bpm`. A no-op for an unsynced
-    patch, so it is safe to call on every render path."""
+    """Resolve any synced LFO rate, and any envelope stage given as a
+    division (`ENV_SYNC_TIMES`: its seconds at `bpm`), against `bpm`. A
+    no-op for an unsynced patch, so it is safe to call on every render
+    path."""
     kw: dict[str, float] = {}
     rate = synced_rate(p.lfo_sync, bpm)
     if rate is not None:
@@ -602,10 +665,14 @@ def at_bpm(p: Patch, bpm: float) -> Patch:
     rate = synced_rate(p.filter_lfo_sync, bpm)
     if rate is not None:
         kw["filter_lfo_rate"] = rate
-    for k in (2, 3):  # the general LFOs
+    for k in GENERAL_LFOS:  # the general LFOs 2-6
         rate = synced_rate(getattr(p, f"lfo{k}_sync"), bpm)
         if rate is not None:
             kw[f"lfo{k}_rate"] = rate
+    for name in ENV_SYNC_TIMES:
+        beats = SYNC_DIVISIONS.get(getattr(p, f"{name}_sync"), 0.0)
+        if beats > 0:
+            kw[name] = beats * 60.0 / bpm  # seconds
     return replace(p, **kw) if kw else p
 
 
@@ -664,10 +731,13 @@ def lfo_free_phase(f0: float, k: int) -> float:
     return drift_u(drift_seed(f0), _LFO_FREE_KEY + k)
 
 
+_LFO_SOURCES = {f"lfo{k}": k for k in GENERAL_LFOS}
+
+
 def general_lfo(p: Patch, k: int, n: int, sr: int, f0: float | None) -> np.ndarray:
-    """General LFO `k` (1, 2, 3) over a note's `n` samples, -1..1. LFO 1 in
+    """General LFO `k` (1-6) over a note's `n` samples, -1..1. LFO 1 in
     an old shape is the call it always was (`core.lfo`); the new shapes and
-    LFO 2 / 3 are `core.lfo_ext` (LFO 1 always restarts at phase 0)."""
+    LFOs 2-6 are `core.lfo_ext` (LFO 1 always restarts at phase 0)."""
     if k == 1:
         shape, rate, phase, draw = p.lfo_shape, p.mod_lfo_rate, 0.0, p.lfo_draw
         if shape in LFO_SHAPES:
@@ -690,8 +760,8 @@ def _mod_source(p: Patch, src: str, n: int, sr: int, velocity, gate, duration, f
     0..1 (the envelopes, velocity, the wheel, aftertouch)."""
     if src == "lfo":
         return general_lfo(p, 1, n, sr, f0)
-    if src in ("lfo2", "lfo3"):
-        return general_lfo(p, int(src[3]), n, sr, f0)
+    if src in _LFO_SOURCES:  # LFOs 2-6
+        return general_lfo(p, _LFO_SOURCES[src], n, sr, f0)
     if src == "fenv":
         return _filter_env(p, n, sr, gate, duration)
     if src == "aenv":
@@ -728,6 +798,27 @@ def _fit_arrays(p: Patch, n: int) -> Patch:
     return p.tweak(**fit) if fit else p
 
 
+# how far a route's curve bends its source at +-1: the warp's bend
+# (core.warp_phase's k = 1 + 15 x amount), so the steepest is 16 x
+ROUTE_CURVE_K = 15.0
+
+
+def route_curve(s, c: float) -> np.ndarray:
+    """A route's source bent by its curve `c` (-1..1) before the amount:
+    the source's size |s| (up to 1) through a rational curve that keeps 0
+    at 0 and 1 at 1, its sign kept, so a bipolar LFO bends the same either
+    side of zero and a 0..1 envelope or velocity stays 0..1. `c` > 0 rises
+    early (k |s| / (1 + (k - 1) |s|)), `c` < 0 late (|s| / (k - (k - 1)
+    |s|): the first's inverse), k = 1 + 15 |c|. Only + - x / and a
+    comparison, so the live voice (voice-worklet.js `route`) computes the
+    same numbers; `_mod_routes` never calls it at 0."""
+    s = np.asarray(s, dtype=np.float64)
+    k = 1.0 + ROUTE_CURVE_K * abs(float(c))
+    a = np.minimum(np.abs(s), 1.0)
+    y = k * a / (1.0 + (k - 1.0) * a) if c > 0 else a / (k - (k - 1.0) * a)
+    return np.where(s < 0, -y, y)
+
+
 def _mod_routes(
     p: Patch,
     n: int,
@@ -754,8 +845,12 @@ def _mod_routes(
         src, dst, amt = (getattr(p, f"{slot}_{k}") for k in ("src", "dst", "amt"))
         if src not in sources:
             sources[src] = _mod_source(p, src, n, sr, velocity, gate, duration, f0)
+        s = sources[src]
+        c = float(getattr(p, f"{slot}_curve", 0.0))
+        if c != 0.0:  # (a curve of 0 is the source untouched, bit for bit)
+            s = route_curve(s, c)
         if dst == PITCH_ROUTE:
-            bend = amt * PITCH_ROUTE_ST * sources[src]
+            bend = amt * PITCH_ROUTE_ST * s
             pitch = bend if pitch is None else pitch + bend
             continue
         lo, hi = MOD_RANGES[dst]
@@ -769,7 +864,7 @@ def _mod_routes(
         b = np.asarray(getattr(p, dst), dtype=np.float64)
         clip_lo = min(lo, float(np.min(b)))
         clip_hi = max(hi, float(np.max(b)))
-        changes[dst] = np.clip(base + amt * (hi - lo) * sources[src], clip_lo, clip_hi)
+        changes[dst] = np.clip(base + amt * (hi - lo) * s, clip_lo, clip_hi)
     return (p.tweak(**changes) if changes else p), pitch
 
 

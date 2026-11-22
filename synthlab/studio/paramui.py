@@ -21,7 +21,9 @@ import numpy as np
 
 from .. import sampler
 from ..params import (
+    ENV_SYNC_TIMES,
     FILTER_TYPES_ALL,
+    GENERAL_LFOS,
     GENES,
     MOD_DESTINATIONS,
     MOD_SLOTS,
@@ -148,6 +150,9 @@ MOD_SOURCE_LABELS = {
     "aftertouch": "Aftertouch",
     "key": "Key",
     "random": "Random",
+    "lfo4": "LFO 4",
+    "lfo5": "LFO 5",
+    "lfo6": "LFO 6",
 }
 # the filter types as the menus say them (filter 1's select, filter 2's)
 FILTER_LABELS = {
@@ -175,9 +180,16 @@ LFO_SHAPE_LABELS = {
     "drawn": "drawn",
     "chaos": "chaos",
     "smooth": "smooth random",
+    "lorenz": "Lorenz",
+    "rossler": "Rössler",
 }
-# a route row's three fields, every slot (the mod matrix draws them)
-ROUTE_FIELDS = frozenset(f"{s}_{k}" for s in MOD_SLOTS for k in ("src", "dst", "amt"))
+# each envelope time's sync division, drawn in the time's own row
+ENV_SYNC_FIELDS = frozenset(f"{t}_sync" for t in ENV_SYNC_TIMES)
+# a route row's fields, every slot (the mod matrix draws them): its switch,
+# source, target, amount and source curve
+ROUTE_FIELDS = frozenset(
+    f"{s}_{k}" for s in MOD_SLOTS for k in ("on", "src", "dst", "amt", "curve")
+)
 
 
 EXACT, IGNORED, DEFAULT = "exact", "ignored", "default"
@@ -205,8 +217,10 @@ def _cross_fm_ok(p) -> bool:
 
 
 # sources whose value later in a note the first sample cannot know: an LFO
-# (any of the three), and the wheels a player moves
-_LATE_SOURCES = frozenset({"lfo", "lfo2", "lfo3", "wheel", "aftertouch"})
+# (any of the six), and the wheels a player moves
+_LATE_SOURCES = frozenset(
+    {"lfo", *(f"lfo{k}" for k in GENERAL_LFOS), "wheel", "aftertouch"}
+)
 # route targets the live voice has no part for, and whose silence at the
 # patch's own value a route can break
 _WAV_TARGETS = frozenset({"osc3_level"})
@@ -240,6 +254,39 @@ def _slot_gate(slot: str) -> Callable[[Any], bool]:
         return not late_clip and not (dst in _FORMANT_UNSEEN and _formant_sampler(p))
 
     return ok
+
+
+# The stepped LFO shape ("noise") reads a seeded stream the live voice
+# holds the first 4096 values of (voicetables.UNIFORM), one a cycle: at
+# the old 30 Hz ceiling it wraps after 136 s of a held note, at 1000 Hz
+# after 4 s. So a stepped LFO a route reads plays live up to 30 Hz; faster
+# keys take the /note WAV. Every other shape is computed, live, at any rate.
+STEPPED_LIVE_HZ = 30.0
+
+
+def _lfo_reads(p, k: int) -> bool:
+    """Does a route that plays read general LFO k (1: "lfo")?"""
+    src = "lfo" if k == 1 else f"lfo{k}"
+    return any(slot_active(p, s) and getattr(p, f"{s}_src") == src for s in MOD_SLOTS)
+
+
+def _stepped_ok(k: int) -> Callable[[Any], bool]:
+    shape, rate = (
+        ("lfo_shape", "mod_lfo_rate") if k == 1 else (f"lfo{k}_shape", f"lfo{k}_rate")
+    )
+
+    def ok(p) -> bool:
+        if getattr(p, shape) != "noise" or not _lfo_reads(p, k):
+            return True
+        return float(getattr(p, rate)) <= STEPPED_LIVE_HZ
+
+    return ok
+
+
+def _env_name(time: str) -> str:
+    """'filter_attack' -> 'Filter', 'env3_decay' -> 'Env 3'."""
+    env = time.split("_")[0]
+    return "Filter" if env == "filter" else f"Env {env[3:]}"
 
 
 def _osc1_ok(p) -> bool:
@@ -586,12 +633,14 @@ _ENTRIES: list[tuple[str, Ui]] = [
     # every LFO shape (the stepped "noise" reads core.sample_hold's seeded
     # stream from /wavetables.bin); a sync division reaches the worklet as
     # the rate /patch.json resolves against the bpm (synth.at_bpm)
-    ("mod_lfo_rate", _ui(_M, "LFO 1 rate", EXACT, 0.05, unit="Hz", subhead="LFO 1",
-        hint="Speed of LFO 1, the LFO the routes use.")),
+    ("mod_lfo_rate", _ui(_M, "LFO 1 rate", _stepped_ok(1), 0.05, unit="Hz",
+        subhead="LFO 1", hint="Speed of LFO 1, the LFO the routes use.")),
     ("lfo_shape", _ui(_M, "LFO 1 shape", EXACT, widget="select",
-        option_labels=LFO_SHAPE_LABELS, extra=("drawn", "chaos", "smooth"),
+        option_labels=LFO_SHAPE_LABELS,
+        extra=("drawn", "chaos", "smooth", "lorenz", "rossler"),
         hint="LFO 1's waveform. Stepped is a random step a cycle; drawn is the "
-             "curve drawn for it; chaos a chaotic line; smooth random glides.")),
+             "curve drawn for it; chaos a chaotic line; smooth random glides; "
+             "Lorenz and Rössler wander round a chaotic flow, never repeating.")),
     ("lfo_sync", _ui(_M, "LFO 1 sync", EXACT, widget="select",
         hint="Lock LFO 1 to the tempo. Overrides the rate.")),
     ("filter_lfo_rate", _ui(_M, "Filter LFO rate", EXACT, 0.05,
@@ -645,15 +694,23 @@ _ENTRIES: list[tuple[str, Ui]] = [
         entry
         for i, s in enumerate(MOD_SLOTS, start=1)
         for entry in (
+            # the switch: "off" bypasses the route, which keeps its settings
+            (f"{s}_on", _ui(_M, f"Route {i} on", EXACT, widget="pills",
+                hint=f"Route {i} on, or bypassed: off keeps its source, target, "
+                     "amount and curve but moves nothing.")),
             (f"{s}_src", _ui(_M, f"Route {i} source", _slot_gate(s),
                 widget="select", option_labels=MOD_SOURCE_LABELS)),
             (f"{s}_dst", _ui(_M, f"Route {i} target", EXACT, widget="select")),
             (f"{s}_amt", _ui(_M, f"Route {i} amount", EXACT)),
+            # the curve on the source, before the amount (synth.route_curve)
+            (f"{s}_curve", _ui(_M, f"Route {i} curve", EXACT,
+                hint=f"Bends route {i}'s source before its amount: up, it rises "
+                     "early; down, late; 0 leaves it as it is.")),
         )
     ],
 
     # the general modulators the routes read — envelopes 3 and
-    # 4 (gated as the filter envelope is), LFOs 2 and 3 (the general shapes,
+    # 4 (gated as the filter envelope is), LFOs 2-6 (the general shapes,
     # each its own drawing; a sync division reaches the worklet resolved)
     *[
         entry
@@ -673,10 +730,12 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ],
     *[
         entry
-        for k in (2, 3)
+        for k in GENERAL_LFOS
         for entry in (
-            (f"lfo{k}_rate", _ui(_O, f"LFO {k} rate", EXACT, unit="Hz",
-                subhead=f"LFO {k}", hint=f"Speed of LFO {k}.")),
+            (f"lfo{k}_rate", _ui(_O, f"LFO {k} rate", _stepped_ok(k), unit="Hz",
+                subhead=f"LFO {k}",
+                hint=f"Speed of LFO {k}: slow sweeps to 1000 Hz (audio-rate "
+                     "modulation; a filter target reads it once a 64-sample block).")),
             # the two knobs side by side, then the menus
             (f"lfo{k}_phase", _ui(_O, f"LFO {k} phase", EXACT,
                 hint=f"Where in its cycle LFO {k} starts each note.")),
@@ -689,6 +748,17 @@ _ENTRIES: list[tuple[str, Ui]] = [
                 hint=f"Retrig: LFO {k} starts every note at its phase. Free: each "
                      "note picks the cycle up at a place of its own.")),
         )
+    ],
+
+    # an envelope stage's time as a sync division: drawn inside its time's
+    # row (param_row.html, `ENV_SYNC_FIELDS`), not a row of its own; it
+    # reaches the worklet as the seconds /patch.json resolves (at_bpm)
+    *[
+        (f"{t}_sync", _ui(_F if t.startswith("filter") else _O,
+            f"{_env_name(t)} {t.split('_')[1]} sync", EXACT, widget="select",
+            hint=f"Lock the {t.split('_')[1]} to the tempo: a beat division "
+                 "instead of seconds. Off uses the time set."))
+        for t in ENV_SYNC_TIMES
     ],
 
     # no control
@@ -716,7 +786,10 @@ _ENTRIES: list[tuple[str, Ui]] = [
     *[
         (f"{name}_draw", Ui(None, worklet=EXACT,
             why=f"{label}'s drawn shape: the LFO's drawing sets it"))
-        for name, label in (("lfo", "LFO 1"), ("lfo2", "LFO 2"), ("lfo3", "LFO 3"))
+        for name, label in (
+            ("lfo", "LFO 1"),
+            *((f"lfo{k}", f"LFO {k}") for k in GENERAL_LFOS),
+        )
     ],
 ]
 # fmt: on
@@ -979,6 +1052,13 @@ _SHOWN = frozenset(spec.name for _, specs in PARAM_GROUPS for spec in specs)
 _IDLE_ASKED = tuple(
     n for n in GENES if n in _SHOWN and not (n.startswith("mod") and n[4:5] == "_")
 )
+
+
+def _lfo_routed(k: int) -> Callable[[Any], bool]:
+    """Does a route that plays read general LFO k?"""
+    return lambda p: _lfo_reads(p, k)
+
+
 # hand-made fields (no genes, so `params.live` never asks about them) that
 # are idle under a rule of their own: the rule says when they are heard
 _IDLE_HAND: tuple[tuple[tuple[str, ...], Callable[[Any], bool], str], ...] = (
@@ -995,6 +1075,16 @@ _IDLE_HAND: tuple[tuple[tuple[str, ...], Callable[[Any], bool], str], ...] = (
         ),
         osc3_on,
         "oscillator 3's level is 0",
+    ),
+    # LFOs 4-6: heard only through a route (their section folds while none
+    # reads them: bench.js)
+    *(
+        (
+            tuple(f"lfo{k}_{t}" for t in ("rate", "phase", "shape", "sync", "mode")),
+            _lfo_routed(k),
+            f"no route uses LFO {k}",
+        )
+        for k in (4, 5, 6)
     ),
 )
 IDLE_WHY.update({n: why for names, _rule, why in _IDLE_HAND for n in names})

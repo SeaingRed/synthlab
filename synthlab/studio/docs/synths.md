@@ -163,14 +163,18 @@ wider margins:
   (Measured: unison detune and spread change nothing with one voice and
   glide nothing on hold / arp / stab.)
 - **The mod matrix is its own module** (`#panel-mod-matrix`: Motion's
-  `modN_*` fields — 36 for its twelve slots, `paramui.ROUTE_FIELDS`,
+  `modN_*` fields — 60 for its twelve slots, `paramui.ROUTE_FIELDS`,
   the Jinja global `route_fields` — same form). Its `#patchbay` is a *view* of the
   `.route` rows — source jacks, target jacks, one lead a route drawn
   by `static/bench.js` into `.pb-cables` (redrawn on a field's `input` /
   `change`, after a swap and on resize; never per frame). A drag from
-  jack to jack sets the same fields (the first free slot of twelve); each
-  row has ± (invert) and ✕ (source off). `aria-hidden`: the rows are the
-  controls. **Twelve slots, dense**: routes 1-4 always stand
+  jack to jack sets the same fields (the first free slot of twelve, its
+  switch put on); each row is lamp, **switch** (`modN_on`: on / off pills
+  — off bypasses the route and keeps it: its lamp goes out, its controls
+  stand back and its lead is drawn faint), source, target, amount, the
+  **curve** on its source (`modN_curve`, a knob -1..1: up rises early,
+  down late, `synth.route_curve`), ± (invert) and ✕ (source off).
+  `aria-hidden`: the rows are the controls. **Twelve slots, dense**: routes 1-4 always stand
   (the ones the breeder and the mixes write); 5-12 (`data-extra`) stand
   only while they route, or once **+ route** opens the next (bench.js:
   `data-open`, kept until the next swap). Twelve source jacks; a target
@@ -196,8 +200,16 @@ wider margins:
 - **The Modulators panel** (`paramui` group "Modulators", the
   last column under Motion): envelopes 3 and 4 (five knobs each: attack,
   decay, sustain, release — log knobs, 1 ms to 8 s — curve) and LFOs 2
-  and 3 (rate and phase knobs, shape and sync selects, retrig / free
-  pills). **A drawn LFO** (LFO 1 in Motion, 2 and 3 here):
+  to 6 (rate and phase knobs, shape and sync selects, retrig / free
+  pills). **A synced envelope stage**: the filter envelope's and
+  envelopes 3 / 4's attack, decay and release rows each end in a small
+  select (`<time>_sync`, `paramui.ENV_SYNC_FIELDS`, drawn by
+  param_row.html in the time's own row — no row of its own, so a macro's
+  OOB row carries it): "♩ off" plays the time; a division plays that many
+  beats at the tempo and the time stands back. LFOs 4-6 rest folded to their headings while no route that
+  plays reads them (their rows idle: `paramui._IDLE_HAND`), so the panel
+  is as long as it was until one is used; fifteen source jacks in the
+  bay. **A drawn LFO** (LFO 1 in Motion, 2 and 3 here):
   `fragments/lfo_draw.html` under the shape row, shown while the shape is
   "drawn" — a well with the cycle drawn (`oscfaces.draw_face`: the
   polyline the engine reads and a handle a point) over a hidden

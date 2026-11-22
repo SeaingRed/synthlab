@@ -74,6 +74,10 @@ MOD_SOURCES = (
     "aftertouch",
     "key",
     "random",
+    # LFOs 4-6 (appended: GENERAL_LFOS)
+    "lfo4",
+    "lfo5",
+    "lfo6",
 )
 # what a bred route draws from: the five it always did (a longer source
 # gene re-draws every seeded litter); a hand-made route to the rest is kept
@@ -166,10 +170,16 @@ MOD_GENE_DESTINATIONS = tuple(
 # core.lfo() dispatches these: WAVEFORMS plus its own "noise" special case
 LFO_SHAPES = ("sine", "triangle", "saw", "square", "noise")
 # the general LFOs' shapes (LFO 1, 2, 3): those, then a drawn
-# curve (`lfo_draw`...), a chaotic map and a smooth random line, all seeded
+# curve (`lfo_draw`...), a chaotic map, a smooth random line and two
+# chaotic flows (appended: core.ATTRACTORS), all seeded
 # and loop-safe (core.lfo_ext). LFO 1's gene keeps the five: the rest are
 # its cap, a hand-made choice
-GENERAL_LFO_SHAPES = (*LFO_SHAPES, "drawn", "chaos", "smooth")
+GENERAL_LFO_SHAPES = (*LFO_SHAPES, "drawn", "chaos", "smooth", "lorenz", "rossler")
+# the general LFOs beside LFO 1 (each its own rate, shape, sync, phase, mode
+# and drawing): 2 and 3, then 4, 5, 6 — six in all, not more: each is six
+# Patch fields and a source jack, and six already outnumber the routes a
+# sound tends to spend on LFOs
+GENERAL_LFOS = (2, 3, 4, 5, 6)
 # "retrig": a general LFO starts each note at its phase; "free": each note
 # picks the cycle up where its own seed puts it (core.lfo_free_phase)
 LFO_MODES = ("retrig", "free")
@@ -191,6 +201,13 @@ SYNC_DIVISIONS: dict[str, float] = {
     "1/8T": 1.0 / 3.0,
 }
 SYNC_CHOICES = tuple(SYNC_DIVISIONS)
+# the envelope stage times that may be given as a sync division instead of
+# seconds (each one's `<time>_sync` field; synth.at_bpm resolves them)
+ENV_SYNC_TIMES = tuple(
+    f"{env}_{stage}"
+    for env in ("filter", "env3", "env4")
+    for stage in ("attack", "decay", "release")
+)
 
 OSC1_SHAPES = (
     "sine",
@@ -244,6 +261,8 @@ FILTER_TYPES_ALL = (
 # where filter 2 sits: nowhere (every older patch), after filter 1, or
 # beside it (the two outputs averaged)
 FILTER2_ROUTES = ("off", "serial", "parallel")
+# a route slot's switch: "off" bypasses the route (it keeps its settings)
+ROUTE_SWITCH = ("on", "off")
 
 # An envelope time's hard ceiling: a 4 s pad release is sound design, not
 # corruption, however narrow the musical gene range is.
@@ -306,15 +325,19 @@ def slot_active(p, slot: str) -> bool:
     return (
         src in MOD_SOURCES
         and src != "none"
+        and getattr(p, f"{slot}_on", "on") != "off"
         and getattr(p, f"{slot}_dst") in MOD_RANGES
         and abs(getattr(p, f"{slot}_amt")) >= 1e-3
     )
 
 
 def _routed(p, source: str) -> bool:
-    """Some slot reads `source` with an amount worth mutating around."""
+    """Some slot reads `source` with an amount worth mutating around (and
+    is not bypassed)."""
     return any(
-        getattr(p, f"{s}_src") == source and abs(getattr(p, f"{s}_amt")) >= 0.05
+        getattr(p, f"{s}_src") == source
+        and abs(getattr(p, f"{s}_amt")) >= 0.05
+        and getattr(p, f"{s}_on", "on") != "off"
         for s in MOD_SLOTS
     )
 
@@ -447,6 +470,10 @@ _WARP_WHY = "a hand-made phase warp: breeding never draws one"
 _OSC3_WHY = "a hand-made third oscillator: breeding never draws one"
 _VOICE_WHY = "how the keys and the loop play the sound, not the sound itself"
 _SAMPLE_WHY = "a sampler setting: it shapes a recording, not a bred sound"
+_ROUTE_WHY = (
+    "a route's switch and source curve: hand-made, never bred (a longer genome "
+    "would re-draw every seeded litter)"
+)
 
 _SLOT_AMTS = [_lin(f"{s}_amt", -1.0, 1.0) for s in MOD_GENE_SLOTS]
 _SLOT_CATS = [
@@ -485,6 +512,10 @@ def _r6(name, kind, cap, **kw):
 
 
 _ENV_T = (0.001, 8.0)  # a general envelope's times (log sliders)
+# a general LFO's rate, Hz: up to audio rate (LFO 1's gene stays 0.05-12,
+# its cap is this ceiling too; the ceiling was 30 for LFOs 2 / 3)
+LFO_RATE_MAX = 1000.0
+_LFO_RATE = (0.02, LFO_RATE_MAX)
 # The second filter, two general envelopes, two
 # general LFOs, the mod wheel and aftertouch, route slots 5-12. None is a
 # gene — a longer genome re-draws every seeded litter — so each is a
@@ -511,7 +542,7 @@ _ROUND6: list[Param] = [
         _r6(f"lfo{k}_{part}", kind, cap)
         for k in (2, 3)
         for part, kind, cap in (
-            ("rate", "log", (0.02, 30.0)),
+            ("rate", "log", _LFO_RATE),
             ("shape", "cat", GENERAL_LFO_SHAPES),
             ("sync", "cat", SYNC_CHOICES),
             ("phase", "lin", (0.0, 1.0)),
@@ -608,7 +639,7 @@ _ALL: list[Param] = [
         live=lambda p: p.formant_amount >= 0.05,
     ),
     _lin("formant_size", 0.6, 1.8, live=lambda p: p.formant_amount >= 0.05),
-    _lin("mod_lfo_rate", 0.05, 12.0, live=_lfo_rate_heard),
+    _lin("mod_lfo_rate", 0.05, 12.0, cap=(0.05, LFO_RATE_MAX), live=_lfo_rate_heard),
     _lin("env_curve", 1.0, 6.0),
     *_SLOT_AMTS,
     # appended to the lin run: hard sync's sweep
@@ -799,6 +830,32 @@ _ALL: list[Param] = [
             ),
         )
     ],
+    # each route slot's switch and the curve on its source, appended as
+    # one run (synth.route_curve): "on" and 0 are the route as it was
+    *[_p(f"{s}_on", "cat", cap=ROUTE_SWITCH, nogene=_ROUTE_WHY) for s in MOD_SLOTS],
+    *[_p(f"{s}_curve", "lin", cap=(-1.0, 1.0), nogene=_ROUTE_WHY) for s in MOD_SLOTS],
+    # LFOs 4-6, appended as one run: general LFOs as 2 and 3 are (never
+    # genes), each with its drawing
+    *[
+        param
+        for k in (4, 5, 6)
+        for param in (
+            *[
+                _r6(f"lfo{k}_{part}", kind, cap)
+                for part, kind, cap in (
+                    ("rate", "log", _LFO_RATE),
+                    ("shape", "cat", GENERAL_LFO_SHAPES),
+                    ("sync", "cat", SYNC_CHOICES),
+                    ("phase", "lin", (0.0, 1.0)),
+                    ("mode", "cat", LFO_MODES),
+                )
+            ],
+            _p(f"lfo{k}_draw", "meta"),
+        )
+    ],
+    # an envelope stage's time as a sync division ("off": its seconds),
+    # appended as one run: the filter envelope's and envelopes 3 / 4's
+    *[_r6(f"{t}_sync", "cat", SYNC_CHOICES) for t in ENV_SYNC_TIMES],
 ]
 
 PARAMS: dict[str, Param] = {p.name: p for p in _ALL}
@@ -839,6 +896,9 @@ META_CLEAN: dict[str, Callable[[Any], str]] = {
     "lfo_draw": clean_draw,
     "lfo2_draw": clean_draw,
     "lfo3_draw": clean_draw,
+    "lfo4_draw": clean_draw,
+    "lfo5_draw": clean_draw,
+    "lfo6_draw": clean_draw,
     "sampler_zones": sampler.clean_zones,
 }
 

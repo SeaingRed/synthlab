@@ -128,6 +128,9 @@ def _fields(lfo: dict, routes) -> dict:
                 f"{slot}_src": src,
                 f"{slot}_dst": dst,
                 f"{slot}_amt": round(amt, 2),
+                # switched on and straight: a mix plays as it says
+                f"{slot}_on": "on",
+                f"{slot}_curve": 0.0,
             }
         else:
             out[f"{slot}_src"] = "none"  # unplugged: a mix never stacks on the last one

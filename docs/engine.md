@@ -774,6 +774,116 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   added to the patch's (`keys-and-midi.md`, "The mod wheel and
   aftertouch"). Every field is opt-in: `tests/test_modulators_filters.py` fails a
   render of a patch that leaves them off yet reaches their code.
+- **More modulation** (`tests/test_modulation_range.py`). **A route's
+  switch and source curve** (Patch `modN_on` "on" / "off", `modN_curve`
+  -1..1, one each a slot, 24 fields): "off" bypasses the route —
+  `params.slot_active` says no, so the engine, the live voice (`wire`),
+  the gate and the breeder's `_routed` all skip it — and it keeps its
+  source, target, amount and curve. The curve bends the source before
+  the amount (`synth.route_curve`): its size |s|, held at 1, through
+  k |s| / (1 + (k - 1) |s|) for a curve above 0 (rises early) or
+  |s| / (k - (k - 1) |s|) below (late: the first's inverse), k = 1 + 15
+  |curve| (the warp's bend), its sign kept — so a bipolar LFO bends the
+  same either side of zero and a 0..1 envelope stays 0..1, 0 stays 0 and
+  1 stays 1. Only + - x / and a comparison: the voice's `route` computes
+  the same float64 numbers. At 0 `_mod_routes` never calls it; "on" and 0
+  are `KEY_ADDED_FIELDS` entries, so every older key and render stands
+  (`test_routes_left_on_and_straight_never_reach_the_curve`). Not genes,
+  not curves, not targets; a mod mix writes its routes on and straight.
+  Live, both are exact (parity cases `route_curve`, `route_switch`).
+  **Two chaotic flows** (`GENERAL_LFO_SHAPES` "lorenz", "rossler",
+  appended; any general LFO): `core.ATTRACTORS` — the Lorenz system
+  (sigma 10, rho 28, beta 8/3) and the Rössler (a = b = 0.2, c = 5.7) by
+  RK4 at a fixed step in float64, `ATTRACTOR_POINTS` (8) points a cycle,
+  each 2 steps of 0.046875 (Lorenz: 0.75 time units a cycle, about a turn
+  round a lobe) or 4 of 0.1875 (Rössler: 6, about one orbit — its z spike
+  needs the finer step; 0.375 blows up), joined by straight lines along
+  the phase, as the logistic "chaos" is. The start is drawn from the
+  LFO's seed (`hash_u` keys 1-3) near the attractor, then
+  `ATTRACTOR_WARM` (64) points of warm-up; the LFO reads x, centred and
+  scaled to -1..1 (Lorenz x / 20, Rössler (x - 1) / 10.5: measured x
+  within +-19.2 and -9.1..11.5) and held there. A function of the phase
+  from the note's start, so loop-safe; one trajectory per (flow, seed)
+  that never changes, so `attractor_points` keeps it and extends it (a
+  lock: renders run in threads). Straight-line + - x / in a fixed order:
+  the voice's `lfoX` (`attrF` / `attrStep`) computes the same doubles
+  (parity case `lfo_flows`, LFO 1 at 2 Hz and LFO 2 at 40 Hz: 0.00 dB).
+  **LFOs 4, 5 and 6** (Patch `lfoK_rate` / `_shape` / `_sync` /
+  `_phase` / `_mode` / `_draw`, k = 4-6, defaults 1 / 4 / 0.25 Hz, sine,
+  off, 0, retrig, "": 18 fields, appended as one run, built from
+  `params.GENERAL_LFOS`): general LFOs exactly as 2 and 3 are —
+  `synth.general_lfo(p, k)`, their own seed (crc32 "lfoK"), the stepped
+  shape on `sample_hold`'s stream k - 1 (3-5, in the live table), synced
+  by `at_bpm`, free from `lfo_free_phase(f0, k)`. Their sources "lfo4" ..
+  "lfo6" are appended to `MOD_SOURCES` (the gene's five stand). **Six
+  LFOs, not ten**: each is six Patch fields, a source jack and a panel
+  section, and six already outnumber the routes a sound tends to spend
+  on LFOs. Read only by a route, so a patch that leaves them alone
+  renders as before (`KEY_ADDED_FIELDS`); their rows are idle — and their
+  sections folded — while no route that plays reads them
+  (`paramui._IDLE_HAND`). The agent routes from them but does not set
+  them (its catalogue keeps LFOs 2 / 3). Live: exact (parity cases
+  `lfo456`, `lfo_drawn456`).
+  **LFO rates to 1000 Hz** (`params.LFO_RATE_MAX`): the cap of every
+  general LFO's rate (LFOs 2-6: their control's range too — a log knob
+  0.02-1000 Hz, so 2 Hz now sits at 0.43 of its travel where it sat at
+  0.63, and a macro or the XY pad on one sweeps the wider range; LFO 1's
+  gene, its slider, stays 0.05-12, only its cap rises). The engine
+  computes every LFO per sample, and so does the voice's control pass, so
+  an audio-rate LFO is FM / AM on every per-sample target — the pitch,
+  the levels, detune, pulse width, the warp amounts, the wavetable
+  position, the FM amounts, drive (a 440 Hz LFO on a 220 Hz sine's pitch
+  makes lines at 660, 1100 Hz...). The filter targets (cutoff,
+  resonance, filter 2's, the vowel: the voice's `BLOCK_RATE`) are read
+  once per 64-sample block on both sides (`core.biquad`'s coefficient
+  block, 689 Hz at 44.1 kHz): an LFO faster than ~340 Hz there is
+  sampled-and-held at the block rate and aliases — a stepped buzz, the
+  same in the loop and on the keys, not a smooth audio-rate filter FM.
+  **Live**: every shape at any rate but one — the stepped shape
+  ("noise") reads a stream the voice holds the first 4096 values of
+  (`voicetables.UNIFORM`, one a cycle): at the old 30 Hz ceiling that
+  wraps after 136 s of a held key, at 1000 Hz after 4 s. So a rate field
+  is a predicate (`paramui._stepped_ok`): a stepped LFO a playing route
+  reads, faster than `STEPPED_LIVE_HZ` (30), sends the keys to the
+  `/note` WAV. Parity case `lfo_audio` (LFO 1 a 1 kHz saw on the pulse
+  width, LFO 2 440 Hz on the pitch, LFO 3 310 Hz on the level, LFO 4 a
+  Lorenz flow at 800 Hz and LFO 5 stepped at 30 Hz on the filter: 0.00
+  dB, worst sample 4.3e-3 of peak, as the plain `default` case's 2.7e-3).
+  Cost, a 10 s note at 1 kHz (i9): the flows 136 / 228 ms the first
+  time (Lorenz / Rössler: a Python RK4 loop, then cached), 13 ms after;
+  chaos 12, smooth 17, stepped 6, drawn 8, sine 1.
+  **Envelope stages as sync divisions** (Patch `<time>_sync` for each of
+  `params.ENV_SYNC_TIMES` — the filter envelope's, envelope 3's and 4's
+  attack, decay and release: 9 fields, `SYNC_CHOICES`, "off" by
+  default, appended): `synth.at_bpm` writes a division's seconds (beats x
+  60 / bpm) into the time field just before rendering — the call LFO sync
+  already rides, so every place that resolves a synced LFO (the loop's
+  `build_song` / `arrange`, a key's `/note`, `/patch.json`, the lanes'
+  `key_voices`, genome, recipes) resolves these with it and a live key
+  plays the loop's seconds. Sustain is a level, not a time; the amp
+  envelope keeps seconds (its release is what lands a note: a release
+  that moved with the tempo would move every note's tail). Off, `at_bpm`
+  is the no-op it was (it returns the patch itself) and the fields are
+  `KEY_ADDED_FIELDS` entries: no older key moves. Live: the worklet
+  reads the resolved seconds as it reads any time (parity case
+  `env_sync`, 0.00 dB); a drag on a synced time is dead there, as a
+  synced LFO's rate is. The agent does not set them.
+  **Not built, and why.** *A synced LFO that follows the loop's swing*:
+  swing moves the odd steps of the bar, so the LFO would have to know
+  where in the bar its note starts — and nothing that builds an LFO does:
+  `Synth.note` renders a note alone, the note memo (`arrange.MemoSynth`)
+  keys a render by the patch, pitch, length, velocity and gate, never its
+  start, so one render serves every place that note falls, and every
+  render key hashes the same; a "free" LFO picks its cycle up from the
+  note's seed for the same reason. Putting the start in would split
+  every memo entry by position and move every key. *Macros as route
+  targets*: a macro is no signal — it is studio state (`state.macros`)
+  that `routes/macros.apply_macro` writes onto Patch fields when it is
+  moved; the engine never sees one. A route onto it would need the
+  macro's table inside the Patch and a second pass after the matrix (the
+  routed macro value, per sample, through each of its targets' mappings,
+  onto fields the matrix may already have routed). *An oscillator's or
+  the filter's output as a source*: out of scope (audio-rate feedback).
 - **More filter types and filter 2** (`core.filt`, `params.FILTER_TYPES_ALL`
   appended after the six, so saved indexes stand; the gene keeps the six):
   `lowpass24` / `highpass24` (two SVFs, Butterworth at 0, the second's q
