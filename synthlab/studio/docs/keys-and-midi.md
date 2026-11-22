@@ -332,8 +332,23 @@ it. `keytakes.py` and `routes/takes.py` hold the server half.
   begins "The page changed, so ⏺ Rec stopped".
 - **The cut**: from its first downbeat *as heard* — the context's time
   plus the output latency, as samplerec.js cuts a mic take — for exactly
-  its length (MediaRecorder's start stamped on the context clock;
-  silence pads a short one).
+  its length (silence pads a short one), **so the take's audio sits on its
+  notes' stamps** (`tests/browser/test_take_level.py`, in Chromium: a
+  note scheduled on the clock 13-24 samples off, a press 50-61 — the
+  voice's own start — within one render quantum, 128). It sat ~70 ms late:
+  the recording's start was stamped at MediaRecorder's `onstart`, which
+  Chromium fires 60-80 ms after the recorder has begun (its first sample
+  is ~7 ms before `start()`), and the keys reach the tap through the key
+  bus's limiter, a DynamicsCompressorNode that delays by its 6 ms
+  look-ahead. keyrec.js `finish` now measures the start: past the take's
+  end (≥ 0.25 s: never in the cut) a 12 ms 1 kHz burst goes into the
+  recorder alone at a known context time, and the sharpest rise in energy
+  within 40 ms of where `start()` puts it is where it landed (`sample0`;
+  not found, `start()` is the guess); the cut starts the look-ahead later
+  (`LOOKAHEAD`). Every source a take hears has the keys behind that
+  limiter (the talkbox and the master are fed from the tap), so a
+  "+ beat" take's beat sits 6 ms early on its bar line. The ~300 ms the
+  marker needs to reach the recording is added to the take's finish.
 - **The notes**: piano.js calls `S.keyNote(token, midi, velocity)` on every
   note and `S.keyNote(token)` where it ends (a pedal or latch hold included;
   the voice's token, so a held key struck again is a note of its own),

@@ -75,11 +75,12 @@
 //   notes are, at most a point each 1/50 beat, and posted beside them
 //   (`moves`: the live patch's values at the downbeat, then the moves).
 //   The loop keeps them as curves; the session's sound stays as left.
-// Budget: <= 280 code lines (110 -> 180: the key bus, takes
+// Budget: <= 300 code lines (110 -> 180: the key bus, takes
 // on the loop's bars, their notes, ▶ in time — kept in this island;
 // 190 -> 250: Rec into the selected slot, ⟲ Capture, the arp's
 // print; 250 -> 260: free record — a take is this island's; 260 -> 280:
-// the controls turned during a take, S.keyMove — the take's clock is here).
+// the controls turned during a take, S.keyMove — the take's clock is here;
+// 280 -> 300: the cut's marker — where the recording starts, measured).
 
 (() => {
   "use strict";
@@ -202,8 +203,7 @@
       moves: {}, from0: { ...(S.piano?.patch?.() || {}) } }); // the controls turned, and the live patch at the start
     r.from = r.to && line != null ? S.loopBar?.(at) : 0; // the loop's bar the take begins on (an overdub folds from it)
     media.ondataavailable = (e) => r.chunks.push(e.data);
-    media.onstart = () => { r.began = c.currentTime; };
-    media.start();
+    media.start(); // (r.began: the context time of start(), where finish's marker looks from)
     for (let k = 0; lead && k < 4; k++) blip(r, at - lead + k * beat, k === 0);
     const into_ = () => (r.at == null ? 0 : Math.max(0, heardIn(r))); // (free: 0 until its first note)
     r.spec = { kind: "● Recording", layer: true, at: (at ?? c.currentTime) + lag, beat, stop: () => press(r),
@@ -307,20 +307,57 @@
       .map((n) => [r3(n.start), r3(Math.max(0.01, Math.min(n.end ?? beats, beats) - n.start)), n.midi, r3(n.vel), ...(r.free && n.arp ? [1] : [])]); // (free: the arp's flagged)
   }
 
+  // Where the recording's first sample sits on the context clock. Not
+  // MediaRecorder's onstart: in Chromium it fires 60-80 ms after the
+  // recorder has begun (whose first sample is ~7 ms before start()), so a
+  // take cut from it sounded ~70 ms late against its notes
+  // (tests/browser/test_take_level.py). A marker measures it: a 1 kHz
+  // burst at a known context time into the recorder alone (never the
+  // speakers), past the take's end (finish runs >= 0.25 s after it: the cut
+  // never holds it), found as the sharpest rise in energy within 40 ms of
+  // where start() puts it; not found, start() is the guess.
+  async function marked(r, c) {
+    const o = c.createOscillator(), g = c.createGain(), at = c.currentTime + 0.02;
+    o.frequency.value = 1000; g.gain.value = 0.9;
+    o.connect(g).connect(r.tap); o.start(at); o.stop(at + 0.012);
+    await new Promise((ok) => setTimeout(ok, 300)); // in the recording before it stops
+    return at;
+  }
+  function sample0(buf, at, guess) {
+    const sr = buf.sampleRate, d = buf.getChannelData(0), w = Math.round(0.002 * sr), pre = Math.round(0.005 * sr);
+    const e = new Float64Array(d.length + 1); // running energy
+    for (let i = 0; i < d.length; i++) e[i + 1] = e[i] + d[i] * d[i];
+    const mid = Math.round((at - guess) * sr), span = Math.round(0.04 * sr);
+    let best = -1, ratio = 0;
+    for (let i = Math.max(pre, mid - span); i < Math.min(d.length - w, mid + span); i++) {
+      const after = (e[i + w] - e[i]) / w, before = (e[i] - e[i - pre]) / pre;
+      if (after > 0.1 && after / (before + 1e-6) > ratio) { ratio = after / (before + 1e-6); best = i; }
+    }
+    return best >= 0 && ratio > 8 ? at - best / sr : guess;
+  }
+  // and the keys reach the tap late by the key bus limiter's look-ahead
+  // (keys.js: a DynamicsCompressorNode delays by 6 ms — Blink, WebKit and
+  // Gecko share the code; measured 264 samples). Every source a take hears
+  // has the keys after it (the talkbox's input and the master are fed from
+  // the tap), so the cut starts that much later and the keys sit on their
+  // stamps; a +beat take's beat is that much early.
+  const LOOKAHEAD = 0.006;
+
   async function finish(r, cancel) {
     if (rec !== r) return;
     rec = null;
     r.timers.forEach(clearTimeout); r.nodes.forEach((g) => g.disconnect());
     S.transport?.release("keyrec", r.spec);
     paint();
+    const c = S.getCtx(), mark = cancel || !r.len ? null : await marked(r, c);
     const stopped = new Promise((ok) => { r.media.onstop = ok; });
     r.media.stop();
     await stopped;
     try { r.src.disconnect(r.tap); } catch { /* already gone */ }
     if (cancel || !r.len) return; // stopped before its first bar line: nothing was taken
     try {
-      const c = S.getCtx(), buf = await c.decodeAudioData(await new Blob(r.chunks).arrayBuffer());
-      const sr = buf.sampleRate, n = Math.round(r.len * sr), off = Math.round((r.at + r.lag - r.began) * sr);
+      const buf = await c.decodeAudioData(await new Blob(r.chunks).arrayBuffer());
+      const sr = buf.sampleRate, n = Math.round(r.len * sr), off = Math.round((r.at + r.lag + LOOKAHEAD - sample0(buf, mark, r.began)) * sr);
       const cut = c.createBuffer(Math.min(2, buf.numberOfChannels), n, sr); // silence pads a short take
       for (let ch = 0; ch < cut.numberOfChannels; ch++) {
         const d = buf.getChannelData(ch);
