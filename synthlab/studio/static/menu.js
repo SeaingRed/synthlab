@@ -130,7 +130,7 @@
   // one with none of those lists the sections in it (Perform's Launchers: each launcher)
   function ofSection(s, skip, deep = true, place = false) {
     const name = secName(s), D = S.deck, L = S.midiLearn, out = [];
-    const dials = D ? [...new Set([...s.querySelectorAll(CTL)].filter((c) => !c.disabled && c.offsetParent && !c.closest("#deck-panel, #colours-pop")
+    const dials = D ? [...new Set([...s.querySelectorAll(CTL)].filter((c) => !c.disabled && c.offsetParent && !c.closest("#deck-panel, #colours-pop") && !c.hasAttribute("data-no-dial")
       && D.find(D.toOf(c)) === c).map((c) => D.toOf(c)))] : [];
     if (dials.length) {
       out.push(row(dials.length > 4 ? `Put these on the deck (${dials.length}, in fours)` : "Put these on the deck", () => D.hold(dials, name)),

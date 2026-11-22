@@ -1541,24 +1541,26 @@ def test_put_these_on_the_deck_from_an_fx_unit_and_a_synths_panel(studio, server
         "the unit's parameter",
     )
     studio.settle()
-    # a Synths panel of nine: the first four, then Page ▶ the next four (its
-    # filter type's pills among them: a radio group is a stepped control)
+    # a Synths panel of thirteen: the first four, then Page ▶ the next four
+    # (its filter type's pills among them: a radio group is a stepped control)
     filt = page.evaluate(
         "() => [...document.querySelectorAll('#panel-filter :is(input[type=range],"
         " select, [role=radiogroup][id])')].filter((el) => el.offsetParent"
         " && !el.disabled).map((el) => el.id)"
     )
     assert "p-filter_type" in filt, filt
-    assert len(filt) == 10, filt  # the type, eight sliders and knobs, filter 2 (off)
+    # the type, eight sliders and knobs, the envelope's attack / decay /
+    # release sync divisions (stepped controls too), filter 2 (off)
+    assert len(filt) == 13, filt
     _section_row(page, "#panel-filter .panel-name", "Put these on the deck")
     page.wait_for_function(f"(ids) => ({_IDS})().join() === ids.join()", arg=filt[:4])
-    assert "page 1 of 3" in page.locator("#toasts .toast:not(.error)").last.inner_text()
+    assert "page 1 of 4" in page.locator("#toasts .toast:not(.error)").last.inner_text()
     page.click("#deck-next")
     page.wait_for_function(
         f"(ids) => ({_IDS})().slice(0, ids.length).join() === ids.join()",
         arg=filt[4:8],
     )
-    assert _face(page)["page"] == 1 and _face(page)["pages"] == 3
+    assert _face(page)["page"] == 1 and _face(page)["pages"] == 4
     # ★ Yours: the panel's first four, kept for this page
     _section_row(page, "#panel-filter .panel-name", "Add to ★ Yours")
     page.wait_for_selector("#deck-sets [data-set]:text-is('★ Yours')")

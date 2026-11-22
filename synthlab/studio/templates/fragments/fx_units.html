@@ -66,8 +66,10 @@ hx-post="{{ r.url if one else r.url[op] }}" hx-vals='{{ all | tojson }}'
       {% if u.bands %}
       {#- the part of the signal it works on (`effects.band_apply`): all of
           it, the lows / mids / highs (the OTT's crossover), or the mid / side
-          channel — the rest passes. A press of its own in the undo ring -#}
-      <select class="field field-s fx-band" name="value" aria-label="{{ u.label }} band"
+          channel — the rest passes. A press of its own in the undo ring;
+          its own id (a binding names it alone: every knob is name=value),
+          and no dial of the unit's (`data-no-dial`: a setting, not a knob) -#}
+      <select class="field field-s fx-band" name="value" id="fx-{{ r.id }}-{{ idx }}-band" data-no-dial aria-label="{{ u.label }} band"
               title="What it works on: the full signal, one band (the rest passes, in phase), or the mid or side channel"
               data-cmd="{{ cmd }}: band ({{ r.title }})" data-cmd-group="{{ group }}"
               {{ post(r, "set", {"index": idx | string, "name": "band"}) }} hx-include="this"
