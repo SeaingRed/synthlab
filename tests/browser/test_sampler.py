@@ -169,3 +169,45 @@ def test_chopping_draws_a_marker_for_every_slice(studio):
         "() => window.synthlab.piano.patch().sampler_slices.split(';').length === 8"
     )
     studio.settle()
+
+
+def test_the_granular_pill_keeps_the_sample_and_draws_the_cloud(studio):
+    """The granular shape plays the same sample: its pill shows the
+    Granular rows and keeps the sample's own (root, span, loop) while the
+    sampler's alone (pitch mode, stretch) hide; the panel stays, draws the
+    cloud over the waveform and drops the chops. Its keys take the server
+    WAV (`/patch.json` refuses the worklet, naming osc1) and still sound.
+    Does not prove the cloud sounds right: nobody has listened."""
+    page, views = studio.page, []
+    page.on("response", lambda r: "/view/editor" in r.url and views.append(r.url))
+    _sampler_from_clip(studio, "cloud", stereo=False)
+    seen = len(views)  # let the upload's re-fetch land first (as above)
+    for _ in range(50):
+        if len(views) > seen:
+            break
+        page.wait_for_timeout(100)
+    studio.settle()
+    pill = page.locator('input[name="osc1"][value="granular"]')
+    pill.evaluate("(el) => el.scrollIntoView({ block: 'center' })")
+    pill.check(force=True)
+    page.wait_for_function(
+        "() => { const p = window.synthlab.piano.patch();"
+        " return p.osc1 === 'granular' && p.worklet_ok === false; }"
+    )
+    assert page.locator("#row-grain_pos").is_visible()
+    assert page.locator("#row-grain_density").is_visible()
+    assert page.locator("#row-sampler_start").is_visible()
+    assert page.locator("#row-sampler_root").is_visible()
+    assert not page.locator("#row-sampler_stretch").is_visible()
+    assert not page.locator("#row-sampler_mode").is_visible()
+    page.wait_for_selector(
+        "#sampler-panel:not([hidden]) .sampler-svg .sw-pos", state="attached"
+    )
+    assert page.locator("#sampler-panel .sampler-svg .sw-grain").count() == 1
+    assert page.locator('#sampler-panel button[hx-vals*=\'"mode": "8"\']').count() == 0
+    patch = page.evaluate("window.synthlab.piano.patch()")
+    assert patch["worklet_blockers"][0] == "osc1" and not patch["sampler_live"]
+    studio.settle()
+    studio.pointer_down('.pkey[data-note="0"][data-rel="0"]')
+    studio.wait_sound(floor=0.005)
+    studio.pointer_up()

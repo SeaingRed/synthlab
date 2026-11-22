@@ -485,3 +485,46 @@ def test_a_move_without_a_real_position_is_refused(tmp_path):
     assert s.patch.sampler_slices == before
     _move(client, 99, 0.5)  # no such slice: nothing moves
     assert s.patch.sampler_slices == before
+
+
+# --- the granular shape: the same sample as a cloud ----------------------------
+
+
+def test_the_granular_shape_plays_the_sample_on_the_wav_path(tmp_path):
+    """A pill away from the sampler: the same sample, its panel and its
+    pitch tools stay, the cloud is drawn over the waveform, the chops and
+    zones go (the sampler shape's alone). Its keys take the server WAV
+    (`osc1` blocks, and every grain field off its default: "default"; off
+    the shape they block nothing),
+    and its render key carries the grain fields only when they move."""
+    client = _client(tmp_path)
+    s = client.app.state.studio
+    save_clip(tmp_path, "tone", _tone(220, 1.0))
+    _use(client, "tone")
+    r = client.post(
+        "/fragment/patch",
+        data={"osc1": "granular", "grain_pos": "0.4", "grain_spray": "0.3"},
+        headers=HX,
+    )
+    assert r.status_code == 200
+    assert s.patch.osc1 == "granular" and s.patch.grain_pos == 0.4
+    page = client.get("/view/editor").text
+    panel = page.split('id="sampler-panel"')[1].split('id="row-')[0]
+    assert "sampler-svg" in panel and "sw-pos" in panel and "sw-spray" in panel
+    assert "sw-grain" in panel and "Chop" not in panel and "＋ zone" not in panel
+    assert "#row-grain_pos" in page and 'value="granular"' in page
+    audio = client.app.state.svc.render("editor").audio()
+    assert np.abs(audio).max() > 0.02
+    pj = client.get("/patch.json?view=editor").json()
+    assert pj["worklet_ok"] is False
+    assert pj["worklet_blockers"] == ["osc1", "grain_pos", "grain_spray"]
+    assert pj["sampler_live"] is None
+    r = client.get("/note/A3.wav?view=editor")
+    assert r.status_code == 200 and len(r.content) > 10_000
+    # the grain fields left on a synth block nothing, and stay out of its key
+    synth = replace(s.patch, osc1="saw")
+    assert "grain_pos" not in blockers(synth)
+    assert "grain_pos" in keyed_patch(s.patch)
+    assert "grain_size" not in keyed_patch(s.patch)  # at its default
+    # "use" the detected pitch works for the cloud too
+    assert client.post("/fragment/sampler/root", headers=HX).status_code == 200

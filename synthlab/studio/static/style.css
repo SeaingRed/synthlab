@@ -3023,6 +3023,11 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
 .sampler-svg .sw-start, .sampler-svg .sw-end { stroke: var(--accent); }
 .sampler-svg .sw-slice { stroke: var(--text); stroke-dasharray: 3 3; }
 .sampler-svg .sw-rev { stroke: var(--accent); }
+/* the granular cloud (samplerview.cloud): the spray's reach, one grain's
+   read from the position, the position's line */
+.sampler-svg .sw-spray { fill: color-mix(in oklch, var(--text), transparent 86%); }
+.sampler-svg .sw-grain { fill: color-mix(in oklch, var(--accent), transparent 50%); }
+.sampler-svg .sw-pos { stroke: var(--text); }
 /* a slice start's marker (layout.js drags it): a wide grab strip, a thin line */
 .sampler-wave { position: relative; }
 .slice-mark { position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -6px;
