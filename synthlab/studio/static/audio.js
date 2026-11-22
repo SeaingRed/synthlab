@@ -66,6 +66,9 @@
   let ctx = null, analyser = null, master = null;
   let liveOutNode = null;
   let current = null;            // {src, gain}
+  // the loop's playback gain: preview-ready's `gain` (dB) — a saved loop of
+  // notes open on Perform plays at the keys' level (keylevel.py) — else 1
+  let level = 1;
   let pendingUrl = null, playing = false, lastUrl = null;
   let restBuffer = null, restBufUrl = null; // the last loop buffer that sounded + its URL (motion.js reuses it)
 
@@ -117,6 +120,7 @@
   function startLoop(buffer, at, passes = 1) {
     const src = ctx.createBufferSource(), gain = ctx.createGain();
     src.buffer = buffer; src.loop = true; src.connect(gain).connect(master);
+    gain.gain.value = level;
     const now = ctx.currentTime, t = at || now, old = current;
     // A tweak always swaps a same-length re-render of the same phrase, so
     // crossfade in at the OLD loop's current phase — restarting at beat 1
@@ -130,11 +134,11 @@
       if (Math.abs(old.duration - buffer.duration) < 1e-6) {
         phase = ((now - old.startedAt) % buffer.duration + buffer.duration) % buffer.duration;
       }
-      old.gain.gain.setValueAtTime(1, now);
+      old.gain.gain.setValueAtTime(old.gain.gain.value, now);
       old.gain.gain.linearRampToValueAtTime(0, now + XFADE);
       setTimeout(() => { try { old.src.stop(); old.src.disconnect(); old.gain.disconnect(); } catch {} }, XFADE * 1000 + 60);
       gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(1, now + XFADE);
+      gain.gain.linearRampToValueAtTime(level, now + XFADE);
     }
     src.start(t, phase);
     current = { src, gain, startedAt: t - phase, duration: buffer.duration, cycle: buffer.duration / passes };
@@ -403,7 +407,7 @@
     // same URL means same audio: keep the running loop's phase instead of
     // restarting it. Queued launches still go through — the launcher waits
     // on loop-switched.
-    if (playing && current && url === lastUrl && !queue) return;
+    if (playing && current && url === lastUrl && !queue) return void current.gain.gain.setTargetAtTime(level, ctx.currentTime, 0.03);
     lastUrl = url;
     if (!playing) { pendingUrl = url; if (queue) switched(); return; }
     const token = ++swapToken;
@@ -1011,6 +1015,7 @@
     if (detail.url && detail.url !== lastUrl) window.synthlab.flushKeys();
     if (!detail.url) return;
     plays = detail.plays || ""; // a render that names itself (the booth, the vocoder): Now playing says so
+    level = 10 ** ((Number(detail.gain) || 0) / 20);
     // autoplay (breed "in loop" audition): hearing it is the point of the
     // click, so a stopped transport starts instead of stashing the URL
     if (detail.autoplay && !playing) { pendingUrl = detail.url; play(); }

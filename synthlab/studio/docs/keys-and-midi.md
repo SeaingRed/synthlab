@@ -921,7 +921,11 @@ semitones repitched by `playbackRate`, and crossfades (40 ms) to the exact
 render when it lands (`pickKey`, `swapOffset`); a sounding key re-fetches
 on every patch change and crossfades too, so every parameter reaches a
 held WAV note. The worklet voice joins the same key bus (`keyBus`,
-after the WAV-only live filter): one gain stage for both.
+after the WAV-only live filter): one gain stage for both. Its limiter
+(threshold -4 dB, ratio 20) is a DynamicsCompressorNode, which adds two
+things of its own that the level and the timing of a take must count:
+a makeup gain on all it passes (2.28 dB here: `keylevel.KEY_MAKEUP`) and a
+6 ms look-ahead delay (keyrec.js `LOOKAHEAD`).
 
 ## Held keys loop a separate render
 

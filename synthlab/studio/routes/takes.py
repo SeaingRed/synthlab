@@ -47,8 +47,8 @@ from fastapi import Request, Response
 from fastapi.responses import HTMLResponse
 
 from ...audio import read_pcm16
-from .. import keytakes as kt
 from .. import (
+    keylevel,
     limits,
     looplib,
     loops,
@@ -60,6 +60,7 @@ from .. import (
     takemoves,
     tosong,
 )
+from .. import keytakes as kt
 from .. import meter as _meter
 from .. import song_model as sm
 from ..agent.client import AgentError
@@ -912,13 +913,30 @@ def _render_loop(svc, loop: dict, bpm: float | None = None):
             return svc.render(
                 "drums", arrangement=_beat_arr(s, loop["beat"], bpm or own)
             )
-        arr, _word = _loop_lane(s, loop)
-        sound = loop["sound"]
-        heard = {"patch": sound[0], "chain": sound[1], "mix": True} if sound else {}
-        arr = replace(arr, bpm=bpm or own)
-        return svc.render("perform", arrangement=arr, parts=("synth",), **heard)
+        return svc.render("perform", **_loop_args(s, loop, bpm))
     except RenderError as err:
         return svc.toast(str(err))
+
+
+def _loop_args(s: StudioState, loop: dict, bpm: float | None) -> dict:
+    """How a loop of notes renders (`_render_loop`): `svc.render("perform",
+    ...)`'s arguments — its lane on its clock and key at its own tempo or
+    `bpm`, the synths alone, in its sound."""
+    arr, _word = _loop_lane(s, loop)
+    sound = loop["sound"]
+    heard = {"patch": sound[0], "chain": sound[1], "mix": True} if sound else {}
+    arr = replace(arr, bpm=bpm or loop["key"]["bpm"])
+    return {"arrangement": arr, "parts": ("synth",), **heard}
+
+
+def _keys_gain(svc, loop: dict, made, bpm: float | None = None) -> float | None:
+    """The dB that plays `made` (`_render_loop`'s render of `loop`) at the
+    keys' level — where the key bus put the same notes (`keylevel`) — or
+    None: a beat, or no notes."""
+    if loop["kind"] != "notes":
+        return None
+    inp = svc.render_inputs("perform", **_loop_args(svc.state, loop, bpm))
+    return keylevel.playback_db(inp, made)
 
 
 def _bounce(svc, loop: dict) -> str | Response:
@@ -931,7 +949,11 @@ def _bounce(svc, loop: dict) -> str | Response:
     bars = loop["beat"]["bars"] if loop["kind"] == "beat" else loop["lane"]["bars"]
     kept = free_clip_name(s.data_dir, loop["name"])
     meta = {"bpm": loop["key"]["bpm"], "bars": bars, "source": f"loop: {loop['name']}"}
-    save_clip(s.data_dir, kept, made.audio(), meta=meta)
+    gain = _keys_gain(
+        svc, loop, made
+    )  # a loop's audio is at the keys' level, as a take's
+    audio = made.audio() * (10 ** (gain / 20) if gain is not None else 1.0)
+    save_clip(s.data_dir, kept, audio, meta=meta)
     return kept
 
 
@@ -1271,6 +1293,11 @@ def loop_preview(request: Request, form: StrForm, svc: Svc) -> Response:
         if isinstance(made, Response):
             return made
         url = f"/preview/{made.key}.wav"
+        gain = _keys_gain(svc, loop, made, bpm)
+        if gain is not None:  # at the keys' level, as its take plays
+            return HTMLResponse(
+                "", headers={"X-Preview-Url": url, "X-Preview-Gain": str(gain)}
+            )
     return HTMLResponse("", headers={"X-Preview-Url": url})
 
 

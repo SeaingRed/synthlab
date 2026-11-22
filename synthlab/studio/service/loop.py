@@ -31,7 +31,7 @@ from fastapi.templating import Jinja2Templates
 
 from ...sequencer import midi, name_of
 from ...synth import Patch
-from .. import song_bridge
+from .. import keylevel, song_bridge
 from .. import song_model as sm
 from ..audition import NO_PHRASE, has_slides, phrase_arrangement
 from ..bassview import phone_speaker
@@ -51,7 +51,7 @@ from ..render import (
     result_of,
 )
 from ..state import StudioState, audible_layers
-from ..state.model import Arrangement
+from ..state.model import DRUM_LANE, Arrangement
 from ..views import BENCH_VIEWS
 
 log = logging.getLogger("synthlab.studio")
@@ -412,7 +412,7 @@ class LoopRender:
         html = self.templates.get_template("fragments/analysis.html").render(
             analysis=result.analysis
         )
-        events: dict = {"preview-ready": {"url": preview_url(result)}}
+        events: dict = {"preview-ready": self.ready(v, result)}
         # the panels: which controls change nothing now (paramui.idle)
         if v == "editor":
             events["patch-idle"] = idle(s.patch, has_slides(s.audition))
@@ -426,6 +426,18 @@ class LoopRender:
     ) -> dict:
         v = view or (self.view_of(request) if request else "perform")
         result = self.heard(v)
-        return {
-            "HX-Trigger": json.dumps({"preview-ready": {"url": preview_url(result)}})
-        }
+        return {"HX-Trigger": json.dumps({"preview-ready": self.ready(v, result)})}
+
+    def ready(self, view: str, result: RenderResult) -> dict:
+        """`preview-ready`'s detail for `result`, what ▶ plays on `view`:
+        its URL — and on Perform, while a saved loop of notes is open on a
+        lane (Edit, a launcher slot playing it), `gain`: the dB that plays
+        the mix at the keys' level, where the key bus put the same notes
+        (`keylevel`; loop-and-perform.md, "At the keys' level"). audio.js
+        plays the loop at it."""
+        detail: dict = {"url": preview_url(result)}
+        if view == "perform" and any(k != DRUM_LANE for k in self.state.loop_edit):
+            gain = keylevel.playback_db(self.render_inputs(view), result)
+            if gain is not None:
+                detail["gain"] = gain
+        return detail

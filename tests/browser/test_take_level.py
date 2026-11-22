@@ -1,13 +1,16 @@
-"""A take plays where it was, in Chromium: its audio on its notes'
-stamps.
+"""A take's loop plays where the take was, in Chromium: at the keys'
+level, and its audio on its notes' stamps.
 
 What these journeys prove: a take recorded with nothing playing is cut so
 its notes sound where their stamps say (a note scheduled on the clock, as
 the keys arp posts one, and a press as a hand plays one) within one render
 quantum — it was ~70 ms late: MediaRecorder's `onstart` comes 60-80 ms
 after the recording begins, and the key bus's limiter delays the keys by
-its 6 ms look-ahead (keyrec.js `finish`). Onsets are read from
-the WAV the server kept — nobody has listened.
+its 6 ms look-ahead (keyrec.js `finish`); and the take's loop, opened with
+Edit and played by Perform's transport, reaches the master at the level
+its take does — single notes and a held three-note chord — where it was
+~9 dB louder (a loop render is normalised; `keylevel.py`). Levels are the
+master analyser's and the WAVs' — nobody has listened.
 """
 
 from __future__ import annotations
@@ -15,9 +18,11 @@ from __future__ import annotations
 import io
 import math
 import wave
+from urllib.parse import unquote
 
 import numpy as np
 
+from synthlab.studio import loops
 from tests.browser.test_key_takes import _bench, _take
 
 QUANTUM = 128  # samples: one render quantum
@@ -91,4 +96,97 @@ def test_a_takes_audio_sits_on_its_notes(studio, server):
     # each note sounds where its stamp says, within one render quantum
     # (measured: scheduled 13-24 samples, pressed 50-61; it was ~3,300)
     assert all(abs(o) <= QUANTUM for o in off), off
+    assert studio.unexplained() == []
+
+
+READY = """() => { window.__ready = [];
+  document.addEventListener("preview-ready",
+    (e) => window.__ready.push(e.detail || {}), true); }"""
+
+
+def _master_db(page, seconds: float) -> float:
+    """The master's level over `seconds`: the analyser's windows' power,
+    averaged (a read every 30 ms of its 2048-sample window)."""
+    power = page.evaluate(
+        """async (s) => {
+          const an = window.synthlab.getAnalyser(), b = new Float32Array(an.fftSize);
+          let sum = 0, n = 0; const end = performance.now() + s * 1000;
+          while (performance.now() < end) { an.getFloatTimeDomainData(b);
+            let p = 0; for (const v of b) p += v * v; sum += p / b.length; n++;
+            await new Promise((ok) => setTimeout(ok, 30)); }
+          return sum / n; }""",
+        seconds,
+    )
+    return 10 * math.log10(power + 1e-15)
+
+
+def _loop_at_keys_level(studio, server, play):
+    """Record `play` as a take with nothing playing; hear the take (its row's
+    ▶) and then its loop (Edit, Perform's ▶) at the master: (take dB, loop
+    dB at the master; the take's WAV dB, the loop render's dB as normalised
+    and as played)."""
+    page = _bench(studio, bars="2")
+    studio.start_voice()
+    answer = _record(page, play)
+    name = unquote(answer.headers["x-loop-name"])
+    meta, pcm, rate = _take(server)
+    secs = len(pcm) / rate
+    row = page.locator(f'#key-takes [data-ctx="loop {name}"]')
+    row.wait_for()
+    studio.wait_silence()
+    # nothing plays: its row's ▶ is the take's own audio, at once — heard
+    # whole inside the window, its energy over its own length
+    row.locator(".lp-play").click()
+    window = secs + 0.8
+    take_db = _master_db(page, window) + 10 * math.log10(window / secs)
+    studio.wait_silence()
+    page.evaluate(READY)
+    with page.expect_response("**/loop/edit"):
+        row.locator(".lp-edit").click()
+    page.wait_for_selector('#view[data-view="perform"]')
+    studio.settle()
+    page.click("#play")
+    page.wait_for_function("() => window.synthlab.isPlaying()", timeout=20000)
+    page.wait_for_function("() => window.__ready.length > 0", timeout=20000)
+    studio.wait_sound()
+    page.wait_for_timeout(300)  # (the crossfade in)
+    loop_db = _master_db(page, 2 * secs)  # two whole passes
+    detail = page.evaluate("() => window.__ready[window.__ready.length - 1]")
+    page.click("#play")
+    render, _ = _wav(page.request.get(f"{studio.url}{detail['url']}").body())
+    assert loops.load(server.data_dir, name)["take"] == meta["name"]
+    return take_db, loop_db, _db(pcm), _db(render), detail.get("gain")
+
+
+def test_a_takes_loop_plays_at_the_keys_level(studio, server):
+    def play(page):
+        for k, m in enumerate((60, 64, 67, 72, 67, 64)):
+            page.wait_for_timeout(180)
+            _note(page, k, m, 260)
+
+    take_db, loop_db, wav_db, render_db, gain = _loop_at_keys_level(
+        studio, server, play
+    )
+    assert gain is not None and gain < -3  # the loop is turned down
+    # the render as played (its gain) is the take's level, within 1 dB —
+    # the render as normalised was ~9 dB over it
+    assert render_db - wav_db > 4
+    assert abs(render_db + gain - wav_db) < 1.0, (render_db, gain, wav_db)
+    # and so is what reaches the master (the analyser after it)
+    assert abs(loop_db - take_db) < 1.0, (loop_db, take_db)
+    assert studio.unexplained() == []
+
+
+def test_a_chords_loop_plays_at_the_keys_level(studio, server):
+    def play(page):
+        for k, chord in enumerate(([60, 64, 67], [57, 60, 64])):
+            page.wait_for_timeout(300)
+            _note(page, k, chord, 1200)
+
+    take_db, loop_db, wav_db, render_db, gain = _loop_at_keys_level(
+        studio, server, play
+    )
+    assert gain is not None
+    assert abs(render_db + gain - wav_db) < 1.0, (render_db, gain, wav_db)
+    assert abs(loop_db - take_db) < 1.0, (loop_db, take_db)
     assert studio.unexplained() == []
