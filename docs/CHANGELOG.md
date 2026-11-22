@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **The Loops page has one transport, the deck**: ■ and ▶ (Space) at the
+  top of the page play what its source says — **Loop** (the selected
+  cell's loop alone), **Scene** (that cell's row) or **Song** (an empty
+  song made from the loop first: the old "▶ Whole song") — beside one
+  ⏺ Rec, the keyboard dock's own, whose ▾ holds the length (free
+  included), count-in, + beat, where the take lands (a new loop, or the
+  selected cell overdubbed or replaced — always shown), "keep what I just
+  played" and "record the mix as audio". A meter of lamps shows the bar
+  playing, pulsing on the beat, and counts in while Rec is armed. Every
+  other play button on the page is a hollow ▷ listen that never stops
+  what plays. **One selection**: a cell's click opens its loop on its
+  lane — the editor shows it ("saved"), it plays there from the next bar
+  and every edit saves to it — and an empty cell's lane is a sketch ("not
+  saved", Save as loop). Each lane's ■ and a lamp that lights while it
+  sounds moved into its head; the playing cell turns a ring of its loop's
+  position.
 - **Import SFZ**: a zip of an `.sfz` and its WAV / FLAC / OGG samples becomes
   a sampler sound with a zone a region (keys, velocities, root, tune, gain,
   loops, round-robin takes, the first region's amplitude envelope). Every

@@ -392,8 +392,9 @@ checklist and the shapes read it. Tracks are named for what they are for.
 An empty state offers a next step that makes sound: the empty Song page
 IS the starter sheet; an empty pool (and a song with sections but no
 pattern) writes a beat or a riff and places it (`/song/gen add=`);
-the loop becomes a song through the Loops page's **▶ Whole song**, never
-empty (`loop-and-perform.md`, "→ Song");
+the loop becomes a song through the Loops page's deck — its Song
+source's ▶ on an empty song, **make it a song** — never empty
+(`loop-and-perform.md`, "→ Song" and "The deck");
 Perform's Sounds, the
 Drums library and the Library's empty detail start a song in
 the style used last (the Library's filter that hides every row offers

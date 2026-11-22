@@ -54,8 +54,9 @@ itself:
 
 - **the Loops panel** (`loops`, the left column: pinned from 2200 px, a
   tab sliding over the page below; "The Loops panel" below);
-- **the centre**: the live strip (`bar`: ▶, tempo, the meter, the loop's
-  position, ⏺ resample, the master knob and **Notes | Drums | Both**), the
+- **the centre**: **the deck** (`bar`, "The deck" below: ■ ▶, the source
+  Loop | Scene | Song, ⏺ Rec and its ▾, the bar meter, tempo, meter, key,
+  the master knob, the part mutes and **Notes | Drums | Both**), the
   **launcher** (`slots`: its scenes, then it scrolls, at most a third of
   the window) and the **editor** under it — the note grid (`seq`) over the
   drum grid (`rack`), sharing the rest 1.5 : 1 in Both, one of them the
@@ -105,9 +106,8 @@ edit:
   panels edit the edited lane); the browser's Back (Alt+←) comes back —
   a one-click round trip.
 
-The transport's controls row says which lane the grid edits ("editing
-1 Acid bass", `.ed-lane`, in the `transport` region's watch:
-`active_layer`, the patch's name).
+The editor's head says what the grid is and which lane it edits ("One
+selection" below: `.ed-head`, in the `transport` region's watch).
 
 **✦ Coach is the inspector's other tab** (Lane | ✦ Coach in its head,
 `data-coach-toggle="close" | "open"`, `data-coach-tab`; coach.js sets
@@ -146,18 +146,129 @@ the tooltip of the (?) at the end of the toolbar. The momentary FX are
 ("Launch beat …", "Launch section …"); a lane head's ▾ is "Pick the
 sound of lane N".
 
+### The deck: one transport for the page
+
+The page had about ten controls that started or stopped sound, each
+meaning something else, and four ways to record in three places. **The
+deck** (`#perform-transport`, `data-module="perform.transport"` — the id
+the live strip had, so saved layouts stand; `views/perform.html`,
+`static/loopdeck.js`, style.css "The deck") is the page's one transport,
+at the top of the centre:
+
+- **■ and ▶.** ▶ (`#play`, `data-keys="Space"`: transport.js's Space
+  presses it) starts what the **source** says; while the deck plays it is
+  its own stop (Space too), its lamp lit, its glyph staying ▶ (audio.js
+  `setPlayButton` keeps it on a `.deck`). ■ (`#deck-stop`) stops
+  everything, as the top bar's ■ does (`transport.stopAll`: a take
+  recording, a listen). The players stay audio.js's (the loop) and
+  song.js's (the song) and report to `S.transport`: the status strip's
+  read-out, ▶ / ⏸ / ■ mirror the deck here and stay valid on every page.
+  A deck start stops a **▷ listen**.
+- **The source: Loop | Scene | Song** (`[data-deck-src]`, per browser:
+  localStorage `synthlab.deck`; Loop first). **Loop** plays the selected
+  cell's loop **alone** — `POST /fragment/perform/slot/hear` renders it as
+  a Loops row's ▷ renders a loop at another tempo (`takes._render_loop`,
+  its own sound; a beat through the session's kit) at the page's tempo
+  and answers `X-Preview-Url`, which the deck hands audio.js as a
+  `preview-ready` of its own (`deck: true`, named "“Acid line” alone ·
+  lane 1": Now playing says so); with no filled cell selected, the working
+  loop. While a cell plays alone, every preview the server answers (an
+  edit, a launch) is held — audio.js asks `S.deckHold` — and the cell
+  asked for again: an edit saves to its loop (the open loop's mirror), so
+  what is heard is what the grid holds; another cell selected takes over
+  at the quantise point; no filled cell selected, or another source, hands
+  back the working loop. **Scene** plays the selected cell's row — its
+  ▸, launched at the quantise point, unless all of it plays already —
+  or, with none selected, what the lanes play now. **Song** plays the song
+  (song.js's `songClock().play()`, from its marker); an empty song is made
+  from the loop first by **make it a song** (`#deck-arrange`, shown on
+  the Song source: the old "▶ Whole song", `POST /song/arrange
+  source=loop`, asking first when the song has sections). Switching the
+  source while the deck plays starts the new one (a cell alone or a row
+  at the quantise point); a scene's ▸ (or Alt+1…8) makes Scene the
+  source.
+- **⏺ Rec** (`#deck-rec`) is **the keyboard dock's ⏺ Rec, the same
+  control**: keyrec.js owns the take and paints every `[data-key-rec]`
+  together ("count-in 3", "■ 0:04 · bar 1/2"). Its **▾** (`#deck-rec-menu`,
+  a `.menu` popover) holds what a take is set by: the **length** (1 / 2 /
+  4 / 8 / 16 bars, until ■, **free**: `[data-key-len]`, the dock's select
+  `#key-bars` the same preference), **count-in** and **+ beat**, **where
+  it lands** — **a new loop** (the selected cell when it is empty, else
+  the lane's next empty one, never over a loop: slots.js's `free`; no cell
+  selected, the Loops panel) | **the selected cell: overdub | replace** —
+  shown always, never a hidden mode, with a line saying where this take
+  will go ("overdub “Acid line” · lane 1, scene 1"), then **⟲ Keep what I
+  just played** (Alt+T: keys capture) and **⏺ resample** (`#jam-rec`:
+  the mix as audio, to a clip). The Loops panel's "⏺ free" is gone: free
+  is a length.
+- **The meter** (`.deck-meter`, a well of lamps; `.deck-pos`): a lamp a
+  bar of what plays (16 at most; a song's 16-bar page), those before lit,
+  the current one pulsing on its beat (`--pulse` written on the meter
+  alone; 1 under calm motion); at rest, the bars ▶ would play. While ⏺ Rec
+  is armed the meter counts in: the beats left in the record red (the
+  `keyrec` claim's `at`). The same frame turns the playing cells' rings.
+  Nothing runs at rest.
+- **Tempo, meter, key, level**: the tempo field (the form's one named
+  field, posted on `change`), the `meter-pick` region, the key (a read-out
+  of the note grid's root and scale, loopdeck.js after every settle), the
+  master knob, the part mutes and Notes | Drums | Both.
+
+Every **other** play control on the page is a **▷ listen** (`.lp-play`,
+hollow, in the signal's colour: every Loops list's row — the panel, the
+drawer, the dock's strip): a quiet preview in time, a layer over what
+plays (at half its level while the deck plays), stopped when the deck
+starts — never a transport. The launcher's scene ▸ and lane ■ launch and
+stop lanes; they are not transport keys.
+
+`tests/browser/test_slots.py`
+(`test_select_a_cell_play_it_alone_on_the_deck_and_rec_into_it`),
+`tests/studio/test_slots.py` (`/fragment/perform/slot/hear`).
+
+### One selection
+
+What the editor shows was said three times (a banner, the editing
+lane's name, the launcher) while another cell could be what played. Now
+**the selected cell is what the editor shows** — what the lane inspector
+describes, what Loop ▶ plays and where ⏺ Rec lands:
+
+- **A filled cell's click** (or Space / Enter on it) selects it and posts
+  its launch with `select` (`/fragment/perform/slot/launch`, the
+  `data-launch` on the cell): its loop goes on its lane, **open for
+  edit** (`StudioState.loop_edit`, as `/loop/edit` opens one: every edit
+  saves to it), its lane the edited one, Notes | Drums turned to its kind,
+  and it plays there from the quantise point (queued, pulsing, until the
+  switch; one pattern undo step, as every launch). The cell already
+  playing is only selected: nothing renders. It never starts the
+  transport: the deck's ▶ does.
+- **An empty cell's click** selects it (`/fragment/perform/slot/select`):
+  its lane edited when it has a sound, and its lane a **sketch** — the
+  loop open on that lane stops being edited (it keeps every edit, as
+  Done), so what is drawn there next saves to no loop. Again: let it go.
+- **The editor's head** (`.ed-head`, `fragments/transport.html`; the
+  drum rack's own in `perform_drums.html`, from `StudioService.
+  drum_editing`): the loop's name, its lane and **saved** (a lit lamp; its
+  Q and Done) — or **sketch — not saved** with **Save as loop**
+  (`[data-save-sketch]`, slots.js: into the selected empty cell of its
+  lane — `/fragment/perform/slot/keep`, which then plays it — else
+  `/loop/save`, a loop in the Loops panel the grid then edits). The
+  banner ("✎ editing the loop …") and the controls row's lane name are
+  gone.
+
+The model did not change: the routes are the launcher's own (select,
+launch, keep), the loop-edit mirroring is `mirror_loop_edit`'s.
+
 ### The rack's focus: Notes | Drums | Both
 
 Perform is where a quickly made loop is perfected in the grid, drums or
 synths, so the editor switches between them. **Notes | Drums | Both**
-(`.rack-focus`, at the live strip's far end, `views/perform.html`)
+(`.rack-focus`, at the deck's far end, `views/perform.html`)
 shows one grid large and folds the other to its bar, or both. Client-only: grid.js writes `<html data-rack>` (per browser,
 `localStorage` `synthlab.rack`) and presses the button in force after
 every settle (the server draws all three unpressed); CSS reads it —
 `style.css` section 35 hides the folded grid (the drums keep their tools
 row; the note grid goes whole, its controls row too — lane, length,
 pattern and feel read as acting on the drums, and the switch is in the
-live strip), style.css 42 gives the focused one the editor's whole height
+deck), style.css 42 gives the focused one the editor's whole height
 (`html[data-rack] #view.perform-view`'s rows), and in drums focus the
 steps grow past 30 px to fill it (dense.css D35). **The editor follows
 the selection**: a slot selected in the launcher turns Notes |
@@ -165,7 +276,7 @@ Drums to its kind (slots.js, grid.js's `synthlab.rack`), from Both too
 (one editor, as the slot is: Both is a press away, Alt+G). **Alt+G** steps notes → drums → both (`data-keys` on the cluster;
 no bare letter is free).
 
-The part buttons (`synth`, `drums`; in the live strip, so what the loop
+The part buttons (`synth`, `drums`; in the deck, so what the loop
 carries stays in sight) **mute** a part of what ▶ plays (lit = it plays),
 and say so:
 a "mute" label, their `title`s, "Mute / unmute the … part of the loop".
@@ -194,16 +305,16 @@ at 1920 — it overflows its area and takes the first fallback that fits,
 `@position-try --to-song-above` (above, from the same left edge), then
 leftwards.
 
-**▶ Whole song** (`#perform-arrange`, beside → Song; palette "Make this
-loop a song") is the Song page's "From my loop": `POST
-/song/arrange source=loop` lays the loop down as intro / verse / build /
-drop / break / drop / outro, REPLACING the song in one song undo step,
-and plays it on Song (`songcraft.md`, "`POST /song/arrange`"). It asks
-first (`hx-confirm`) when the song had sections as the page was drawn
-(`song_filled`, `service/page.py`). It is this page's one click from
-the loop to a song;
-`tests/browser/test_songcraft.py::test_a_loop_becomes_a_song` presses
-it.
+**Make it a song** (`#deck-arrange`, the deck's on its Song source —
+it was "▶ Whole song" beside → Song; palette "Make this loop a song") is
+the Song page's "From my loop": `POST /song/arrange source=loop` lays the
+loop down as intro / verse / build / drop / break / drop / outro,
+REPLACING the song in one song undo step, and plays it on Song
+(`songcraft.md`, "`POST /song/arrange`"). It asks first (`hx-confirm`)
+when the song had sections as the page was drawn (`song_filled`,
+`service/page.py`). The deck's ▶ on the Song source presses it while the
+song is empty; `tests/browser/test_songcraft.py::test_a_loop_becomes_a_song`
+does so.
 
 ## Perform view: launches queue at the loop wrap
 
@@ -226,7 +337,7 @@ no areas of their own. `.launcher` is `auto-fill minmax(150px,
 `.launcher > :not(.launch)` spans the row — an empty state or the clip
 placer is prose, not a card, and would be crammed into one 150px column.
 **`.ghost` is `width: 100%`** (right in the dock and the launchers, wrong
-in a flex row): in the live strip it stretches a button across the whole
+in a flex row): in the deck it stretches a button across the whole
 strip and wraps the meter and volume onto two more rows, a 40px strip
 146px tall. Scope a `width: auto` wherever a ghost sits inline.
 
@@ -1032,7 +1143,7 @@ its own watch, re-sent by whatever moves it — so a ⏺ Rec on Perform
 lists its loop in the panel at once: keyrec.js's `fetch` carries the page's
 `HX-Current-URL` (events.js `pageHeaders`, as every island's fetch post
 does; without it the server would read the post as Synths' and never
-re-send the Perform-only list). A row: ▶ in time, its
+re-send the Perform-only list). A row: ▷ listen in time, its
 notes as a mini piano roll (`loops.roll_of`: one SVG path of runs,
 cached with the file) or a beat's hits as a mini step grid
 (`loops.beat_roll`), its name (`title`) · bars · rate · bpm · key · sound,
@@ -1274,9 +1385,11 @@ tweak it and build on it.
   as another. → Song is notes only
   (as audio a beat bounces; as a pattern the route says to Open it and use
   Perform's → Song).
-- **▶ in time** (every Loops list; loopspanel.js): on
-  the next bar line of what plays (`S.nextBar`), else at once; one
-  audition at a time. The take's audio when the row has one and nothing
+- **▷ listen in time** (every Loops list; loopspanel.js): a quiet
+  preview — never the transport: a layer over what plays (at half its
+  level while the loop plays), stopped when the Loops page's deck starts
+  ("The deck") — on the next bar line of what plays (`S.nextBar`), else
+  at once; one at a time. The take's audio when the row has one and nothing
   plays or what plays is at its tempo; otherwise `POST /loop/preview`
   (`bpm` = the page's tempo while it plays) answers `X-Preview-Url`: at the
   loop's own tempo its audio — the take, or a render made now and **kept
@@ -1391,9 +1504,10 @@ one working loop.
 
 - **Where.** `#perform-slots` (`views/perform.html`, `data-module=
   "perform.slots"`, grid area **`slots`**: the top of the
-  centre column at every size, under the live strip, the editor under it
+  centre column at every size, under the deck, the editor under it
   — style.css 41 / 42, dense.css D41). Its head — the quantise, ■
-  all — is the page's and never redrawn; the grid is the region
+  all (kept here, not on the deck: it stops lanes, an undo step, where the
+  deck's ■ stops the sound) — is the page's and never redrawn; the grid is the region
   **`slots`** (`fragments/slots.html`, `StudioService.slots_context`,
   `_w_slots`: exactly what it draws).
 - **The model** (`state/slots.py`, the `Slots` mixin; pure helpers
@@ -1431,10 +1545,12 @@ one working loop.
   grid's (an edit past its first bars makes the loop that long). Another
   meter is refused (the toast names it); so is a grid past
   `MAX_GRID_STEPS` or a loop past the length cap (`loop_refusal`).
-- **A scene** (a row's ▶, Alt+1…8) launches every lane's slot at once —
+- **A scene** (a row's ▸, Alt+1…8; the deck's Scene ▶ for the selected
+  cell's row) launches every lane's slot at once —
   **one render, one undo step**; a lane whose slot there is empty stops
   (as an empty slot of a scene does in every launcher; a slot with no
-  sound has nothing to stop). **■** a lane (the foot; Delete on a slot;
+  sound has nothing to stop). **■** a lane (its head, beside its lamp —
+  the STOP row is gone; Delete on a slot;
   "■ all", Alt+0) stops it at the quantise point: a layer slot muted, the
   drums out of `perform_parts` — its notes stay, a slot plays it again.
   Every launch and stop is ONE pattern undo step holding the whole loop
@@ -1453,52 +1569,55 @@ one working loop.
   a scene of all new lanes 131 ms, one sharing lanes and the beat (stems
   cached) 100 ms, a scene already rendered 39 ms (median 42 ms warm) —
   well inside a bar.
-- **Selection, not launch, moves the editor**. A slot's own click (or
-  Space on it, or Enter while it is not selected) **selects** it — and
-  ONLY selects it: slots.js posts
-  `/fragment/perform/slot/select` and its lane becomes the edited one — the
-  note grid, the keys and Synths edit it, the lane inspector shows it, as
-  its lane head's name would (`select_layer`, before the launch, so the
-  launch's undo step is tagged with that lane) — and Notes | Drums turns
-  to the slot's kind — from Both too: one editor, as the slot is; a beat's
-  slot selects no layer.
-  **A filled slot launches by its own ▶** (`.sl-go`, a small button at
-  the cell's right, lit on the selected slot; its post carries `select`,
-  `_select`), **a double-click**, or **Enter on the selected slot**; ▶ on
-  the slot that **already plays** only selects it (nothing renders, no
-  undo step, nothing waits; from silence it starts ▶). A refused launch
-  (another meter) selects nothing. **A scene's ▶,
-  Alt+1…8, the deck's scene keys, ■, an idea or a section opened never
-  move the editor** — they launch; what you edit is what you picked. An
-  empty slot's ＋ selects its lane once it holds the kept loop.
-- **The selected slot**: the selection is also
-  drawn — `aria-selected` on the cell, the accent's ring; an empty one
-  reads "⏺ rec here" — and kept in the page per tab (slots.js,
-  sessionStorage `synthlab.slotSel`, drawn again after every swap). **An
-  empty slot's click selects it** (not ＋: `POST
-  /fragment/perform/slot/select` makes its lane the edited one when that
-  lane has a sound, so the keys play what the slot will hold — a lane with
-  none keeps the edited one, and the take carries that sound there;
-  nothing renders, no undo step); a click on the selected empty slot lets
-  it go. Its ＋ is a small `.sl-plus` in the cell. The selection is where
-  ⏺ Rec, ⟲ keys capture and the keys arp's print land ("Rec into a
+- **The one selection** ("One selection" above). A cell's click (or Space
+  or Enter on it) **selects** it: a filled one posts its launch with
+  `select` (`_select`: its lane the edited one — the note grid, the keys
+  and Synths edit it, the lane inspector shows it, as its lane head's
+  name would — before the launch, so the launch's undo step is tagged with
+  that lane; a beat's selects no layer) and its loop is open on its lane,
+  playing there from the quantise point; the cell that **already plays**
+  is only selected (nothing renders, no undo step, nothing waits). Notes |
+  Drums turns to its kind, from Both too. A refused launch (another meter)
+  opens nothing. **A scene's ▸, Alt+1…8, the Stream Deck's scene keys, ■,
+  an idea or a section opened never move the editor** — they launch;
+  what you edit is what you picked. An empty slot's ＋ selects its lane
+  once it holds the kept loop. Nothing a cell does starts the transport:
+  the deck's ▶ does.
+- **The selected cell**: drawn — `aria-selected` on the cell, the
+  accent's edge and a tick at its foot; an empty one reads "⏺ rec here" —
+  and kept in the page per tab (slots.js, sessionStorage
+  `synthlab.slotSel`, drawn again after every swap). **An empty cell's
+  click selects it** (not ＋: `POST /fragment/perform/slot/select` makes
+  its lane the edited one when that lane has a sound, so the keys play
+  what the slot will hold — a lane with none keeps the edited one, and the
+  take carries that sound there — and its lane a sketch: the loop open on
+  it stops being edited; nothing renders, no undo step); a click on the
+  selected empty cell lets it go. Its ＋ is a small `.sl-plus` in the
+  cell. The selection is what the editor shows, what Loop ▶ plays, and
+  where ⏺ Rec, ⟲ keys capture and the keys arp's print land ("Rec into a
   slot", below).
-- **The hand** (slots.js, island 76): a click on a slot selects it (an
-  empty one too), its **▶** / a double-click / Enter on it selected
-  launches it, an empty slot's **＋** keeps what its lane plays as a new loop there (open
-  at once: it is what plays), **✕** empties a slot, a row's **⤓** keeps
-  the scene as an idea; a Loops panel row drags onto a slot of its kind
-  (place), a slot onto another (move; Ctrl or Alt copies). A launched
-  slot is drawn waiting (`data-q`, the accent's dashed edge, the
+- **What the cells say**: a lane's head lights its **lamp** while it
+  sounds (`data-sounding` from the server — not stopped, a sound — lit
+  while the output carries signal, `html[data-alive]`); **the cell that
+  plays** has the signal's edge and a **ring of its loop's position**
+  (`--ring` on the cell, loopdeck.js's frame: the time since the loop
+  began over the cell's own bars; a cell alone on the deck alone turns);
+  **a queued cell** has the accent's dashed edge and pulses until its
+  launch; **the selected cell** the accent's edge.
+- **The hand** (slots.js, island 76): a click on a cell selects it (as
+  above), an empty slot's **＋** keeps what its lane plays as a new loop
+  there (open at once: it is what plays), **✕** empties a slot, a row's
+  **⤓** keeps the scene as an idea; a Loops panel row drags onto a slot of
+  its kind (place), a slot onto another (move; Ctrl or Alt copies). A
+  launched slot is drawn waiting (`data-q`, the accent's dashed edge, the
   transport's ring) until audio.js's `loop-switched`, over the server's
   `data-state="playing"` (the region comes back with the answer; slots.js
   re-applies the wait after every swap; a 422's refusal drops it). The
-  grid is one tab stop with a roving focus: arrows move, Space selects,
-  Enter selects or (on the selected slot) launches, Shift+Enter launches
-  the row's scene, Delete / Backspace stop
+  grid is one tab stop with a roving focus: arrows move, Space and Enter
+  select, Shift+Enter launches the row's scene, Delete / Backspace stop
   the lane; **Alt+1…8** a scene and **Alt+0** stop all from anywhere on
   Perform but a field (in the drum pane Alt+1…4 stay the beat's
-  variations, steps.js). A launch from silence starts ▶.
+  variations, steps.js). A scene launched from silence starts the loop.
 - **Ideas** (`loops.save_idea`): a scene kept is a loop of kind `idea`
   (schema `LOOP.idea`: the five slots' names; `arr` its tempo, key and
   meter; absent when unset), listed in the Loops panel's "ideas" (not the
@@ -1555,7 +1674,7 @@ one working loop.
   Past 8 synth tracks Capture refuses — → Song a scene first to choose.
 
 Routes (`routes/slots.py`): `/fragment/perform/slot/place | keep | clear
-| move | launch | stop`, `/fragment/perform/scene/launch | keep | idea |
+| move | launch | stop | select | hear`, `/fragment/perform/scene/launch | keep | idea |
 section | song | capture`. `tests/studio/test_slots.py`,
 `tests/studio/test_to_song.py`, `tests/browser/test_slots.py`,
 `tests/browser/test_to_song.py`.
@@ -1565,10 +1684,14 @@ section | song | capture`. `tests/studio/test_slots.py`,
 Something good just played is never lost, and a take lands where it is
 wanted.
 
-- **⏺ Rec records into the selected slot** of a lane of notes: an empty
-  slot gets the take's loop (**new**), a filled one by the dock's choice
-  beside ⏺ Rec — **overdub | replace** (`#key-how`, shown only while a
-  slot is selected; per browser). The take is still its audio and its own
+- **⏺ Rec records into the selected slot** of a lane of notes (the deck's
+  ⏺ Rec or the dock's: one control), by **where it lands** — the deck's ▾
+  shows it always, the dock's `#key-how` while a cell of notes is
+  selected; per browser: **a new loop** (the selected cell when it is
+  empty, else the lane's next empty one: keyrec.js posts that row with
+  `how=new`, so it never overwrites; none empty, a plain take), or the
+  filled cell **overdub | replace**. An empty cell selected is always a
+  new loop there. The take is still its audio and its own
   loop in the Loops panel (`keytakes.py`, `loops.place`); then
   `slotrec.land` (`routes/takes.py` `_landed`): *new / replace* sets the
   slot inside a launch of the take's loop there (`StudioState.launch`'s
@@ -1599,7 +1722,7 @@ wanted.
   slot … nothing was replaced"). The dock's overdub | replace is ⏺ Rec's
   alone; the keys arp's print is a capture and follows the same rule.
   Not the launcher head's "Scene → Song" (the scenes as sections).
-- **⏺ resample** is the live strip's master-bus recording into a clip
+- **⏺ resample** is the deck's ⏺ Rec ▾'s master-bus recording into a clip
   (label, palette "Resample: record what you hear to a clip", the deck's
   key, the empty states), named so it reads apart from ⏺ Rec.
 
@@ -1614,8 +1737,9 @@ One button live-records every key and its timing until it is stopped —
 no bars, no 4/4, just playing — and the take is then shaped, cut and
 sized into a loop.
 
-- **⏺ free** (`#lp-free-rec`, the Loops panel's head; the dock's length
-  select has **free** too — `keys-and-midi.md`, "⏺ Rec"): no count-in, no
+- **free** (a length of ⏺ Rec: the deck's ▾ and the dock's length
+  select — `keys-and-midi.md`, "⏺ Rec"; the Loops panel's "⏺ free" is
+  gone): no count-in, no
   bar line, no length. The take starts on its **first note** (keys, pads,
   MIDI; the keys arp's notes flagged) and ends where ■ is pressed — never
   past `limits.MAX_FREE_TAKE_SECONDS`, 60 s (as every take of ⏺ Rec,
@@ -1720,7 +1844,7 @@ a `role=slider`, not a value control the deck's focus mode pages).
 ### The loop's meter
 
 The "bar" picker by Perform's bpm (`fragments/meter_pick.html`, region
-`meter-pick`; `consume`s its change, so the live strip's form does not
+`meter-pick`; `consume`s its change, so the deck's form does not
 post the tempo again) posts `/fragment/meter`: every grid the loop holds
 fitted bar by bar (`meterops`: the note grid, the beat, the other
 layers, the beat's variations), one pattern undo step, refused past the

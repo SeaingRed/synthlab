@@ -408,6 +408,7 @@ def _w_perform_drums(svc: StudioService, view: str) -> str:
         sorted((v, m.get("level")) for v, m in a.drum_mix.items() if "level" in m),
         a.drum_swing,
         _w_clips(svc, view),
+        svc.drum_editing(),  # the beat loop it edits: its head's "saved"
     )
 
 

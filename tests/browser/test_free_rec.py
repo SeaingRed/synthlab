@@ -71,10 +71,10 @@ def _loops_page(studio):
     page.evaluate(
         """() => {
           localStorage.setItem('synthlab.loops', '{"open": true, "pin": true}');
-          localStorage.setItem('synthlab.keyRecBars', '0'); }"""
+          localStorage.setItem('synthlab.keyRecBars', 'free'); }"""
     )
     page.reload()
-    page.wait_for_selector("#lp-free-rec")
+    page.wait_for_selector("#deck-rec")
     studio.settle()
     page.locator(".view-head h1").click()  # a gesture: the audio context starts
     page.click("#midi-btn")
@@ -126,16 +126,15 @@ def test_free_rec_a_phrase_shape_it_and_make_a_loop_that_keeps_its_timing(
     # an empty slot selected: where Make loop lands
     page.locator(f"{_slot(1, 0)} .sl-empty").click()
     page.locator(f'{_slot(1, 0)}[aria-selected="true"]').wait_for()
-    page.click("#lp-free-rec")
+    page.click("#deck-rec")
     page.wait_for_function(
-        "() => document.getElementById('lp-free-rec')"
-        ".textContent.includes('free: play')"
+        "() => document.getElementById('deck-rec').textContent.includes('free: play')"
     )
     page.wait_for_timeout(600)  # silence before the first note is not the take's
     _play(page)
     page.wait_for_timeout(450)
     with page.expect_response("**/take/keys/free") as answer:
-        page.click("#lp-free-rec")
+        page.click("#deck-rec")
     assert answer.value.ok, answer.value.text()
     take = answer.value.headers["x-clip-name"]
     meta = keytakes.read_meta(server.data_dir, take)

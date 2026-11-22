@@ -181,7 +181,7 @@ def test_a_row_dragged_onto_the_grid_edits_it_and_a_kept_beat_is_a_beat(studio, 
     # dragged onto the note grid: Edit, as this loop
     with page.expect_response("**/loop/edit"):
         glass.drag_to(page.locator("#transport .grid"))
-    page.wait_for_selector("#transport .lp-edit-note")
+    page.wait_for_selector("#transport .ed-head.is-saved")
     assert server.state.loop_edit_of()["name"] == name
     loop = loops.load(server.data_dir, name)
     cell = '#transport input.cell[name="cell.F#3.0"]'
@@ -243,7 +243,7 @@ def test_a_sixteen_bar_loop_opens_whole_and_the_roll_scrolls(studio, server):
     studio.settle()
     with page.expect_response("**/loop/edit"):
         _row(page, "long lead").locator(".lp-edit").click()
-    page.wait_for_selector("#transport .lp-edit-note")
+    page.wait_for_selector("#transport .ed-head.is-saved")
     studio.settle()
     assert (s.arrangement.bars, s.arrangement.steps_per_bar) == (16, 16)
     roll = page.locator("#transport .grid.roll")

@@ -1300,6 +1300,16 @@ CASES: list[Case] = [
     # an empty slot selected — its lane edited when it has a sound
     C("/fragment/perform/slot/select", "perform", {"lane": "1", "row": "0"}, _lane2),
     C("/fragment/perform/slot/select", "perform", {"lane": "2", "row": "0"}),
+    # an empty cell of a lane that plays a slot's loop: the lane a sketch
+    # (the loop no longer open: the editor's head, the launcher)
+    C("/fragment/perform/slot/select", "perform", {"lane": "0", "row": "2"}, _scened),
+    # the deck's Loop source: a cell's loop alone (moves nothing)
+    C(
+        "/fragment/perform/slot/hear",
+        "perform",
+        {"lane": "0", "row": "0", "bpm": "120"},
+        _slotted,
+    ),
     C("/fragment/perform/slot/keep", "perform", {"lane": "4", "row": "2"}),
     C("/fragment/perform/slot/clear", "perform", {"lane": "0", "row": "0"}, _slotted),
     C(

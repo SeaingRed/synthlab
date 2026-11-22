@@ -706,8 +706,8 @@ def test_the_other_pages_empty_states_offer_a_song(client):
     # chops: tests/studio/test_empty_states.py EXEMPT)
     # (the Library's "No sound matches the filter" offers the way back —
     # Clear filter — not a song)
-    # (Perform's "Make this loop a song" is the Song module's ▶ Whole song,
-    # never empty — below)
+    # (Perform's "Make this loop a song" is the deck's Song source — its
+    # "make it a song" — never empty)
     for view, marker in (("library", "No sound selected"),):
         html = client.get(f"/view/{view}").text
         at = html.index(marker)

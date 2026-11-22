@@ -225,8 +225,12 @@ def test_every_island_states_a_budget_and_keeps_it():
     # band-worklet.js is a unit's band for the live keys (the band split off,
     # the unit run on it, the rest summed back; the split and join round a
     # banded native unit) and the utility unit, a fifth module in the FX
-    # worklet's scope: fx-worklet.js and fx2-worklet.js are full — 83
-    assert len(islands) == 83, [p.name for p in islands]
+    # worklet's scope: fx-worklet.js and fx2-worklet.js are full — 83;
+    # loopdeck.js is the Loops page's deck (its source Loop | Scene | Song,
+    # ▶'s choice, the bar meter and the cells' rings, a cell's loop played
+    # alone): it owns no player, and slots.js, audio.js and transport.js
+    # were at their budgets — 84
+    assert len(islands) == 84, [p.name for p in islands]
     stubs = {
         "roll.js": 290,
         "zoom.js": 70,
@@ -358,6 +362,7 @@ def test_no_other_scripts_in_page(tmp_path):
         "/static/letters.js",
         "/static/library.js",
         "/static/livefx.js",
+        "/static/loopdeck.js",
         "/static/loopspanel.js",
         "/static/menu.js",
         "/static/midi.js",

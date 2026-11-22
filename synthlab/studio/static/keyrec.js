@@ -60,8 +60,14 @@
 // a refusal's words S.toastOf.
 // 180 -> 190: a page change ends a take as ■ does, said in a toast; the
 // prefs read once and kept (not 4 localStorage reads a paint tick).
-// - FREE record (#key-bars "free", or the Loops panel's
-//   #lp-free-rec, which records free whatever the length says): no
+// - Every ⏺ Rec is this take ([data-key-rec]: the dock's #key-rec and the
+//   Loops page's deck's, lit and labelled together); its settings are
+//   [data-key-count], [data-key-beat], [data-key-how], [data-key-capture]
+//   and the length — #key-bars, or the deck's ▾ [data-key-len] — wherever
+//   they are drawn. "where it lands" is a choice of three: a new loop (the
+//   selected cell when empty, else the lane's next empty one: slots.js's
+//   `free`), the filled cell overdubbed or replaced.
+// - FREE record (the length "free": #key-bars, the deck's ▾): no
 //   count-in, no bar line, no length — the take starts on its FIRST NOTE
 //   and ends where ■ is pressed (never past the clip cap), its audio cut
 //   to that. POST /take/keys/free (the arp's notes flagged: a fifth item
@@ -121,11 +127,14 @@
   const pad2 = (n) => String(n).padStart(2, "0");
   const clock = (s) => `${Math.floor(s / 60)}:${pad2(Math.floor(s % 60))}`;
   const stamp = (d = new Date()) => `keys-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
-  // where a take lands: the launcher's selected slot of a lane of notes (slots.js), else nowhere (a free take)
+  // where a take lands: the launcher's selected cell of a lane of notes (slots.js), else nowhere (a free take).
+  // "new": the cell when it is empty, else the lane's next empty one (`free`), never over a loop
   function into() {
     const sel = S.slotSel?.();
     if (!sel || sel.kind === "beat") return null;
-    return { ...sel, how: sel.filled ? (prefs.how === "replace" ? "replace" : "overdub") : "new" };
+    if (sel.filled && prefs.how !== "new") return { ...sel, how: prefs.how === "replace" ? "replace" : "overdub" };
+    const row = sel.filled ? sel.free : sel.row;
+    return row == null ? null : { ...sel, row, filled: false, how: "new" };
   }
   const slotFields = (to, bar) => (to ? { lane: String(to.lane), row: String(to.row), how: to.how, bar: String(bar || 0) } : {});
   let rec = null; // the running take: { at (its first downbeat, heard time), beat, bar, lag, bars, len, most, ... }
@@ -140,32 +149,26 @@
     const bar = r.grid ? ` · bar ${Math.floor(t / r.bar) + 1}${r.bars ? `/${r.bars}` : ""}` : "";
     return `■ ${clock(t)}${bar}`;
   }
+  // every ⏺ Rec is this one take: the dock's and the Loops page's deck's ([data-key-rec]), lit together
+  const all = (sel) => document.querySelectorAll(sel);
   function paint() {
-    const b = $("key-rec");
-    if (b) {
+    for (const b of all("[data-key-rec]")) {
       b.setAttribute("aria-pressed", String(!!rec));
       const text = rec ? label(rec) : "⏺ Rec";
       if (b.textContent !== text) b.textContent = text;
     }
-    const f = $("lp-free-rec"); // the Loops panel's ⏺ free
-    if (f) {
-      f.setAttribute("aria-pressed", String(!!rec?.free));
-      const text = rec?.free ? label(rec) : "⏺ free";
-      if (f.textContent !== text) f.textContent = text;
+    const to = rec ? rec.to : into(), at = S.slotSel?.(), notes = !!at && at.kind !== "beat", how = $("key-how");
+    if (how) how.hidden = !notes; // the dock's: while a cell of notes is selected (the deck's ▾ shows it always)
+    for (const x of all("[data-key-how]")) { // a new loop | the filled cell: overdub | replace
+      const v = x.dataset.keyHow;
+      x.setAttribute("aria-pressed", String(to ? v === to.how : v === (prefs.how === "new" ? "new" : prefs.how)));
+      x.disabled = !!rec || (v !== "new" && !(notes && at.filled));
     }
-    const to = rec ? rec.to : into(), how = $("key-how");
-    if (how) {
-      how.hidden = !to;
-      for (const x of how.querySelectorAll("[data-key-how]")) { // an empty slot: "new" alone; a filled one: overdub | replace
-        const v = x.dataset.keyHow;
-        x.setAttribute("aria-pressed", String(!!to && v === to.how));
-        x.hidden = !!to && (v === "new") === to.filled;
-      }
-    }
-    $("key-count")?.setAttribute("aria-pressed", String(counts()));
-    $("key-beat")?.setAttribute("aria-pressed", String(withBeat()));
+    for (const x of all("[data-key-count]")) x.setAttribute("aria-pressed", String(counts()));
+    for (const x of all("[data-key-beat]")) x.setAttribute("aria-pressed", String(withBeat()));
     const sel = $("key-bars"), len = free() ? "free" : String(wanted());
     if (sel && sel.value !== len) sel.value = len;
+    for (const x of all("[data-key-len]")) x.setAttribute("aria-pressed", String(x.dataset.keyLen === len));
     $("now-playing")?.toggleAttribute("data-rec", !!rec);
   }
   let ticker = 0;
@@ -345,13 +348,14 @@
   document.addEventListener("click", (e) => {
     const t = e.target;
     if (!(t instanceof Element)) return;
-    if (t.closest("#key-rec")) return press();
-    if (t.closest("#lp-free-rec")) return rec ? press() : begin(true); // the Loops panel's: free, whatever the length says
-    if (t.closest("#key-count")) { keep("count", counts() ? "0" : "1"); return paint(); }
-    if (t.closest("#key-beat")) { keep("beat", withBeat() ? "0" : "1"); return paint(); }
-    const how = t.closest("#key-how [data-key-how]");
-    if (how && how.dataset.keyHow !== "new" && !rec) { keep("how", how.dataset.keyHow); return paint(); }
-    if (t.closest("#key-capture")) return void capture(false);
+    if (t.closest("[data-key-rec]")) return press();
+    if (t.closest("[data-key-count]")) { keep("count", counts() ? "0" : "1"); return paint(); }
+    if (t.closest("[data-key-beat]")) { keep("beat", withBeat() ? "0" : "1"); return paint(); }
+    const len = t.closest("[data-key-len]"); // the deck's ▾: a length, until ■ (0) or free
+    if (len) { keep("bars", len.dataset.keyLen); return paint(); }
+    const how = t.closest("[data-key-how]");
+    if (how && !how.disabled && !rec) { keep("how", how.dataset.keyHow); return paint(); }
+    if (t.closest("[data-key-capture]")) return void capture(false);
     if (t.closest("#arp-print")) return void capture(true);
   });
   document.addEventListener("slot-selected", paint);

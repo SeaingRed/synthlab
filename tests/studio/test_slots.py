@@ -106,10 +106,11 @@ def test_the_launcher_draws_lanes_scenes_and_slots(client):
     _post(client, "slot/place", lane="0", row="0", name="hook")
     html = client.get("/view/perform").text
     assert 'id="perform-slots"' in html and 'data-module="perform.slots"' in html
-    assert 'id="slots"' in html and html.count('class="sl-row') == 1 + 4 + 1
+    # the lanes' heads (each its lamp and ■: no STOP row) and four scenes
+    assert 'id="slots"' in html and html.count('class="sl-row') == 1 + 4
     assert 'data-cmd="Launch scene 1"' in html and 'data-keys="Alt+1"' in html
     assert 'data-cmd="Stop all"' in html and 'data-keys="Alt+0"' in html
-    assert 'hx-post="/fragment/perform/slot/launch"' in html and ">hook<" in html
+    assert "data-launch=" in html and ">hook</button>" in html
     # the names: the scenes' capture is "Scene → Song"
     # (⟲ Capture is the keys'), and the clip drawer's button "Clips"
     assert ">Scene → Song</button>" in html and "⟲ Capture → Song" not in html
@@ -120,29 +121,79 @@ def test_the_launcher_draws_lanes_scenes_and_slots(client):
     )
 
 
-def test_a_filled_slots_click_selects_and_its_own_play_button_launches(client):
-    """Deliberately, a filled slot's own button carries no
-    post (slots.js selects it: `/fragment/perform/slot/select`); its ▶
-    (`.sl-go`, which keeps `select`) launches — so do a double-click and
-    Enter on the selected slot (slots.js, tests/browser/test_slots.py)."""
+def test_a_filled_cells_click_selects_it_and_opens_its_loop_on_its_lane(client):
+    """One selection (loop-and-perform.md, "One selection"): a filled
+    cell carries no post of its own — slots.js selects it and posts its
+    launch with `select` (`data-launch`): its lane edited, its loop open
+    there (what the editor shows, what Loop ▶ plays); the one already
+    playing is only selected. No ▶ of its own any more, and the launcher's
+    STOP row is each lane's ■ in its head."""
     s = _st(client)
     _loop(s, "hook", [["A2", 0]])
     s.add_layer(replace(s.patch, name="Pad"), select=False)
     _post(client, "slot/place", lane="1", row="0", name="hook")
     html = client.get("/view/perform").text
-    slot = html.split('class="sl-slot', 2)[1].split(">", 1)[0]
-    assert "hx-post" not in slot and 'data-menu="Select the slot"' in slot
-    go = html.split('class="sl-go"', 1)[1].split(">", 1)[0]
-    assert 'hx-post="/fragment/perform/slot/launch"' in go and '"select": "1"' in go
-    assert 'data-menu="Launch"' in go
-    # the click's post: its lane edited, nothing launched, no undo step
-    steps = len(s._pattern_undo)
-    r = _post(client, "slot/select", lane="1", row="0")
-    assert r.status_code == 200 and s.active_layer == 1
-    assert not s.loop_edit and len(s._pattern_undo) == steps
-    assert s.slot_playing(1) is None
+    slot = (
+        html.split('data-loop="hook"', 1)[1]
+        .split('class="sl-slot', 1)[1]
+        .split(">", 1)[0]
+    )
+    assert "hx-post" not in slot and 'data-menu="Select the cell"' in slot
+    assert '"select": "1"' in slot and "data-launch=" in slot
+    assert 'class="sl-go"' not in html and "sl-stops" not in html
+    head = html.split('class="sl-lane', 1)[1][:2500]
+    assert 'class="btn btn-s btn-stop btn-icon sl-stop"' in head and "sl-lamp" in head
+    # the click's post: its lane edited, its loop open there
     _queued(_post(client, "slot/launch", lane="1", row="0", select="1"))
-    assert s.slot_playing(1) == 0
+    assert s.active_layer == 1 and s.slot_playing(1) == 0
+    assert s.loop_edit_of(1)["name"] == "hook"
+    # again: it plays already — only selected (no render, no undo step)
+    steps = len(s._pattern_undo)
+    r = _post(client, "slot/launch", lane="1", row="0", select="1")
+    assert r.status_code == 200 and "HX-Trigger" not in r.headers
+    assert len(s._pattern_undo) == steps
+
+
+def test_an_empty_cell_selected_makes_its_lane_a_sketch(client):
+    """An empty cell holds no loop: selecting it ends the loop open on its
+    lane (it keeps every edit, as Done) — the editor's head says "sketch —
+    not saved" with Save as loop — and nothing renders or is an undo step.
+    A filled cell's own post never ends anything."""
+    s = _st(client)
+    _loop(s, "hook", [["A2", 0]])
+    _post(client, "slot/place", lane="0", row="0", name="hook")
+    _queued(_post(client, "slot/launch", lane="0", row="0", select="1"))
+    assert s.loop_edit_of(0)["name"] == "hook"
+    html = client.get("/view/perform").text
+    assert 'class="ed-head is-saved"' in html and "“hook”" in html
+    steps = len(s._pattern_undo)
+    r = _post(client, "slot/select", lane="0", row="0")  # filled: nothing ends
+    assert r.status_code == 200 and s.loop_edit_of(0)["name"] == "hook"
+    r = _post(client, "slot/select", lane="0", row="2")  # empty: a sketch
+    assert r.status_code == 200 and s.loop_edit_of(0) is None
+    assert len(s._pattern_undo) == steps and "HX-Trigger" not in r.headers
+    assert s.slot_playing(0) is None
+    html = client.get("/view/perform").text
+    assert 'class="ed-head"' in html and "data-save-sketch" in html
+    assert ">not saved<" in html.split('class="ed-head"', 1)[1][:2000]
+
+
+def test_the_decks_loop_source_hears_a_cell_alone_and_moves_nothing(client):
+    """`/fragment/perform/slot/hear`: the cell's loop rendered alone at the
+    page's tempo (as a Loops row's ▷ at another tempo), named by
+    X-Preview-Url; an empty cell or a bad one is said, not rendered."""
+    s = _st(client)
+    _loop(s, "hook", [["A2", 0], ["C3", 4]])
+    _post(client, "slot/place", lane="0", row="0", name="hook")
+    steps, cells = len(s._pattern_undo), list(s.arrangement.cells)
+    r = _post(client, "slot/hear", lane="0", row="0", bpm="132")
+    assert r.status_code == 200
+    url = r.headers["X-Preview-Url"]
+    assert url.startswith("/preview/") and client.get(url).status_code == 200
+    assert len(s._pattern_undo) == steps and s.arrangement.cells == cells
+    assert not s.loop_edit
+    assert _post(client, "slot/hear", lane="0", row="1").status_code == 422
+    assert _post(client, "slot/hear", lane="9", row="0").status_code == 422
 
 
 def test_ctrl_z_puts_a_slot_back_and_touches_nothing_that_plays(client):
@@ -532,7 +583,7 @@ def test_an_empty_slot_selected_edits_its_lane_only_when_it_has_a_sound(client):
     assert s.perform_slots is None and not s._pattern_undo  # nothing kept, no step
     assert _post(client, "slot/select", lane="9", row="0").status_code == 422
     html = client.get("/view/perform").text
-    assert 'class="sl-plus"' in html and 'data-menu="Select the slot"' in html
+    assert 'class="sl-plus"' in html and 'data-menu="Select the cell"' in html
 
 
 def test_a_take_into_an_empty_slot_is_a_new_loop_there_launched_one_undo(client):

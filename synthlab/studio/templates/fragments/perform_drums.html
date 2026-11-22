@@ -10,6 +10,18 @@
          {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
   <div class="pattern-tools" role="toolbar" aria-label="Drum pattern tools">
     <button type="button" class="caps pt-title fold" data-fold="perform-drums" aria-expanded="true" title="fold the drum grid">drums</button>
+    {#- the drum grid's head (loop-and-perform.md, "One selection"): the
+        beat loop open on the drum lane — every hit saves to it — or a
+        sketch (✚ Keep keeps it as a beat) -#}
+    <span class="ed-head ed-drums{% if drum_edit %} is-saved{% endif %}">
+      {%- if drum_edit -%}
+      <span class="ed-name" title="the beat “{{ drum_edit.title }}” is open on the drums: every hit you change saves to it">“{{ drum_edit.title }}”</span>
+      <span class="ed-state lp-on"><i class="led" data-on aria-hidden="true"></i>saved</span>
+      {%- else -%}
+      <span class="ed-name ed-sketch" title="the drum grid: what you draw plays, but saves to no beat until ✚ Keep">sketch</span>
+      <span class="ed-state"><i class="led" aria-hidden="true"></i>not saved</span>
+      {%- endif -%}
+    </span>
     <div class="seg barchips" role="group" aria-label="drum bars">
       {% for b in limits.BAR_CHOICES %}
       <button type="button" class="barchip {% if b <= arrangement.drum_bars %}on{% endif %}"

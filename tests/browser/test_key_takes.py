@@ -200,7 +200,7 @@ def test_one_rec_is_a_loop_to_edit_on_perform_and_put_in_the_song(studio, server
     with page.expect_response("**/loop/edit"):
         row.locator(".lp-edit").click()
     page.wait_for_selector('#view[data-view="perform"]')
-    page.wait_for_selector("#transport .lp-edit-note")
+    page.wait_for_selector("#transport .ed-head.is-saved")
     # the address bar follows (a reload stays on Perform)
     page.wait_for_url("**/view/perform")
     studio.settle()
@@ -301,7 +301,7 @@ def test_from_the_strip_delete_and_the_bin_loops_the_lane_it_then_edits(studio, 
         name_it(page, "hook")
     page.wait_for_selector('#loops-panel [data-ctx="loop hook"]')
     assert server.state.loop_edit_of()["name"] == "hook"
-    page.wait_for_selector("#transport .lp-edit-note")
+    page.wait_for_selector("#transport .ed-head.is-saved")
     assert studio.unexplained() == []
 
 
@@ -353,14 +353,20 @@ def test_rec_into_a_slot_overdub_replace_and_new_while_the_loop_plays(studio, se
     s = server.state
     assert page.locator("#key-how").is_hidden()  # no slot selected: a free take
     _played(page)
-    page.locator(f"{_slot(0, 0)} .sl-go").click()  # selected and launched
+    page.locator(
+        f"{_slot(0, 0)} .sl-slot"
+    ).click()  # selected: open on its lane, launched
     page.wait_for_function(SWITCHED, timeout=8000)
     page.locator(
         f'{_slot(0, 0)}[data-state="playing"][aria-selected="true"]'
     ).wait_for()
     overdub = page.locator('#key-how [data-key-how="overdub"]')
     assert overdub.get_attribute("aria-pressed") == "true"
-    assert page.locator('#key-how [data-key-how="new"]').is_hidden()
+    # "a new loop" is a choice of its own (the lane's next empty cell)
+    assert (
+        page.locator('#key-how [data-key-how="new"]').get_attribute("aria-pressed")
+        == "false"
+    )
     # overdub: C4 played into the playing slot's loop, which saves it
     page.locator(".view-head h1").click()
     take = unquote(_record(page, keys=("KeyA",)).headers["x-loop-name"])
