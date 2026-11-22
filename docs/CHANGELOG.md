@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **A take's loop plays at the level it was played at**: a ⏺ Rec take's
+  loop — opened with Edit or playing in a launcher slot on Perform, a
+  Loops row's ▶ at another tempo, a loop's bounced audio — plays where the
+  keys put the same notes, not ~9 dB over them as a normalised render did.
+  The render is untouched (no render key moved); the player applies the
+  gain. The keys and every other sound keep their levels.
+- **A take not of whole bars asks what to do**: recorded with nothing
+  playing (or "to ■" off the grid), its answer offers **Keep N bars** (the
+  gap before it repeats), **Trim to M bars** (the notes past the line cut
+  at it) or **Fit the tempo** (the tempo at which the take is exactly
+  whole bars, every note where it was played). Each is one undo step on
+  the grid.
+- **A take's audio sits on its notes**: the take was cut ~70 ms late
+  against its notes in Chromium (the recorder's start event comes long
+  after it begins, and the key bus's limiter delays the keys 6 ms); it is
+  now measured, and the two agree within a few milliseconds.
+
 - **Import SFZ**: a zip of an `.sfz` and its WAV / FLAC / OGG samples becomes
   a sampler sound with a zone a region (keys, velocities, root, tune, gain,
   loops, round-robin takes, the first region's amplitude envelope). Every
