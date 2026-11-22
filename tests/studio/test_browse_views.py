@@ -220,6 +220,9 @@ def test_the_maps_rack_says_the_plot_in_words(tmp_path):
 
 
 DOCK_RAW, DOCK_GZ = 52_000, 9_000  # the keyboard dock, on every page
+# the arp pattern's editor (fragments/arp_pattern.html): a popover on every
+# page (both arps open it), 16.3 KB raw: 16 steps x 6 fields and 12 slots
+ARP_RAW, ARP_GZ = 17_000, 2_000
 # the one sound menu (#lane-sounds, base.html): ~370 options,
 # 24.7 KB raw / 3.8 KB gzipped, every page — a view swap keeps base.html, so
 # Song and Perform reached by the nav need it there; grows with your sounds
@@ -239,7 +242,7 @@ def test_page_weight_did_not_grow_with_the_denser_library(tmp_path):
     assert rows >= 108 and html.count("<rect") == 0
     # + DOCK: the keyboard dock is every page's (base.html), a fixed
     # 50.7 KB raw / 8.5 KB gzipped that is no row's
-    assert len(html.encode()) < rows * 354_645 // 108 + DOCK_RAW + MENU_RAW
+    assert len(html.encode()) < rows * 354_645 // 108 + DOCK_RAW + MENU_RAW + ARP_RAW
     # 32,400 a row: what the shell every page carries adds, not a row —
     # the islands' script tags, the rail, the Colours popover (its early
     # script, the themes' swatches, contrast and black-level rows), the
@@ -250,7 +253,8 @@ def test_page_weight_did_not_grow_with_the_denser_library(tmp_path):
     # (`asset`: an edit re-downloads one file, not all), and recipe cards
     # with longer fx chains and `how` notes; 100,264 against 99,962 at 290
     # rows
-    assert len(gzip.compress(html.encode())) < rows * 32_400 // 108 + DOCK_GZ + MENU_GZ
+    gz = len(gzip.compress(html.encode()))
+    assert gz < rows * 32_400 // 108 + DOCK_GZ + MENU_GZ + ARP_GZ
 
 
 def test_the_shelves_render_rows_with_nothing_measured(tmp_path):

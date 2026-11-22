@@ -215,7 +215,9 @@
   "_song_drawer": "(self) -> 'dict | None'",
   "_song_idents": "(self, song: 'dict', master_fx) -> 'dict'",
   "_song_raw": "(self, song: 'dict', master_fx=(), task: 'Task' = QUIET) -> 'np.ndarray'",
+  "_sound_track": "(self, p: 'dict | None', sec, track) -> 'dict | None'",
   "_through": "(self, p: 'dict') -> 'str | None'",
+  "_view_inputs": "(self, view: 'str', *, patch: 'Patch | None' = None, chain: 'dict | None' = None, mix: 'bool | None' = None, register: 'str | None' = None, arrangement: 'Arrangement | None' = None, parts: 'tuple[str, ...] | None' = None) -> 'RenderInputs'",
   "_warm": "(self, entry: 'dict', master_fx) -> 'None'",
   "adopt": "(self, request: 'Request', sound: 'Sound', how: 'str' = '') -> 'Response'",
   "announce": "(self, request: 'Request', view: 'str', moved: 'list[str]', mark: 'int', response=None) -> 'None'",
@@ -246,6 +248,7 @@
   "heard": "(self, view: 'str') -> 'RenderResult'",
   "hub_bench_context": "(self, request: 'Request', item: 'cliphub.Item', ref: 'Ref', params: 'dict') -> 'dict'",
   "hub_context": "(self, request: 'Request', *, bench: 'bool' = True) -> 'dict'",
+  "hub_default": "(request: 'Request', found: 'list[cliphub.Item]', shown: 'list[cliphub.Item]') -> 'cliphub.Item | None'",
   "hub_params": "(self, request: 'Request') -> 'dict'",
   "hub_undo_label": "(self) -> 'str'",
   "hub_url": "(params: 'dict') -> 'str'",
@@ -483,6 +486,29 @@
    ],
    "_w_chord_bar",
    "_ctx_chords",
+   null
+  ],
+  [
+   "arp-pattern",
+   "fragments/arp_pattern.html",
+   [],
+   [
+    "bass",
+    "breed",
+    "clips",
+    "drums",
+    "editor",
+    "lab",
+    "library",
+    "map",
+    "mixer",
+    "perform",
+    "song",
+    "visuals",
+    "voice"
+   ],
+   "_w_arp_pattern",
+   "_ctx_arp_pattern",
    null
   ],
   [
@@ -799,6 +825,7 @@
    "env-filter-wrap",
    "sampler-panel",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "key-takes"
@@ -806,6 +833,7 @@
   "breed": [
    "reset-menu",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "breed-parent",
@@ -816,6 +844,7 @@
    "reset-menu",
    "track-edit-banner",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "drum-transport",
@@ -825,6 +854,7 @@
   "perform": [
    "reset-menu",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "perform-drums",
@@ -840,6 +870,7 @@
   "map": [
    "reset-menu",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "key-takes"
@@ -847,6 +878,7 @@
   "bass": [
    "reset-menu",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "key-takes"
@@ -854,6 +886,7 @@
   "library": [
    "reset-menu",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "key-takes"
@@ -861,6 +894,7 @@
   "voice": [
    "reset-menu",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "key-takes"
@@ -868,6 +902,7 @@
   "lab": [
    "reset-menu",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "key-takes"
@@ -875,6 +910,7 @@
   "clips": [
    "reset-menu",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "key-takes",
@@ -884,6 +920,7 @@
    "reset-menu",
    "song-dock",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "song-arranger",
@@ -896,6 +933,7 @@
   "mixer": [
    "reset-menu",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "mixer-strips",
@@ -904,6 +942,7 @@
   "visuals": [
    "reset-menu",
    "chord-bar",
+   "arp-pattern",
    "clip-library",
    "status-bar",
    "key-takes"

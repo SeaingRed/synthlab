@@ -142,8 +142,9 @@ def test_a_velocity_key_is_stored_as_the_lane_keys_it():
         "vel.16": "0.9",  # past this grid
     }
     assert arrangement_from_form(form).velocities == {"3": 0.5, "7": 0.25}
-    assert limits.step_key("007") == "7" and limits.step_key("127") == "127"
-    for bad in ("", " 3", "3 ", "-1", "1.0", "²", "128", "9" * 7):
+    # the largest grid is 16 bars of 1/16 now (`MAX_GRID_STEPS` 256)
+    assert limits.step_key("007") == "7" and limits.step_key("255") == "255"
+    for bad in ("", " 3", "3 ", "-1", "1.0", "²", "256", "9" * 7):
         assert limits.step_key(bad) is None, bad
 
 
@@ -151,7 +152,12 @@ def test_v2_bad_values_clamp_or_default():
     arr = arrangement_from_form(
         {"bars": "9", "steps": "17", "root": "Z9", "scale_name": "nope", "swing": "2"}
     )
-    assert arr.bars == 4 and arr.steps_per_bar == 4
+    # 9 bars is no choice (1-4, 8, 16): the longest that fits under it
+    assert arr.bars == 8 and arr.steps_per_bar == 4
+    arr = arrangement_from_form(
+        {"bars": "8", "steps": "17", "root": "Z9", "scale_name": "nope", "swing": "2"}
+    )
+    assert arr.bars == 8 and arr.steps_per_bar == 4
     assert arr.root == "A1" and arr.swing == 0.6
     assert arr.scale_name == "pentatonic_minor"
 
