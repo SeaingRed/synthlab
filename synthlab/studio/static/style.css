@@ -1367,6 +1367,9 @@ html:is([data-keylayout="letters"], [data-keylayout="columns"]) .pkey.down::afte
 /* "Pads ▴" (piano.html): the Loops page's Play opens from here — on that
    page alone; lit while it is open (perform.js sets aria-expanded) */
 #view:not([data-view="perform"]) ~ .keys-dock .play-pads-btn { display: none; }
+/* on the Loops page the deck's Rec ▾ says where a take lands (one Rec): the
+   dock's copy of new | overdub | replace would only wrap its toolbar there */
+#view[data-view="perform"] ~ .keys-dock #key-how { display: none; }
 .play-pads-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-text); }
 .keys-dock { anchor-name: --keys-dock; }
 .play-tools { inset: auto; margin: 0 var(--s2) var(--s1) 0; position-anchor: --keys-dock;

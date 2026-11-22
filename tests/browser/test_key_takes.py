@@ -355,7 +355,9 @@ def test_rec_into_a_slot_overdub_replace_and_new_while_the_loop_plays(studio, se
     the slot, queued for the bar), or — an empty slot — a new loop there."""
     page = _launcher(studio, server)
     s = server.state
-    assert page.locator("#key-how").is_hidden()  # no slot selected: a free take
+    # where a take lands is the deck's Rec ▾ on this page (the dock's copy hidden)
+    how_ = '#deck-rec-menu [data-key-how="{}"]'
+    assert page.locator("#key-how").is_hidden()
     _played(page)
     page.locator(
         f"{_slot(0, 0)} .sl-slot"
@@ -364,13 +366,10 @@ def test_rec_into_a_slot_overdub_replace_and_new_while_the_loop_plays(studio, se
     page.locator(
         f'{_slot(0, 0)}[data-state="playing"][aria-selected="true"]'
     ).wait_for()
-    overdub = page.locator('#key-how [data-key-how="overdub"]')
+    overdub = page.locator(how_.format("overdub"))
     assert overdub.get_attribute("aria-pressed") == "true"
     # "a new loop" is a choice of its own (the lane's next empty cell)
-    assert (
-        page.locator('#key-how [data-key-how="new"]').get_attribute("aria-pressed")
-        == "false"
-    )
+    assert page.locator(how_.format("new")).get_attribute("aria-pressed") == "false"
     # overdub: C4 played into the playing slot's loop, which saves it
     page.locator(".view-head h1").click()
     take = unquote(_record(page, keys=("KeyA",)).headers["x-loop-name"])
@@ -383,7 +382,9 @@ def test_rec_into_a_slot_overdub_replace_and_new_while_the_loop_plays(studio, se
     assert s.slot_at(0, 0) == "Acid line" and loops.exists(server.data_dir, take)
     assert any(c[0] == "C4" for c in s.arrangement.cells)  # the lane plays it
     # replace: the take's own loop takes the slot and plays from it
-    page.click('#key-how [data-key-how="replace"]')
+    page.click('[popovertarget="deck-rec-menu"]')
+    page.click(how_.format("replace"))
+    page.keyboard.press("Escape")
     how = page.evaluate("() => localStorage.getItem('synthlab.keyRecHow')")
     assert how == "replace"
     page.locator(".view-head h1").click()
@@ -398,7 +399,7 @@ def test_rec_into_a_slot_overdub_replace_and_new_while_the_loop_plays(studio, se
     page.locator(f"{_slot(1, 0)} .sl-empty").click()
     page.locator(f'{_slot(1, 0)}[aria-selected="true"]').wait_for()
     assert page.locator(f'{_slot(0, 0)}[aria-selected="true"]').count() == 0
-    new_how = page.locator('#key-how [data-key-how="new"]')
+    new_how = page.locator(how_.format("new"))
     assert new_how.get_attribute("aria-pressed") == "true"
     page.locator(".view-head h1").click()
     new = unquote(_record(page, keys=("KeyG",)).headers["x-loop-name"])

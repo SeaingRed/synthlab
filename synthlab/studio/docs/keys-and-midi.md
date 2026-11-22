@@ -153,7 +153,7 @@ captioned boxes (`.kbd-grp`), always in this order —
 | **QWERTY** | typing (`#keys-toggle`), on Perform typing → keys \| pads (`#kbd-typeto`), the typing rows' strip (`#kr-strip`, it opens their panel) — in the letters layout the letters' modifiers in its place, in the columns layout what its rows play ("A C · Q maj · Z min · 1 7") |
 | **Rec** | ⏺ Rec (the Loops page's deck has this same ⏺ Rec, its ▾ the same settings), where it lands on the Loops page (new · overdub \| replace, while a launcher cell is selected), ⟲ (keys capture, Alt+T), count-in, the take's length — "to ■" (until stopped), 1–8 bars, or **free** (from the first note to ■, no bars: free record, below; an option of the select, so the group is no wider) — and + beat. Its caption is read, not drawn (⏺ Rec names the group, which leaves room for ⟲ — at 1920 comfy Synths has 14 px to spare) |
 | **Talk** | 🎙 talk ⚙ (the talkbox), 🎙 vocal (the live vocal chain, `vocal.js`: its panel is every page's `#vox-pop`) |
-| **Tools** | on the Loops page **Pads ▴** (its Play: pads, XY, FX, beats), then Play tools, at the right end |
+| **Tools** | on the Loops page **Pads** (its Play: pads, XY, FX, beats), then Play tools, at the right end |
 
 Each group is a section of its own (`data-menu-section`: its right-click
 menu lists its controls' `data-cmd` — `frontend.md`, "A section's own
@@ -263,7 +263,7 @@ toolbar's last, and the tools are a manual popover (`#play-tools.pop`)
 over the page, above the dock at its right end, never over the keys
 (never a line of its own, so the button never moves) — a key played on the dock leaves it open,
 only the button shuts it, and chords.js opens it again on the next page
-if it was left open (`synthlab.play-tools`). **Pads ▴** (`#play-open`)
+if it was left open (`synthlab.play-tools`). **Pads** (`#play-open`)
 before it, on the Loops page alone, opens that page's Play — the pads,
 the drum XY, the performance FX and the beats (`loop-and-perform.md`,
 "The Loops page, laid out") — the same way, over the page above the
@@ -438,7 +438,9 @@ together, and its settings are data attributes wherever they are drawn —
   cell **overdub | replace** (disabled while the cell is empty). The deck's
   ▾ shows the three always, with a line saying where this take will go;
   the dock's **#key-how** shows them while a cell of a lane of notes is
-  selected. The take is kept as any (its audio and its own loop) and then
+  selected — on another page (on the Loops page the deck's ▾ is the one
+  place: the dock's copy is hidden there, style.css, and its toolbar
+  stays one line at 1920). The take is kept as any (its audio and its own loop) and then
   lands (`slotrec.py`, the post's `lane`, `row`, `how`, `bar`): **new /
   replace** — its loop in the cell, launched there (one undo step with the
   slot's change; the old loop stays in the Loops); **overdub** — the

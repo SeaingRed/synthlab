@@ -292,7 +292,9 @@ def test_the_toolbar_is_one_row_at_1920(chromium, server):
             page.goto(f"{server.url}/view/{view}")
             page.wait_for_selector(f'#view[data-view="{view}"]')
             if view == "perform":
-                page.wait_for_selector("#key-how:not([hidden])")
+                # the dock's lands-in chooser: the deck's ▾ holds it on this page
+                page.wait_for_selector("#key-how:not([hidden])", state="attached")
+                assert not page.locator("#key-how").is_visible()
             tops = page.evaluate(
                 """() => [...document.querySelectorAll('.kbd-bar > .kbd-grp')]
                   .map((g) => { const r = g.getBoundingClientRect();
