@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **A utility unit**: gain, pan, width (mono to twice as wide), the lows
+  made mono under a frequency, and each channel's polarity — on every
+  rack, live on the keys, its gain and width automatable in a song.
 - **A unit on part of the signal**: every rack unit but the limiter has a
   band select on its head — full, lows, mids, highs (the OTT's
   crossover) or mid / side. The unit works on that part; the rest passes

@@ -12,8 +12,10 @@
 // output 1 the rest), the second joins (input 0 the unit's output, input 1
 // the rest). Units arrive resolved by fxlive.live_chain with the band's
 // crossover (`band_split`, `band_q`: effects.OTT_SPLIT / OTT_Q).
+// The utility unit's twin is here too (`kinds`, `make`, `unit`: its bass
+// mono is the same crossover's all-pass and high-pass).
 // tests/studio/test_live_fx.py runs this under node against effects.py.
-// Budget: <= 60 code lines.
+// Budget: <= 76 code lines.
 
 (() => {
   const F = () => globalThis.synthlabFx, X = () => globalThis.synthlabFx2; // fx-worklet.js's biq, fx2-worklet.js's crossover
@@ -52,7 +54,27 @@
     for (let i = 0; i < N; i++) [L[i], R[i]] = join(b, pl[i], pr[i], ql[i], qr[i]);
   }
   // culled (silent in, every tail rung out): the crossover at rest
-  const quiet = (b) => b.x?.forEach((ch) => ch.forEach((f) => { f.z1 = f.z2 = 0; }));
+  const quiet = (b) => [...(b.x || []).flat(), ...(b.m || [])].forEach((f) => { f.z1 = f.z2 = 0; }); // (the utility's filters too)
+
+  // The utility (effects._utility): polarity, the side x width, bass mono (the side
+  // high-passed twice, the mid all-passed), pan's law, gain. `make`: its state
+  const kinds = new Set(["utility"]);
+  function make(u, old, sr) {
+    const keep = (f, o) => Object.assign(f, o ? { z1: o.z1, z2: o.z2 } : {}), f = u.bass_mono, q = u.xover_q;
+    const m = f > 0 ? [X().allpass(f, q, sr), F().rbj("highpass", f, q, sr), F().rbj("highpass", f, q, sr)].map((g, j) => keep(g, old.m?.[j])) : null;
+    const by = !u.gain && u.width === 1 && !u.pan && !(f > 0) && !u.flip_l && !u.flip_r; // at its defaults: the input itself
+    return { m, by, tail: m ? 16384 : 0 };
+  }
+  function unit(s, L, R, N) {
+    const u = s.u, [gl, gr] = F().panGains(u.pan), g = 10 ** (u.gain / 20), fl = u.flip_l >= 0.5 ? -1 : 1, fr = u.flip_r >= 0.5 ? -1 : 1, biq = F().biq;
+    if (s.by) return;
+    for (let i = 0; i < N; i++) {
+      const l = L[i] * fl, r = R[i] * fr;
+      let m = (l + r) * 0.5, d = (l - r) * 0.5 * u.width;
+      if (s.m) { m = biq(s.m[0], m); d = biq(s.m[2], biq(s.m[1], d)); }
+      L[i] = (m + d) * gl * g; R[i] = (m - d) * gr * g;
+    }
+  }
 
   // the split before a banded native unit and the join after it
   class Band extends AudioWorkletProcessor {
@@ -73,5 +95,5 @@
   }
   registerProcessor("synthlab-band", Band);
 
-  globalThis.synthlabBand = { init, run, quiet, part, join };
+  globalThis.synthlabBand = { init, run, quiet, part, join, kinds, make, unit };
 })();

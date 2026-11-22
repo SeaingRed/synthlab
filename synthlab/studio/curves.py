@@ -96,6 +96,9 @@ FX_LANES: dict[str, tuple[str, ...]] = {
     # blend — whose dry is the bands summed, so the unit takes it itself
     # (`fxauto.OWN_MIX`)
     "mbdrive": ("low", "mid", "high", "mix"),
+    # the utility: its gain (dB per sample) and its width (the side's
+    # share per sample) — memoryless, one code path for a scalar and an array
+    "utility": ("gain", "width"),
 }
 # A lane stores 0..1 of its range, so a slider widened later would rescale
 # every lane drawn on it: such a lane keeps the range it was drawn in. The

@@ -204,6 +204,18 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   band late against the rest. Offline units (granular, shimmer,
   compress, vinyl) band offline as they run. No existing unit moved: no
   `RENDER_REV`.
+- **Utility** (`effects.utility`, FX unit `utility`,
+  `tests/test_effects_utility.py`): in order, each channel's polarity
+  (`flip_l` / `flip_r`, choices off / on), the side x `width` (0 mono, 1
+  as is, 2 wide), the side's lows out under `bass_mono` Hz (0 off) — a
+  Linkwitz-Riley split at `UTILITY_Q`: the side high-passed twice, the
+  mid through the pair's all-pass, so the lows of both channels are
+  their mono sum and the mid stays flat (to 1e-9) — then `pan`
+  (`_pan_gains`, the law `pan` has on a stereo input) and `gain` dB. At
+  its defaults the input itself, bit for bit. Causal, silent in silence;
+  live twin in `band-worklet.js` (<= 1.3e-7 of peak); lanes on `gain` and
+  `width`, one code path for a scalar and an array. Not offered to the
+  sound agent (`fxrack.UTILITY_UNITS`, its schema's budget).
 - `sequencer.py` — `Song`: beat-based multitrack timeline. `note_span()` is
   the one definition of how long a note's buffer is: its own length plus the
   patch's release (capped at `MAX_NOTE_TAIL`). It was a flat `dur * 1.15`

@@ -3287,3 +3287,59 @@ def banded(effect, band, wet=False):
     """`effect` (a prepared unit) on `band` of whatever it is handed
     (`band_apply`)."""
     return partial(band_apply, band=band, fn=effect, wet=wet)
+
+
+# ----------------------------------------------------------------------------
+# utility — a mixing desk's channel tools in one unit: polarity, width, the
+# lows made mono, pan and gain. Every gain fixed or a lane, the one filter
+# causal: its live twin is in static/band-worklet.js.
+# ----------------------------------------------------------------------------
+
+UTILITY_Q = OTT_Q  # bass mono's crossover: a Linkwitz-Riley half, as the OTT's
+
+
+def _utility(
+    x, gain=0.0, pan=0.0, width=1.0, bass_mono=0.0, flip_l=0.0, flip_r=0.0, sr=SR
+):
+    """In order: each channel's polarity (`flip_l` / `flip_r` at 1), the
+    side x `width` (0 mono, 1 as is, 2 twice as wide), the side's lows
+    taken out under `bass_mono` Hz (0: off) — a Linkwitz-Riley split: the
+    side through its high-pass twice, the mid through the pair's all-pass
+    so the two stay in phase, so the lows of both channels are their mono
+    sum —, `pan` (`effects.pan`'s law on a stereo input: unity at the
+    centre) and `gain` dB. `gain` and `width` may be per-sample arrays
+    (lanes). At its defaults the input itself, bit for bit."""
+    g = np.asarray(gain, dtype=np.float64)
+    w = np.asarray(width, dtype=np.float64)
+    flips = float(flip_l) >= 0.5 or float(flip_r) >= 0.5
+    rest = float(pan) == 0.0 and float(bass_mono) <= 0.0 and not flips
+    if rest and np.all(g == 0.0) and np.all(w == 1.0):
+        return x
+    st = to_stereo(np.asarray(x, dtype=np.float64))
+    if len(st) == 0:
+        return x
+    left = st[:, 0] * (-1.0 if float(flip_l) >= 0.5 else 1.0)
+    right = st[:, 1] * (-1.0 if float(flip_r) >= 0.5 else 1.0)
+    mid = (left + right) * 0.5
+    side = (left - right) * 0.5 * w
+    if float(bass_mono) > 0.0:
+        f = float(bass_mono)
+        mid = _lfilter(*allpass_coeffs(f, UTILITY_Q, sr), mid)
+        hp = biquad_coeffs("highpass", f, UTILITY_Q, sr)
+        side = _lfilter(*hp, _lfilter(*hp, side))
+    gl, gr = _pan_gains(pan)
+    lin = 10.0 ** (g / 20.0)
+    res = np.column_stack([(mid + side) * gl * lin, (mid - side) * gr * lin])
+    return res if is_stereo(x) else res.mean(axis=1)
+
+
+def utility(gain=0.0, pan=0.0, width=1.0, bass_mono=0.0, flip_l=0.0, flip_r=0.0):
+    return partial(
+        _utility,
+        gain=gain,
+        pan=pan,
+        width=width,
+        bass_mono=bass_mono,
+        flip_l=flip_l,
+        flip_r=flip_r,
+    )

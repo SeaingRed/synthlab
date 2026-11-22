@@ -52,6 +52,9 @@ DYNAMICS_UNITS = frozenset({"ott", "limiter", "transient"})
 # the multiband drive (fx2-worklet.js too): not offered to the sound agent,
 # for the same reason (its schema's budget)
 MULTIBAND_UNITS = frozenset({"mbdrive"})
+# the utility (band-worklet.js): not offered to the sound agent either, for
+# the same reason; the convolution needs a clip the agent cannot pick
+UTILITY_UNITS = frozenset({"utility"})
 # an LFO unit's `sync` (the auto-filter's, the tremolo's): 0 its own `rate`
 # in Hz, else one cycle a note length (beats: `LFO_BEATS`, resolve_unit)
 LFO_SYNC = (
@@ -591,6 +594,22 @@ FX_UNITS: dict[str, dict] = {
         },
         "choices": {"mode": fx.DRIVE_MODES},
     },
+    # a channel's tools (`effects.utility`, a twin in band-worklet.js): gain
+    # dB, pan, width (0 mono .. 1 as is .. 2 wide), the lows mono under
+    # `bass_mono` Hz (0 off), each channel's polarity. At its defaults the
+    # input itself
+    "utility": {
+        "label": "Utility",
+        "params": {
+            "gain": (-24.0, 24.0, 0.0),
+            "pan": (-1.0, 1.0, 0.0),
+            "width": (0.0, 2.0, 1.0),
+            "bass_mono": (0.0, 500.0, 0.0),
+            "flip_l": (0.0, 1.0, 0.0),
+            "flip_r": (0.0, 1.0, 0.0),
+        },
+        "choices": {"flip_l": ("off", "on"), "flip_r": ("off", "on")},
+    },
 }
 
 
@@ -907,6 +926,13 @@ FX_PRESETS: dict[str, dict[str, dict[str, float]]] = {
         "Low growl": {"low": 6.0, "mid": 1.5, "mode": 3.0},
         "Mid bite": {"mid": 5.0, "mode": 1.0, "mix": 0.8},
         "Air fizz": {"high": 8.0, "mode": 2.0, "mix": 0.6},
+    },
+    "utility": {
+        "Bass mono": {"bass_mono": 120.0},
+        "Mono": {"width": 0.0},
+        "Wide": {"width": 1.5, "bass_mono": 150.0},
+        "Polarity flip": {"flip_l": 1.0, "flip_r": 1.0},
+        "-6 dB": {"gain": -6.0},
     },
 }
 

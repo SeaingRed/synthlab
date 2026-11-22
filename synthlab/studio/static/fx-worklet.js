@@ -33,7 +33,8 @@
 // fx2-worklet.js, a fourth module in this scope: `synthlabFx2`'s hooks
 // here (three lines, within the budget), `wander` handed out with the rest.
 // 310 -> 314: a unit's band (band-worklet.js, a fifth module in this scope:
-// its state on the unit, the run round the unit's own, its rest when culled).
+// its state on the unit, the run round the unit's own, its rest when culled;
+// and the utility's state and run, whose twin is there).
 // Budget: <= 314 code lines.
 
 const TAU = 2 * Math.PI;
@@ -143,6 +144,7 @@ class SynthlabFx extends AudioWorkletProcessor {
       s.tail = nSamples(u.time + u.adt_wobble * u.wobble, sr) + 2;
     } else if (vox()?.kinds.has(u.kind)) Object.assign(s, vox().init(u, old, sr)); // the pitch unit and the vocal chain's
     else if (fx2()?.kinds.has(u.kind)) Object.assign(s, fx2().init(u, old, sr));
+    else if (band()?.kinds.has(u.kind)) Object.assign(s, band().make(u, old, sr)); // the utility
     else if (u.kind === "rotary") { // the rotors keep turning through a slider drag
       Object.assign(s, { hH: old.hH || new Hist(), hD: old.hD || new Hist(), xo: old.xo || rbj("lowpass", u.crossover, 0.707, sr),
         rot: old.rot || [u.horn, u.drum].map((spec) => ({ spec, f: undefined, acc: 0 })) });
@@ -170,7 +172,7 @@ class SynthlabFx extends AudioWorkletProcessor {
     if (this.still - N <= this.tail) for (const s of this.units) this.run(s, L, R, N);
     else { // culled: silent in, every tail rung out; a pitch grain's splice in silence is none
       L.fill(0); R.fill(0);
-      for (const s of this.units) { for (const m of [vox(), fx2()]) if (m?.kinds.has(s.u.kind)) m.quiet(s); if (s.bs) band().quiet(s.bs); }
+      for (const s of this.units) { for (const m of [vox(), fx2()]) if (m?.kinds.has(s.u.kind)) m.quiet(s); if (s.bs) band().quiet(s.bs); if (band()?.kinds.has(s.u.kind)) band().quiet(s); }
     }
     this.n += N;
     this.ms += clock() - t0;
@@ -221,6 +223,7 @@ class SynthlabFx extends AudioWorkletProcessor {
     else if (k === "tape_echo") this.tape(s, L, R, N);
     else if (vox()?.kinds.has(k)) vox().run(s, L, R, N, n0); // vox-worklet.js
     else if (fx2()?.kinds.has(k)) fx2().run(s, L, R, N, n0, this); // fx2-worklet.js (`this.pos`: the transport)
+    else if (band()?.kinds.has(k)) band().unit(s, L, R, N); // band-worklet.js
     else if (k === "telephone") { // effects._telephone: band-pass twice, soft-clipped
       const a = u.drive, m = u.mix, f = s.f;
       for (let i = 0; i < N; i++) {

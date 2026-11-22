@@ -95,6 +95,7 @@ FX_LIVE: dict[str, str] = {
     "limiter": "js",
     "transient": "js",
     "mbdrive": "js",
+    "utility": "js",
     "spring": "native",
     "gate": "clock",
     "pump": "clock",
@@ -459,6 +460,8 @@ def live_chain(units, arr: Arrangement, drums: bool) -> list[dict]:
             }
         elif u["kind"] == "vgate":
             unit["attack"] = fx.VGATE_ATTACK
+        elif u["kind"] == "utility":  # bass mono's crossover Q (band-worklet.js)
+            unit["xover_q"] = fx.UTILITY_Q
         elif u["kind"] in _FX2:  # the FX2 units' constants (fx2-worklet.js)
             unit |= _FX2[u["kind"]](kw)
         elif u["kind"] == "pump":

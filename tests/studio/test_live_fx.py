@@ -444,6 +444,31 @@ UNITS: dict[str, list[dict]] = {
         {"kind": "width", "params": {"amount": 2.0}, "band": "high"},
         {"kind": "transient", "params": {"attack": 1.0}, "band": "ms_mid"},
     ],
+    # the utility (band-worklet.js): each tool, then all of them, banded too
+    "utility_gain_pan": [{"kind": "utility", "params": {"gain": -4.5, "pan": 0.6}}],
+    "utility_width": [
+        {"kind": "doubler", "params": {"spread": 1.0}},
+        {"kind": "utility", "params": {"width": 1.8}},
+    ],
+    "utility_bass_mono": [
+        {"kind": "doubler", "params": {"spread": 1.0}},
+        {"kind": "utility", "params": {"bass_mono": 300.0}},
+    ],
+    "utility_all": [
+        {"kind": "doubler", "params": {"spread": 0.7}},
+        {
+            "kind": "utility",
+            "params": {
+                "gain": 3.0,
+                "pan": -0.4,
+                "width": 0.3,
+                "bass_mono": 150.0,
+                "flip_l": 1.0,
+            },
+        },
+        {"kind": "utility", "params": {"flip_r": 1.0, "width": 2.0}, "band": "high"},
+    ],
+    "utility_rest": [{"kind": "utility", "params": {}}],
     "stack": [
         {"kind": "drive", "params": {"amount": 2.0}},
         {"kind": "chorus", "params": {}},

@@ -500,6 +500,17 @@ every band, <= 7.7e-8 (float32 between the nodes). A banded unit is
 "offline" exactly when its unit is: granular, shimmer, compress, vinyl,
 beat repeat and the tape stop stay offline on any band.
 
+### The utility
+
+**The utility** (`utility`: gain, pan, width, bass mono, the two
+polarity flips; `docs/engine.md`, "Utility") is "js" in `FX_LIVE`; its
+twin is in `band-worklet.js` beside the band (`synthlabBand.kinds` /
+`make` / `unit`: bass mono is the same crossover's all-pass and
+high-pass, Q `xover_q`). At its defaults it is skipped, as the engine
+returns its input. **Measured <= 1.3e-7 of peak** on the synth note
+(gain and pan, width, bass mono on a doubled note, every tool at once
+with a second utility on the highs), the defaults exactly the input.
+
 ## Hard sync, FM4, wavetables and drift
 
 Hard sync, the 4-operator FM shape, eight more wavetables and analog drift

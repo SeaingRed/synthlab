@@ -61,7 +61,8 @@
   const JS = new Set(["drive", "clip", "fold", "bitcrush", "ringmod", "comb", "width", "delay", "chorus",
     "flanger", "phaser", "gate", "pump", "sidechain", "eq", "doubler", "rotary", "tape_echo", "telephone", "pitch",
     "autotune", "harmony", "vox_comp", "deess", "vgate", // these five and pitch: vox-worklet.js, in the same scope
-    "autofilter", "tremolo", "tape", "pingpong", "formant_shift", "freqshift", "exciter", "vocoder_fx", "ott", "limiter", "transient", "mbdrive"]); // fx2-worklet.js
+    "autofilter", "tremolo", "tape", "pingpong", "formant_shift", "freqshift", "exciter", "vocoder_fx", "ott", "limiter", "transient", "mbdrive", // fx2-worklet.js
+    "utility"]); // band-worklet.js
   let ctx = null, tables = null, masterIn = null, master = null, stack = [], wasm = null;
   const layers = []; // {node, gain, chain}
   const irs = new Map(); // IR url -> Promise<AudioBuffer>
