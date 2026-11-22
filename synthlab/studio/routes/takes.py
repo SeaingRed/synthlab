@@ -154,7 +154,19 @@ def take_keys(
     except OSError as err:  # the store is full: the take stays, as a take
         return with_toast(resp, f"Kept the take “{name}” — no loop of it: {err}")
     at = slotrec.target(s, form)
-    return _landed(svc, resp, made, at, notes) if at else resp
+    if at:
+        return _landed(svc, resp, made, at, notes)
+    loop = loops.load(s.data_dir, made)
+    if loop is not None and (rest := loops.rest_bars(loop)):
+        on = loop["lane"]["bars"]
+        return with_toast(
+            resp,
+            f"Took “{_title(s, made)}”: {plural(on + rest, 'bar')}, "
+            f"{plural(len(notes), 'note')}. The loop's grid holds bars 1–{on}; "
+            f"bars {on + 1}–{on + rest} are kept as played — → Song lays out "
+            "every bar as sections you can edit.",
+        )
+    return resp
 
 
 @router.post("/take/keys/capture")
@@ -350,6 +362,29 @@ def _take_or_toast(svc, form: StrForm) -> tuple[str, dict] | Response:
     name = clip_safe(form.get("name", "").strip())
     meta = kt.read_meta(svc.state.data_dir, name)
     return (name, meta) if meta is not None else svc.toast("That take is gone.")
+
+
+def _to_main_lane(s: StudioState) -> str:
+    """A loop opened while the edited lane follows the main one opens on
+    the main lane (a follower has no notes of its own, and the loop brings
+    its whole sound): the edited lane moves there. A word on it, or ""."""
+    if not s.follows(s.active_layer):
+        return ""
+    was = s.active_layer + 1
+    s.select_layer(s.main_index())
+    return f" (on layer {s.active_layer + 1}: layer {was} follows it)"
+
+
+def _rest_notes(s: StudioState, loop: dict) -> list:
+    """The notes a loop's later bars are placed from: its take's as they
+    stand after a ✦ clean-up, else as played."""
+    take = loop["take"]
+    meta = kt.read_meta(s.data_dir, take) if take else None
+    if meta is not None:
+        doc = kt.read_notes(s.data_dir, take, meta)
+        if "raw" in doc and doc["notes"]:
+            return doc["notes"]
+    return loop["played"]
 
 
 def _lane_refused(svc) -> Response | None:
@@ -678,14 +713,13 @@ def loop_load(request: Request, form: StrForm, svc: Svc) -> Response:
         return svc.toast("That loop is gone.")
     if loop["kind"] == "idea":
         return svc.toast(_IDEA)
-    if refused := _lane_refused(svc):
-        return refused
+    where = _to_main_lane(s)
     _play_sound(s, loop["sound"], loop["name"])
     s.arrangement, word = _loop_lane(s, loop)
     s.show_notes()  # the roll's window on its notes, as Edit's
     s.end_loop_edit()  # a copy on the grid: edits stay the working loop's
     s.save()
-    said = f"“{_title(s, loop['name'])}” is on the grid" + (
+    said = f"“{_title(s, loop['name'])}” is on the grid{where}" + (
         f" · {word}" if word else ""
     )
     return svc.land_on(request, "perform", f"{said}. Ctrl+Z takes the notes back.")
@@ -715,8 +749,7 @@ def loop_edit(request: Request, form: StrForm, svc: Svc) -> Response:
         return svc.toast(_IDEA)
     if loop["kind"] == "beat":  # a beat opens on the drum grid
         return loop_beat(request=request, form=form, svc=svc)
-    if refused := _lane_refused(svc):
-        return refused
+    where = _to_main_lane(s)
     a = s.arrangement
     asked, word = _loop_lane(s, loop)
     if refusal := loop_refusal(a, replace(asked, meter=loop["meter"])):
@@ -731,8 +764,11 @@ def loop_edit(request: Request, form: StrForm, svc: Svc) -> Response:
     s.push_pattern_undo(before)
     s.open_loop_edit(loop["name"])
     s.save()
-    said = f"Editing the loop “{_title(s, loop['name'])}”: every change saves to it"
-    said += f" · {word}" if word else ""
+    said = f"Editing the loop “{_title(s, loop['name'])}”{where}: every change saves"
+    said += " to it" + (f" · {word}" if word else "")
+    if rest := loops.rest_bars(loop):
+        on = loop["lane"]["bars"]
+        said += f" · bars 1–{on} of {on + rest} played: → Song has them all"
     return svc.land_on(request, "perform", said + ". Done ends it; Ctrl+Z too.")
 
 
@@ -914,6 +950,17 @@ def loop_song(request: Request, form: StrForm, svc: Svc) -> Response:
         loops.update(s.data_dir, name, take=made)  # its audio from now on
         clip = made
     said: list[str] = []
+    # a take longer than the loop's grid: the bars after it, a section each
+    rest = []
+    if not (audio or beat or lane_drop) and loops.rest_bars(loop):
+        lane = loop["lane"]
+        rest = loops.rest_lanes(
+            _rest_notes(s, loop),
+            loop["meter"],
+            lane["bars"],
+            lane["steps_per_bar"],
+            loop["quantise"],
+        )
 
     def change(song: dict) -> None:
         if not song["sections"]:
@@ -944,24 +991,41 @@ def loop_song(request: Request, form: StrForm, svc: Svc) -> Response:
                 )
                 how = "as a beat on the drums track"
             else:
-                lanes = _loop_lanes(s, loop, arr)
-                sid = song_bridge.add_lanes_section(
-                    song,
-                    index,
-                    name,
-                    arr,
-                    lanes,
-                    s.curves,
-                    onto=tosong.onto_of(form),
-                    at=at_section,
-                )
+                parts = [arr] + [
+                    schema.conform(
+                        {**arr, **more, "note_chance": {}}, schema.nodes().ARRANGEMENT
+                    )
+                    for more in rest
+                ]
+                sids = [
+                    song_bridge.add_lanes_section(
+                        song,
+                        index,
+                        f"{name} {k + 1}" if rest else name,
+                        part,
+                        _loop_lanes(s, loop, part),
+                        s.curves,
+                        onto=tosong.onto_of(form),
+                        at=None if at_section is None else at_section + k,
+                    )
+                    for k, part in enumerate(parts)
+                ]
+                sid = sids[0]
                 how = "as a pattern on a track with its sound"
         except song_bridge.TrackCap as err:
             raise tosong.cap_ask(song, err, form) from None
         plain = at_section is None and form.get("again") != "1"
-        if plain and (twin := tosong.already(song, sid)) is not None:
+        if plain and not rest and (twin := tosong.already(song, sid)) is not None:
             raise tosong.already_ask(song, twin, title, form)
         n = sm.section_index(song, sid) + 1
+        if rest:
+            total = sum(song["sections"][n - 1 + k]["bars"] for k in range(len(sids)))
+            said.append(
+                f"Added “{title}” to the song as patterns on a track with its "
+                f"sound: sections {n}–{n + len(rest)}, every one of the "
+                f"{plural(total, 'bar')} you played."
+            )
+            return
         bars = plural(song["sections"][n - 1]["bars"], "bar")
         said.append(f"Added “{title}” to the song {how}: section {n}, {bars}.")
 

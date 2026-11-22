@@ -302,6 +302,46 @@ def place(notes, meter: str, bars: int, steps: int, strength: int = 100) -> dict
     return {"bars": bars, "steps_per_bar": steps, **out, "note_nudge": {}}
 
 
+def played_bars(notes, meter: str) -> int:
+    """The whole bars the notes as played reach (0 with none)."""
+    end = max((n[0] + n[1] for n in notes), default=0.0)
+    return math.ceil(end / _meter.bar_beats(meter) - 1e-6) if end > 0 else 0
+
+
+def rest_bars(loop: dict) -> int:
+    """The bars a recorded loop was played past its grid: a take longer
+    than the grid's 4 bars keeps them in its notes as played, and → Song
+    lays them out (`rest_lanes`). 0 for a beat, an idea, a free loop (the
+    shaper chose its bars) or a loop that fits."""
+    if loop["kind"] != "notes" or loop.get("free") or not loop["played"]:
+        return 0
+    return max(0, played_bars(loop["played"], loop["meter"]) - loop["lane"]["bars"])
+
+
+def rest_lanes(notes, meter: str, bars: int, steps: int, strength: int) -> list[dict]:
+    """What was played past a loop's grid of `bars`, as note lanes of up
+    to `bars` bars each, in order (`place`'s shape): each note on its step
+    by `strength` and held for its length in whole steps, as on the loop's
+    own grid — one held over a lane's last bar line goes on in the next
+    lane from its first step (a section is where a note starts again).
+    [] when everything fits."""
+    step = _meter.bar_beats(meter) / steps
+    span = bars * steps  # a lane, in steps
+    total = played_bars(notes, meter) * steps
+    lanes = []
+    for lo in range(span, total, span):
+        hi = min(lo + span, total)
+        held = []
+        for s, ln, m, v in notes:
+            a = _step_of(s / step, strength)
+            b = a + max(1, round(ln / step))
+            if a < hi and b > lo:
+                a, b = max(a, lo), min(b, hi)
+                held.append([(a - lo) * step, (b - a) * step, m, v])
+        lanes.append(place(held, meter, math.ceil((hi - lo) / steps), steps))
+    return lanes
+
+
 MAX_SWING = 0.5  # a free loop's swing: a share of a step on the odd ones
 
 
@@ -577,6 +617,8 @@ def _summary(loop: dict) -> dict:
         # a free loop: the free take it was shaped from (✂ Shape again)
         "free_take": (loop["free"] or {}).get("take") if loop["free"] else None,
         "free": bool(loop["free"]),
+        # bars played past the grid: → Song lays them out as sections
+        "rest": rest_bars(loop),
     }
 
 

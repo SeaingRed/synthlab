@@ -630,3 +630,63 @@ def test_preview_is_its_audio_at_its_tempo_and_a_render_at_another(client):
     slot = client.post("/loop/preview", data={"slot": "0"}, headers=PERFORM)
     assert slot.headers["X-Preview-Url"].startswith("/preview/")
     assert [r["name"] for r in loops.listing(s.data_dir)] == ["riff"]  # kept none
+
+
+# --- a take longer than the grid: every bar played reaches the song ------------------
+
+# six bars: a chord held over bar 4's line (beats 15-18), a note in bar 6
+LONG = [[0, 1, 45, 1], [15, 3, 48, 1], [15, 3, 52, 1], [21.01, 0.5, 57, 0.5]]
+
+
+def test_a_take_longer_than_the_grid_says_what_the_grid_holds(client):
+    r = _take(client, notes=LONG, bars="6")
+    said = json.loads(r.headers["HX-Trigger"])["studio-toast"]["message"]
+    assert "6 bars" in said and "bars 1–4" in said and "bars 5–6" in said
+    loop = loops.load(_st(client).data_dir, unquote(r.headers["X-Loop-Name"]))
+    assert loop["lane"]["bars"] == 4 and loops.rest_bars(loop) == 2
+    (row,) = [x for x in looplib.rows(_st(client).data_dir) if x["kind"] == "loop"]
+    assert "+2 bars played" in row["facts"]["more"]
+    # one that fits says nothing of the kind
+    assert "HX-Trigger" not in _take(client, name="keys-2").headers
+
+
+def test_to_song_lays_out_every_bar_played_a_section_each_grid(client):
+    name = unquote(_take(client, notes=LONG, bars="6").headers["X-Loop-Name"])
+    s = _st(client)
+    r = client.post("/loop/song", data={"name": name}, headers=_hx("song"))
+    assert r.status_code == 200
+    said = json.loads(r.headers["HX-Trigger"])["studio-toast"]["message"]
+    assert "sections 1–2" in said and "6 bars" in said
+    first, second = s.song["sections"]
+    assert (first["bars"], second["bars"]) == (4, 2)
+    assert (first["name"], second["name"]) == (f"{name} 1", f"{name} 2")
+    (pid,) = [p for p in second["cells"].values() if p]
+    cells = {tuple(c) for c in s.song["patterns"][pid]["cells"]}
+    # the chord held over the bar line (beats 15-18) goes on from the
+    # section's first step for its last two beats; the late note is in bar 6
+    assert {("C3", 0), ("C3", 7), ("E3", 0), ("E3", 7)} <= cells
+    assert ("C3", 8) not in cells
+    assert ("A3", 20) in cells  # beat 21 of the take: bar 6's second beat
+    # one song undo step takes both sections back
+    client.post("/song/undo", headers=_hx("song"))
+    assert s.song["sections"] == []
+
+
+def test_rest_lanes_are_empty_when_the_take_fits():
+    assert loops.rest_lanes(NOTES, "4/4", 4, 16, 100) == []
+    assert loops.played_bars(NOTES, "4/4") == 2
+    assert loops.played_bars([], "4/4") == 0
+
+
+def test_edit_from_a_following_lane_opens_on_the_main_lane(client):
+    name = unquote(_take(client).headers["X-Loop-Name"])
+    s = _st(client)
+    s.select_layer(2)
+    s.set_follow(2, 0)
+    assert s.follows(s.active_layer)
+    r = client.post("/loop/edit", data={"name": name}, headers=PERFORM)
+    assert r.status_code == 200
+    assert s.active_layer == s.main_index() == 0
+    assert s.loop_edit_of()["name"] == name
+    said = json.loads(r.headers["HX-Trigger"])["studio-toast"]["message"]
+    assert "on layer 1: layer 3 follows it" in said

@@ -799,7 +799,9 @@ nothing played (they are all optional: absent, a file conforms to the defaults;
 
 **The placement** (`loops.place`): the notes as played on a grid of the
 take's bars, rounded up (`loops.grid_bars`: at most the Arrangement's 4,
-and `MAX_GRID_STEPS`; a longer take keeps the rest in `played`), at the
+and `MAX_GRID_STEPS`; a longer take keeps the rest in `played` —
+`loops.rest_bars` — and says so: the take's toast, "+n bars played" on its
+row, Edit's toast; → Song lays every bar out, below), at the
 **rate** — the meter's own steps (`meter.step_choices`: 1/4, 1/8, 1/16,
 1/32 in 4/4; 3, 6, 12, 24 a bar in 3/4; no quarter-note step in an x/8
 meter; **no triplets**, which the note grid has no steps for in a duple
@@ -852,7 +854,11 @@ edits it.
   on the edited lane **as the loop** — its notes, its sound with its
   layers (`load_sound`: one sound undo step), its tempo and key and meter
   (another meter: the loop's other grids fitted first, `set_meter`; refused
-  past the loop cap), the octave window where its notes are; **one pattern
+  past the loop cap), the octave window where its notes are; **while the
+  edited lane follows the main one it opens on the main lane** (the edited
+  lane moves there, `_to_main_lane`, and the toast says so — `/loop/load`
+  too; it was a refusal, "draw its own first", which read as Edit being
+  broken); **one pattern
   undo step, which is the edit's mark**. From then on the grid **is the
   loop**: `StudioState.loop_edit` (runtime, **one entry a lane** —
   `{lane: {name, layer, mark, base, row, bars}}`: the launcher's
@@ -888,7 +894,14 @@ edits it.
   the loop's bars, its notes a pool pattern on a synth track that plays
   its sound (its other sounding lanes too; a track already playing that
   sound is reused: `song_bridge.add_lanes_section`, no beat, no drums
-  track); **audio** — a new last section with its audio as a take from
+  track) — **a take played past its grid is every bar it played**: the
+  loop's grid as the first section, then a section for each grid's worth
+  of bars after it (`loops.rest_lanes`: the notes as played — or as ✦
+  cleaned — at the loop's rate and strength, "name 1", "name 2", …, the
+  last one as short as what is left), all in the one undo step; a note
+  held over a section's line goes on from the next one's first step (it
+  starts again there), and "place it again?" is not asked of one;
+  **audio** — a new last section with its audio as a take from
   its first bar on an audio track (`add_audio_section`); a loop with no
   audio is rendered first (the bounce below) and that clip is its audio
   from then on. A beat → Song is a section holding it on the drums track. Asked, not refused (`tosong.py`, a

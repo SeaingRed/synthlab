@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **A long take reaches the song whole**: → Song on a loop recorded past
+  its 4-bar grid lays out every bar played as sections in a row, each an
+  editable pattern in the sound that played it. The take's toast, its row
+  ("+n bars played") and Edit say what the grid holds.
+- **Edit works from a following layer**: the loop opens on the main lane
+  instead of being refused.
 - **FX units have a power key**: the lamp before a unit's name bypasses it
   — it keeps its place, its settings and its automation lane — on every
   rack (Synths, Kit, Mix, Voice, a Song audio track, the vocal booth), in

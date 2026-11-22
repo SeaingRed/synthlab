@@ -202,7 +202,11 @@ def _loop_row(lp: dict, wavs: set, takes: dict) -> dict:
         meter=lp["meter"],
         more=[plural(lp["notes"], "hit")]
         if beat
-        else _sound_said(lp["sound"], lp["title"]),
+        else [
+            # a take longer than the grid: the rest is kept, and → Song's
+            *([f"+{lp['rest']} bars played: → Song"] if lp.get("rest") else []),
+            *_sound_said(lp["sound"], lp["title"]),
+        ],
     )
     return {
         **lp,
