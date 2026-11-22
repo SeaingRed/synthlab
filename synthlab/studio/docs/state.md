@@ -155,7 +155,7 @@ depends on predicting an exception type. **A new persisted key or
 is missing, then fuzzes every node automatically. **An Arrangement field
 added after the pinned states is OPTIONAL: absent when unset wherever an
 arrangement is written down** — `schema.ARR_OPTIONAL` (`drum_hits`,
-`drum_row_swing`, `strum`, `note_nudge`, `arp_pattern` …: "unset" is the field's own falsy default, an
+`drum_row_swing`, `strum`, `note_nudge`, `arp_pattern`, `note_feel` …: "unset" is the field's own falsy default, an
 empty table or 0; a scalar one gives its `Num` an `example`, the value
 the schema tests' fixed point writes down): the Arrangement node's post
 drops an empty one (and

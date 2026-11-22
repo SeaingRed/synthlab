@@ -339,6 +339,39 @@ it. `keytakes.py` and `routes/takes.py` hold the server half.
   the voice's token, so a held key struck again is a note of its own),
   each stamped in heard time on the take's beats: `[start, length, midi,
   velocity]` from its first downbeat, up to `limits.MAX_TAKE_NOTES`.
+  **What it reports is what was heard** (`tests/browser/test_take_feel.py`,
+  in Chromium): a note ends where its SOUND ends — at its key up; with
+  hold off, at the short gate (`GATE_MS`, 160 ms) whatever the key does;
+  under the latch, when the latch is let go; under the pedal, when Shift
+  comes up — and a chord mode's notes (triad, 7th, 9th: as many tones as
+  the key's rows give the voicing) and a strummed chord's (each started
+  `strum` ms apart) all end together at the key up. The take's loop is
+  placed **as played** (`loop-and-perform.md`, "A note's own feel").
+- **What was turned** (`S.keyMove`, `studio/takemoves.py`,
+  `tests/studio/test_take_moves.py`): every change to a control during the
+  take — a Patch control's `input` (a slider or knob dragged, stepped,
+  typed, a deck dial or a MIDI-learned CC: all end in that event), a macro
+  knob, the XY pad's axes, and the pitch bend, mod wheel and aftertouch
+  (piano.js `setWheel` / `setMod`) — is stamped on the take's beats, at
+  most a point a 1/50 beat, and posted beside the notes (`moves`: the live
+  patch's values at the downbeat, then the moves). The take's sound — the
+  loop's — holds each moved field's START value and a drawn curve on it
+  (`curves.CURVABLE`, over the loop's grid: the start held to the first
+  move, a step there, the moves, the last held), so the loop, Edit and →
+  Song play the movement; the wheels are offsets on the patch's own value;
+  a macro's movement is its targets'. **Not recorded, and said in the
+  take's toast**: a field no curve can carry (an envelope time, a shape:
+  not CURVABLE — none was made curvable for this) and an FX unit's slider
+  (a loop has no FX lanes: those are a song section's). **The session's
+  sound is left as the knobs are** — what the owner hears now; the loop
+  holds the start and the movement, and Edit loads it. Bounded
+  (`limits.MAX_TAKE_MOVE_FIELDS` 32, `MAX_TAKE_MOVE_POINTS` 4000 a control
+  and `MAX_TAKE_MOVE_TOTAL` 32,000 in all as posted — past them the rest is
+  not read and the toast says so — on a grid of `TAKE_MOVE_GRID`, 1/50
+  beat, then thinned in one pass to `MAX_CURVE_POINTS`, each bucket keeping
+  its lowest and highest point). Moves past the loop's grid (a take longer
+  than 16 bars) are not kept; a free take keeps none; a moved field's
+  curve replaces the one the sound had on it.
 - **A bar is the loop's meter's**: `S.barBeats()` beats at
   `S.tempo()`, so a 3/4 take's bars,
   its count-in and its "bar n" are 3/4's.

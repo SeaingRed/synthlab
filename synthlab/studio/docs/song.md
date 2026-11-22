@@ -265,7 +265,20 @@ it plays — the section's onsets are the loop's (`test_song_chance.py`,
 render, its chunks, the mixdown, the stems and the MIDI export read them
 through `SectionParts` (`song-render-export.md`, "Chance: every pass
 afresh"). The drawer's roll draws a nudged pattern on its step lines and
-has no chance lane (Perform's has).
+has no chance lane (Perform's has). **Each note's own feel** (`note_feel`,
+a take as played: `loop-and-perform.md`, "A note's own feel") rides the
+same way — a pattern's optional key, cleaned to its notes' starts
+(`pool_post`), tiled, cropped and regridded with its cells
+(`notefeel.tile` / `crop` / `regrid`: onto a coarser grid it is dropped
+and the note plays as a grid note), carried by `songops`' windows and the
+drawer's tools and drawn by the drawer's roll. **A note felt early onto a
+chunk's first line** (a section past `MAX_LOOP_SECONDS` renders in chunks)
+plays in the chunk before, one step past its grid
+(`song_model._window_notes`, the drum hit's rule), so the chunks are the
+cycle rendered whole — except that it reads a drawn curve frozen at that
+chunk's last line, as any note held over a seam does (the strict xfail in
+`tests/studio/test_take_exact.py`; a fix moves every chunked section with a
+curve: `RENDER_REV`).
 
 **What "Add loop to song" carries** (the Song page's button, Perform's
 and Synths' **→ Song**, `loop-and-perform.md`): the main lane and every
