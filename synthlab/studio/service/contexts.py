@@ -589,7 +589,7 @@ class Contexts:
             "hidden_notes": sum(
                 1 for c in a.cells if c[0] not in shown or not 0 <= int(c[1]) < total
             ),
-            "can_double": a.bars * 2 in limits.BAR_CHOICES,
+            "can_double": a.bars * 2 in limits.loop_bar_choices(a.steps_per_bar),
             "can_double_drums": a.drum_bars * 2 in limits.BAR_CHOICES,
         }
 

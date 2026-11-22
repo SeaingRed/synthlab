@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **The note grid holds 8 and 16 bars**: a take is placed on a grid as
+  long as it was played (rounded up to 8 or 16 past 4 bars; 16 at 1/16,
+  8 at 1/32), Edit shows and edits all of it, the bar chips and ×2 reach
+  16, the roll scrolls rather than squeezing, and → Song makes one
+  pattern of it ("Open in Perform" brings it back whole). The drum grid
+  keeps 1-4 bars; nothing saved or rendered before changes.
 - **A long take reaches the song whole**: → Song on a loop recorded past
   its 4-bar grid lays out every bar played as sections in a row, each an
   editable pattern in the sound that played it. The take's toast, its row

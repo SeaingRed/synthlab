@@ -36,14 +36,18 @@ def test_doubling_grows_the_sections_that_use_it(client):  # noqa: F811
 
 
 def test_a_pattern_at_its_longest_refuses_to_double(client):  # noqa: F811
-    """A pool pattern doubles to 8 bars while bars x steps fits the grid
-    (`limits.PATTERN_BAR_CHOICES`: 8 x 16 = 128 steps), and no further."""
+    """A pool pattern doubles to 8 and 16 bars while bars x steps fits the
+    grid (`limits.PATTERN_BAR_CHOICES`: 16 x 16 = 256 steps), and no
+    further."""
     post(client, "/song/pattern/p2/tool/duplicate")
     r = post(client, "/song/pattern/p2/tool/duplicate")
     assert r.status_code == 200
     assert song(client)["patterns"]["p2"]["bars"] == 8
     r = post(client, "/song/pattern/p2/tool/duplicate")
-    assert r.status_code == 422 and "double" in r.text and "8" in r.text
+    assert r.status_code == 200
+    assert song(client)["patterns"]["p2"]["bars"] == 16
+    r = post(client, "/song/pattern/p2/tool/duplicate")
+    assert r.status_code == 422 and "double" in r.text and "16" in r.text
 
 
 def test_drum_patterns_take_the_drum_tools(client):  # noqa: F811

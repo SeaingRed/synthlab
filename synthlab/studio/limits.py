@@ -98,11 +98,14 @@ MAX_SONG_SECONDS = 480.0
 MAX_SECTION_SECONDS = 120.0
 
 # --- persisted-state caps (studio/schema.py) ---------------------------------
-# The largest grid the UI can produce: 4 bars x 32 steps, for both the synth
-# grid and the drum machine's own clock. A step past it can only be garbage;
-# a step inside it is kept even when the *current* grid is smaller (a shrunk
-# grid hides notes, it doesn't delete them).
-MAX_GRID_STEPS = 4 * 32
+# The largest grid the UI can produce: a recorded loop of 16 bars at 1/16
+# (`LOOP_BAR_CHOICES`), 8 bars x 32, 4 bars x 32 for the drum machine's own
+# clock. A step past it can only be garbage; a step inside it is kept even
+# when the *current* grid is smaller (a shrunk grid hides notes, it doesn't
+# delete them). It was 4 x 32 = 128 until loops held 16 bars: every state
+# conformed under 128 conforms to itself under 256 (no step it holds is
+# past 127), so nothing saved and no render key moved.
+MAX_GRID_STEPS = 16 * 16
 
 
 def step_key(raw: str) -> str | None:
@@ -142,7 +145,26 @@ MAX_NAME_CHARS = 200  # any free-text name persisted in state
 # These used to be a literal duplicated in arrange.py's clamps, server.py's
 # route-level clamps, schema.py's Choice/Num nodes, and three templates.
 BPM_RANGE = (40.0, 200.0)
-BAR_CHOICES = (1, 2, 3, 4)  # the synth grid's bars, and the drum bank slot count
+BAR_CHOICES = (1, 2, 3, 4)  # the drum grid's bars, and the drum bank slot count
+# The note grid's bars (the working loop, a recorded take's loop): the
+# drum grid's four, and 8 and 16 while bars x steps a bar fits
+# MAX_GRID_STEPS (16 at 1/16 and coarser, 8 at 1/32) — a take as long as
+# it was played. Powers of two past 4, so a 1, 2 or 4-bar beat divides
+# them and the loop (the lcm of the two lanes) stays as long as the notes.
+# Its render is one piece: `render.LOOP_CAP_SECONDS` still refuses, in
+# words, a grid too long at its tempo (16 bars of 4/4 play from 54 bpm up).
+LOOP_BAR_CHOICES = (1, 2, 3, 4, 8, 16)
+
+
+def loop_bar_choices(steps_per_bar: int) -> tuple[int, ...]:
+    """The note grid's bars at `steps_per_bar` (`LOOP_BAR_CHOICES` whose
+    bars x steps fit `MAX_GRID_STEPS`): all six at 1/16, five at 1/32. The
+    four of `BAR_CHOICES` always fit (`meter.MAX_STEPS_A_BAR` is 32)."""
+    return tuple(
+        b for b in LOOP_BAR_CHOICES if b * max(1, int(steps_per_bar)) <= MAX_GRID_STEPS
+    )
+
+
 # Same four values as STEP_CHOICES today, but a separate name: the synth
 # grid's steps_per_bar and the drum machine's own drum_steps are two clocks
 # (Randomise/Mutate once read the wrong one), and giving them one
@@ -165,11 +187,11 @@ MAX_AUDIO_TRACKS = 3
 MAX_SECTION_BARS = 64
 MAX_SECTION_REPEATS = 16
 MAX_PATTERNS = 128  # the shared pattern pool
-# A pool pattern's bars (schema.SONG_PATTERN): the loop's own choices plus
-# 8, when bars x steps a bar still fits MAX_GRID_STEPS (8 bars at 4, 8 or
-# 16 steps) — an 8-bar progression, or a fill in bar 8, as ONE pattern. The
-# Perform loop keeps BAR_CHOICES: its render is one piece.
-PATTERN_BAR_CHOICES = (1, 2, 3, 4, 8)
+# A pool pattern's bars (schema.SONG_PATTERN): the loop's own choices
+# (`LOOP_BAR_CHOICES`, 8 and 16 when bars x steps a bar still fits
+# MAX_GRID_STEPS) — an 8-bar progression, a fill in bar 8, or a 16-bar take
+# as ONE pattern, so a loop goes to the song as the pattern it is.
+PATTERN_BAR_CHOICES = LOOP_BAR_CHOICES
 # the Song page's playlist (fragments/song_arranger.html): pattern
 # thumbnails one arranger fragment draws (a legal song is at most 400 bars
 # — 480 s at 200 bpm — so 400 a lane and 4800 for twelve; an over-cap

@@ -57,6 +57,9 @@ from .takes import _landed, _number, _render_loop, _title
 router = studio_router()
 
 SWING_MAX = loops.MAX_SWING
+# the shaper's sizes: 1-4 bars, as before a take's grid could hold 8 or 16
+# (its popover draws a button a size; `loops.GRID_BARS` is the note grid's)
+SHAPER_BARS = limits.BAR_CHOICES
 
 
 def _free_notes(text: str) -> tuple[list[list], list[int]]:
@@ -190,7 +193,7 @@ def free_shaper(request: Request, svc: Svc) -> Response:
         "page_bpm": round(s.arrangement.bpm, 3),
         "bar_beats": _meter.bar_beats(m),
         "steps": loops.default_steps(m),
-        "bars": list(loops.GRID_BARS),
+        "bars": list(SHAPER_BARS),
         "swing_max": SWING_MAX,
         "bpm_range": list(limits.BPM_RANGE),
     }
@@ -235,7 +238,7 @@ def _shaped(svc, form: StrForm):
         return svc.toast("A loop needs its tempo, bars, rate and quantise.")
     if (
         bpm is None
-        or bars not in loops.GRID_BARS
+        or bars not in SHAPER_BARS
         or steps not in _meter.step_choices(m)
         or bars * steps > limits.MAX_GRID_STEPS
         or not 0 <= strength <= 100

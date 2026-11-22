@@ -21,12 +21,13 @@ import json
 import re
 import time
 import wave
+from dataclasses import asdict
 from urllib.parse import unquote
 
 import pytest
 from fastapi.testclient import TestClient
 
-from synthlab.studio import keytakes, looplib, loops
+from synthlab.studio import keytakes, looplib, loops, schema
 from synthlab.studio.clips import save_clip
 from synthlab.studio.server import create_app
 from synthlab.studio.state.model import Arrangement
@@ -114,8 +115,12 @@ def test_the_strength_places_a_note_from_where_it_began_to_its_nearest_step():
     assert loops.place(early, "4/4", 1, 8, 100)["cells"] == [["D4", 2]]
     assert [n for n, _w in loops.rates("3/4")] == [3, 6, 12, 24]
     assert [w for _n, w in loops.rates("4/4")] == ["1/4", "1/8", "1/16", "1/32"]
-    assert loops.grid_bars(2.3, 16) == 3 and loops.grid_bars(8, 16) == 4
-    assert loops.grid_bars(4, 32) == 4  # 128 steps: the grid's cap
+    assert loops.grid_bars(2.3, 16) == 3 and loops.grid_bars(8, 16) == 8
+    # past 4 bars the grid rounds up to 8 or 16 (a beat of 1, 2 or 4 bars
+    # divides it); 256 steps is the grid's cap, so 1/32 stops at 8
+    assert loops.grid_bars(5, 16) == 8 and loops.grid_bars(12.5, 16) == 16
+    assert loops.grid_bars(30, 16) == 16 and loops.grid_bars(12.5, 32) == 8
+    assert loops.grid_bars(4, 32) == 4
 
 
 def test_a_take_in_three_four_is_a_loop_in_three_four(client):
@@ -634,16 +639,93 @@ def test_preview_is_its_audio_at_its_tempo_and_a_render_at_another(client):
 
 # --- a take longer than the grid: every bar played reaches the song ------------------
 
-# six bars: a chord held over bar 4's line (beats 15-18), a note in bar 6
-LONG = [[0, 1, 45, 1], [15, 3, 48, 1], [15, 3, 52, 1], [21.01, 0.5, 57, 0.5]]
+# eighteen bars: a chord held over bar 16's line (beats 63-66), a note in
+# bar 18 — past the longest grid (16 bars at 1/16)
+LONG = [[0, 1, 45, 1], [63, 3, 48, 1], [63, 3, 52, 1], [69.01, 0.5, 57, 0.5]]
+# six bars: on one grid of 8 since grids hold 8 and 16 (it was 4 + 2 played)
+SIX = [[0, 1, 45, 1], [15, 3, 48, 1], [15, 3, 52, 1], [21.01, 0.5, 57, 0.5]]
+
+
+def test_a_take_of_six_bars_is_one_grid_of_eight_holding_every_note(client):
+    r = _take(client, notes=SIX, bars="6")
+    assert "HX-Trigger" not in r.headers  # nothing kept off the grid to say
+    loop = loops.load(_st(client).data_dir, unquote(r.headers["X-Loop-Name"]))
+    lane = loop["lane"]
+    assert (lane["bars"], lane["steps_per_bar"]) == (8, 16)
+    assert loops.rest_bars(loop) == 0
+    # the chord held over bar 4's line stays one note; the late note in bar 6
+    assert {("C3", st) for st in range(60, 72)} <= set(_cells(lane))
+    assert ("A3", 84) in _cells(lane)
+    # Edit puts all eight bars on the grid, and an edit there keeps them
+    s = _st(client)
+    assert _edit(client, name=loop["name"]).status_code == 200
+    assert (s.arrangement.bars, s.arrangement.steps_per_bar) == (8, 16)
+    client.post("/fragment/pattern/notes/shift_right", headers=PERFORM)
+    after = loops.load(s.data_dir, loop["name"])["lane"]
+    assert after["bars"] == 8 and ("A3", 85) in _cells(after)
+
+
+def test_the_note_grid_holds_eight_and_sixteen_bars_while_they_fit(client):
+    """`limits.LOOP_BAR_CHOICES` on the working loop: 8 and 16 while bars
+    x steps fits `MAX_GRID_STEPS` (256); the drum grid keeps its 1-4."""
+    node = schema.nodes().ARRANGEMENT
+
+    def conformed(**kw):
+        return schema.conform(asdict(Arrangement()) | kw, node)
+
+    assert conformed(bars=16, steps_per_bar=16)["bars"] == 16
+    assert conformed(bars=16, steps_per_bar=32)["bars"] == 8  # the longest that fits
+    assert conformed(bars=5)["bars"] == Arrangement().bars  # no such choice
+    assert conformed(drum_bars=8)["drum_bars"] == Arrangement().drum_bars
+    # a loop file's `arr` carries no drum clock: the drum lane takes 4 at most
+    assert schema.conform({"bars": 16, "cells": []}, node)["drum_bars"] == 4
+    assert schema.conform({"bars": 3, "cells": []}, node)["drum_bars"] == 3
+    # the grid's own tools and form: ×2 to 8 and 16, then refused
+    s = _st(client)
+    s.arrangement = Arrangement(bars=4, steps_per_bar=16, cells=[["A1", 0], ["C2", 60]])
+    for bars in (8, 16):
+        r = client.post("/fragment/pattern/notes/duplicate", headers=PERFORM)
+        assert r.status_code == 200 and s.arrangement.bars == bars
+    assert ["C2", 252] in s.arrangement.cells
+    r = client.post("/fragment/pattern/notes/duplicate", headers=PERFORM)
+    assert r.status_code == 422 and "16" in r.text
+    # the transport's chips post the hidden `bars` with the steps: 16 bars
+    # stay 16, and 1/32 keeps the longest grid that fits it
+    form = {"span": "1", "bars": "16", "steps": "16", "cell.A1.0": "on"}
+    client.post("/fragment/arrangement", data=form, headers=PERFORM)
+    assert (s.arrangement.bars, s.arrangement.steps_per_bar) == (16, 16)
+    client.post("/fragment/arrangement", data=form | {"steps": "32"}, headers=PERFORM)
+    assert (s.arrangement.bars, s.arrangement.steps_per_bar) == (8, 32)
+    # past the loop cap the doubling is refused in words, nothing moved
+    s.arrangement = Arrangement(bars=8, steps_per_bar=16, bpm=50, cells=[["A1", 0]])
+    r = client.post("/fragment/pattern/notes/duplicate", headers=PERFORM)
+    assert r.status_code == 422 and "the cap is" in r.text
+    assert s.arrangement.bars == 8
+
+
+def test_a_long_loop_goes_to_the_song_and_back_whole(client):
+    """A 16-bar loop → Song is one 16-bar pattern, and "Open in Perform"
+    puts all 16 bars back on the grid (`song_bridge.to_loop`)."""
+    notes = [[0, 1, 45, 1], [61, 2, 48, 1]]  # bar 1 and bar 16
+    name = unquote(_take(client, notes=notes, bars="16").headers["X-Loop-Name"])
+    s = _st(client)
+    lane = loops.load(s.data_dir, name)["lane"]
+    assert lane["bars"] == 16
+    r = client.post("/loop/song", data={"name": name}, headers=PERFORM)
+    assert r.status_code == 200
+    (sec,) = s.song["sections"]
+    assert sec["bars"] == 16
+    client.post(f"/song/section/{sec['id']}/to-loop", headers=PERFORM)
+    assert (s.arrangement.bars, s.arrangement.steps_per_bar) == (16, 16)
+    assert _cells(s.arrangement.__dict__) == _cells(lane)
 
 
 def test_a_take_longer_than_the_grid_says_what_the_grid_holds(client):
-    r = _take(client, notes=LONG, bars="6")
+    r = _take(client, notes=LONG, bars="18")
     said = json.loads(r.headers["HX-Trigger"])["studio-toast"]["message"]
-    assert "6 bars" in said and "bars 1–4" in said and "bars 5–6" in said
+    assert "18 bars" in said and "bars 1–16" in said and "bars 17–18" in said
     loop = loops.load(_st(client).data_dir, unquote(r.headers["X-Loop-Name"]))
-    assert loop["lane"]["bars"] == 4 and loops.rest_bars(loop) == 2
+    assert loop["lane"]["bars"] == 16 and loops.rest_bars(loop) == 2
     (row,) = [x for x in looplib.rows(_st(client).data_dir) if x["kind"] == "loop"]
     assert "+2 bars played" in row["facts"]["more"]
     # one that fits says nothing of the kind
@@ -651,22 +733,24 @@ def test_a_take_longer_than_the_grid_says_what_the_grid_holds(client):
 
 
 def test_to_song_lays_out_every_bar_played_a_section_each_grid(client):
-    name = unquote(_take(client, notes=LONG, bars="6").headers["X-Loop-Name"])
+    name = unquote(_take(client, notes=LONG, bars="18").headers["X-Loop-Name"])
     s = _st(client)
     r = client.post("/loop/song", data={"name": name}, headers=_hx("song"))
     assert r.status_code == 200
     said = json.loads(r.headers["HX-Trigger"])["studio-toast"]["message"]
-    assert "sections 1–2" in said and "6 bars" in said
+    assert "sections 1–2" in said and "18 bars" in said
     first, second = s.song["sections"]
-    assert (first["bars"], second["bars"]) == (4, 2)
+    assert (first["bars"], second["bars"]) == (16, 2)
     assert (first["name"], second["name"]) == (f"{name} 1", f"{name} 2")
+    (pid,) = [p for p in first["cells"].values() if p]
+    assert s.song["patterns"][pid]["bars"] == 16  # the loop's grid: one pattern
     (pid,) = [p for p in second["cells"].values() if p]
     cells = {tuple(c) for c in s.song["patterns"][pid]["cells"]}
-    # the chord held over the bar line (beats 15-18) goes on from the
-    # section's first step for its last two beats; the late note is in bar 6
+    # the chord held over the bar line (beats 63-66) goes on from the
+    # section's first step for its last two beats; the late note is in bar 18
     assert {("C3", 0), ("C3", 7), ("E3", 0), ("E3", 7)} <= cells
     assert ("C3", 8) not in cells
-    assert ("A3", 20) in cells  # beat 21 of the take: bar 6's second beat
+    assert ("A3", 20) in cells  # beat 69 of the take: bar 18's second beat
     # one song undo step takes both sections back
     client.post("/song/undo", headers=_hx("song"))
     assert s.song["sections"] == []

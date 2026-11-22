@@ -76,7 +76,7 @@ DIR = "loops"
 BAR_CHOICES = (1, 2, 4)  # what Save as loop offers
 KEY = ("bpm", "root", "scale_name")
 SAVED = LOOP_FIELDS  # an Arrangement's fields a loop keeps
-GRID_BARS = (1, 2, 3, 4)  # a placed take's grid: the Arrangement's own
+GRID_BARS = limits.LOOP_BAR_CHOICES  # a placed take's grid: the note grid's own
 # a step's length in sixteenths, as a note value
 _RATE_WORDS = {
     Fraction(4): "1/4",
@@ -247,12 +247,14 @@ def default_steps(meter: str) -> int:
 
 def grid_bars(take_bars: float, steps: int) -> int:
     """The bars a take of `take_bars` is placed on: the take rounded up to
-    whole bars, at most the grid's longest that holds the rate
-    (`GRID_BARS`, `limits.MAX_GRID_STEPS`); a longer take keeps the rest in
-    its notes as played."""
+    whole bars and then to the grid's next choice that holds the rate
+    (`GRID_BARS`: 1-4, 8, 16, while bars x steps fits
+    `limits.MAX_GRID_STEPS`) — a 6-bar take is an 8-bar grid with its last
+    two bars empty, a 12.5-bar one a 16-bar grid. A take longer than the
+    longest grid keeps the rest in its notes as played (`rest_bars`)."""
     want = max(1, math.ceil(take_bars - 1e-6)) if take_bars else 1
-    fits = [b for b in GRID_BARS if b * steps <= limits.MAX_GRID_STEPS]
-    return min(want, max(fits)) if fits else 1
+    fits = [b for b in GRID_BARS if b * steps <= limits.MAX_GRID_STEPS] or [1]
+    return min((b for b in fits if b >= want), default=max(fits))
 
 
 def _step_of(t: float, strength: int) -> int:
@@ -310,9 +312,10 @@ def played_bars(notes, meter: str) -> int:
 
 def rest_bars(loop: dict) -> int:
     """The bars a recorded loop was played past its grid: a take longer
-    than the grid's 4 bars keeps them in its notes as played, and → Song
-    lays them out (`rest_lanes`). 0 for a beat, an idea, a free loop (the
-    shaper chose its bars) or a loop that fits."""
+    than its grid (the longest is 16 bars at 1/16; a loop placed before
+    grids held more than 4 kept its first 4) keeps them in its notes as
+    played, and → Song lays them out (`rest_lanes`). 0 for a beat, an
+    idea, a free loop (the shaper chose its bars) or a loop that fits."""
     if loop["kind"] != "notes" or loop.get("free") or not loop["played"]:
         return 0
     return max(0, played_bars(loop["played"], loop["meter"]) - loop["lane"]["bars"])

@@ -304,15 +304,12 @@ def _row(data_dir: Path, name: str, meta: dict) -> dict:
 
 def grid_bars(arr: Arrangement, take_bars: float) -> int:
     """The grid's bars once a take of `take_bars` is written: as long as
-    the take (whole bars, the loop's choices) unless it is longer already,
-    and never past `MAX_GRID_STEPS`."""
+    the take (whole bars, rounded up to the note grid's next choice:
+    `limits.loop_bar_choices`, 1-4, 8, 16) unless it is longer already, and
+    never past `MAX_GRID_STEPS`."""
     want = max(arr.bars, math.ceil(take_bars - 1e-6))
-    fits = [
-        b
-        for b in limits.BAR_CHOICES
-        if b * arr.steps_per_bar <= limits.MAX_GRID_STEPS and b <= want
-    ]
-    return max(fits) if fits else arr.bars
+    fits = limits.loop_bar_choices(arr.steps_per_bar)
+    return min((b for b in fits if b >= want), default=max(fits, default=arr.bars))
 
 
 def to_grid(

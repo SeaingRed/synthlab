@@ -761,6 +761,9 @@ def nodes() -> SimpleNamespace:
     unit = Num(0.0, 1.0)
     step = Num(0, limits.MAX_GRID_STEPS - 1, integer=True, clamp=False)
     grid_choice = Choice(limits.BAR_CHOICES)
+    # the note grid's bars (`limits.LOOP_BAR_CHOICES`: 8 and 16 while they
+    # fit `MAX_GRID_STEPS`, `arr_post`); the drum grid keeps `grid_choice`
+    loop_choice = Choice(limits.LOOP_BAR_CHOICES)
     spb_choice = Choice(limits.STEP_CHOICES)
     # a grid in any meter (`meter.step_choices`); the record's post holds
     # it to its own meter's
@@ -876,7 +879,7 @@ def nodes() -> SimpleNamespace:
 
     arr_fields: dict[str, Node] = {
         "bpm": Num(*limits.BPM_RANGE),
-        "bars": grid_choice,
+        "bars": loop_choice,
         "steps_per_bar": spb_any,
         "root": Choice(ROOTS),
         "scale_name": Choice(SCALE_CHOICES),
@@ -958,12 +961,20 @@ def nodes() -> SimpleNamespace:
         if "drum_bars" not in raw:  # pre-split state: drums shared the synth clock
             out["drum_bars"], out["drum_steps"] = out["bars"], out["steps_per_bar"]
             out["drum_swing"] = out["swing"]
+            # (a note grid past the drum grid's 4 bars: a loop file's `arr`
+            # carries no drum clock, and its note lane may be 8 or 16 bars)
+            out["drum_bars"] = min(out["drum_bars"], max(limits.BAR_CHOICES))
         if out.get("drum_hits"):  # a hit's data needs its cell (the cuts rule)
             on = {f"{v}.{int(st)}" for v, st in out["drums"]}
             out["drum_hits"] = {k: v for k, v in out["drum_hits"].items() if k in on}
         if out.get("note_nudge"):  # a step's timing needs a note on it; 0 is none
             out["note_nudge"] = clean_nudge(out["note_nudge"], out["cells"])
         _fit_steps(out, out.get("meter", _meter.DEFAULT))
+        # 8 or 16 bars only while bars x steps fits the grid: past it, the
+        # longest that does (a 1-4 bar grid always fits: nothing moves)
+        fits = limits.loop_bar_choices(out["steps_per_bar"])
+        if out["bars"] not in fits:
+            out["bars"] = max(b for b in fits if b <= out["bars"])
         for k in ARR_OPTIONAL:  # absent when unset: no older file gains a key
             if arr_unset(k, out.get(k)):
                 out.pop(k, None)

@@ -141,14 +141,17 @@ _CHANCE_PREFIX = "nchance."  # the note grid's chance lane (`note_chance`)
 
 def arrangement_from_form(
     form: Mapping[str, str],
-    bar_choices: tuple[int, ...] = limits.BAR_CHOICES,
+    bar_choices: tuple[int, ...] = limits.LOOP_BAR_CHOICES,
     meter: str = "4/4",
 ) -> Arrangement:
     """A grid form as an Arrangement. `bar_choices`: the bars the grid
-    may have — the loop's by default; the Song drawer passes a pool
-    pattern's (`song_model.bar_choices`, up to 8). `meter`: the grid's bar
-    (a form never carries it: the loop's own, or the pattern's), whose
-    step counts `steps` must be one of (`meter.step_choices`)."""
+    may have — the loop's by default (`limits.LOOP_BAR_CHOICES`, up to 16);
+    the Song drawer passes a pool pattern's (`song_model.bar_choices`).
+    Only those whose bars x steps fit `MAX_GRID_STEPS` are taken: a value
+    between two choices, or past what fits, is the longest choice under
+    it. `meter`: the grid's bar (a form never carries it: the loop's own,
+    or the pattern's), whose step counts `steps` must be one of
+    (`meter.step_choices`)."""
     meter = _meter.clean(meter)
     step_choices = _meter.step_choices(meter)
     try:
@@ -169,6 +172,9 @@ def arrangement_from_form(
         steps_per_bar = step_choices[0]
     if steps_per_bar not in step_choices:
         steps_per_bar = step_choices[0]
+    fits = [b for b in bar_choices if b * steps_per_bar <= limits.MAX_GRID_STEPS]
+    fits = fits or [min(bar_choices)]
+    bars = max((b for b in fits if b <= bars), default=min(fits))
 
     root = str(form.get("root", "A1"))
     if root not in ROOTS:

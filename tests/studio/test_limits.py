@@ -68,17 +68,19 @@ def test_bar_choices():
     assert limits.BAR_CHOICES == (1, 2, 3, 4)
 
 
-def test_a_pool_pattern_may_be_eight_bars_and_the_loop_may_not():
-    """`PATTERN_BAR_CHOICES` adds 8 for pool patterns while bars x steps
-    fits the grid; the Perform loop keeps `BAR_CHOICES` (its render is one
-    piece). `MAX_GRID_STEPS` did not move."""
+def test_a_loop_and_a_pool_pattern_may_be_eight_or_sixteen_bars():
+    """The note grid (`LOOP_BAR_CHOICES`) and a pool pattern add 8 and 16
+    while bars x steps fits the grid: 16 bars at 1/16, 8 at 1/32
+    (`MAX_GRID_STEPS` is 256, a 16-bar take's). The drum grid keeps
+    `BAR_CHOICES`."""
     from synthlab.studio import song_model as sm
 
-    assert limits.PATTERN_BAR_CHOICES == (1, 2, 3, 4, 8)
-    assert limits.MAX_GRID_STEPS == 128
-    assert sm.bar_choices(16) == (1, 2, 3, 4, 8)
-    assert sm.bar_choices(32) == (1, 2, 3, 4)
-    assert sm.bar_choices(4) == (1, 2, 3, 4, 8)
+    assert limits.LOOP_BAR_CHOICES == (1, 2, 3, 4, 8, 16)
+    assert limits.PATTERN_BAR_CHOICES == limits.LOOP_BAR_CHOICES
+    assert limits.MAX_GRID_STEPS == 256
+    assert sm.bar_choices(16) == limits.loop_bar_choices(16) == (1, 2, 3, 4, 8, 16)
+    assert sm.bar_choices(32) == limits.loop_bar_choices(32) == (1, 2, 3, 4, 8)
+    assert sm.bar_choices(4) == (1, 2, 3, 4, 8, 16)
 
 
 def test_the_song_creation_limits():

@@ -137,7 +137,7 @@ def test_hostile_creation_values_are_clamped_or_dropped():
             "params": {"a" * 40: 1, "ok": [1], "d": 0.5},
         },
     }
-    raw["patterns"]["p1"] |= {"strum": 999, "bars": 8, "steps_per_bar": 32}
+    raw["patterns"]["p1"] |= {"strum": 999, "bars": 16, "steps_per_bar": 32}
     out = _clean(raw)
     assert schema.conform_strict(out, N.SONG) == out  # a fixed point
     assert len(out["title"]) == limits.MAX_TITLE_CHARS
@@ -157,7 +157,7 @@ def test_hostile_creation_values_are_clamped_or_dropped():
     assert pd["gen"] == {"kind": "beat", "seed": 0, "params": {"a" * 16: 1, "d": 0.5}}
     p1 = out["patterns"]["p1"]
     assert p1["strum"] == 60.0
-    assert p1["bars"] == 4  # 8 bars x 32 steps does not fit the grid
+    assert p1["bars"] == 8  # 16 bars x 32 steps does not fit the grid (256)
     events = schema.conform(
         [{"bar": 3, "track": "aaaaaaaa", "target": "bbbbbbbb"}, {"track": 1}, 7],
         N.JAM_EVENTS,
@@ -230,13 +230,15 @@ def test_the_drawer_offers_eight_bars_only_where_they_fit(client):
     post(client, "/song/drawer", {"section_id": "s1", "track_id": "t1"})
     html = client.get("/view/song", headers=HX).text
     drawer = html[html.index('id="song-drawer"') :]
-    assert drawer.count('class="barchip') >= 9  # 1 2 3 4 8 and four step chips
+    assert drawer.count('class="barchip') >= 10  # 1 2 3 4 8 16, four step chips
     assert 'hx-vals=\'{"bars": "8"}\'' in drawer
-    # finer steps: the pattern is held to four bars, never past the grid
-    r = post(client, "/song/pattern/p8/grid", {"bars": "8", "steps": "32"})
+    # 16 bars fit 1/16 (256 steps); finer steps hold the pattern to the
+    # longest that fits — 8 bars at 1/32 — never past the grid
+    assert 'hx-vals=\'{"bars": "16"}\'' in drawer
+    r = post(client, "/song/pattern/p8/grid", {"bars": "16", "steps": "32"})
     assert r.status_code == 200
     p = song(client)["patterns"]["p8"]
-    assert (p["bars"], p["steps_per_bar"]) == (4, 32)
+    assert (p["bars"], p["steps_per_bar"]) == (8, 32)
     post(client, "/song/drawer", {"section_id": "s1", "track_id": "td"})
     r = post(
         client,
@@ -248,13 +250,15 @@ def test_the_drawer_offers_eight_bars_only_where_they_fit(client):
     assert pd["bars"] == 8 and ["kick", 100] in pd["drums"]
 
 
-def test_open_in_perform_opens_an_eight_bar_pattern_as_its_first_four(client):
+def test_open_in_perform_opens_an_eight_bar_pattern_whole(client):
+    """The note grid holds 8 and 16 bars (`limits.LOOP_BAR_CHOICES`): an
+    8-bar notes pattern opens as all eight (it opened as its first four)."""
     use_song(client, _eight())
     r = post(client, "/song/section/s1/to-loop")
     assert r.status_code == 200
     arr = client.app.state.studio.arrangement
-    assert arr.bars == 4
-    assert ["E3", 64] in arr.cells  # kept, hidden past the loop's grid
+    assert arr.bars == 8
+    assert ["E3", 64] in arr.cells  # bar 5, on the grid
 
 
 # --- the drawer's octave window ------------------------------------------------

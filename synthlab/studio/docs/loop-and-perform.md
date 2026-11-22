@@ -798,8 +798,13 @@ nothing played (they are all optional: absent, a file conforms to the defaults;
 `test_a_loop_from_before_these_keys_reads_as_one_with_no_audio`).
 
 **The placement** (`loops.place`): the notes as played on a grid of the
-take's bars, rounded up (`loops.grid_bars`: at most the Arrangement's 4,
-and `MAX_GRID_STEPS`; a longer take keeps the rest in `played` —
+take's bars, rounded up to the note grid's next choice (`loops.grid_bars`,
+`limits.LOOP_BAR_CHOICES`: 1-4, **8 and 16** while bars x steps fits
+`MAX_GRID_STEPS`, 256 — 16 bars at 1/16, 8 at 1/32 — so a 6-bar take is
+an 8-bar grid with two empty bars at its end, a 12.5-bar one a 16-bar
+grid: past 4, powers of two, so a beat of 1, 2 or 4 bars divides the
+grid and the loop is as long as its notes; a take longer than the longest
+grid keeps the rest in `played` —
 `loops.rest_bars` — and says so: the take's toast, "+n bars played" on its
 row, Edit's toast; → Song lays every bar out, below), at the
 **rate** — the meter's own steps (`meter.step_choices`: 1/4, 1/8, 1/16,
@@ -819,6 +824,24 @@ plays and a bounce are on the steps. (A **free loop** —
 free record's shaper, "Free record and the shaper" below — does keep its
 timing on the grid: `note_nudge`, the drum hits' `nudge` for notes, and
 its Q keeps it below 100%. A take's loop is placed as here.)
+
+**A long grid** (8 or 16 bars; `tests/studio/test_loops.py`,
+`test_limits.py`): the working loop's `bars` is any of
+`limits.LOOP_BAR_CHOICES` that fits its steps (`limits.loop_bar_choices`;
+`schema`'s `arr_post` and `arrange.arrangement_from_form` keep the longest
+that fits when the steps change — 16 bars at 1/16 are 8 at 1/32, the step
+numbers kept, as any change of steps keeps them); the drum grid keeps its
+1-4 (`BAR_CHOICES`) and the loop is the lcm of the two, as ever. The
+transport's bar chips offer 8 and 16 while they fit; ×2 doubles up to 16,
+refused in words past the loop cap (`render.LOOP_CAP_SECONDS`: 16 bars of
+4/4 play from 54 bpm up), as Edit is. The roll **scrolls, never squeezes**:
+"fit" still floors a step at `--step-min` (16 px dense, 20 comfy), so a
+256-step grid is wider than the pane and pans (zoom.js), the ruler
+numbering every bar. Raising `MAX_GRID_STEPS` from 128 moved nothing
+saved: every state conformed under 128 holds no step past 127 and
+conforms to itself under 256; no render key reads the cap. A loop file
+placed before (a 6-bar take as 4 bars + 2 played) keeps its file until Q
+places it again, which takes the longer grid.
 
 **The Loops list** (`studio/looplib.py`, `fragments/loop_rows.html`): every
 loop and every keys take no loop names yet (an older take, or one

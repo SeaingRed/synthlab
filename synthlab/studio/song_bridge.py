@@ -865,10 +865,13 @@ def to_loop(song: dict, p: dict) -> None:
       by its own mute — `own_mute` keeps a round trip on its own track.
     """
     pool, arr = song["patterns"], p["arr"]
-    # the loop's grid stops at 4 bars: a longer pool pattern opens as its
-    # first four (the rest stays, hidden, past the grid's end)
-    for k in ("bars", "drum_bars"):
-        arr[k] = min(int(arr[k]), max(limits.BAR_CHOICES))
+    # the note grid holds the main pattern whole (8 or 16 bars while they
+    # fit its steps: `limits.loop_bar_choices`); the drum grid stops at 4 —
+    # a longer drum pattern opens as its first four (the rest stays,
+    # hidden, past the grid's end)
+    fits = limits.loop_bar_choices(arr["steps_per_bar"])
+    arr["bars"] = max(b for b in fits if b <= max(1, int(arr["bars"])))
+    arr["drum_bars"] = min(int(arr["drum_bars"]), max(limits.BAR_CHOICES))
     tracks = {t["id"]: t for t in song["tracks"]}
     pats = [pool[pid] for pid in p.get("lane_patterns", [])[1:]]
     tids = p.get("lane_tracks", [])[1:]
@@ -876,9 +879,12 @@ def to_loop(song: dict, p: dict) -> None:
     total = bars * spb
     if any((pat["bars"], pat["steps_per_bar"]) != (bars, spb) for pat in pats):
         loop = math.lcm(bars, *(max(1, pat["bars"]) for pat in pats))
-        if loop > max(limits.BAR_CHOICES):
+        # past the main lane's own bars (at least the 4 it always had) the
+        # loop is cut, onto a length the grid has
+        cap = max(max(limits.BAR_CHOICES), bars)
+        if loop > cap or loop not in fits:
             log.warning("to_loop: lanes realign every %d bars; the loop is cut", loop)
-            loop = max(limits.BAR_CHOICES)
+            loop = max(b for b in fits if b <= min(loop, cap))
         total = loop * spb
         period = bars * spb
         arr["cells"] = sm._tile(arr["cells"], period, total)

@@ -91,7 +91,7 @@ def pattern_notes(request: Request, op: str, form: StrForm, svc: Svc) -> Respons
                 rows=set(rows),
                 ladder=key_ladder(a),
                 octave=len(SCALES[a.scale_name]),
-                choices=limits.BAR_CHOICES,
+                choices=limits.loop_bar_choices(a.steps_per_bar),
                 seed=random.randrange(1 << 30),
                 arp_on=a.arp_mode != "off",
             )
@@ -99,7 +99,10 @@ def pattern_notes(request: Request, op: str, form: StrForm, svc: Svc) -> Respons
         return Response(status_code=404)
     except po.ToolRefused as err:
         return svc.toast(str(err))
-    s.arrangement = replace(a, **lane)
+    asked = replace(a, **lane)
+    if asked.bars > a.bars and (refusal := loop_refusal(a, asked)):
+        return svc.toast(refusal)  # ×2 past the loop cap (8 or 16 bars, slow)
+    s.arrangement = asked
     resp = svc.do_render(request)
     if now is not None:
         trig = json.loads(resp.headers.get("HX-Trigger") or "{}")
