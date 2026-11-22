@@ -27,7 +27,7 @@ import copy
 import logging
 import math
 
-from . import limits, schema
+from . import limits, notefeel, schema
 from . import song_model as sm
 
 log = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ _NOTE_FIELDS = (
 # ... and what a pattern holds only when set (`schema` drops it at 0)
 # (timing inside a step and the chance lane too: a song pattern plays
 # exactly what its loop plays)
-_NOTE_OPTIONAL = ("strum", "note_nudge", "note_chance", "arp_pattern")
+_NOTE_OPTIONAL = ("strum", "note_nudge", "note_chance", "arp_pattern", "note_feel")
 SONG_WIDE = ("bpm", "root", "scale_name", "swing", "drum_swing", "drum_humanize")
 KIT = ("drum_params", "drum_mix", "drum_samples")
 # a lane's own sequencing: velocities, slides, arp (state.LAYER_SEQ_KEYS)
@@ -391,6 +391,8 @@ def lane_render(seq: dict, cells, main_vel: dict | None, total: int) -> dict:
       only when it plays one (arp_mode "pattern").
     - `strum`: only when set, and never under an arp (one note a step).
     - `note_chance`: on the steps it reads, only when any.
+    - `note_feel`: each of its notes' own feel (on a note's start among its
+      cells), only when any and never under an arp.
     """
     out: dict = {}
     arp_on = seq.get("arp_mode", "off") != "off"
@@ -425,6 +427,9 @@ def lane_render(seq: dict, cells, main_vel: dict | None, total: int) -> dict:
         mine = {str(x) for x in note_steps}
         if heard := {k: float(v) for k, v in nudge.items() if k in mine and v}:
             out["note_nudge"] = heard
+    if not arp_on and (feel := seq.get("note_feel")):
+        if felt := notefeel.clean(feel, cells, out.get("cuts")):
+            out["note_feel"] = felt
     # a step's chance: on the steps it reads (as its velocities), absent
     # when none (the working loop's own: no pattern carries one yet)
     chance = seq.get("note_chance") or {}
@@ -450,6 +455,7 @@ def pattern_seq(pat: dict, spb: int) -> dict:
         for x in _regrid_steps([k], b, s, spb):
             chance.setdefault(str(x), v)
     nudge = _regrid_nudge(pat, spb)
+    feel = notefeel.regrid(pat.get("note_feel"), b, s, spb)
     return {
         "velocities": moved if pat["velocities"] else None,
         "slides": sorted(set(_regrid_steps(pat["slides"], b, s, spb))),
@@ -462,6 +468,7 @@ def pattern_seq(pat: dict, spb: int) -> dict:
         # when the pattern has none, so no lane's key gains them
         **({"note_nudge": nudge} if nudge else {}),
         **({"note_chance": chance} if chance else {}),
+        **({"note_feel": feel} if feel else {}),
     }
 
 
@@ -851,6 +858,11 @@ def _lane_seq(pat: dict, spb: int, period: int, total: int, main_vel: dict) -> d
             if seq.get("note_chance")
             else {}
         ),
+        **(
+            {"note_feel": notefeel.tile(seq["note_feel"], period, total)}
+            if seq.get("note_feel")
+            else {}
+        ),
     }
 
 
@@ -902,6 +914,8 @@ def to_loop(song: dict, p: dict) -> None:
         for k in ("note_nudge", "note_chance"):  # absent when the lane has none
             if arr.get(k):
                 arr[k] = sm._tile_keys(arr[k], period, total)
+        if arr.get("note_feel"):
+            arr["note_feel"] = notefeel.tile(arr["note_feel"], period, total)
         arr["bars"] = loop
         if p.get("curves"):
             p["curves"] = {

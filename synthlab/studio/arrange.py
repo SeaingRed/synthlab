@@ -30,7 +30,7 @@ from ..sequencer import (
     render_each,
 )
 from ..synth import Patch, Synth, at_bpm
-from . import arppattern, limits
+from . import arppattern, limits, notefeel
 from . import meter as _meter
 from .curves import CURVABLE, curve_array, lane_array
 from .drumlab import specs_of
@@ -797,6 +797,7 @@ def _uses_timeline(
         or bool(arr.slides)
         or bool(arr.strum)
         or bool(nudge_of(arr))
+        or bool(notefeel.of(arr))
         or mono
         or ramp
     )
@@ -892,16 +893,30 @@ def _lane_timeline(
     by_pitch = _chanced(by_pitch, arr, breaks)
     slide_steps = set(arr.slides)
     nudge = nudge_of(arr)
+    feel = notefeel.of(arr)
     loop_beats = arr.bars * arr.steps_per_bar * step_beats
     for pitch, steps in sorted(by_pitch.items()):
         for start, run in _merge_runs(steps, _row_breaks(breaks, arr.cuts, pitch)):
-            shift = arr.swing * step_beats if start % 2 == 1 else 0.0
-            # timing inside a step: the start moves (after swing), the end
-            # stays where it was (as a strum's), never under an eighth
-            n = float(nudge.get(str(start), 0.0)) * step_beats if nudge else 0.0
-            dur = max(run * step_beats - shift - n, step_beats / 8)
             vel = arr.velocities.get(str(start), 0.9)
-            at = start * step_beats + shift + n
+            if feel and (f := feel.get(f"{pitch}.{start}")):
+                # a note's own feel (notefeel.py): it starts and ends where
+                # it was played — no swing, no step nudge, no gate — and
+                # takes its share of the step's velocity. `dur` is its
+                # sounding length over NOTE_GATE, so every reader of the
+                # timeline (the gate, a mono line, the MIDI note-off) gets
+                # that length back
+                o, e, share = (float(x) for x in f)
+                at = (start + o) * step_beats
+                held = max(run + e - o, notefeel.MIN_STEPS) * step_beats
+                dur = held / NOTE_GATE
+                vel = min(1.0, vel * share)
+            else:
+                shift = arr.swing * step_beats if start % 2 == 1 else 0.0
+                # timing inside a step: the start moves (after swing), the
+                # end stays where it was (as a strum's), never under an eighth
+                n = float(nudge.get(str(start), 0.0)) * step_beats if nudge else 0.0
+                dur = max(run * step_beats - shift - n, step_beats / 8)
+                at = start * step_beats + shift + n
             if at < 0.0:  # before the loop's first beat: its last (a circle)
                 at += loop_beats
             timeline.append((at, dur, pitch, vel, start in slide_steps))
@@ -1055,6 +1070,10 @@ def follow_layer(
         out["note_nudge"] = dict(nudge)
     else:
         out.pop("note_nudge", None)
+    if feel := notefeel.of(arr):  # each note's own feel, at its octave
+        out["note_feel"] = notefeel.shifted(feel, semis)
+    else:
+        out.pop("note_feel", None)
     # the main lane's chance on its steps: the roll is the pitch classes',
     # so an octave away the same notes rest (`note_roll`)
     if arr.note_chance:
@@ -1076,8 +1095,8 @@ def layer_arrangement(arr: Arrangement, lay: dict) -> Arrangement:
     layer's own sequencing. A layer dict carries `velocities` only when
     they differ from the main lane's (`song_bridge.lane_render`; without
     them it plays the main lane's), and `slides`/`arp_mode`/`arp_octaves`/
-    `arp_pattern`/`strum`/`note_chance` only when set — never the main
-    lane's."""
+    `arp_pattern`/`strum`/`note_chance`/`note_feel` only when set — never
+    the main lane's."""
     vel = lay.get("velocities")
     return replace(
         arr,
@@ -1090,6 +1109,7 @@ def layer_arrangement(arr: Arrangement, lay: dict) -> Arrangement:
         note_nudge=dict(lay.get("note_nudge") or {}),
         note_chance=dict(lay.get("note_chance") or {}),
         arp_pattern=dict(lay.get("arp_pattern") or {}),
+        note_feel=dict(lay.get("note_feel") or {}),
     )
 
 
@@ -1107,11 +1127,25 @@ def _playing_steps(arr: Arrangement, cells=None) -> dict[str, list[int]]:
     by_pitch: dict[str, list[int]] = {}
     for pitch, step in arr.cells if cells is None else cells:
         by_pitch.setdefault(pitch, []).append(int(step))
+    # a note on the grid's END line whose feel starts it early sounds
+    # inside the grid (a section chunk's next downbeat, played early:
+    # `song_model.SectionParts.window` hands it to the chunk it sounds in)
+    feel = notefeel.of(arr)
+    early = {
+        p
+        for k, v in feel.items()
+        if (at := notefeel.split(k)) and at[1] == total and float(v[0]) < 0
+        for p in (at[0],)
+    }
     out: dict[str, list[int]] = {}
     for pitch, steps in by_pitch.items():
         kept: list[int] = []
         for s in sorted(set(steps)):
-            if 0 <= s < total or (kept and kept[-1] == s - 1):
+            if (
+                0 <= s < total
+                or (kept and kept[-1] == s - 1)
+                or (s == total and pitch in early)
+            ):
                 kept.append(s)
         if kept:
             out[pitch] = kept

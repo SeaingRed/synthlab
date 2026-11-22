@@ -18,7 +18,7 @@ import random
 from collections.abc import Callable, Collection
 
 from ..sequencer import midi
-from . import schema
+from . import notefeel, schema
 
 Cells = list[list]
 
@@ -463,7 +463,33 @@ def notes_tool(
         out["note_nudge"] = schema.clean_nudge(
             _nudge_tool(op, lane, total, rows, arp_on), out["cells"]
         )
+    if lane.get("note_feel"):  # each note's own feel travels with its note
+        out["note_feel"] = schema.clean_feel(
+            _feel_tool(op, lane, total, rows, ladder, octave), out["cells"], out["cuts"]
+        )
     return out, note
+
+
+def _feel_tool(op: str, lane: dict, total: int, rows, ladder, octave: int) -> dict:
+    """The lane's `note_feel` through `op` (`notes_tool`), note by note:
+    shifted with its start, mirrored onto its mirror image's start (early
+    for late, `notefeel.reverse`), copied by ×2, moved to its new row by a
+    transpose; a clear or a velocity tool keeps what is left on a note."""
+    feel = lane["note_feel"]
+    if op in ("shift_left", "shift_right"):
+        return notefeel.remap(feel, total, _steps_fn(op, total), rows)
+    if op == "reverse":
+        return notefeel.reverse(
+            feel, lane["cells"], lane.get("cuts") or [], total, rows
+        )
+    if op == "duplicate":
+        return notefeel.duplicate(feel, total, rows)
+    if op in ("up", "down", "oct_up", "oct_down"):
+        by = octave if op.startswith("oct") else 1
+        return notefeel.transpose(
+            feel, total, ladder, by if op.endswith("up") else -by, rows
+        )
+    return dict(feel)
 
 
 def _nudge_tool(op: str, lane: dict, total: int, rows, arp_on: bool) -> dict:
@@ -495,7 +521,7 @@ def _nudge_tool(op: str, lane: dict, total: int, rows, arp_on: bool) -> dict:
 # wherever two different notes touch on one row.
 
 ROLL_TOOLS = frozenset(
-    {"move", "copy", "remove", "resize", "legato", "half", "double", "stamp"}
+    {"move", "copy", "remove", "resize", "legato", "half", "double", "stamp", "snap"}
 )
 # chord shapes as scale steps above the stamped row (`gen/chordtrack.TONES`
 # spells the chord track's the same way)
@@ -572,11 +598,13 @@ def _write(lane: dict, total: int, rows, stay, moved, origin=()) -> dict:
     """The window rewritten from notes: `stay` as they are, then `moved`
     painted over them in start order (a later note takes the steps it
     covers; what sticks out of a covered note is left as a shorter one).
-    `moved` is [(row, start, end, from_start | None)]: a note that came
-    from another start step brings that step's velocity and slide — or
-    their absence — to its new one. `origin`: the start steps the moved
-    notes left; one that no note starts on any more gives its velocity
-    and slide up. Cells and cuts outside the window are kept."""
+    `moved` is [(row, start, end, from_start | None[, feel_from])]: a note
+    that came from another start step brings that step's velocity and
+    slide — or their absence — to its new one; `feel_from`, the
+    `note_feel` key of the note it is (its own feel goes with it), absent
+    for a note drawn fresh (it has none). `origin`: the start steps the
+    moved notes left; one that no note starts on any more gives its
+    velocity and slide up. Cells and cuts outside the window are kept."""
     order = {r: i for i, r in enumerate(rows)}
     moved = sorted(moved, key=lambda n: n[1])
     owner: dict[tuple, int] = {}
@@ -602,7 +630,7 @@ def _write(lane: dict, total: int, rows, stay, moved, origin=()) -> dict:
         nudge.pop(str(s), None)
         chance.pop(str(s), None)
         slides.discard(s)
-    for _row, a, _b, frm in moved:
+    for _row, a, _b, frm, *_feel in moved:
         if frm is None or not 0 <= a < total:
             continue
         for was, now in ((was_vel, vel), (was_nudge, nudge), (was_chance, chance)):
@@ -612,10 +640,28 @@ def _write(lane: dict, total: int, rows, stay, moved, origin=()) -> dict:
                 now.pop(str(a), None)
         (slides.add if frm in was_slides else slides.discard)(a)
     cells = _join(list(owner), cells_out)
+    cuts_all = _join(cuts, cuts_out)
+    felt: dict = {}
+    if "note_feel" in lane:
+        was_feel = lane.get("note_feel") or {}
+        felt = dict(was_feel)
+        for n in moved:  # a moved note leaves its old place
+            if len(n) > 4 and n[4] is not None and n[4] != notefeel.key(n[0], n[1]):
+                if origin:
+                    felt.pop(n[4], None)
+        for n in moved:
+            if not 0 <= n[1] < total:
+                continue
+            src = n[4] if len(n) > 4 else None
+            if src is not None and src in was_feel:
+                felt[notefeel.key(n[0], n[1])] = was_feel[src]
+            else:
+                felt.pop(notefeel.key(n[0], n[1]), None)
+        felt = schema.clean_feel(felt, cells, cuts_all)
     return {
         **lane,
         "cells": cells,
-        "cuts": _join(cuts, cuts_out),
+        "cuts": cuts_all,
         "velocities": vel,
         "slides": sorted(slides),
         **(
@@ -624,6 +670,7 @@ def _write(lane: dict, total: int, rows, stay, moved, origin=()) -> dict:
             else {}
         ),
         **({"note_chance": chance} if "note_chance" in lane else {}),
+        **({"note_feel": felt} if "note_feel" in lane else {}),
     }
 
 
@@ -654,7 +701,10 @@ def move_notes(
     dy = max(low - (len(rows) - 1), min(dy, top))
     if not dx and not dy:
         return dict(lane), []
-    moved = [(rows[order[r] - dy], a + dx, b + dx, a) for r, a, b in chosen]
+    moved = [
+        (rows[order[r] - dy], a + dx, b + dx, a, notefeel.key(r, a))
+        for r, a, b in chosen
+    ]
     origin = () if copy else {n[1] for n in chosen}
     out = _write(lane, total, rows, notes if copy else rest, moved, origin)
     return out, [n[:3] for n in moved]
@@ -685,7 +735,7 @@ def relength(lane: dict, rows, sel, end_of) -> tuple[dict, list[tuple]]:
             b = max(a + 1, min(total, int(end_of(n))))
             b = min([b, *(s for s in by_row[row] if s > a)])
             after.append((row, a, b))
-        out.append((row, a, b, None))
+        out.append((row, a, b, None, notefeel.key(row, a)))
     return _write(lane, total, rows, [], out), after
 
 
@@ -710,6 +760,19 @@ def scale_lengths(lane: dict, rows, sel, factor: float) -> tuple[dict, list[tupl
     return relength(
         lane, rows, sel, lambda n: n[1] + max(1, int((n[2] - n[1]) * factor))
     )
+
+
+def snap_notes(lane: dict, rows, sel) -> tuple[dict, list[tuple]]:
+    """The selected notes on the grid again: each loses its own feel
+    (`note_feel`: a take's timing, release and velocity share) and plays
+    as a grid note — its step's velocity, timing and gate. Cells, cuts and
+    every other note stay. Returns (lane, the selected notes)."""
+    _total, _notes, chosen, _rest = _window(lane, rows, sel)
+    out = dict(lane)
+    if lane.get("note_feel"):
+        gone = {notefeel.key(r, a) for r, a, _b in chosen}
+        out["note_feel"] = {k: v for k, v in lane["note_feel"].items() if k not in gone}
+    return out, chosen
 
 
 def stamp(
@@ -807,6 +870,8 @@ def roll_tool(
         out, hit = legato(lane, rows, sel)
     elif op in ("half", "double"):
         out, hit = scale_lengths(lane, rows, sel, 0.5 if op == "half" else 2)
+    elif op == "snap":
+        out, hit = snap_notes(lane, rows, sel)
     elif op == "stamp":
         row = args.get("row", "")
         if row not in rows:

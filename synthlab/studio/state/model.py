@@ -18,7 +18,7 @@ from pathlib import Path
 
 from ...sequencer import SCALES, midi, name_of, scale
 from ...synth import Patch
-from .. import schema, song_bridge
+from .. import notefeel, schema, song_bridge
 from ..views import BENCH_VIEWS
 from ..views import RESET_VIEWS as _VIEW_RESETS
 
@@ -72,6 +72,7 @@ RESET_SCOPES: dict[str, tuple[str, tuple[str, ...]]] = {
             "arr.arp_pattern",
             "arr.strum",
             "arr.note_nudge",
+            "arr.note_feel",
             "arr.note_chance",
             "arr.chords",
             # Perform's launcher (its rows of slots; absent when unset, as
@@ -215,6 +216,13 @@ class Arrangement:
     # route sets it: routes/arp.py). ABSENT when unset wherever an
     # arrangement is written down, as the ones above
     arp_pattern: dict = field(default_factory=dict, metadata=_lane("grid"))
+    # a note's own feel (notefeel.py): "<pitch>.<step>" -> [start, end,
+    # share] — where it starts and ends between the lines and how hard it
+    # was struck, per NOTE (a take as played). It wins over the step's
+    # `note_nudge`, its swing and `arrange.NOTE_GATE`; a note without one
+    # plays as it always did. ABSENT when unset wherever an arrangement is
+    # written down, as the ones above
+    note_feel: dict[str, list] = field(default_factory=dict, metadata=_lane("cell"))
 
     @classmethod
     def from_dict(cls, d: dict) -> Arrangement:
@@ -239,6 +247,8 @@ NOTE_LANE = (
     "slides",
     # timing inside a step: {} here, absent where it is written down unset
     "note_nudge",
+    # a note's own feel (notefeel.py): likewise
+    "note_feel",
 )
 # Perform's launcher (studio loop-and-perform.md, "Slots and scenes"): its
 # lanes are the layer slots, then the drums — a beat's lane, `DRUM_LANE`
@@ -477,6 +487,7 @@ LAYER_SEQ_OPTIONAL: tuple[str, ...] = (
     "note_chance",
     "note_nudge",
     "arp_pattern",  # the arp pattern, {} when not there
+    "note_feel",  # a note's own feel (notefeel.py), {} when not there
 )
 
 
@@ -494,6 +505,7 @@ def seq_changes(seq: dict) -> dict:
     out["strum"] = float(seq.get("strum") or 0.0)
     out["note_chance"] = dict(seq.get("note_chance") or {})
     out["note_nudge"] = dict(seq.get("note_nudge") or {})
+    out["note_feel"] = copy.deepcopy(seq.get("note_feel") or {})
     out["arp_pattern"] = copy.deepcopy(seq.get("arp_pattern") or {})
     return out
 
@@ -516,6 +528,7 @@ def loop_window(lane: dict, bars: int) -> dict:
         "velocities": sm._tile_keys(lane.get("velocities") or {}, period, total),
         "slides": sorted({x for _z, x in sm._tile(slides, period, total)}),
         "note_nudge": sm._tile_keys(lane.get("note_nudge") or {}, period, total),
+        "note_feel": notefeel.tile(lane.get("note_feel") or {}, period, total),
         # the chance lane (a lane state carries it, {} when none), as velocities
         **(
             {"note_chance": sm._tile_keys(lane["note_chance"] or {}, period, total)}
@@ -555,6 +568,9 @@ def regrid_lane(lane: dict, to: int) -> dict:
             for k, v in (lane.get("note_nudge") or {}).items()
             for s in starts(k)[:1]
         },
+        # a note's own feel: the same time in the finer steps (a coarser
+        # grid drops it: `notefeel.regrid`)
+        "note_feel": notefeel.regrid(lane.get("note_feel") or {}, bars, spb, to),
         # the working loop's chance lane, when a lane has one: as velocities
         **(
             {
@@ -653,6 +669,11 @@ def materialise(lay: dict, arr: Arrangement) -> dict:
         **({"strum": arr.strum} if arr.strum else {}),
         **({"note_nudge": dict(arr.note_nudge)} if arr.note_nudge else {}),
         **({"note_chance": dict(arr.note_chance)} if arr.note_chance else {}),
+        **(
+            {"note_feel": copy.deepcopy(plain["note_feel"])}
+            if plain.get("note_feel")
+            else {}
+        ),
         **({"arp_pattern": copy.deepcopy(arr.arp_pattern)} if arr.arp_pattern else {}),
     }
     return out

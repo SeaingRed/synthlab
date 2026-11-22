@@ -146,6 +146,9 @@ def step_key(raw: str) -> str | None:
 MAX_GRID_PITCHES = 24
 MAX_GRID_CELLS = MAX_GRID_STEPS * MAX_GRID_PITCHES
 MAX_DRUM_CELLS = MAX_GRID_STEPS * 8  # 8 drum voices (state.DRUM_ROWS)
+# a lane's per-note feel entries (`Arrangement.note_feel`): one a note at
+# most, and a note is at least one cell
+MAX_FEEL_NOTES = MAX_GRID_CELLS
 MAX_SONG_ENTRIES = 64  # a v2 file's scene running order (migration only)
 MAX_CURVE_POINTS = 512  # per automated param
 MAX_XY_GESTURE_POINTS = 300  # /fragment/xy/gesture enforces the same

@@ -1388,6 +1388,8 @@ def _notes_grid(song: dict, p: dict, form: dict) -> None:
         note_chance={
             k: v for k, v in (p.get("note_chance") or {}).items() if int(k) < total
         },
+        # each note's own feel stays on the notes still starting where it is
+        note_feel=schema.clean_feel(p.get("note_feel"), p["cells"], p.get("cuts")),
     )
 
 
@@ -1519,6 +1521,8 @@ def pattern_tool(request: Request, pattern_id: str, op: str, form: StrForm, svc:
                 for k in NOTE_LANE
             }
             lane["note_chance"] = dict(p.get("note_chance") or {})
+            if p.get("note_feel"):  # each note's own feel travels with it
+                lane["note_feel"] = dict(p["note_feel"])
             # the window the drawer shows this pattern at (a roll edit
             # posts the one its grid was drawn with)
             octave = _octave(form) if "oct" in form else svc.drawer_octave(p, span)
@@ -1541,12 +1545,17 @@ def pattern_tool(request: Request, pattern_id: str, op: str, form: StrForm, svc:
                     seed=seed,
                     arp_on=p.get("arp_mode", "off") != "off",
                 )
-            optional = {k: lane.pop(k, None) for k in ("note_nudge", "note_chance")}
+            optional = {
+                k: lane.pop(k, None) for k in ("note_nudge", "note_chance", "note_feel")
+            }
             p.update(lane)
             _set_optional(
                 p,
                 note_nudge=schema.clean_nudge(optional["note_nudge"], p["cells"]),
                 note_chance=optional["note_chance"],
+                note_feel=schema.clean_feel(
+                    optional["note_feel"], p["cells"], p.get("cuts")
+                ),
             )
         except po.ToolRefused as err:
             raise sm.SongError(str(err)) from None
