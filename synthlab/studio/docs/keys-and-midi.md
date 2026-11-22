@@ -727,6 +727,23 @@ to a second row at 1920 comfy (`test_the_toolbar_is_one_row_at_1920`).
   octave higher each step). `synthlab.arpSchedule` is the pure half
   (`cycle`, `pick`, `stepAt`), run under node by
   `tests/studio/test_keys_arp.py`.
+- **▦ pattern** (a seventh mode): the arp pattern — the grid arp's too
+  (`loop-and-perform.md`, "The arp pattern"), the edited lane's —
+  played by static/arppat.js: its rate (the face says "▦ 1/16"; "grid"
+  is the note grid's step), direction, octaves, and each step's on /
+  velocity (times the struck one) / transpose (tones of the loop's key) /
+  gate / chance / repeats; the ⚙'s gate and octaves are not read, its
+  swing is. **Retrigger**: "note" starts the walk again when a note is
+  struck (not one joining within 30 ms of where the walk started: a
+  chord's notes, typed or MIDI, arrive a few ms apart and are one
+  strike), "bar" at every bar line (the loop's while it plays: started
+  mid-bar it is walked to its place, and its chance counts the loop's
+  bar, as the grid's does), "free" never — a new chord goes on where the
+  last one left the walk. "▦ pattern…" in the ⚙ opens
+  the editor. A chord held over the loop from its first bar plays what
+  the grid arp renders over those rows (test_arp_pattern.py runs the
+  walk under node against arppattern.py); ⤓ print captures the notes as
+  they sounded, as ever.
 - **Latch + arp is a running arpeggio you play over**: Right Shift (or
   latch) then a chord: the arp runs on with the keys up. While it runs on
   latched notes alone, a note played **sounds over it** (it does not
