@@ -149,7 +149,10 @@ def test_the_dropdown_menus_are_popovers():
         for cls in ("pt-menu", "row-menu", "reset-menu", "macro-assign"):
             assert not re.search(rf'<details class="{cls}\b', src), f"{name}: {cls}"
     css = (STATIC / "style.css").read_text(encoding="utf-8")
-    menus = ".pt-menu-panel, .row-menu-panel, .reset-panel, .macro-assign > form, .deck-rec-menu"
+    menus = (
+        ".pt-menu-panel, .row-menu-panel, .reset-panel, .macro-assign > form,"
+        " .deck-rec-menu"
+    )
     assert f":is({menus})[popover]" in css
     # the reset menu is a region: morphed, so a redraw keeps it open
     reset = (TEMPLATES / "fragments" / "reset_menu.html").read_text(encoding="utf-8")
