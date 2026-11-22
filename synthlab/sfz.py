@@ -122,7 +122,7 @@ def _check_directory(data: bytes, members: int) -> None:
     starts — and refused if it is larger than the upload, has more records
     than `members`, or does not end exactly at its own end."""
     tail_at = max(0, len(data) - (65_535 + 22))
-    at = data.rfind(b"PK", tail_at)
+    at = data.rfind(b"PK\x05\x06", tail_at)
     if at < 0 or len(data) < at + 22:
         raise SfzError("That is not a zip file.")
     entries, cd_size = (
@@ -130,16 +130,17 @@ def _check_directory(data: bytes, members: int) -> None:
         struct.unpack_from("<I", data, at + 12)[0],
     )
     end = at
-    if entries == 0xFFFF or cd_size == 0xFFFFFFFF or data[at - 20 : at - 16] == b"PK":
+    zip64 = data[at - 20 : at - 16] == b"PK\x06\x07"  # a ZIP64 locator before it
+    if entries == 0xFFFF or cd_size == 0xFFFFFFFF or zip64:
         loc = at - 20
-        if loc < 0 or data[loc : loc + 4] != b"PK":
+        if loc < 0 or data[loc : loc + 4] != b"PK\x06\x07":
             raise SfzError("That zip's directory is inconsistent.")
         # where `zipfile` reads the record: 56 bytes before the locator, the
         # locator's own offset ignored. Ours must be the same place, or a
         # decoy at the offset it names would be checked while another is used
         rec = loc - 56
         named = struct.unpack_from("<Q", data, loc + 8)[0]
-        if rec < 0 or named != rec or data[rec : rec + 4] != b"PK":
+        if rec < 0 or named != rec or data[rec : rec + 4] != b"PK\x06\x06":
             raise SfzError("That zip's directory is inconsistent.")
         entries, cd_size = struct.unpack_from("<QQ", data, rec + 32)
         end = rec
@@ -149,7 +150,7 @@ def _check_directory(data: bytes, members: int) -> None:
         raise SfzError("That zip's directory is inconsistent.")
     pos, stop, count = end - cd_size, end, 0
     while pos < stop:
-        if data[pos : pos + 4] != b"PK" or pos + 46 > stop:
+        if data[pos : pos + 4] != b"PK\x01\x02" or pos + 46 > stop:
             raise SfzError("That zip's directory is inconsistent.")
         count += 1
         if count > members:
