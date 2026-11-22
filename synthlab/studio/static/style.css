@@ -6431,7 +6431,11 @@ input[type="range"].knob.fader {
 /* Tools ▾: the rest of a toolbar, a row a group — its caption, then its
    buttons, one inset well as a toolbar's group is — opening leftwards under
    its button at the toolbar's right end */
-.pt-more[popover] { position-area: bottom span-left; }
+/* (spelt .pattern-tools .pt-more: the menu-popover rule's :is() weighs a
+   class and an element; a short window puts it above its button) */
+.pattern-tools .pt-more[popover] { position-area: bottom span-left;
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  max-height: calc(100dvh - 2 * var(--s2)); overflow: auto; overscroll-behavior: contain; }
 .pt-more:popover-open { display: grid; gap: var(--s1); padding: var(--s2); min-width: 0; }
 .ptm-row { display: flex; align-items: center; gap: 1px; padding: 1px 1px 1px var(--s15);
   background: var(--bg-inset); border: 1px solid var(--line); border-radius: var(--r-s); }

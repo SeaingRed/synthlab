@@ -444,6 +444,13 @@ def test_roll_keyboard_only_a_chord_drawn_lengthened_moved_copied_deleted(
     wait(page, lambda: ("G2", 4, 7) in notes(server), "transposed back")
     # copy, and paste at the cursor (step 12, the chord's top row)
     sync(page, server)
+    # (the selection follows the notes by the answer's `roll-sel`, which can
+    # land a beat after the grid's redraw: copy what is selected then)
+    wait(
+        page,
+        lambda: page.locator(f"{ROLL} .cell.sel[name='cell.G2.4']").count() == 1,
+        "the selection on the moved chord",
+    )
     k.press("Control+c")
     k.press("ArrowUp", 6)
     k.press("ArrowRight", 12)
@@ -1824,7 +1831,9 @@ def test_gen_on_the_loop_by_touch(touch_studio, server):
     assert box["width"] >= 40 and box["height"] >= 40, (WRITE, box)
     t.tap(*_mid(page, WRITE))
     page.wait_for_selector(f'{GEN} [data-cmd="Write a chords"]', state="visible")
+    page.wait_for_timeout(400)  # (Tools ▾ drops in: measured once it stands)
     box = page.locator(f'{GEN} [data-cmd="Roll the part again"]').bounding_box()
     assert box["width"] >= 40 and box["height"] >= 40, box
-    t.tap(*_mid(page, f'{GEN} [data-cmd="Write a chords"]'))
+    # (in Tools ▾, in the top layer: a tap where it stands, no page scroll)
+    page.tap(f'{GEN} [data-cmd="Write a chords"]')
     wait(page, lambda: len(notes(server)) > 3, "chords from a finger", server=server)

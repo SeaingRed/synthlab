@@ -250,6 +250,9 @@ def test_the_docks_free_length_records_free_and_nothing_played_takes_nothing(
     page.wait_for_selector("#free-shaper:not(:popover-open)", state="attached")
     # the take waits in the Loops panel: ✂ Shape opens it again
     take = answer.value.headers["x-clip-name"]
-    page.locator(f'#loops-panel [data-free-take="{take}"]').click()
+    page.locator(f'#loops-panel .lp-row:has([data-free-take="{take}"])').click(
+        button="right"
+    )  # its right-click menu
+    page.locator("#ctx-menu .menu-item", has_text="Shape").click()
     page.wait_for_selector("#free-shaper:popover-open .shp-roll svg")
     assert studio.unexplained() == []

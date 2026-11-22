@@ -128,9 +128,10 @@ def test_a_free_loop_with_chance_plays_its_feel_in_the_song_and_varies_by_pass(
     page.wait_for_selector("#loops-panel")
     studio.settle()
     row = page.locator(f'#loops-panel .lp-row[data-title="{name}"]').first
-    row.locator("summary", has_text="→ Song").click()
+    row.click(button="right")  # its right-click menu: → Song ▸ as a pattern
+    page.locator("#ctx-menu .menu-item", has_text="→ Song").click()
     with page.expect_response("**/loop/song"):
-        row.locator('button[aria-label$="into the song as a pattern"]').click()
+        page.locator("#ctx-menu .menu-item", has_text="as a pattern").click()
     _wait(page, lambda: len(s.song["sections"]) == 1, "the section")
     (pat,) = [p for p in s.song["patterns"].values() if p["kind"] == "notes"]
     loop = loops.load(server.data_dir, name)["lane"]
