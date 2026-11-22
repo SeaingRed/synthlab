@@ -252,14 +252,15 @@ def _loop_from_take(
     notes: list,
     sound: dict | None,
     steps: int = 0,
-    strength: int = 100,
+    strength: int = 0,
     *,
     clip: bool = True,
 ) -> str:
     """A keys take's loop, kept under the take's name: its notes as played
     (`played`, never rewritten) placed on a grid of the take's bars
     (`loops.grid_bars`) at `steps` a bar (the meter's sixteenths unasked)
-    and `strength` (`loops.place`), `sound` (the one that played it), the
+    and `strength` (`loops.place`: unasked "as played", 0 — every note on
+    its nearest step with its own feel, so the loop plays the take), `sound` (the one that played it), the
     take's tempo, key and meter; its audio is the take (`clip` False: a
     ⟲ Capture's, which has none). The loop's name. OSError past
     `limits.MAX_LOOPS`."""
@@ -826,6 +827,7 @@ def loop_quantise(request: Request, form: StrForm, svc: Svc) -> Response:
         bars = loops.grid_bars(max(loop["lane"]["bars"], math.ceil(took - 1e-6)), steps)
         lane = loops.place(loop["played"], m, bars, steps, strength)
     lane.setdefault("note_nudge", {})  # (placed on the steps: no timing inside one)
+    lane.setdefault("note_feel", {})  # (... nor a note's own feel)
     loops.update(s.data_dir, got, arr=lane, quantise=strength, edited=False)
     e = s.loop_edit_of()
     if e is not None and e["name"] == loop["name"]:
