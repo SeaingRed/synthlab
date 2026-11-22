@@ -164,7 +164,10 @@
         
         <option >updown</option>
         
-      </select></label>
+        <option value="pattern" >▦ pattern</option>
+      </select></label><button type="button" class="btn btn-s btn-icon" popovertarget="arp-pat" aria-label="edit the arp pattern"
+              data-cmd="Grid arp: edit the arp pattern" data-cmd-group="Pattern"
+              title="The arp pattern (▦): steps with on, velocity, transpose, gate, chance and repeats, its rate, direction, octaves, retrigger and 12 slots — the grid arp plays it in its “▦ pattern” mode, the keys arp in its ▦ mode">▦</button>
       <label>oct <select class="field field-s" name="arp_octaves">
         
         <option selected>1</option>
@@ -294,6 +297,8 @@
               title="Halve the length of every note (every selected note)" aria-label="halve the note lengths" data-cmd="Halve the lengths" data-cmd-group="Pattern">½×</button>
       <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/double" hx-swap="none"
               title="Double the length of every note (every selected note)" aria-label="double the note lengths" data-cmd="Double the lengths" data-cmd-group="Pattern">2×</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/notes/snap" hx-swap="none"
+              title="Snap: every note (every selected note) back on the grid — a take's own timing, release and velocity of each press dropped, so it plays as a grid note" aria-label="snap the notes to the grid" data-cmd="Snap the notes to the grid" data-cmd-group="Pattern">snap</button>
     </div>
     <div class="pt-group roll-sel" role="group" aria-label="the selection">
       <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/notes/resize" hx-vals='{"by": "-1"}' hx-swap="none" data-menu
