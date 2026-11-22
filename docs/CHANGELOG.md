@@ -9,6 +9,24 @@
   sampler panel draws where the grains read. Deterministic (every grain's
   draw a hash), so renders cache; the keys play it from the server's
   render, not the live voice.
+- **The note grid holds 8 and 16 bars**: a take is placed on a grid as
+  long as it was played (rounded up to 8 or 16 past 4 bars; 16 at 1/16,
+  8 at 1/32), Edit shows and edits all of it, the bar chips and ×2 reach
+  16, the roll scrolls rather than squeezing, and → Song makes one
+  pattern of it ("Open in Perform" brings it back whole). The drum grid
+  keeps 1-4 bars; nothing saved or rendered before changes.
+- **Q "as played" keeps the timing**: below 100% each note of a take's
+  loop sits on its nearest step with the rest of its timing kept inside
+  it, and a held note ends where it was released — the loop plays back
+  like the take, on the grid, in the song and in a bounce. 100% stays on
+  the steps.
+- **A loop sounds the same everywhere**: a test holds a loop's ▶, its
+  Edit on the grid and its → Song section to the same notes, timing and
+  sound (layers, FX, curves). One known gap: an effect's tail on a lane
+  whose notes end early in a long loop is cut in ▶ and Edit but rings
+  on in the song.
+- **⏺ Rec runs to 60 s**, as a free take does (it stopped at 30 s): the
+  length select offers 16 bars, and the take's audio is kept whole.
 - **A long take reaches the song whole**: → Song on a loop recorded past
   its 4-bar grid lays out every bar played as sections in a row, each an
   editable pattern in the sound that played it. The take's toast, its row

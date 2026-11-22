@@ -277,11 +277,12 @@ def test_default_is_four_steps(tmp_path):
 def test_bar_chips_render_and_extend(tmp_path):
     client = make_client(tmp_path)
     html = client.get("/view/perform").text
-    # the note grid's chips (Perform's drum rack below it has its own four)
+    # the note grid's chips: 1-4, 8 and 16 (`limits.loop_bar_choices`;
+    # Perform's drum rack below it has its own four)
     notes = html.split('id="perform-drums"')[0]
     assert notes.count(
         '<button type="button" class="barchip'
-    ) == 4 and 'name="bars" value="1"' in notes.replace("'", '"')
+    ) == 6 and 'name="bars" value="1"' in notes.replace("'", '"')
     r = client.post(
         "/fragment/arrangement",
         data={

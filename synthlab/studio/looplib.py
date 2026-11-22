@@ -420,8 +420,16 @@ def context(
     }
 
 
-def watch(ctx: dict) -> tuple:
-    """A Loops list's watch value from its context: every row as drawn.
+# what the dock's strip (`where` "strip", loop_rows.html's `compact`) does
+# not draw of a row: its Q ▸ menu — so a Quantise that leaves the notes
+# where they were (as played keeps them on their steps, `loops.place`)
+# re-sends the panel and the drawer, never the strip
+STRIP_UNDRAWN = ("quantise",)
+
+
+def watch(ctx: dict, *, strip: bool = False) -> tuple:
+    """A Loops list's watch value from its context: every row as drawn
+    (`strip`: as the dock's strip draws it, without `STRIP_UNDRAWN`).
     A loop open on a grid is drawn by its name, its audio and "editing"
     alone (loop_rows.html: what its notes are is Perform's grid, and its
     Quantise is the grid's banner), so a stroke on the grid — which writes
@@ -431,6 +439,8 @@ def watch(ctx: dict) -> tuple:
     return tuple(
         (r["name"], "editing", r["audio"], r["kind"], r["title"], r["star"], r["tags"])
         if r["editing"]
-        else tuple(sorted(map(repr, r.items())))
+        else tuple(
+            sorted(repr(x) for x in r.items() if not (strip and x[0] in STRIP_UNDRAWN))
+        )
         for r in ctx["rows"]
     ) + (ctx["more"], ctx["editing"])

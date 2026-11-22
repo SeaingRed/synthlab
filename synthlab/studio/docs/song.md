@@ -163,14 +163,18 @@ sets them are the song's without them
 matters (`strum`: a pattern's own, `loop-and-perform.md`, "The rule" — a section's key moves
 with it and stays put without it).
 
-**A pool pattern may be 8 bars** while bars x steps a bar fits
-`MAX_GRID_STEPS` (`limits.PATTERN_BAR_CHOICES`, `sm.bar_choices`: 8
-bars at 4, 8 or 16 steps). The loop keeps `BAR_CHOICES`: the
-Arrangement's own node would call 8 bars invalid, so
-`section_arrangement` carries them round it, and "Open in Perform"
-opens a longer pattern as its first four bars (the rest stays, hidden
-past the loop's grid). The drawer offers 8 only where it fits, and
-finer steps shorten an 8-bar pattern to 4.
+**A pool pattern may be 8 or 16 bars** while bars x steps a bar fits
+`MAX_GRID_STEPS` (`limits.PATTERN_BAR_CHOICES` = the note grid's
+`LOOP_BAR_CHOICES`, `sm.bar_choices`: 16 bars at 4, 8 or 16 steps, 8 at
+32) — a recorded loop of 16 bars goes to the song as one pattern. The
+drum grid keeps `BAR_CHOICES`: its node would call 8 bars invalid, so
+`section_arrangement` carries a long drum pattern round it. "Open in
+Perform" opens a notes pattern of 8 or 16 bars whole (`song_bridge.to_loop`:
+the note grid holds it) and a longer drum pattern as its first four bars
+(the rest stays, hidden past the drum grid); lanes of other lengths are
+cut at the main lane's bars, at least 4, as they always were at 4. The
+drawer offers 8 and 16 only where they fit, and finer steps shorten a
+pattern to the longest that does.
 
 ### Bridges
 

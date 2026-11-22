@@ -18,8 +18,10 @@ exactly as played — to adjust and then move into the Song page. A loop is
     played  the notes exactly as played, [start, length, midi, velocity],
             beats from the take's first downbeat: never rewritten. The grid
             is their placement (`place`) at a rate and a quantise strength
-            (`quantise`, 0-100: 0 = each note in the step it began in, 100 =
-            the nearest step); placing again starts from them
+            (`quantise`, 0-100: 100 = each note on its nearest step; below,
+            each keeps the rest of its timing inside the step, the step's
+            `note_nudge` — 0 = exactly as played); placing again starts
+            from them
     edited  the grid was changed by hand since it was placed
     name, at
     kind    "beat" for a beat (the Loops panel): its drum lane is
@@ -76,7 +78,7 @@ DIR = "loops"
 BAR_CHOICES = (1, 2, 4)  # what Save as loop offers
 KEY = ("bpm", "root", "scale_name")
 SAVED = LOOP_FIELDS  # an Arrangement's fields a loop keeps
-GRID_BARS = (1, 2, 3, 4)  # a placed take's grid: the Arrangement's own
+GRID_BARS = limits.LOOP_BAR_CHOICES  # a placed take's grid: the note grid's own
 # a step's length in sixteenths, as a note value
 _RATE_WORDS = {
     Fraction(4): "1/4",
@@ -247,12 +249,14 @@ def default_steps(meter: str) -> int:
 
 def grid_bars(take_bars: float, steps: int) -> int:
     """The bars a take of `take_bars` is placed on: the take rounded up to
-    whole bars, at most the grid's longest that holds the rate
-    (`GRID_BARS`, `limits.MAX_GRID_STEPS`); a longer take keeps the rest in
-    its notes as played."""
+    whole bars and then to the grid's next choice that holds the rate
+    (`GRID_BARS`: 1-4, 8, 16, while bars x steps fits
+    `limits.MAX_GRID_STEPS`) — a 6-bar take is an 8-bar grid with its last
+    two bars empty, a 12.5-bar one a 16-bar grid. A take longer than the
+    longest grid keeps the rest in its notes as played (`rest_bars`)."""
     want = max(1, math.ceil(take_bars - 1e-6)) if take_bars else 1
-    fits = [b for b in GRID_BARS if b * steps <= limits.MAX_GRID_STEPS]
-    return min(want, max(fits)) if fits else 1
+    fits = [b for b in GRID_BARS if b * steps <= limits.MAX_GRID_STEPS] or [1]
+    return min((b for b in fits if b >= want), default=max(fits))
 
 
 def _step_of(t: float, strength: int) -> int:
@@ -263,14 +267,39 @@ def _step_of(t: float, strength: int) -> int:
     return near if abs(t - near) <= strength / 200.0 + 1e-9 else math.floor(t)
 
 
-def place(notes, meter: str, bars: int, steps: int, strength: int = 100) -> dict:
-    """The notes as played on a note grid of `bars` x `steps` in `meter`:
-    the note lane's fields (`NOTE_LANE`). Each note starts on its step
-    (`_step_of`) and is held for its length in whole steps (at least one);
-    one that starts where its row still sounds is a cut; a step's velocity
-    is the loudest note starting there (the MIDI import's write,
-    `midi_bridge.to_grid`, on every pitch the notes play). Notes past the
-    grid's last bar stay in the notes, off the grid."""
+def _spans(notes, step: float, strength: int) -> list[tuple]:
+    """Each note as played as it is placed, in steps: `(start, end,
+    midi, velocity, offset)`. At 100 it starts on its nearest step
+    (`_step_of`) and is held for its length in whole steps (at least one),
+    on the steps. Below 100 it KEEPS ITS TIMING, as free record's loops do
+    (`place_free`): heard where `shaped_start` puts it — `strength`% of the
+    way to its nearest line, 0 exactly as played — on the step nearest
+    that, `offset` the rest (a share of a step, -0.5..0.5: the step's
+    `note_nudge`), held to the step line nearest where it ENDED as played
+    (at least one step): the render moves its start by the offset and
+    leaves its end on that line, so a held note keeps its length."""
+    out = []
+    for s, ln, m, v in notes:
+        t = float(s) / step
+        if strength >= 100:
+            k = _step_of(t, 100)
+            out.append((k, k + max(1, round(float(ln) / step)), int(m), v, 0.0))
+            continue
+        at = shaped_start(t, strength)
+        k = round(at)
+        end = max(k + 1, round(at + float(ln) / step))
+        out.append((k, end, int(m), v, at - k))
+    return out
+
+
+def _lane_of(spans, meter: str, bars: int, steps: int, timed: bool) -> dict:
+    """Placed notes (`_spans`' shape, steps from the grid's start) as the
+    note lane's fields on a grid of `bars` x `steps`: one that starts where
+    its row still sounds is a cut; a step's velocity is the loudest note
+    starting there (the MIDI import's write, `midi_bridge.to_grid`, on
+    every pitch the notes play); `timed`, a step's `note_nudge` is the mean
+    offset of the notes starting there (they share it as they share a
+    velocity), else none. Notes past the grid stay off it."""
     step = _meter.bar_beats(meter) / steps
     lane = {
         "bars": bars,
@@ -284,22 +313,53 @@ def place(notes, meter: str, bars: int, steps: int, strength: int = 100) -> dict
     track = mf.Track(
         name="",
         notes=[
-            mf.Note(
-                _step_of(s / step, strength) * step,
-                max(1, round(ln / step)) * step,
-                int(m),
-                max(1, min(127, round(v * 127))),
-            )
-            for s, ln, m, v in notes
+            mf.Note(k * step, (end - k) * step, m, max(1, min(127, round(v * 127))))
+            for k, end, m, v, _off in spans
         ],
     )
-    rows = sorted({name_of(int(n[2])) for n in notes})
+    rows = sorted({name_of(n[2]) for n in spans})
     try:
         out, _said = midi_bridge.to_grid(track, lane, rows)
     except midi_bridge.ImportRefused:
         out = {k: lane[k] for k in ("cells", "cuts", "velocities", "slides")}
-    # (on the steps: no timing inside one — a place again clears a free one)
-    return {"bars": bars, "steps_per_bar": steps, **out, "note_nudge": {}}
+    nudge: dict = {}
+    if timed:
+        offs: dict[int, list[float]] = {}
+        for k, _end, _m, _v, off in spans:
+            offs.setdefault(k, []).append(off)
+        nudge = {
+            str(k): round(max(-0.5, min(0.5, sum(o) / len(o))), 4)
+            for k, o in offs.items()
+        }
+        nudge = schema.clean_nudge(nudge, out["cells"])
+    return {"bars": bars, "steps_per_bar": steps, **out, "note_nudge": nudge}
+
+
+def place(notes, meter: str, bars: int, steps: int, strength: int = 100) -> dict:
+    """The notes as played on a note grid of `bars` x `steps` in `meter`:
+    the note lane's fields (`NOTE_LANE`). At 100 each note is on its
+    nearest step, held for its length in whole steps — on the steps, no
+    timing inside one (a place again clears what a lower strength kept).
+    Below 100 each keeps its timing inside its step (`_spans`: the step's
+    `note_nudge`), so "as played" (0) plays back as the take was played.
+    Notes past the grid's last bar stay in the notes, off the grid
+    (`rest_lanes`) — but when nothing was played past it the grid is a
+    circle, as a free loop's: a note played early onto its first line
+    from the end is its first step, early (the render wraps it to the
+    end, where it was played)."""
+    step = _meter.bar_beats(meter) / steps
+    spans = _spans(notes, step, strength)
+    if strength < 100 and played_bars(notes, meter) <= bars:
+        spans = [_wrapped(x, bars * steps) for x in spans]
+    return _lane_of(spans, meter, bars, steps, strength < 100)
+
+
+def _wrapped(span: tuple, total: int) -> tuple:
+    """A placed note whose start rounded onto the grid's end line (`total`,
+    played up to half a step early) as its first step, early — the render
+    wraps a start before the first beat to the end. Any other: as it is."""
+    k, end, m, v, off = span
+    return (0, min(end - k, total), m, v, off) if k == total else span
 
 
 def played_bars(notes, meter: str) -> int:
@@ -310,9 +370,10 @@ def played_bars(notes, meter: str) -> int:
 
 def rest_bars(loop: dict) -> int:
     """The bars a recorded loop was played past its grid: a take longer
-    than the grid's 4 bars keeps them in its notes as played, and → Song
-    lays them out (`rest_lanes`). 0 for a beat, an idea, a free loop (the
-    shaper chose its bars) or a loop that fits."""
+    than its grid (the longest is 16 bars at 1/16; a loop placed before
+    grids held more than 4 kept its first 4) keeps them in its notes as
+    played, and → Song lays them out (`rest_lanes`). 0 for a beat, an
+    idea, a free loop (the shaper chose its bars) or a loop that fits."""
     if loop["kind"] != "notes" or loop.get("free") or not loop["played"]:
         return 0
     return max(0, played_bars(loop["played"], loop["meter"]) - loop["lane"]["bars"])
@@ -320,25 +381,33 @@ def rest_bars(loop: dict) -> int:
 
 def rest_lanes(notes, meter: str, bars: int, steps: int, strength: int) -> list[dict]:
     """What was played past a loop's grid of `bars`, as note lanes of up
-    to `bars` bars each, in order (`place`'s shape): each note on its step
-    by `strength` and held for its length in whole steps, as on the loop's
-    own grid — one held over a lane's last bar line goes on in the next
-    lane from its first step (a section is where a note starts again).
+    to `bars` bars each, in order (`place`'s shape): each note placed by
+    `strength` as on the loop's own grid (`_spans`: below 100 its timing
+    inside its step kept) — one held over a lane's last bar line goes on
+    in the next lane from its first step, on the line (a section is where
+    a note starts again). A section plays once from its first beat, so a
+    note played early onto a lane's first line starts on it (up to half a
+    step late: early, the render would wrap it to the section's end) —
+    but onto the take's last line it is the last lane's first step, early,
+    which the render wraps to that lane's end: where it was played.
     [] when everything fits."""
     step = _meter.bar_beats(meter) / steps
     span = bars * steps  # a lane, in steps
     total = played_bars(notes, meter) * steps
+    placed = _spans(notes, step, strength)
     lanes = []
     for lo in range(span, total, span):
         hi = min(lo + span, total)
         held = []
-        for s, ln, m, v in notes:
-            a = _step_of(s / step, strength)
-            b = a + max(1, round(ln / step))
-            if a < hi and b > lo:
-                a, b = max(a, lo), min(b, hi)
-                held.append([(a - lo) * step, (b - a) * step, m, v])
-        lanes.append(place(held, meter, math.ceil((hi - lo) / steps), steps))
+        for a, b, m, v, off in placed:
+            if a < hi and b > lo:  # held over the line: on again, on it
+                o = 0.0 if a < lo else max(off, 0.0) if a == lo else off
+                held.append((max(a, lo) - lo, min(b, hi) - lo, m, v, o))
+            elif a == hi == total and strength < 100:
+                held.append(_wrapped((a - lo, b - lo, m, v, off), hi - lo))
+        lanes.append(
+            _lane_of(held, meter, math.ceil((hi - lo) / steps), steps, strength < 100)
+        )
     return lanes
 
 

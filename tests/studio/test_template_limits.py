@@ -100,6 +100,18 @@ TRANSPORT_BARS = (
     '                hx-vals=\'{"bars": "4"}\' hx-swap="none"\n'
     '                aria-pressed="false">4</button>\n'
     "        \n"
+    # 8 and 16 since the note grid holds a take as long as it was played
+    # (`limits.loop_bar_choices`: both fit the default steps)
+    '        <button type="button" class="barchip "\n'
+    '                hx-post="/fragment/arrangement" hx-include="#transport"\n'
+    '                hx-vals=\'{"bars": "8"}\' hx-swap="none"\n'
+    '                aria-pressed="false">8</button>\n'
+    "        \n"
+    '        <button type="button" class="barchip "\n'
+    '                hx-post="/fragment/arrangement" hx-include="#transport"\n'
+    '                hx-vals=\'{"bars": "16"}\' hx-swap="none"\n'
+    '                aria-pressed="false">16</button>\n'
+    "        \n"
     "      </div>"
 )
 

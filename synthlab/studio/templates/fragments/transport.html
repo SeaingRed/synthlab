@@ -44,7 +44,7 @@
     <fieldset class="tcluster"><legend>length</legend>
       <span class="label-text">bars</span>
       <div class="seg barchips">
-        {% for b in limits.BAR_CHOICES %}
+        {% for b in limits.loop_bar_choices(arrangement.steps_per_bar) %}
         <button type="button" class="barchip {% if b <= arrangement.bars %}on{% endif %}"
                 hx-post="/fragment/arrangement" hx-include="#transport"
                 hx-vals='{"bars": "{{ b }}"}' hx-swap="none"

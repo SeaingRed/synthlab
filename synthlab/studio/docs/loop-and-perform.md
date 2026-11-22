@@ -798,27 +798,64 @@ nothing played (they are all optional: absent, a file conforms to the defaults;
 `test_a_loop_from_before_these_keys_reads_as_one_with_no_audio`).
 
 **The placement** (`loops.place`): the notes as played on a grid of the
-take's bars, rounded up (`loops.grid_bars`: at most the Arrangement's 4,
-and `MAX_GRID_STEPS`; a longer take keeps the rest in `played` —
+take's bars, rounded up to the note grid's next choice (`loops.grid_bars`,
+`limits.LOOP_BAR_CHOICES`: 1-4, **8 and 16** while bars x steps fits
+`MAX_GRID_STEPS`, 256 — 16 bars at 1/16, 8 at 1/32 — so a 6-bar take is
+an 8-bar grid with two empty bars at its end, a 12.5-bar one a 16-bar
+grid: past 4, powers of two, so a beat of 1, 2 or 4 bars divides the
+grid and the loop is as long as its notes; a take longer than the longest
+grid keeps the rest in `played` —
 `loops.rest_bars` — and says so: the take's toast, "+n bars played" on its
 row, Edit's toast; → Song lays every bar out, below), at the
 **rate** — the meter's own steps (`meter.step_choices`: 1/4, 1/8, 1/16,
 1/32 in 4/4; 3, 6, 12, 24 a bar in 3/4; no quarter-note step in an x/8
 meter; **no triplets**, which the note grid has no steps for in a duple
-meter) — the meter's sixteenths first. A note starts on **its step by the
-strength**: within `strength`% of half a step of a grid line it goes onto
-that line, else it stays in the step it began in (`loops._step_of`: 100
-= every note on its nearest step, the default; 0 = **as played**, each
-note in the step it began in). It is held for its length in whole steps
-(at least one); one starting where its row still sounds is a cut; a
-step's velocity is the loudest note starting there — the MIDI import's
-write (`midi_bridge.to_grid`) on every pitch the notes play. **The step
-grid holds no timing inside a step**: "as played" timing is kept in the
-loop (`played`) and heard in its audio; the grid, the pattern a song
-plays and a bounce are on the steps. (A **free loop** —
-free record's shaper, "Free record and the shaper" below — does keep its
-timing on the grid: `note_nudge`, the drum hits' `nudge` for notes, and
-its Q keeps it below 100%. A take's loop is placed as here.)
+meter) — the meter's sixteenths first. The **strength** says how much of
+its timing a note keeps (`loops._spans`, `tests/studio/test_loops.py`):
+
+- **100** (the default): every note on its nearest step, held for its
+  length in whole steps (at least one) — on the steps, no timing inside
+  one (a loop placed at 100 is the grid it always was).
+- **below 100, the timing as played** (free record's rule, `place_free`):
+  each note heard where `shaped_start` puts it — `strength`% of the way to
+  its nearest line, **0 = exactly as played** — on the step nearest that,
+  the rest of its start that step's **`note_nudge`** (a share of a step,
+  -0.5..0.5: "Free record and the shaper", "Timing inside a step on the
+  note grid"; the notes starting on one step share the mean, as they share
+  a velocity — a rolled chord on one step is one start). **A held note
+  keeps its length to the step**: its end on the step line nearest where
+  it ended as played (at least one step), and the render moves only its
+  start, so it releases where it was released. The roll draws a nudged
+  start off its step line. When nothing was played past the grid the
+  loop is a circle: a note played early onto the grid's end line is its
+  first step, early, which the render wraps to the end (as a free loop's).
+  So **Q "as played" plays back like the take**: the grid, the render, ▶
+  in time at another tempo, → Song (the pattern carries `note_nudge`; its
+  sections' chunks keep it) and a bounce all play the timing.
+
+One starting where its row still sounds is a cut; a step's velocity is the
+loudest note starting there — the MIDI import's write
+(`midi_bridge.to_grid`) on every pitch the notes play. A loop placed
+below 100 before this (each note in the step it began in, no timing kept)
+keeps its file until Q places it again.
+
+**A long grid** (8 or 16 bars; `tests/studio/test_loops.py`,
+`test_limits.py`): the working loop's `bars` is any of
+`limits.LOOP_BAR_CHOICES` that fits its steps (`limits.loop_bar_choices`;
+`schema`'s `arr_post` and `arrange.arrangement_from_form` keep the longest
+that fits when the steps change — 16 bars at 1/16 are 8 at 1/32, the step
+numbers kept, as any change of steps keeps them); the drum grid keeps its
+1-4 (`BAR_CHOICES`) and the loop is the lcm of the two, as ever. The
+transport's bar chips offer 8 and 16 while they fit; ×2 doubles up to 16,
+refused in words past the loop cap (`render.LOOP_CAP_SECONDS`: 16 bars of
+4/4 play from 54 bpm up), as Edit is. The roll **scrolls, never squeezes**:
+"fit" still floors a step at `--step-min` (16 px dense, 20 comfy), so a
+256-step grid is wider than the pane and pans (zoom.js), the ruler
+numbering every bar. Raising `MAX_GRID_STEPS` from 128 moved nothing
+saved: every state conformed under 128 holds no step past 127 and
+conforms to itself under 256; no render key reads the cap. A loop file
+placed before (a 6-bar take as 4 bars + 2 played) keeps its file until Q
+places it again, which takes the longer grid.
 
 **The Loops list** (`studio/looplib.py`, `fragments/loop_rows.html`): every
 loop and every keys take no loop names yet (an older take, or one
@@ -941,6 +978,31 @@ over the take's length — `keytakes.to_grid`), **→ sample**
 patch=, chain=, mix=True, arrangement=, parts=("synth",))` — into the
 clip store, the session untouched), ★ Keep and "clear takes" (an older
 take). The list does not offer them: Edit and → Song are the flow.
+
+**Like for like** (`tests/studio/test_loops.py`,
+`test_like_for_like_play_edit_and_song_render_the_same_loop`): a loop's
+▶ (the render it plays without audio of its own, or at another tempo —
+`takes._render_loop`, which → Song as audio bounces too), its Edit on the
+grid (Perform's render of the edited lane's synths) and its → Song
+section render the same notes, with the timing as played (Q below 100),
+in the same sound: the patch, a following layer, a layer with notes of
+its own, the main lane's FX and a curve. ▶ and Edit are one render (one
+key); the section is the same samples up to the 16-bit WAVs once it is
+normalized as a loop is (a section is raw: the song normalizes once,
+song-wide, `render._normalize`). Not verified: ▶ at the loop's own tempo
+plays the take's recorded audio — the live voice, which nobody has
+compared by ear to the render. **One difference is left, not built**
+(the strict xfail beside it): a lane's FX ring past its last note + 4
+beats + 1 s is cut in a loop render (`render.stem_fx` runs over the dry
+render, `Song.render`'s length) and rings on in a section rendered in
+chunks (`render._cycle_stems`: past `MAX_LOOP_SECONDS`, 10 s — every
+8 or 16-bar loop under 192 bpm — to its last chunk's start + 4 beats +
+1 s). A layer
+whose notes are all early in a long loop, under a delay or a reverb,
+loses its tail in ▶ and Edit and keeps it in the song (measured: a
+delay's ring at -45 dB stopping 3 s after the layer's last note). Either
+fix moves the renders of existing keys, so it waits for a `RENDER_REV`
+bump.
 
 `tests/studio/test_loops.py`, `test_key_takes.py`,
 `tests/browser/test_key_takes.py` (the journey: record 2 bars ->
@@ -1395,8 +1457,8 @@ sized into a loop.
   select has **free** too — `keys-and-midi.md`, "⏺ Rec"): no count-in, no
   bar line, no length. The take starts on its **first note** (keys, pads,
   MIDI; the keys arp's notes flagged) and ends where ■ is pressed — never
-  past `limits.MAX_FREE_TAKE_SECONDS`, 60 s (every other take stops at
-  the clip cap, 30 s) —, its audio cut to that. A page change
+  past `limits.MAX_FREE_TAKE_SECONDS`, 60 s (as every take of ⏺ Rec,
+  `limits.MAX_KEY_TAKE_SECONDS`) —, its audio cut to that. A page change
   ends it as ⏺ Rec's (before a note: nothing taken). `POST
   /take/keys/free` keeps it as a keys take (meta `free: true`, the arp's
   notes' indices in its sidecar's `arp`) and makes **no loop**: its answer's
@@ -1451,7 +1513,8 @@ sized into a loop.
   there, as a velocity does (the roll's rule) — so the shaper's
   notes that start on one step take the mean of their offsets. It is read
   in `arrange._lane_timeline` (the ONE note schedule: the render, a
-  section's chunks — none carry it yet — and the MIDI file):
+  section's chunks — `song_model._crop_nudge`: a note nudged early on a
+  chunk's first step plays on that step — and the MIDI file):
   the start moves by it after swing, the END stays where it was (as a
   strum's), never under an eighth of a step; a note moved before the
   loop's first beat wraps to its end (the loop is a circle, as a drum hit's
@@ -1467,9 +1530,11 @@ sized into a loop.
   grid's own post too); pattern undo holds it; the launcher's windows and
   regrids carry it (`loop_window`, `regrid_lane`). No gesture writes one:
   the shaper and Q do.
-- **A song's patterns keep no timing inside a step** (not built): → Song
-  as a pattern plays a free loop on its steps; → Song as audio keeps the
-  feel. The drawer's roll tools leave it out.
+- **A song's pattern keeps it**: → Song as a pattern writes the loop's
+  `note_nudge` into the pool pattern (`song_bridge.note_data`), and the
+  section renders it (a take's loop or a free one: "Like for like" under
+  "Loops: one Rec, one loop"). The drawer's roll tools leave it out (no
+  gesture writes it there).
 
 Routes (`routes/freerec.py`): `POST /take/keys/free`, `GET
 /fragment/free/shaper`, `POST /take/keys/free/hear`, `POST

@@ -146,7 +146,10 @@ def take_keys(
     if form.get("beat") == "1":
         meta["beat"] = True
     kt.write_notes(s.data_dir, name, {"notes": notes})  # there before the clip is
-    save_clip(s.data_dir, name, audio, sr=sr, meta=meta)
+    # (a take of up to 60 s, a free take's length: `limits.MAX_KEY_TAKE_SECONDS`)
+    save_clip(
+        s.data_dir, name, audio, sr=sr, meta=meta, cap=limits.MAX_KEY_TAKE_SECONDS
+    )
     resp = kept_as(HTMLResponse(""), asked, name)
     try:
         made = _loop_from_take(s, name, meta, notes, payload)

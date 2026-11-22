@@ -310,11 +310,19 @@ it. `keytakes.py` and `routes/takes.py` hold the server half.
   is the count-in, and the button counts the beats down. Nothing
   playing: four blips to the speakers, one bar, never in the take; with
   count-in off it starts at once.
-- **How long** (`#key-bars`, `synthlab.keyRecBars`): 1, 2, 4 or 8 bars,
-  then it stops by itself; or **to ■** (the default) — until pressed
+- **How long** (`#key-bars`, `synthlab.keyRecBars`): 1, 2, 4, 8 or 16
+  bars, then it stops by itself; or **to ■** (the default) — until pressed
   again (Alt+R, ■ in the top dock, Shift+Space), rounded **up** to the
   bar line; free length when nothing plays. Never past
-  `limits.MAX_CLIP_SECONDS` (the bars that fit). Stopped before its first
+  `limits.MAX_KEY_TAKE_SECONDS` (60 s, a free take's: the bars that fit —
+  16 bars of 4/4 from 64 bpm up; `data-max-take-seconds` on #key-rec,
+  keyrec.js `cap(r)`). It was the clip cap, 30 s, which cut a 12.5-bar
+  take at 100 bpm; the clip store keeps a take that long
+  (`clips.save_clip(cap=)`) and every reader of clips reads it back
+  (`limits.MAX_STORED_CLIP_SECONDS`: the hub, a project bundle, a song's
+  audio track) — a reader with a cap of its own takes its start: → sample
+  the sampler's 30 s (`sampler.MAX_SAMPLE_SECONDS`), the hub's trims and
+  makes the clip cap. Stopped before its first
   bar line, nothing is taken. **A page change ends it as ■ does**: kept, stopped on
   the bar line ahead (free length: at the change), holding **only the
   notes played before the change** (a note begun on the next page, before
@@ -345,8 +353,8 @@ it. `keytakes.py` and `routes/takes.py` hold the server half.
   store's listing), **and makes its loop**, named as the clip
   (`X-Loop-Name`; `routes/takes.py` `_loop_from_take`): the notes exactly
   as played, the sound that played them, the tempo, key and meter, placed
-  on a grid of the take's bars (rounded up; at most the grid's 4) at the
-  meter's sixteenths — `loop-and-perform.md`, "Loops". **Nothing waits in
+  on a grid of the take's bars (rounded up to the note grid's 1-4, 8 or
+  16; past 16 the rest is kept as played) at the meter's sixteenths — `loop-and-perform.md`, "Loops". **Nothing waits in
   an "unkept" limbo**: a take is saved; ✕ deletes it. (Past
   `limits.MAX_LOOPS` the take is kept without a loop and says so: the
   Loops list shows it as a take, and its first action makes the loop.)
@@ -385,9 +393,9 @@ it. `keytakes.py` and `routes/takes.py` hold the server half.
   does). No count-in, no bar line, no length, the loop's playing or not:
   the take starts on its **first note** (its downbeat — "⏺ free: play"
   until then) and ends where ■ is pressed (⏺ / ■ / Alt+R / Shift+Space),
-  never past `limits.MAX_FREE_TAKE_SECONDS` (60 s; every other take stops at the clip cap, 30 s —
-  `data-max-free-seconds` on #key-rec, keyrec.js `cap(r)`) from the
-  press; its clip is kept that long (`clips.save_clip(cap=)`, at most
+  never past `limits.MAX_FREE_TAKE_SECONDS` (60 s, as every other take
+  of ⏺ Rec — `data-max-free-seconds` on #key-rec, keyrec.js `cap(r)`)
+  from the press; its clip is kept that long (`clips.save_clip(cap=)`, at most
   `limits.MAX_STORED_CLIP_SECONDS`, which the hub and a project bundle
   read back); its audio is cut
   from that first note, its notes in beats at the page's tempo, the keys

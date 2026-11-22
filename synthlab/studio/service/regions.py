@@ -290,7 +290,7 @@ def _w_key_takes(svc: StudioService, view: str) -> str:
     the clip store's listing itself: any clip's bounce, rename or delete
     moves that, and the strip would be re-sent with nothing of its own
     changed (tests/studio/test_oob_refresh.py)."""
-    return _sig(looplib.watch(svc.loops_context(view, session=True)))
+    return _sig(looplib.watch(svc.loops_context(view, session=True), strip=True))
 
 
 def _ctx_key_takes(svc: StudioService, request: Request, view: str) -> dict:
