@@ -868,6 +868,22 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   reads the resolved seconds as it reads any time (parity case
   `env_sync`, 0.00 dB); a drag on a synced time is dead there, as a
   synced LFO's rate is. The agent does not set them.
+  **Not built, and why.** *A synced LFO that follows the loop's swing*:
+  swing moves the odd steps of the bar, so the LFO would have to know
+  where in the bar its note starts — and nothing that builds an LFO does:
+  `Synth.note` renders a note alone, the note memo (`arrange.MemoSynth`)
+  keys a render by the patch, pitch, length, velocity and gate, never its
+  start, so one render serves every place that note falls, and every
+  render key hashes the same; a "free" LFO picks its cycle up from the
+  note's seed for the same reason. Putting the start in would split
+  every memo entry by position and move every key. *Macros as route
+  targets*: a macro is no signal — it is studio state (`state.macros`)
+  that `routes/macros.apply_macro` writes onto Patch fields when it is
+  moved; the engine never sees one. A route onto it would need the
+  macro's table inside the Patch and a second pass after the matrix (the
+  routed macro value, per sample, through each of its targets' mappings,
+  onto fields the matrix may already have routed). *An oscillator's or
+  the filter's output as a source*: out of scope (audio-rate feedback).
 - **More filter types and filter 2** (`core.filt`, `params.FILTER_TYPES_ALL`
   appended after the six, so saved indexes stand; the gene keeps the six):
   `lowpass24` / `highpass24` (two SVFs, Butterworth at 0, the second's q
