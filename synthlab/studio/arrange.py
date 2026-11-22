@@ -873,6 +873,8 @@ def _lane_timeline(
     timeline: list[tuple] = []
     chance = getattr(arr, "note_chance", None)
     if arr.arp_mode == "pattern":
+        if arppattern.of(arr).get("held"):  # the keys held: a take's arp
+            return _held_timeline(by_pitch, arr, step_beats, breaks)
         return _pattern_timeline(by_pitch, arr, step_beats, arp)
     if arr.arp_mode != "off":
         pitches = list(arp[0]) if arp else list(by_pitch)
@@ -991,6 +993,122 @@ def _pattern_timeline(
                 at = base + shift + off * rate
                 dur = gate / NOTE_GATE * rate
                 out.append((at, dur, name_of(m), vel * scale, False))
+    return out
+
+
+# the keys arp's clock (static/arp.js): a note struck up to this long after
+# a step starts a run on it ("one struck up to 30 ms late sounds at once"),
+# and a step's notes are read this long before it is due (LOOK, 60 ms
+# ahead, by a pump every 20 ms: 40-60 ms, the middle taken)
+HELD_LATE_S = 0.03
+HELD_READ_S = 0.05
+
+
+def held_notes(by_pitch: dict, arr: Arrangement, step_beats: float, breaks=()):
+    """A lane's notes as the keys held them: (start, end, midi, velocity)
+    in beats, sorted by start — each note's own feel where it has one (a
+    take placed as played), else its run; a start a hair before the loop's
+    first beat counts from it. The chord the "held" arp reads
+    (`_held_timeline`)."""
+    feel = getattr(arr, "note_feel", None) or {}
+    out = []
+    for pitch, steps in _chanced(by_pitch, arr, breaks).items():
+        for start, run in _merge_runs(steps, _row_breaks(breaks, arr.cuts, pitch)):
+            vel = arr.velocities.get(str(start), 0.9)
+            f = feel.get(f"{pitch}.{start}")
+            if f:
+                o, e, share = (float(x) for x in f)
+                at = (start + o) * step_beats
+                end = at + max(run + e - o, notefeel.MIN_STEPS) * step_beats
+                vel = min(1.0, vel * share)
+            else:
+                at, end = start * step_beats, (start + run) * step_beats
+            out.append((max(0.0, at), end, midi(pitch), vel))
+    return sorted(out)
+
+
+def _held_timeline(
+    by_pitch: dict[str, list[int]], arr: Arrangement, step_beats: float, breaks=()
+) -> list[tuple]:
+    """The grid arp in "pattern" mode with a HELD pattern (`arp_pattern
+    ["held"]`: a take recorded as "the keys I held", loop-and-perform.md,
+    "The arp pattern"): the walk the keys arp made over the keys as they
+    were held — `_lane_timeline`'s tuples. Not the grid's chord (every row,
+    the whole loop): at each of the pattern's steps (every `rate` beats
+    from each bar line, the odd ones late by the pattern's own `swing`, the
+    keys arp's) the chord is the notes held when the keys arp read it
+    (`HELD_READ_S` before the step; a run's first step, the first at or
+    after its first press less `HELD_LATE_S`, reads the chord struck). A
+    run is a stretch with a key down: the walk starts afresh with each
+    ("free": a ▦ pattern goes on where the last run left it). Within one,
+    "plain" (the keys arp's up / down / … modes) never starts again; a ▦
+    pattern's `retrig` "note" starts again at the first step read after a
+    note is struck (not one joining within `HELD_LATE_S` of where the walk
+    started: a chord's notes), "bar" at every bar line (a run begun
+    mid-bar walked to its place). A hit's velocity is the newest held
+    note's times the step's `vel`; "played" walks the notes in the order
+    they were struck."""
+    pat = arppattern.of(arr)
+    notes = held_notes(by_pitch, replace(arr, arp_mode="off"), step_beats, breaks)
+    if not notes:
+        return []
+    bps = float(arr.bpm) / 60.0
+    late, read = HELD_LATE_S * bps, HELD_READ_S * bps
+    beats = bar_beats(arr)
+    rate = arppattern.rate_beats(pat, step_beats)
+    per_bar = arppattern.steps_in(beats, rate)
+    swing = float(pat.get("swing", arr.swing))
+    key = arppattern.key_of(arr.root, arr.scale_name)
+    plain = pat["held"] == "plain"
+    # the runs: the stretches some key is down
+    runs: list[list[float]] = []
+    for at, end, _m, _v in notes:
+        if runs and at <= runs[-1][1]:
+            runs[-1][1] = max(runs[-1][1], end)
+        else:
+            runs.append([at, end])
+    grid = [
+        (bar * beats + j * rate, j)
+        for bar in range(max(1, int(arr.bars)))
+        for j in range(per_bar)
+    ]
+    out: list[tuple] = []
+    kept: arppattern.Run | None = None
+    for r0, r1 in runs:
+        steps = [(b, j) for b, j in grid if b >= r0 - late - 1e-9 and b - read < r1]
+        if not steps:
+            continue
+        first = steps[0][0]
+        if pat["retrig"] == "free" and kept is not None and not plain:
+            run = kept
+        else:
+            run = arppattern.Run()
+        kept, since, prev = run, first, None
+        for n, (b, j) in enumerate(steps):
+            t = max(r0, b - read) if n == 0 else b - read
+            held = [x for x in notes if x[0] <= t + 1e-9 and x[1] > t]
+            if not held:
+                continue
+            if n == 0 and pat["retrig"] == "bar" and not plain:
+                run.restart()
+                for _ in range(j):  # begun mid-bar: walked to its place
+                    arppattern.step(run, [x[2] for x in held], pat, key)
+            elif not plain and prev is not None:
+                struck = any(prev < x[0] <= t and x[0] > since + late for x in held)
+                if (pat["retrig"] == "note" and struck) or (
+                    pat["retrig"] == "bar" and j == 0
+                ):
+                    run.restart()
+                    since = b
+            prev = t
+            hits = arppattern.step(run, [x[2] for x in held], pat, key)
+            vel = max(held, key=lambda x: x[0])[3]  # the newest note's
+            shift = swing * rate if j % 2 else 0.0
+            for off, m, scale, gate in hits:
+                at = b + shift + off * rate
+                out.append(
+                    (at, gate / NOTE_GATE * rate, name_of(m), vel * scale, False)
+                )
     return out
 
 

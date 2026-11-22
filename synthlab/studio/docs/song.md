@@ -165,8 +165,14 @@ with it and stays put without it).
 
 **A pool pattern may be 8 or 16 bars** while bars x steps a bar fits
 `MAX_GRID_STEPS` (`limits.PATTERN_BAR_CHOICES` = the note grid's
-`LOOP_BAR_CHOICES`, `sm.bar_choices`: 16 bars at 4, 8 or 16 steps, 8 at
-32) — a recorded loop of 16 bars goes to the song as one pattern. The
+`LOOP_BAR_CHOICES`, `sm.bar_choices`: 16 bars at 4, 8, 12 or 16 steps, 8
+at 24 and 32 — 1/16T's 16 x 24 = 384 is past the 256) — a recorded loop of
+16 bars goes to the song as one pattern. A notes pattern's steps are its
+meter's, a /4 meter's triplets too (the drawer's chips:
+`meter.step_choices`; `loop-and-perform.md`, "The loop's meter"); a
+pattern on another grid than its section's is regridded by
+`meter.regrid_start` (a triplet beside a straight lane: onto the finer
+straight grid, its starts on the nearest lines). The
 drum grid keeps `BAR_CHOICES`: its node would call 8 bars invalid, so
 `section_arrangement` carries a long drum pattern round it. "Open in
 Perform" opens a notes pattern of 8 or 16 bars whole (`song_bridge.to_loop`:

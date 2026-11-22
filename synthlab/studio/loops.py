@@ -56,7 +56,6 @@ import math
 import re
 import time
 from dataclasses import asdict
-from fractions import Fraction
 from pathlib import Path
 
 from .. import midifile as mf
@@ -75,17 +74,32 @@ from .state.model import (
 )
 
 DIR = "loops"
+# a loop's grid arp (a take of "the keys I held": keyrec.js), kept beside its
+# note lane only while it plays one — no other loop file or lane moved
+ARP_FIELDS = ("arp_mode", "arp_octaves", "arp_pattern")
+
+
+def arp_of(arr: dict) -> dict:
+    """A loop file's grid arp as lane fields, or {} when it plays none."""
+    if arr.get("arp_mode", "off") == "off":
+        return {}
+    return {k: arr[k] for k in ARP_FIELDS if arr.get(k)}
+
+
 BAR_CHOICES = (1, 2, 4)  # what Save as loop offers
 KEY = ("bpm", "root", "scale_name")
 SAVED = LOOP_FIELDS  # an Arrangement's fields a loop keeps
 GRID_BARS = limits.LOOP_BAR_CHOICES  # a placed take's grid: the note grid's own
-# a step's length in sixteenths, as a note value
-_RATE_WORDS = {
-    Fraction(4): "1/4",
-    Fraction(2): "1/8",
-    Fraction(1): "1/16",
-    Fraction(1, 2): "1/32",
-}
+# a take placed as played picks its rate (`pick_steps`): two rates whose
+# lines its note starts sit on within this much a note (ms, on average)
+# are a tie, and the first in the order of preference takes it
+PICK_TIE_MS = 6.0
+# ... and a rate other than the sixteenths must hold the notes ON its lines:
+# their mean |offset| at most this share of its step (notes on no grid sit
+# a quarter of a step off any rate's lines on average — a finer rate always
+# "fits" them better in milliseconds, and would win every loosely played
+# take). 0.1 keeps an arp's swing up to 20 % (its odd notes that far late)
+PICK_ON_LINES = 0.1
 
 
 def loop_dir(data_dir: Path) -> Path:
@@ -229,22 +243,69 @@ def free_name(data_dir: Path, name: str) -> str:
 
 
 def rate_word(meter: str, steps: int) -> str:
-    """A step as a note value: "1/16" (a 4/4 bar of 16), "1/8"; a step no
-    note value names reads as the steps a bar ("12 a bar")."""
-    return _RATE_WORDS.get(_meter.step_length(meter, steps), f"{steps} a bar")
+    """A step as a note value (`meter.rate_word`): "1/16", "1/8T"."""
+    return _meter.rate_word(meter, steps)
 
 
 def rates(meter: str) -> list[tuple[int, str]]:
     """The rates a loop in `meter` may be placed at, coarsest first: the
-    meter's own step choices (`meter.step_choices`) — 1/4 to 1/32 in 4/4,
-    no quarter-note step in an x/8 meter, no triplets (the note grid has no
-    triplet steps in a duple meter)."""
+    meter's own step choices (`meter.step_choices`) — 1/4 to 1/32 in 4/4
+    with the triplets 1/8T and 1/16T (12 and 24 a bar; 9 and 18 in 3/4),
+    no quarter-note step and no triplets in an x/8 meter."""
     return [(n, rate_word(meter, n)) for n in _meter.step_choices(meter)]
 
 
 def default_steps(meter: str) -> int:
-    """The rate a take is placed at first: the meter's sixteenths."""
+    """The rate a take is placed at when nothing says otherwise: the
+    meter's sixteenths."""
     return _meter.sixteenths_choice(meter)
+
+
+def pick_order(meter: str) -> list[int]:
+    """The rates a take placed as played may land on, in the order a tie
+    goes: the meter's sixteenths (every grid before triplets: a take of
+    eighths or quarters keeps them, and it holds their lines), then the
+    triplets coarsest first, then the finer straight rates. Never coarser
+    than the sixteenths' straight rates (1/8, 1/4 hold no line the
+    sixteenths lack)."""
+    six = default_steps(meter)
+    straight = [n for n in _meter.straight_choices(meter) if n > six]
+    return [six, *_meter.triplet_choices(meter), *straight]
+
+
+def offsets_ms(notes, meter: str, steps: int, bpm: float) -> list[float]:
+    """How far each note as played starts from its nearest line of a grid
+    of `steps` a bar, in milliseconds at `bpm` (signed: + late)."""
+    step = _meter.bar_beats(meter) / max(1, int(steps))
+    ms = 60000.0 / max(1e-9, float(bpm))
+    out = []
+    for n in notes:
+        t = float(n[0]) / step
+        out.append((t - round(t)) * step * ms)
+    return out
+
+
+def pick_steps(notes, meter: str, bpm: float) -> int:
+    """The rate a take placed as played lands on: of `pick_order`'s rates,
+    the one whose lines its note starts sit on best — the least total
+    |offset| in milliseconds (`offsets_ms`) — where a rate within
+    `PICK_TIE_MS` a note of the best is a tie the first in the order
+    takes; a rate other than the sixteenths only when the notes sit on its
+    lines (`PICK_ON_LINES`). A 1/8T arp lands on 12 a bar (its notes on the
+    lines but for its swing), a riff of sixteenths on 16, a 1/16T roll on
+    24; a take on no grid, or no notes, the sixteenths."""
+    order = pick_order(meter)
+    starts = [n for n in notes if float(n[0]) >= 0]
+    if not starts:
+        return order[0]
+    cost = {n: sum(abs(x) for x in offsets_ms(starts, meter, n, bpm)) for n in order}
+    step_ms = {n: _meter.bar_beats(meter) / n * 60000.0 / float(bpm) for n in order}
+    order = [order[0]] + [
+        n for n in order[1:] if cost[n] / len(starts) <= PICK_ON_LINES * step_ms[n]
+    ]
+    best = min(cost[n] for n in order)
+    tie = best + PICK_TIE_MS * len(starts)
+    return next(n for n in order if cost[n] <= tie + 1e-9)
 
 
 def grid_bars(take_bars: float, steps: int) -> int:
@@ -570,7 +631,9 @@ def save(
         "at": round(time.time(), 3),
         # the chance lane only when a step has one (`schema.ARR_OPTIONAL`)
         "arr": {k: full[k] for k in SAVED}
-        | ({"note_chance": full["note_chance"]} if full["note_chance"] else {}),
+        | ({"note_chance": full["note_chance"]} if full["note_chance"] else {})
+        # its grid arp only when it plays one (a take of "the keys I held")
+        | {k: full[k] for k in ARP_FIELDS if arr.arp_mode != "off" and full[k]},
         "sound": {k: v for k, v in (sound or {}).items() if k != "format"} or None,
         "take": take,
         "played": [list(n) for n in played],
@@ -648,7 +711,9 @@ def load(data_dir: Path, name: str) -> dict | None:
         "at": clean["at"],
         # (and its chance lane, {} when it has none: absent from the file)
         "lane": {k: arr.get(k, {}) for k in NOTE_LANE}  # (note_nudge: absent unset)
-        | {"note_chance": dict(arr.get("note_chance") or {})},
+        | {"note_chance": dict(arr.get("note_chance") or {})}
+        # its grid arp, when it plays one (absent otherwise: the lane's own stays)
+        | arp_of(arr),
         "key": {k: arr[k] for k in KEY},
         "meter": arr.get("meter", _meter.DEFAULT),
         "sound": preset_from_json({"format": 2, **sound}) if sound else None,

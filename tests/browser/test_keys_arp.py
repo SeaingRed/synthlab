@@ -204,8 +204,13 @@ def test_rec_takes_the_arpeggio_as_it_sounds(studio, server):
     assert [n[2] for n in notes[:4]] == [60, 64, 67, 60], (
         notes
     )  # the arpeggio, not the chord
-    for a, b in zip(notes, notes[1:], strict=False):
-        assert abs(b[0] - a[0] - 0.5) < 0.02, notes  # an eighth: half a beat
+    # an eighth (half a beat) apart, on the take's own bars (keyrec.js
+    # S.keyRecGrid): the first, struck up to 30 ms (0.06 beat) after its
+    # step, sounds at once; the rest on the steps
+    assert -0.08 < notes[1][0] - notes[0][0] - 0.5 < 0.02, notes
+    for a, b in zip(notes[1:], notes[2:], strict=False):
+        assert abs(b[0] - a[0] - 0.5) < 0.02, notes
+        assert abs(b[0] * 2 - round(b[0] * 2)) < 0.01, notes  # on the take's eighths
     assert all(abs(n[1] - 0.25) < 0.02 for n in notes), notes  # half a step long
 
 

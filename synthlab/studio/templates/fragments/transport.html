@@ -124,7 +124,9 @@
       <input type="hidden" name="bars" value="{{ arrangement.bars }}">
       <label>steps <select class="field field-s" name="steps">
         {% for s in meter.step_choices(arrangement.meter) %}
-        <option {% if arrangement.steps_per_bar == s %}selected{% endif %}>{{ s }}</option>
+        {#- a triplet grid says so (1/8T, 1/16T): its value is the count alone -#}
+        {% set trip = meter.is_triplet(arrangement.meter, s) %}
+        <option {% if trip %}value="{{ s }}" {% endif %}{% if arrangement.steps_per_bar == s %}selected{% endif %}>{{ s }}{% if trip %} · {{ meter.rate_word(arrangement.meter, s) }}{% endif %}</option>
         {% endfor %}
       </select></label>
     </fieldset>

@@ -413,7 +413,9 @@ together, and its settings are data attributes wherever they are drawn —
   (`X-Loop-Name`; `routes/takes.py` `_loop_from_take`): the notes exactly
   as played, the sound that played them, the tempo, key and meter, placed
   on a grid of the take's bars (rounded up to the note grid's 1-4, 8 or
-  16; past 16 the rest is kept as played) at the meter's sixteenths — `loop-and-perform.md`, "Loops". **Nothing waits in
+  16; past 16 the rest is kept as played) at the rate its notes sit on
+  best (`loops.pick_steps`: a 1/8T arp on 12 a bar; the toast says which,
+  `X-Loop-Rate`) — `loop-and-perform.md`, "Loops". **Nothing waits in
   an "unkept" limbo**: a take is saved; ✕ deletes it. (Past
   `limits.MAX_LOOPS` the take is kept without a loop and says so: the
   Loops list shows it as a take, and its first action makes the loop.)
@@ -450,6 +452,21 @@ together, and its settings are data attributes wherever they are drawn —
   keyrec.js posts with `fetch`, so it dispatches the answer's
   `HX-Trigger` itself (the queued launch; the server's toast replaces its
   own).
+- **Arp: its notes | the keys I held** (`[data-key-arp]`, per browser
+  `synthlab.keyRecArp`, "its notes" first: what ⏺ Rec always took) — in
+  the deck's Rec ▾ and in the keys arp's ⚙ (the dock's Rec group has no
+  room: one row at 1920 comfy, 2 px to spare; the switch matters only while
+  the arp plays, and the ⚙ is where ⤓ print is). **The keys I held**: while
+  the keys arp plays, the take keeps the keys pressed — piano.js
+  `S.keyHeld` on a voice the arp takes (press, release, velocity; a key
+  held from before the take, from its downbeat) — not the arp's notes, and
+  posts the keys arp's settings (`arp`: mode, rate, octaves, gate, swing
+  and, in ▦, the pattern and the grid step it read "grid" as; at most
+  `limits.MAX_ARP_FIELD_CHARS`). Its loop is placed as any take and plays
+  them through the grid arp set as the keys arp was
+  (`loop-and-perform.md`, "The arp pattern", "The keys I held"); the
+  take's audio is what was heard, the arpeggio. The arp's chord mode (no
+  grid arp plays stabs), no key held, or a free take: its notes, as ever.
 - **Free** (free record: play, then shape, cut and morph it to the size
   wanted): the length **free** — the select's, or the deck's ▾ (the
   Loops panel's "⏺ free" is gone: free is a length). No count-in, no bar line, no length, the loop's playing or not:
@@ -769,10 +786,18 @@ to a second row at 1920 comfy (`test_the_toolbar_is_one_row_at_1920`).
   from its **latest bar line** (`S.nextBar` of a bar back: a meter or a
   tempo map that moves the bar lines moves them, arp.js reads no clock of
   its own; a bar is `S.barBeats()` beats — the loop's meter, off the dock's
-  chord bar, which `S.nextBar` counts by too), re-anchored at every bar — a loop started under a running arp
+  chord bar, which `S.nextBar` counts by too), re-anchored at every bar —
+  the next step counts from the bar line at or before its own line, so a
+  step on a bar line is that bar's step 0 (it was the bar before's last
+  but one: "bar" retrig never fired, `loop-and-perform.md`, "The arp
+  pattern") — a loop started under a running arp
   takes it over at its next step; the first step is the next one on that
-  grid, or — struck up to 30 ms after one — at once. Nothing playing: from
-  the press. **Swing** (0-60 % of a step) delays the odd steps, as the
+  grid, or — struck up to 30 ms after one — at once. **Nothing playing but
+  a ⏺ Rec take on its own bars** (count-in, a length or "to ■"): from the
+  take's bar lines (keyrec.js `S.keyRecGrid`: its first downbeat as the
+  cut and the stamps put it, `at + lag`), so an arp take from silence is on
+  its grid — the owner's (2026-11-22) had counted from each press and no
+  grid held it. Else: from the press. **Swing** (0-60 % of a step) delays the odd steps, as the
   loop's swing does (`arrange.py`). **Each note is posted 60 ms ahead with
   the context time it is due** (`at`): the worklet holds it in `due` to
   the render quantum nearest that time (half a quantum either side —

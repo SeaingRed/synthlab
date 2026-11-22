@@ -338,10 +338,43 @@ def pitch_rows(arr: Arrangement, span: int = 1) -> list[str]:
     return grid_rows(arr, span)
 
 
+# the roll's "notes" range (`grid_rows` span 4): every row the lane's notes
+# use, not a window — the octave buttons do not move it
+SPAN_NOTES = 4
+SPANS = (1, 2, 3, SPAN_NOTES)
+
+
+def note_rows(arr: Arrangement, cells=None) -> list[str]:
+    """The roll's rows for every note the lane holds (`span` 4), highest
+    first: the key's rows from the root at or below its lowest note to the
+    root at or above its highest (at least an octave), and the row of any
+    note out of the key among them — so a take played over five octaves
+    shows on one roll that scrolls, never in a window that hides most of
+    it. Only the rows that hold notes are added off the key, not the
+    chromatic run between: a 16-bar grid over five octaves chromatic is
+    61 rows, 15,616 cells (measured in `loop-and-perform.md`, "Rows, the
+    octave window"). No notes: the two octaves of span 2."""
+    held = sorted({midi(p) for p, _st in (arr.cells if cells is None else cells)})
+    held = [m for m in held if 0 <= m <= 127]
+    if not held:
+        return grid_rows(arr, 2)
+    key = midi(arr.root) % 12
+    pcs = {(key + s) % 12 for s in SCALES.get(arr.scale_name, SCALES["minor"])}
+    lo = held[0] - (held[0] - key) % 12
+    hi = held[-1] + (key - held[-1]) % 12
+    hi = max(hi, lo + 12)
+    lo, hi = max(0, lo), min(127, hi)
+    rows = {m for m in range(lo, hi + 1) if m % 12 in pcs} | set(held)
+    return [name_of(m) for m in sorted(rows, reverse=True)]
+
+
 def grid_rows(arr: Arrangement, span: int = 1, octave: int = 0) -> list[str]:
     """`pitch_rows` in the piano roll's octave window: `octave` moves the
     window's bottom whole octaves from the root (0 is every grid before
-    there was a window)."""
+    there was a window). Span 4 is no window: every row the notes use
+    (`note_rows`)."""
+    if span == SPAN_NOTES:
+        return note_rows(arr)
     root = window_root(arr.root, octave) if octave else arr.root
     if span >= 3:
         low = midi(root)
@@ -360,8 +393,12 @@ def notes_window(arr: Arrangement, midis: list[int], span: int, octave: int):
     of the key, or to the chromatic one when a note is out of the key
     (`StudioState.show_notes`; a keys take's, keytakes.py). `midis` may
     repeat a pitch (a cell each): where they cannot all be shown, the
-    window holds the most of them, not the most distinct pitches."""
+    window holds the most of them, not the most distinct pitches. When no
+    window shows them all, the roll shows every row they use (span 4,
+    `note_rows`), and a roll on span 4 stays there."""
     names = [name_of(m) for m in midis]
+    if span == SPAN_NOTES:
+        return span, octave, note_rows(arr, [[n, 0] for n in names])
     spans = [span] if span == 3 else [span, 2, 3] if span == 1 else [2, 3]
     if not {m % 12 for m in midis} <= {midi(n) % 12 for n in key_ladder(arr)}:
         spans = [3]
@@ -377,6 +414,8 @@ def notes_window(arr: Arrangement, midis: list[int], span: int, octave: int):
                 return sp, o, rows
             if best is None or fit > best[0]:
                 best = (fit, sp, o, rows)
+    if names:  # no window holds them all: every row they use
+        return SPAN_NOTES, octave, note_rows(arr, [[n, 0] for n in names])
     return best[1], best[2], best[3]
 
 
@@ -553,6 +592,8 @@ def loop_window(lane: dict, bars: int) -> dict:
             if "note_chance" in lane
             else {}
         ),
+        # a loop's own grid arp (a take of "the keys I held"), when it has one
+        **{k: lane[k] for k in ("arp_mode", "arp_octaves", "arp_pattern") if k in lane},
     }
 
 
@@ -588,7 +629,14 @@ def regrid_lane(lane: dict, to: int) -> dict:
         },
         # a note's own feel: the same time in the finer steps (a coarser
         # grid drops it: `notefeel.regrid`)
-        "note_feel": notefeel.regrid(lane.get("note_feel") or {}, bars, spb, to),
+        "note_feel": notefeel.regrid(
+            lane.get("note_feel") or {},
+            bars,
+            spb,
+            to,
+            lane.get("cells") or [],
+            lane.get("cuts") or (),
+        ),
         # the working loop's chance lane, when a lane has one: as velocities
         **(
             {

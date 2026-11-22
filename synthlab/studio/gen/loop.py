@@ -46,6 +46,7 @@ import random
 from dataclasses import replace
 
 from ...sequencer import midi, name_of
+from .. import meter as _meter
 from .. import meterops
 from .. import song_model as sm
 from . import chordtrack
@@ -198,7 +199,7 @@ def _onto(
         s = int(step)
         if not 0 <= s < bars * src:
             return None
-        return s * spb // src if spb <= src else s * (spb // src)
+        return _meter.regrid_start(s, src, spb)
 
     vel: dict[str, float] = {}
     for k, v in (lane.get("velocities") or {}).items():

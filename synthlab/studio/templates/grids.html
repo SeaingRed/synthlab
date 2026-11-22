@@ -178,7 +178,7 @@
 {#- the rows (6 | key | all) and the octave window (▲ ±0 ▼) -#}
 {% macro roll_rows(span, oct, oct_range=(-1, 3)) -%}
     <div class="pt-group pt-range seg" role="group" aria-label="grid rows">
-      {% for sp, label, hint in ((1, "6", "Six tones of the key from the root"), (2, "key", "Two octaves of the key, root to root: every row is in key"), (3, "all", "Chromatic: 24 semitones, the off-key rows dimmed")) %}
+      {% for sp, label, hint in ((1, "6", "Six tones of the key from the root"), (2, "key", "Two octaves of the key, root to root: every row is in key"), (3, "all", "Chromatic: 24 semitones, the off-key rows dimmed"), (4, "notes", "Every row the notes use: the key's rows from the lowest note to the highest (and any note's row out of the key), scrolling — no window, nothing hidden")) %}
       <button type="button" aria-pressed="{{ 'true' if span == sp else 'false' }}"
               hx-post="/fragment/grid/span" hx-vals='{"span": "{{ sp }}"}' hx-swap="none"
               title="{{ hint }}" data-cmd="Rows: {{ label if sp > 1 else 'six notes' }}" data-cmd-group="Pattern">{{ label }}</button>
@@ -195,7 +195,7 @@
     </div>
 {%- endmacro %}
 
-{#- ghosts (roll.js: per browser) -#}
+{#- ghosts (per browser, in roll.js) -#}
 {% macro roll_ghosts(roll=none) -%}
       <button type="button" class="btn btn-s pt wide" data-roll-ghosts aria-pressed="true"
               title="{% if roll and roll.ghost_names %}Ghost notes: {{ roll.ghost_names | join(', ') }}, drawn dimly behind this lane's{% else %}Ghost notes: the other lanes' notes, drawn dimly behind this one's (there are none yet){% endif %}"

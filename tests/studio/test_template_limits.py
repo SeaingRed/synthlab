@@ -122,7 +122,12 @@ TRANSPORT_STEPS = (
     "        \n"
     "        <option >8</option>\n"
     "        \n"
+    # the note grid's triplets (meter.triplet_choices): their value the count
+    '        <option value="12" >12 · 1/8T</option>\n'
+    "        \n"
     "        <option >16</option>\n"
+    "        \n"
+    '        <option value="24" >24 · 1/16T</option>\n'
     "        \n"
     "        <option >32</option>\n"
     "        \n"

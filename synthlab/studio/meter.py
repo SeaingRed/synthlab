@@ -56,6 +56,10 @@ _GROUPS: dict[str, tuple[int, ...]] = {
 # a step's length in sixteenths, coarsest first: a quarter, an eighth, a
 # sixteenth, a thirty-second (the 4/4 grid's 4 / 8 / 16 / 32 steps)
 _STEP_LENGTHS = (Fraction(4), Fraction(2), Fraction(1), Fraction(1, 2))
+# the triplets of a quarter-note beat: an eighth triplet (1/8T, three to a
+# beat) and a sixteenth triplet (1/16T, six) — the note grid's in a /4
+# meter only (`step_choices`)
+_TRIPLET_LENGTHS = (Fraction(4, 3), Fraction(2, 3))
 MAX_STEPS_A_BAR = 32  # bars x steps fits limits.MAX_GRID_STEPS at 4 bars
 
 
@@ -101,11 +105,11 @@ def bar_beats(name) -> float:
     return parse(name).bar_beats
 
 
-def step_choices(name) -> tuple[int, ...]:
-    """The step counts a bar of this meter may have, coarsest first: the
-    4/4 grid's 4, 8, 16, 32; 3/4's 3, 6, 12, 24; an x/8 meter has no
-    quarter-note step (its beat is not one), so 6/8's are 6, 12, 24. At
-    most `MAX_STEPS_A_BAR`."""
+def straight_choices(name) -> tuple[int, ...]:
+    """The straight step counts a bar of this meter may have, coarsest
+    first: the 4/4 grid's 4, 8, 16, 32; 3/4's 3, 6, 12, 24; an x/8 meter
+    has no quarter-note step (its beat is not one), so 6/8's are 6, 12, 24.
+    At most `MAX_STEPS_A_BAR`. The drum grid's choices (no triplets)."""
     m = parse(name)
     out = []
     for length in _STEP_LENGTHS:
@@ -117,8 +121,85 @@ def step_choices(name) -> tuple[int, ...]:
     return tuple(out)
 
 
+def triplet_choices(name) -> tuple[int, ...]:
+    """The triplet step counts of a /4 meter's bar: three and six to its
+    quarter-note beat — 4/4's 12 (1/8T) and 24 (1/16T), 2/4's 6 and 12,
+    3/4's 9 and 18, 5/4's 15 and 30. An x/8 meter has none: its beat (a
+    dotted quarter, or 7/8's groups) already divides in three, its eighths
+    ARE that beat's triplets, and a quarter-note triplet there (4.5 to 6/8's
+    bar) falls across its groups."""
+    m = parse(name)
+    if m.den != 4:
+        return ()
+    out = []
+    for length in _TRIPLET_LENGTHS:
+        n = Fraction(m.sixteenths) / length
+        if n.denominator == 1 and n <= MAX_STEPS_A_BAR:
+            out.append(int(n))
+    return tuple(out)
+
+
+def step_choices(name) -> tuple[int, ...]:
+    """The note grid's step counts a bar of this meter may have, coarsest
+    step first: the straight ones (`straight_choices`) and, in a /4 meter,
+    the triplets (`triplet_choices`) — 4/4's 4, 8, 12, 16, 24, 32."""
+    return tuple(sorted({*straight_choices(name), *triplet_choices(name)}))
+
+
+# a step's length in sixteenths, as a note value (the triplets: three to
+# a quarter-note beat, six)
+_RATE_WORDS = {
+    Fraction(4): "1/4",
+    Fraction(2): "1/8",
+    Fraction(4, 3): "1/8T",
+    Fraction(1): "1/16",
+    Fraction(2, 3): "1/16T",
+    Fraction(1, 2): "1/32",
+}
+
+
+def rate_word(name, steps: int) -> str:
+    """A step as a note value: "1/16" (a 4/4 bar of 16), "1/8", "1/8T" (12
+    a bar in 4/4, 9 in 3/4); a step no note value names reads as the steps
+    a bar ("7 a bar")."""
+    return _RATE_WORDS.get(step_length(name, steps), f"{steps} a bar")
+
+
+def is_triplet(name, steps: int) -> bool:
+    """Is `steps` a bar one of the meter's triplet grids (`triplet_choices`)?"""
+    return int(steps) in triplet_choices(name)
+
+
+def common_steps(name, counts) -> int:
+    """The one step count grids of `counts` steps a bar share in `name`:
+    their least common multiple when the meter has it (12 and 8 -> 24),
+    else the finest of them (12 and 16 -> 16: 48 is no grid — a triplet
+    lane beside a straight one goes onto the straight grid, its starts on
+    the nearest line there)."""
+    counts = [max(1, int(c)) for c in counts] or [16]
+    lcm = 1
+    for c in counts:
+        lcm = lcm * c // math.gcd(lcm, c)
+    return lcm if lcm in step_choices(name) else max(counts)
+
+
+def regrid_start(step: int, spb: int, to: int) -> int:
+    """A note's start step on an `spb` grid moved onto a `to`-step grid:
+    the first `to` step inside its own (a whole multiple: `step * to //
+    spb`), or the step it starts in on a coarser grid. A triplet onto a
+    straight grid, or back, is the same rule: the first finer step whose
+    start lies in the coarse one, or the coarse step holding its start."""
+    step, spb, to = int(step), max(1, int(spb)), max(1, int(to))
+    if to >= spb:
+        return -(-step * to // spb)
+    return step * to // spb
+
+
 ALL_STEP_CHOICES: tuple[int, ...] = tuple(
     sorted({n for m in METERS for n in step_choices(m)})
+)
+ALL_STRAIGHT_CHOICES: tuple[int, ...] = tuple(
+    sorted({n for m in METERS for n in straight_choices(m)})
 )
 
 
@@ -362,10 +443,12 @@ def mark(acc, step: int, lead: str = "") -> str:
 
 
 def grid_accents(name, steps: int):
-    """`accents` for a grid, or None in 4/4 (whose grids mark every fourth
-    step as they always did). An /8 meter's grid marks its groups, not
-    each eighth, so 6/8 reads as 3 + 3 and 7/8 as 2 + 2 + 3."""
-    if clean(name) == DEFAULT:
+    """`accents` for a grid, or None in 4/4 at a straight count (whose
+    grids mark every fourth step as they always did). An /8 meter's grid
+    marks its groups, not each eighth, so 6/8 reads as 3 + 3 and 7/8 as
+    2 + 2 + 3. A triplet grid marks its beats — every third step at 1/8T,
+    every sixth at 1/16T — so its lines group in threes."""
+    if clean(name) == DEFAULT and not is_triplet(name, steps):
         return None
     acc = accents(name, steps)
     return [-1 if lv == 0 else lv for lv in acc] if parse(name).den == 8 else acc

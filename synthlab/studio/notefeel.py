@@ -258,23 +258,43 @@ def crop(feel: dict, lo: int, hi: int) -> dict:
     return out
 
 
-def regrid(feel: dict, bars: int, spb: int, to: int) -> dict:
+def regrid(feel: dict, bars: int, spb: int, to: int, cells=None, cuts=()) -> dict:
     """A lane's entries on its `spb` grid moved onto a `to`-step grid, as
     `song_model._regrid` moves its cells: onto a finer grid (a coarse step
     is `to / spb` fine ones, its run as many times longer) the same time,
     in the finer steps; onto a coarser one the entries are dropped — a
     run's end there is not a line of the old grid, so the note plays as a
-    grid note (gated) rather than at a wrong end."""
+    grid note (gated) rather than at a wrong end. Onto a finer grid that is
+    no whole multiple (a triplet grid onto a straight one: 12 -> 16) the
+    start and end lines move by `meter.regrid_start`'s rule, so the same
+    times need the note's run (`cells`, `cuts`); without them, dropped."""
     if not feel or spb == to:
         return dict(feel or {})
     if spb > to:
         return {}
-    k_ = max(1, round(to / spb))
     out: dict = {}
+    if to % spb == 0:
+        k_ = to // spb
+        for k, v in feel.items():
+            at = split(k)
+            if at and 0 <= at[1] < max(1, bars) * spb:
+                out[key(at[0], at[1] * k_)] = [float(v[0]) * k_, float(v[1]) * k_, v[2]]
+        return out
+    if cells is None:
+        return {}
+    from .meter import regrid_start
+
+    r = to / spb
     for k, v in feel.items():
         at = split(k)
-        if at and 0 <= at[1] < max(1, bars) * spb:
-            out[key(at[0], at[1] * k_)] = [float(v[0]) * k_, float(v[1]) * k_, v[2]]
+        if not at or not 0 <= at[1] < max(1, bars) * spb:
+            continue
+        pitch, s = at
+        e = end_line(cells, cuts, pitch, s)
+        s2, e2 = regrid_start(s, spb, to), regrid_start(e, spb, to)
+        clean = value([(s + float(v[0])) * r - s2, (e + float(v[1])) * r - e2, v[2]])
+        if clean is not None:
+            out[key(pitch, s2)] = clean
     return out
 
 

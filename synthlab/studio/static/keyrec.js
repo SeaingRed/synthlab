@@ -81,12 +81,22 @@
 //   notes are, at most a point each 1/50 beat, and posted beside them
 //   (`moves`: the live patch's values at the downbeat, then the moves).
 //   The loop keeps them as curves; the session's sound stays as left.
-// Budget: <= 300 code lines (110 -> 180: the key bus, takes
+// Budget: <= 320 code lines (110 -> 180: the key bus, takes
 // on the loop's bars, their notes, ▶ in time — kept in this island;
 // 190 -> 250: Rec into the selected slot, ⟲ Capture, the arp's
 // print; 250 -> 260: free record — a take is this island's; 260 -> 280:
 // the controls turned during a take, S.keyMove — the take's clock is here;
-// 280 -> 300: the cut's marker — where the recording starts, measured).
+// 280 -> 300: the cut's marker — where the recording starts, measured;
+// 300 -> 320: "the keys I held" — [data-key-arp], S.keyHeld, the take's arp —
+// and the take's bar grid the keys arp counts from, S.keyRecGrid).
+// - "Arp: its notes | the keys I held" ([data-key-arp], synthlab.keyRecArp,
+//   "notes" first): held, a take made while the keys arp plays keeps the
+//   keys pressed (piano.js S.keyHeld: press, release, velocity) and posts
+//   the arp's settings (`arp`) — its loop plays them through the grid arp
+//   (arppattern.from_keys). The arp's chord mode, or no key held: its notes.
+// - While a take records on its own bars (nothing playing), S.keyRecGrid
+//   gives the keys arp the take's bar lines to count from (arp.js), so an
+//   arp take from silence lands on its grid.
 
 (() => {
   "use strict";
@@ -112,9 +122,9 @@
   S.keyCapture = { captureWindow };
   if (typeof document === "undefined") return;
   const $ = (id) => document.getElementById(id);
-  const PREFS = { count: "synthlab.keyRecCount", bars: "synthlab.keyRecBars", beat: "synthlab.keyRecBeat", how: "synthlab.keyRecHow" };
+  const PREFS = { count: "synthlab.keyRecCount", bars: "synthlab.keyRecBars", beat: "synthlab.keyRecBeat", how: "synthlab.keyRecHow", arp: "synthlab.keyRecArp" };
   // read once, then kept here: paint() runs every 200 ms while a take records
-  const prefs = { count: "1", bars: "0", beat: "0", how: "overdub" };
+  const prefs = { count: "1", bars: "0", beat: "0", how: "overdub", arp: "notes" };
   for (const k in PREFS) { try { prefs[k] = localStorage.getItem(PREFS[k]) ?? prefs[k]; } catch { /* blocked */ } }
   const keep = (k, v) => { prefs[k] = v; try { localStorage.setItem(PREFS[k], v); } catch { /* private mode */ } };
   const counts = () => prefs.count !== "0";
@@ -167,6 +177,7 @@
     }
     for (const x of all("[data-key-count]")) x.setAttribute("aria-pressed", String(counts()));
     for (const x of all("[data-key-beat]")) x.setAttribute("aria-pressed", String(withBeat()));
+    for (const x of all("[data-key-arp]")) x.setAttribute("aria-pressed", String(x.dataset.keyArp === (prefs.arp === "held" ? "held" : "notes")));
     const sel = $("key-bars"), len = free() ? "free" : String(wanted());
     if (sel && sel.value !== len) sel.value = len;
     for (const x of all("[data-key-len]")) x.setAttribute("aria-pressed", String(x.dataset.keyLen === len));
@@ -203,8 +214,10 @@
     const r = (rec = { at, beat, bar, lag, bars, most, len: bars * bar, grid: line != null || !!bars, beatToo: withBeat(),
       src, tap, media, began: c.currentTime, chunks: [], notes: [], held: new Map(), timers: [], nodes: [],
       view: $("view")?.dataset.view, to: loose ? null : into(), free: loose, // (a free take's slot is Make loop's)
+      keys: prefs.arp === "held" && !loose, // "the keys I held": the keys arp's chord, not its notes
       moves: {}, from0: { ...(S.piano?.patch?.() || {}) } }); // the controls turned, and the live patch at the start
     r.from = r.to && line != null ? S.loopBar?.(at) : 0; // the loop's bar the take begins on (an overdub folds from it)
+    if (r.keys) for (const h of S.piano?.arpHeld?.() || []) { const n = { start: 0, midi: h.midi, vel: h.vel ?? 1, key: true }; r.notes.push(n); r.held.set(h.tok, n); } // held from before: from the downbeat
     media.ondataavailable = (e) => r.chunks.push(e.data);
     media.start(); // (r.began: the context time of start(), where finish's marker looks from)
     for (let k = 0; lead && k < 4; k++) blip(r, at - lead + k * beat, k === 0);
@@ -238,8 +251,15 @@
   // `at`: the context time a note is due (the keys arp posts ahead, arp.js)
   S.keyNote = (id, midi, vel, at, own) => {
     hear(id, midi, vel, at, own);
+    take(id, midi, vel, at, own ? "arp" : "");
+  };
+  // piano.js: a key the keys arp holds (it never sounds of itself), and where it is let go
+  S.keyHeld = (id, midi, vel) => take(id, midi, vel, undefined, "key");
+  // the take's own bar lines, for the keys arp to count from while nothing plays (arp.js)
+  S.keyRecGrid = () => (rec && !rec.free && rec.at != null && !S.isPlaying() ? { ref: rec.at + rec.lag, bar: rec.bar } : null);
+  function take(id, midi, vel, at, kind) {
     const r = rec;
-    if (!r || (r.at == null && midi === undefined)) return;
+    if (!r || (r.at == null && midi === undefined) || (kind === "key" && !r.keys)) return;
     if (r.at == null) r.at = (at || S.getCtx().currentTime) - r.lag; // free: its first note is its start
     const t = (at ? at - r.lag - r.at : heardIn(r)) / r.beat;
     if (midi === undefined) {
@@ -249,9 +269,9 @@
     }
     if (t < -0.5 || (r.len && t >= r.len / r.beat)) return; // a hair early is on the downbeat
     if (r.cut != null && t >= r.cut) return; // played after the page changed: not the take's
-    const n = { start: Math.max(0, t), midi, vel: typeof vel === "number" ? Math.min(1, Math.max(0, vel)) : 1, arp: !!own };
+    const n = { start: Math.max(0, t), midi, vel: typeof vel === "number" ? Math.min(1, Math.max(0, vel)) : 1, arp: kind === "arp", key: kind === "key" };
     r.notes.push(n); r.held.set(id, n);
-  };
+  }
   // a control turned (the input listener below; piano.js: the XY pad, the
   // wheels): before the downbeat it sets where the take starts from
   const GESTURE = new Set(["pitch_bend", "mod_wheel", "aftertouch"]);
@@ -303,10 +323,16 @@
   // a post of ours: synthlab.send (audio.js) — its OOB regions, its HX-Trigger (a slot's queued
   // launch, its toast) — and, when the answer says nothing, a toast named after what it made
   const made = (h) => { const loop = h.get("X-Loop-Name"); return loop ? decodeURIComponent(loop) : h.get("X-Clip-Name") || ""; };
-  const send = (path, form, said) => S.send(path, form, { refused: "The take was refused.", done: (h) => said(made(h)) });
+  const send = (path, form, said) => S.send(path, form, { refused: "The take was refused.", done: (h) => said(made(h), h) });
+  // "the keys I held": the keys arp played, in a mode the grid arp has (not its chord stabs), and a key was held
+  const heldKeys = (r) => r.keys && r.notes.some((n) => n.key) && S.arp?.get().mode !== "chord";
+  function arpOf() { // the keys arp as the take's loop plays it (arppattern.from_keys)
+    const a = S.arp.get(), c = S.arpPattern?.current?.();
+    return JSON.stringify({ mode: a.mode, rate: a.rate, oct: a.oct, gate: a.gate, swing: a.swing, ...(a.mode === "pattern" && c ? { pattern: c.pat, grid: c.grid } : {}) });
+  }
   function notesOf(r) {
-    const beats = r.len / r.beat;
-    return r.notes.filter((n) => n.start < beats).slice(0, 800) // limits.MAX_TAKE_NOTES
+    const beats = r.len / r.beat, held = heldKeys(r);
+    return r.notes.filter((n) => n.start < beats && (held ? !n.arp : !n.key)).slice(0, 800) // limits.MAX_TAKE_NOTES
       .map((n) => [r3(n.start), r3(Math.max(0.01, Math.min(n.end ?? beats, beats) - n.start)), n.midi, r3(n.vel), ...(r.free && n.arp ? [1] : [])]); // (free: the arp's flagged)
   }
 
@@ -374,12 +400,13 @@
   async function post(r, cut) {
     const form = new FormData(), asked = stamp(), bars = r3(r.len / r.bar), notes = notesOf(r);
     const fields = { name: asked, bpm: String(r3(60 / r.beat)), bars: String(bars), notes: JSON.stringify(notes), beat: r.beatToo ? "1" : "",
-      ...(Object.keys(r.moves).length && !r.free ? { moves: movesOf(r) } : {}) };
+      ...(Object.keys(r.moves).length && !r.free ? { moves: movesOf(r) } : {}), ...(heldKeys(r) ? { arp: arpOf() } : {}) };
     // (a page change ended it: the slot is the Loops page's, so it lands free)
     for (const [k, v] of Object.entries({ ...fields, ...(r.left ? {} : slotFields(r.to, r.from)) })) form.append(k, v);
     form.append("file", S.wavEncode(cut, 2, cap(r)), "take.wav");
     const tenths = Math.round(bars * 10) / 10; // "0:03 · 1.3 bars", as the strip lists it
-    await send(r.free ? "/take/keys/free" : "/take/keys", form, (name) => `${r.left ? "The page changed, so ⏺ Rec stopped: took" : "Took"} “${name || asked}”: ${clock(Math.round(r.len))} · ${tenths} bar${tenths === 1 ? "" : "s"}, ${notes.length} note${notes.length === 1 ? "" : "s"} — its audio and a loop, in the Loops panel: Edit it on the Loops page, or → Song.`);
+    const rate = (h) => (h?.get("X-Loop-Rate") ? ` ${decodeURIComponent(h.get("X-Loop-Rate"))}` : ""), keys = fields.arp ? " — the keys you held, through the grid arp" : "";
+    await send(r.free ? "/take/keys/free" : "/take/keys", form, (name, h) => `${r.left ? "The page changed, so ⏺ Rec stopped: took" : "Took"} “${name || asked}”: ${clock(Math.round(r.len))} · ${tenths} bar${tenths === 1 ? "" : "s"}, ${notes.length} note${notes.length === 1 ? "" : "s"}${keys}${rate(h)} — its audio and a loop, in the Loops panel: Edit it on the Loops page, or → Song.`);
   }
 
   document.addEventListener("click", (e) => {
@@ -388,6 +415,8 @@
     if (t.closest("[data-key-rec]")) return press();
     if (t.closest("[data-key-count]")) { keep("count", counts() ? "0" : "1"); return paint(); }
     if (t.closest("[data-key-beat]")) { keep("beat", withBeat() ? "0" : "1"); return paint(); }
+    const arpKeep = t.closest("[data-key-arp]"); // "Arp: its notes | the keys I held"
+    if (arpKeep) { keep("arp", arpKeep.dataset.keyArp === "held" ? "held" : "notes"); return paint(); }
     const len = t.closest("[data-key-len]"); // the deck's ▾: a length, until ■ (0) or free
     if (len) { keep("bars", len.dataset.keyLen); return paint(); }
     const how = t.closest("[data-key-how]");

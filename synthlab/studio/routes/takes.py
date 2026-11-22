@@ -48,6 +48,7 @@ from fastapi.responses import HTMLResponse
 
 from ...audio import read_pcm16
 from .. import (
+    arppattern,
     keylevel,
     limits,
     looplib,
@@ -132,6 +133,8 @@ def take_keys(
     bars = _number(form.get("bars", ""), 0.01, limits.MAX_TAKE_BARS)
     if bpm is None or bars is None:
         return svc.toast("A take needs its tempo and its length in bars.")
+    # "the keys I held" (keyrec.js): the keys arp's settings, for its loop
+    arp = _keys_arp(form.get("arp", ""))
     s: StudioState = svc.state
     asked = form.get("name", "").strip() or "keys"
     name = free_clip_name(s.data_dir, asked)
@@ -148,7 +151,9 @@ def take_keys(
     # over the grid its loop is placed on; the session's sound is left as
     # the knobs are now
     meter = _take_meter(meta)
-    grid = loops.grid_bars(bars, loops.default_steps(meter))
+    # its rate: the one its notes sit on best (a 1/8T arp: 12 a bar)
+    steps = loops.pick_steps(notes, meter, bpm)
+    grid = loops.grid_bars(bars, steps)
     sent = takemoves.parse(form.get("moves", ""))
     payload, kept, missed = takemoves.apply(
         payload, sent, grid * _meter.bar_beats(meter), s.macros
@@ -164,8 +169,9 @@ def take_keys(
     )
     resp = kept_as(HTMLResponse(""), asked, name)
     try:
-        made = _loop_from_take(s, name, meta, notes, payload)
+        made = _loop_from_take(s, name, meta, notes, payload, steps, arp=arp)
         resp.headers["X-Loop-Name"] = quote(made)  # "·": a header is latin-1
+        resp.headers["X-Loop-Rate"] = quote(_rate_said(meter, steps))
     except OSError as err:  # the store is full: the take stays, as a take
         return with_toast(resp, f"Kept the take “{name}” — no loop of it: {err}")
     at = slotrec.target(s, form)
@@ -177,7 +183,8 @@ def take_keys(
         resp = with_toast(
             resp,
             f"Took “{_title(s, made)}”: {plural(on + rest, 'bar')}, "
-            f"{plural(len(notes), 'note')}. The loop's grid holds bars 1–{on}; "
+            f"{plural(len(notes), 'note')}, {_rate_said(meter, steps)}. "
+            f"The loop's grid holds bars 1–{on}; "
             f"bars {on + 1}–{on + rest} are kept as played — → Song lays out "
             "every bar as sections you can edit.",
         )
@@ -456,6 +463,29 @@ def _take_meter(meta: dict) -> str:
     return m if m in _meter.METERS else _meter.DEFAULT
 
 
+def _keys_arp(raw: str) -> dict | None:
+    """A take's `arp` field (keyrec.js, "the keys I held": the keys arp's
+    mode, rate, octaves, gate, swing and ▦ pattern) as the grid arp's
+    pattern that plays its held keys (`arppattern.from_keys`), conformed —
+    or None: none sent, or nothing the grid arp can play."""
+    if not raw or len(raw) > limits.MAX_ARP_FIELD_CHARS:
+        return None
+    try:
+        got = json.loads(raw)
+    except (ValueError, RecursionError):
+        return None
+    pat = arppattern.from_keys(got)
+    if pat is None:
+        return None
+    clean = schema.conform({"arp_pattern": pat}, schema.nodes().ARRANGEMENT)
+    return clean.get("arp_pattern") or None
+
+
+def _rate_said(meter: str, steps: int) -> str:
+    """A placed take's rate as its toast says it: "on 1/8T (12 a bar)"."""
+    return f"on {loops.rate_word(meter, steps)} ({steps} a bar)"
+
+
 def _loop_from_take(
     s: StudioState,
     take: str,
@@ -466,17 +496,22 @@ def _loop_from_take(
     strength: int = 0,
     *,
     clip: bool = True,
+    arp: dict | None = None,
 ) -> str:
     """A keys take's loop, kept under the take's name: its notes as played
     (`played`, never rewritten) placed on a grid of the take's bars
-    (`loops.grid_bars`) at `steps` a bar (the meter's sixteenths unasked)
+    (`loops.grid_bars`) at `steps` a bar
     and `strength` (`loops.place`: unasked "as played", 0 — every note on
     its nearest step with its own feel, so the loop plays the take),
     `sound` (the one that played it), the take's tempo, key and meter;
     its audio is the take (`clip` False: a ⟲ Capture's, which has none).
-    The loop's name. OSError past `limits.MAX_LOOPS`."""
+    Unasked, the rate is the one its notes sit on best (`loops.pick_steps`:
+    a 1/8T arp lands on 12 a bar). The loop's name. OSError past
+    `limits.MAX_LOOPS`."""
     meter = _take_meter(meta)
-    steps = steps if steps in _meter.step_choices(meter) else loops.default_steps(meter)
+    if steps not in _meter.step_choices(meter):
+        tempo = meta.get("bpm") if kt.meta_number(meta.get("bpm")) else 120.0
+        steps = loops.pick_steps(notes, meter, float(tempo))
     played = kt.bars_of(meta) or (
         max((n[0] + n[1] for n in notes), default=0) / _meter.bar_beats(meter)
     )
@@ -487,6 +522,8 @@ def _loop_from_take(
     lo, hi = limits.BPM_RANGE
     bpm = float(bpm) if kt.meta_number(bpm) and lo <= bpm <= hi else s.arrangement.bpm
     arr = Arrangement(bpm=bpm, root=root, scale_name=scale, meter=meter, **lane)
+    if arp:  # "the keys I held": the grid arp plays them as the keys arp did
+        arr = replace(arr, arp_mode="pattern", arp_pattern=arp)
     name = take
     if loops.is_auto(take):  # named by the clock: named from what it is
         played_on = (sound or {}).get("patch", {}).get("name", "")
@@ -910,8 +947,12 @@ def _loop(svc, form: StrForm):
 def _loop_lane(s: StudioState, loop: dict) -> tuple[Arrangement, str]:
     """The loop arrangement with `loop` on the edited lane — its grid, its
     tempo and key — and the words for what moved (`_adopt`). Nothing in
-    the session is touched."""
+    the session is touched. A loop with a grid arp of its own (a take of
+    "the keys I held") brings it; a loop without one leaves the lane's —
+    unless that was another such take's, which is that loop's alone."""
     arr = replace(s.arrangement, **loop["lane"])
+    if "arp_mode" not in loop["lane"] and (arr.arp_pattern or {}).get("held"):
+        arr = replace(arr, arp_mode="off", arp_pattern={})
     key = loop["key"]
     return _adopt(arr, key["bpm"], (key["root"], key["scale_name"]))
 

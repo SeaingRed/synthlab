@@ -205,7 +205,11 @@
         
         <option selected>8</option>
         
+        <option value="12" >12 · 1/8T</option>
+        
         <option >16</option>
+        
+        <option value="24" >24 · 1/16T</option>
         
         <option >32</option>
         
@@ -224,6 +228,10 @@
       <button type="button" aria-pressed="false"
               hx-post="/fragment/grid/span" hx-vals='{"span": "3"}' hx-swap="none"
               title="Chromatic: 24 semitones, the off-key rows dimmed" data-cmd="Rows: all" data-cmd-group="Pattern">all</button>
+      
+      <button type="button" aria-pressed="false"
+              hx-post="/fragment/grid/span" hx-vals='{"span": "4"}' hx-swap="none"
+              title="Every row the notes use: the key&#39;s rows from the lowest note to the highest (and any note&#39;s row out of the key), scrolling — no window, nothing hidden" data-cmd="Rows: notes" data-cmd-group="Pattern">notes</button>
       
     </div>
     <div class="pt-group roll-oct" role="group" aria-label="octave window">

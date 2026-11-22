@@ -299,6 +299,10 @@ VOICE_OCTAVE_RANGE = (-2, 2)  # a followed carrier against the sung pitch
 # the notes played during one take: 13 a second for a free take's 60 s (it
 # was 400 for 30 s)
 MAX_TAKE_NOTES = 800
+# a take's `arp` field ("the keys I held", keyrec.js): the keys arp's
+# settings and its ▦ pattern (16 steps of six numbers) — a few hundred
+# characters; past this it is not read
+MAX_ARP_FIELD_CHARS = 4000
 MAX_TAKE_NOTES_CHARS = 100_000  # the notes' JSON as posted
 # one take's notes sidecar (studio_data/takenotes/<clip>.json), read or in a
 # bundle: the notes and the notes as played, compact, are ~50 kB at most

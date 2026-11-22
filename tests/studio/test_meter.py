@@ -72,14 +72,55 @@ def test_a_bar_of_each_meter_in_beats_and_sixteenths():
     assert set(want) == set(meter.METERS)
     for name, (beats, six, steps) in want.items():
         m = meter.parse(name)
-        assert (m.bar_beats, m.sixteenths, meter.step_choices(name)) == (
+        assert (m.bar_beats, m.sixteenths, meter.straight_choices(name)) == (
             beats,
             six,
             steps,
         )
-    # anything else is 4/4; a 4/4 grid has the four it always had
+    # anything else is 4/4; a 4/4 drum grid has the four it always had
     assert meter.parse("9/8").name == "4/4" and meter.clean(None) == "4/4"
-    assert meter.step_choices("4/4") == (4, 8, 16, 32)
+    assert meter.straight_choices("4/4") == (4, 8, 16, 32)
+
+
+def test_a_quarter_note_meter_has_triplets_and_an_eighth_meter_none():
+    """The note grid's choices: a /4 meter's straight steps and the
+    triplets of its beat (three and six to a quarter: 1/8T, 1/16T); an x/8
+    meter's eighths already divide its beat in three, so none."""
+    want = {
+        "4/4": (4, 8, 12, 16, 24, 32),
+        "2/4": (2, 4, 6, 8, 12, 16),
+        "3/4": (3, 6, 9, 12, 18, 24),
+        "5/4": (5, 10, 15, 20, 30),
+        "6/8": (6, 12, 24),
+        "7/8": (7, 14, 28),
+        "12/8": (12, 24),
+    }
+    for name, steps in want.items():
+        assert meter.step_choices(name) == steps, name
+    assert meter.triplet_choices("4/4") == (12, 24)
+    assert meter.is_triplet("4/4", 12) and not meter.is_triplet("4/4", 16)
+    assert not meter.is_triplet("6/8", 12)  # 6/8's sixteenths
+    # a 1/8T step is a third of a beat; its accents mark every third step
+    assert meter.step_length("4/4", 12) * 3 == 4
+    assert meter.grid_accents("4/4", 16) is None  # every fourth, as it was
+    acc = meter.grid_accents("4/4", 12)
+    assert [i for i, lv in enumerate(acc) if lv >= 0] == [0, 3, 6, 9]
+    acc = meter.grid_accents("4/4", 24)
+    assert [i for i, lv in enumerate(acc) if lv >= 0] == [0, 6, 12, 18]
+    # a 1/8T grid in 4/4 is one in 3/4 too (its step kept)
+    assert meter.like("3/4", 12, "4/4") == 9
+
+
+def test_grids_share_the_least_common_multiple_when_the_meter_has_it():
+    assert meter.common_steps("4/4", [8, 16]) == 16  # as the finest always was
+    assert meter.common_steps("4/4", [12, 8]) == 24
+    assert meter.common_steps("4/4", [12, 24]) == 24
+    assert meter.common_steps("4/4", [12, 16]) == 16  # 48 is no grid
+    # a start moved between grids: whole multiples as ever, else the first
+    # finer step inside it / the coarse step holding it
+    assert meter.regrid_start(3, 8, 16) == 6 and meter.regrid_start(6, 16, 8) == 3
+    assert [meter.regrid_start(s, 12, 16) for s in range(4)] == [0, 2, 3, 4]
+    assert [meter.regrid_start(s, 16, 12) for s in range(5)] == [0, 0, 1, 2, 3]
 
 
 def test_the_accents_are_the_bar_line_the_groups_heads_and_the_beats():
@@ -153,9 +194,12 @@ def test_an_unset_meter_and_ramp_are_absent_and_no_key_moves():
 
 
 def test_a_grid_is_held_to_its_meter_s_step_counts():
-    # 12 steps is no 4/4 grid: the field's default, as any stray value was
-    four = schema.conform({"steps_per_bar": 12, "drum_steps": 12}, N.ARRANGEMENT)
+    # 9 steps is no 4/4 grid, 12 no 4/4 drum grid (the note grid's 1/8T):
+    # the field's default, as any stray value was
+    four = schema.conform({"steps_per_bar": 9, "drum_steps": 12}, N.ARRANGEMENT)
     assert (four["steps_per_bar"], four["drum_steps"]) == (4, 16)
+    trip = schema.conform({"steps_per_bar": 12, "drum_steps": 24}, N.ARRANGEMENT)
+    assert (trip["steps_per_bar"], trip["drum_steps"]) == (12, 16)
     three = schema.conform(
         {"meter": "3/4", "steps_per_bar": 12, "drum_steps": 16}, N.ARRANGEMENT
     )

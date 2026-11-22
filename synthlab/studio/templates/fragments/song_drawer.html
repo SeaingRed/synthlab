@@ -203,7 +203,8 @@
 
   {% if p %}
   {% set steps = p.steps if p.kind == "drums" else p.steps_per_bar %}
-  {% set step_choices = limits.DRUM_STEP_CHOICES if p.kind == "drums" else limits.STEP_CHOICES %}
+  {#- a notes pattern's: its meter's (`meter.step_choices`: a /4 meter's triplets too) -#}
+  {% set step_choices = limits.DRUM_STEP_CHOICES if p.kind == "drums" else meter.step_choices(p.get("meter") or "4/4") %}
   {#- one rack: the pattern's length, then its tools, wrapping as one row so
       the grid starts right under it -#}
   <div class="drawer-rack">

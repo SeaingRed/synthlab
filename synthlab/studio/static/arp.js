@@ -16,8 +16,10 @@
 //   the loop playing (S.isPlaying) on its bar grid — the steps counted from
 //   its last bar line (S.nextBar), so a meter or a tempo map moves them with
 //   the loop — the first one the next step (one struck up to 30 ms late
-//   sounds at once, on that step); nothing playing, from the press. Swing
-//   delays the odd steps, as the loop's swing does (arrange.py).
+//   sounds at once, on that step); nothing playing but a ⏺ Rec take on its
+//   own bars, on the take's (keyrec.js S.keyRecGrid: a take from silence
+//   lands on its grid); else from the press. Swing delays the odd steps,
+//   as the loop's swing does (arrange.py).
 // - In time: each note is posted ahead (LOOK) with the context time it is
 //   due (`at`): the worklet holds it to its block (voice-worklet.js), a WAV
 //   key waits its timer; its end likewise, `gate` of a step on.
@@ -80,9 +82,10 @@
   const ctx = () => S.getCtx();
   const pattern = () => set.mode === "pattern" && !!S.arpPattern?.hits;
   const stepSec = () => (pattern() ? S.arpPattern.beats() : RATES[set.rate]) * 60 / (S.tempo?.() || 120);
-  const grid = () => !!S.isPlaying?.() && S.loopStart?.() != null;
-  // the loop's last bar line at or before `t` (a bar is S.barBeats at S.tempo: the meter's; nextBar keeps it on the loop)
-  const barLine = (t) => S.nextBar(t - (S.barBeats?.() || 4) * 60 / (S.tempo?.() || 120) + 1e-4, 0);
+  const take = () => S.keyRecGrid?.(); // a take recording on its own bars, nothing playing
+  const grid = () => (!!S.isPlaying?.() && S.loopStart?.() != null) || !!take();
+  // the loop's last bar line at or before `t` (a bar is S.barBeats at S.tempo: the meter's; nextBar keeps it on the loop) — or the take's
+  const barLine = (t, g = take()) => (g ? g.ref + Math.floor((t - g.ref) / g.bar + 1e-6) * g.bar : S.nextBar(t - (S.barBeats?.() || 4) * 60 / (S.tempo?.() || 120) + 1e-4, 0));
   let run = null, seq = 0;
   // while it runs it is a layer of the transport (the top dock says so, and
   // ■ / Shift+Space stop it: transport.js stopAll -> piano.js keysOff)
@@ -120,9 +123,12 @@
         setTimeout(() => S.piano.noteOff(id, end), Math.max(0, (end - ctx().currentTime - LOOK) * 1000));
       }
       // the next step: from the loop's latest bar line while it plays (a
-      // loop started under a free arp takes it over), else on from the last
+      // loop started under a free arp takes it over), else on from the last.
+      // The bar line at or before the next step's own line — a step on a bar
+      // line counts from it (k 0: "bar" retrig, the swing's odd steps), as
+      // the grid arp counts each bar (arrange._pattern_timeline)
       const after = run.base + step * 0.5;
-      if (grid()) run.ref = barLine(after);
+      if (grid()) run.ref = barLine(run.base + step + 1e-6);
       Object.assign(run, stepAt(run.ref, after, step, set.swing));
     }
   }
