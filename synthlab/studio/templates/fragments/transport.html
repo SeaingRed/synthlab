@@ -81,7 +81,13 @@
         {% for m in ["off", "up", "down", "updown"] %}
         <option {% if arrangement.arp_mode == m %}selected{% endif %}>{{ m }}</option>
         {% endfor %}
+        <option value="pattern" {% if arrangement.arp_mode == "pattern" %}selected{% endif %}>▦ pattern</option>
       </select></label>
+      {#- the arp pattern's editor (fragments/arp_pattern.html, base.html's):
+          the grid arp's "pattern" mode plays it, and the keys arp's ▦ -#}
+      <button type="button" class="btn btn-s btn-icon" popovertarget="arp-pat" aria-label="edit the arp pattern"
+              data-cmd="Grid arp: edit the arp pattern" data-cmd-group="Pattern"
+              title="The arp pattern (▦): steps with on, velocity, transpose, gate, chance and repeats, its rate, direction, octaves, retrigger and 12 slots — the grid arp plays it in its “▦ pattern” mode, the keys arp in its ▦ mode">▦</button>
       <label>oct <select class="field field-s" name="arp_octaves">
         {% for o in [1, 2, 3] %}
         <option {% if arrangement.arp_octaves == o %}selected{% endif %}>{{ o }}</option>

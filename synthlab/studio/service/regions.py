@@ -22,6 +22,7 @@ import numpy as np
 from fastapi import Request
 
 from .. import (
+    arppattern,
     beatpick,
     cliphub,
     cliplib,
@@ -155,6 +156,17 @@ def _w_chord_bar(svc: StudioService, view: str) -> str:
     held = (a.chords, a.bars, a.steps_per_bar) if a.chords else ()
     # data-bar-beats: the loop's bar (S.barBeats: the keys arp, the follow)
     return _sig(a.root, a.scale_name, *held, *((a.meter,) if a.meter != "4/4" else ()))
+
+
+def _w_arp_pattern(svc: StudioService, view: str) -> str:
+    # the arp pattern's editor (every page: a popover in base.html): the
+    # edited lane's pattern, the key its steps transpose in, the grid's step
+    # (its "grid" rate), whether the grid arp plays it, and the 12 slots
+    return _sig(*arppattern.watch(svc.state.arrangement, svc.state.arp_slots))
+
+
+def _ctx_arp_pattern(svc: StudioService, request: Request, view: str) -> dict:
+    return {"arp_pat": arppattern.context(svc.state.arrangement, svc.state.arp_slots)}
 
 
 def _w_chain(svc: StudioService, view: str) -> str:
@@ -794,6 +806,16 @@ REGIONS: dict[str, Region] = {
         ALL_VIEWS,
         _w_chord_bar,
         _ctx_chords,
+    ),
+    # the arp pattern's editor: a popover in base.html, outside #view, on
+    # every page (the grid arp's controls on Perform and the keys arp's ⚙
+    # open it); morphed, so it stays open while it is edited
+    "arp-pattern": Region(
+        "fragments/arp_pattern.html",
+        frozenset(),
+        ALL_VIEWS,
+        _w_arp_pattern,
+        _ctx_arp_pattern,
     ),
     # the clip library: a drawer in base.html, outside #view, on every page
     # (it replaced the clip shelf Synths and Perform drew)

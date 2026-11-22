@@ -1,0 +1,83 @@
+{# synthlab/studio/templates/fragments/arp_pattern.html #}
+{# The arp pattern's editor (region `arp-pattern`, arppattern.py): a popover
+   base.html draws on every page, outside #view, opened from the grid arp's
+   ▦ under FEEL on the Loops page and from the keys arp's ⚙ in the
+   keyboard dock — ONE pattern, the edited lane's (`Arrangement.
+   arp_pattern`; the default until a field is changed): the grid arp plays
+   it in its "pattern" mode, the keys arp in its ▦ mode (arppat.js reads
+   `data-pattern`, `data-key` and `data-grid-beats` off #arp-pat). Every
+   redraw MORPHS, so it stays open while it is edited. The step lane is
+   one column a step — on, velocity, transpose (tones of the loop's key),
+   gate, chance, repeats — each field posting the form on change
+   (routes/arp.py); the 12 slots are the session's. #}
+{% set ap = arp_pat %}
+<div class="arp-pattern" id="arp-pattern" {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  <div popover id="arp-pat" class="pop arp-pat" aria-labelledby="arp-pat-title"
+       data-pattern="{{ ap.json }}" data-key="{{ ap.key }}" data-grid-beats="{{ ap.grid_beats }}">
+    <form id="arp-pat-form" class="ap-form" hx-post="/fragment/arp/pattern" hx-trigger="change" hx-sync="this:queue last" hx-swap="none">
+      <header class="ap-head">
+        <h3 class="caps" id="arp-pat-title">Arp pattern</h3>
+        <span class="ap-plays" title="The grid arp plays this pattern when its mode is ▦ pattern (the Loops page, under FEEL); the keys arp when its mode is ▦ (its ⚙). Each step's transpose counts tones of the loop's key">
+          {%- if ap.grid_on %}<b>grid arp ▦</b>{% else %}grid arp: not ▦{% endif %} · keys arp: ▦ in its ⚙ · tr in {{ ap.scale }}</span>
+        <button type="button" class="btn btn-s btn-ghost" hx-post="/fragment/arp/pattern" hx-vals='{"action": "clear"}' hx-swap="none"
+                {% if not ap.stored %}disabled{% endif %} data-cmd="Arp pattern: back to the default"
+                title="Back to the default pattern: eight steps, each on, up, a step of the grid">reset</button>
+      </header>
+      <div class="ap-set">
+        <label title="How many steps the pattern has before it starts again (1–16)">steps
+          <select class="field field-s" name="n" aria-label="pattern steps">
+            {% for n in range(1, 17) %}<option {% if ap.pattern.steps | length == n %}selected{% endif %}>{{ n }}</option>{% endfor %}
+          </select></label>
+        <label title="A step every…: “grid” is the note grid's own step">rate
+          <select class="field field-s" name="rate" aria-label="pattern rate">
+            {% for r in ap.rates %}<option value="{{ r }}" {% if ap.pattern.rate == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+          </select></label>
+        <label title="The order the held notes are taken in: up, down, up and down, as played (the order struck — on the grid, the order the rows first play), random (a shuffle a cycle, the same each time)">dir
+          <select class="field field-s" name="mode" aria-label="pattern direction">
+            {% for m, g in ap.modes %}<option value="{{ m }}" {% if ap.pattern.mode == m %}selected{% endif %}>{{ g }} {{ m }}</option>{% endfor %}
+          </select></label>
+        <label title="How many octaves the held notes are carried up">oct
+          <select class="field field-s" name="oct" aria-label="pattern octaves">
+            {% for o in range(1, 5) %}<option {% if ap.pattern.oct == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+          </select></label>
+        <label title="When the pattern starts again from its first step: “note” when a chord is struck (on the grid: every pass of the loop), “bar” at every bar line, “free” never">retrig
+          <select class="field field-s" name="retrig" aria-label="pattern retrigger">
+            {% for r in ap.retrigs %}<option {% if ap.pattern.retrig == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+          </select></label>
+      </div>
+      <table class="ap-lane">
+        <thead><tr><th scope="row" class="caps">step</th>
+          {%- for st in ap.pattern.steps %}<th scope="col" class="{{ 'ap-off' if not st.on }}">{{ loop.index }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          <tr><th scope="row" title="A step on plays the next note; off is a rest (it takes none)">on</th>
+            {%- for st in ap.pattern.steps %}<td><input type="checkbox" class="check" name="on.{{ loop.index0 }}" {% if st.on %}checked{% endif %} aria-label="step {{ loop.index }} on"></td>{% endfor %}</tr>
+          <tr><th scope="row" title="Velocity, % of the note's own (the grid's velocity lane; the key's strike)">vel %</th>
+            {%- for st in ap.pattern.steps %}{% set v = (st.vel * 100) | round | int %}<td><input type="number" class="field field-s ap-bar" name="vel.{{ loop.index0 }}" min="0" max="100" step="5" value="{{ v }}" style="--fill: {{ v }}%" aria-label="step {{ loop.index }} velocity, %"></td>{% endfor %}</tr>
+          <tr><th scope="row" title="Transpose: tones of the loop's key (+2 in A minor takes A to C)">tr</th>
+            {%- for st in ap.pattern.steps %}<td><input type="number" class="field field-s" name="tr.{{ loop.index0 }}" min="-12" max="12" step="1" value="{{ st.tr }}" aria-label="step {{ loop.index }} transpose, key tones"></td>{% endfor %}</tr>
+          <tr><th scope="row" title="Gate: how long the note sounds, % of its step">gate %</th>
+            {%- for st in ap.pattern.steps %}{% set v = (st.gate * 100) | round | int %}<td><input type="number" class="field field-s ap-bar" name="gate.{{ loop.index0 }}" min="5" max="100" step="5" value="{{ v }}" style="--fill: {{ v }}%" aria-label="step {{ loop.index }} gate, %"></td>{% endfor %}</tr>
+          <tr><th scope="row" title="Chance: the odds the step plays — rolled on a hash of the step and the pattern's pass, so a re-render plays the same rolls">chance %</th>
+            {%- for st in ap.pattern.steps %}{% set v = (st.chance * 100) | round | int %}<td><input type="number" class="field field-s ap-bar" name="chance.{{ loop.index0 }}" min="0" max="100" step="5" value="{{ v }}" style="--fill: {{ v }}%" aria-label="step {{ loop.index }} chance, %"></td>{% endfor %}</tr>
+          <tr><th scope="row" title="Repeats: the step's time split into this many hits (a ratchet)">rep</th>
+            {%- for st in ap.pattern.steps %}<td><input type="number" class="field field-s" name="rep.{{ loop.index0 }}" min="1" max="4" step="1" value="{{ st.rep }}" aria-label="step {{ loop.index }} repeats"></td>{% endfor %}</tr>
+        </tbody>
+      </table>
+    </form>
+    <div class="ap-slots" role="group" aria-label="arp pattern slots">
+      <span class="caps">slots</span>
+      <span class="seg">
+        {%- for i, filled, say in ap.slots %}<button type="button" class="ap-slot"{% if filled %} data-filled{% endif %}
+                hx-post="/fragment/arp/slot" hx-vals='{"slot": "{{ i }}", "action": "{{ 'recall' if filled else 'save' }}"}' hx-swap="none"
+                title="{% if filled %}Slot {{ i + 1 }}: {{ say }} — click to play it (the edited lane's pattern){% else %}Slot {{ i + 1 }} is empty — click to save this pattern into it{% endif %}">{{ i + 1 }}</button>{% endfor %}</span>
+      <label title="Save this pattern into a slot, over what it holds">to
+        <select class="field field-s" name="slot" id="ap-save-to" aria-label="slot to save into">
+          {% for i, filled, say in ap.slots %}<option value="{{ i }}">{{ i + 1 }}{{ ' •' if filled }}</option>{% endfor %}
+        </select></label>
+      <button type="button" class="btn btn-s" hx-post="/fragment/arp/slot" hx-include="#ap-save-to" hx-vals='{"action": "save"}' hx-swap="none"
+              data-cmd="Save the arp pattern to a slot" title="Save this pattern into the slot chosen beside it (over what it holds)">save</button>
+      <button type="button" class="btn btn-s btn-icon btn-ghost btn-danger" hx-post="/fragment/arp/slot" hx-include="#ap-save-to" hx-vals='{"action": "clear"}' hx-swap="none"
+              data-cmd="Clear an arp pattern slot" aria-label="clear the slot chosen" title="Empty the slot chosen beside it">✕</button>
+    </div>
+  </div>
+</div>

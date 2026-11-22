@@ -26,6 +26,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from .. import (
+    arppattern,
     beatgen,
     beatpick,
     chords,
@@ -292,6 +293,8 @@ class Page:
             "loop_edit": self.loop_editing(),
             # the Sound agent drawer (runtime session: log, budget)
             "agent": self.agent.view(),
+            # the arp pattern's editor (every page: region arp-pattern)
+            "arp_pat": arppattern.context(s.arrangement, s.arp_slots),
         }
         if view == "perform":
             # the launcher's lanes x scenes (loops.py's listing: cached)
