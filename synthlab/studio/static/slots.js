@@ -11,29 +11,29 @@
 //   until audio.js's `loop-switched`; re-applied after every swap (the
 //   region comes back with the answer), dropped when the answer cued no
 //   preview (a refusal). A launch from silence starts ▶.
-// - Selection (select-only, deliberately): a
-//   slot's click (or Space) only selects it — it posts
-//   /fragment/perform/slot/select, the server makes its lane the edited
-//   one — and here Notes | Drums turns to the slot's kind (grid.js
-//   `S.rack`; from Both too: one editor, as the slot is). It LAUNCHES by
-//   its own ▶ (`.sl-go`, whose post carries `select`), a double-click, or
-//   Enter on the selected slot. ▶ on the slot already playing only selects
-//   it: no mark, nothing waits. A scene's ▶, Alt+1…8 and ■ never move the
-//   editor.
-// - The selected slot: a slot's click — an empty one's too (it
-//   posts /fragment/perform/slot/select: its lane edited when it has a
-//   sound) — marks its cell `aria-selected`, kept per tab
-//   (sessionStorage `synthlab.slotSel`) and drawn again after every swap.
-//   keyrec.js asks `S.slotSel()` where ⏺ Rec, ⟲ Capture and the arp's
-//   print land, and `S.loopBar(t)` which bar of the playing loop a take
-//   began on; `slot-selected` tells it the choice moved. A click on the
-//   selected empty slot lets it go. An empty slot's ＋ (`.sl-plus`) keeps
-//   its lane.
+// - One selection (loop-and-perform.md, "One selection"): a cell's click
+//   (or Space, or Enter) selects it — and the selected cell IS what the
+//   editor shows: a filled one posts its launch with `select` (its loop
+//   opened on its lane — edits save to it — playing there from the
+//   quantise point; the one already playing is only selected), an empty
+//   one /fragment/perform/slot/select (its lane edited, a sketch). Notes |
+//   Drums turns to its kind (grid.js `S.rack`; from Both too). It never
+//   starts the transport: the deck's ▶ does (loopdeck.js: Loop plays the
+//   selected cell's loop alone). A scene's ▸, Alt+1…8 and ■ never move
+//   the editor.
+// - The selected cell: `aria-selected`, kept per tab (sessionStorage
+//   `synthlab.slotSel`) and drawn again after every swap. keyrec.js asks
+//   `S.slotSel()` where ⏺ Rec, ⟲ Keep and the arp's print land (`free`:
+//   the lane's next empty row, where "a new loop" goes from a filled one),
+//   and `S.loopBar(t)` which bar of the playing loop a take began on;
+//   `slot-selected` tells it (and the deck) the choice moved. A click on
+//   the selected empty cell lets it go. An empty cell's ＋ (`.sl-plus`)
+//   keeps its lane; the editor's "Save as loop" ([data-save-sketch]) does
+//   the same into the selected empty cell of its lane, else /loop/save.
 // - Drags: a Loops panel row onto a slot of its kind (place); a slot onto
 //   another (move; Ctrl or Alt copies).
 // - Keys: the grid is one tab stop with a roving focus — arrows move, Space
-//   selects (the button's own click), Enter selects or, on the selected
-//   slot, launches (its ▶), Shift+Enter the row's scene,
+//   and Enter select (the button's own click), Shift+Enter the row's scene,
 //   Delete / Backspace stop the lane; Alt+1…8 launch a scene and Alt+0
 //   stops every lane from anywhere on Perform but a field (in the drum
 //   pane Alt+1…4 stay steps.js's variations).
@@ -42,9 +42,10 @@
 //   (■ all, the transport stopping) on a bar clock that stands still while
 //   nothing plays (the jam's rule); the button posts the log, and the
 //   server's `scenes-captured` empties it. The page's own: it ends with it.
-// Budget: <= 200 code lines (150 + the capture's log — 175;
+// Budget: <= 205 code lines (150 + the capture's log — 175;
 // + the selected slot, S.slotSel / S.loopBar for ⏺ Rec into a slot — 200;
-// a filled slot's click selecting, ▶ / double-click / Enter launching fit).
+// one selection — a filled cell's click its launch, ▶ / double-click gone —
+// with the sketch's "Save as loop" and `free` for Rec's new loop — 205).
 (() => {
   "use strict";
   const S = (window.synthlab ??= {});
@@ -88,8 +89,10 @@
   S.slotSel = () => {
     const c = sel && cell(...sel);
     if (!c) return null;
-    const name = c.querySelector(".sl-slot:not(.sl-empty)")?.textContent.trim() || "";
-    return { lane: Number(sel[0]), row: Number(sel[1]), kind: c.dataset.kind, filled: !!name, name };
+    const name = c.querySelector(".sl-slot:not(.sl-empty)")?.textContent.trim() || "", lane = Number(sel[0]), row = Number(sel[1]);
+    const after = (r) => (r - row + 99) % 99; // the lane's next empty row after this one, round to the first
+    const free = [...(grid()?.querySelectorAll(`.sl-cell[data-lane="${lane}"]`) || [])].filter((x) => x.querySelector(".sl-empty")).map((x) => +x.dataset.row).sort((a, b) => after(a) - after(b))[0];
+    return { lane, row, kind: c.dataset.kind, filled: !!name, name, free: free ?? null, playing: c.dataset.state === "playing" };
   };
   // the bar of the playing loop at context time `t` (0: nothing plays)
   S.loopBar = (t) => {
@@ -110,7 +113,7 @@
     const c = btn.closest(".sl-cell"), row = btn.closest(".sl-row")?.dataset.row;
     const lanes = [...(grid()?.querySelectorAll(".sl-heads .sl-lane") || [])].map((x) => x.dataset.lane);
     marks = [];
-    if (btn.matches(".sl-go")) marks.push([c.dataset.lane, c.dataset.row, "go"]);
+    if (btn.matches(".sl-slot")) marks.push([c.dataset.lane, c.dataset.row, "go"]);
     else if (btn.matches(".sl-scene")) {
       for (const lane of lanes) {
         const here = cell(lane, row), on = playingIn(lane);
@@ -127,29 +130,31 @@
     const t = e.target instanceof Element ? e.target : null;
     const q2 = t?.closest("[data-sl-q]");
     if (q2) { prefs.q = q2.dataset.slQ; try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch { /* this page still has it */ } return paintQ(); }
-    const c = t?.closest("#perform-slots .sl-cell");
+    if (t?.closest("[data-save-sketch]")) return void saveSketch();
+    const c = t?.closest("#perform-slots .sl-cell"), filled = t?.closest("#perform-slots .sl-slot:not(.sl-empty)");
     // selected: the editor shows its kind — Notes or Drums, from Both too
-    if (c && t.closest(".sl-slot, .sl-go")) S.rack?.(c.dataset.kind === "beat" ? "drums" : "notes");
-    if (c && t.closest(".sl-slot, .sl-plus, .sl-go")) {
-      select(c); // a slot's own click only selects it: its lane is the edited one (▶ launches)
-      if (sel && t.closest(".sl-slot")) S.post("/fragment/perform/slot/select", { lane: c.dataset.lane, row: c.dataset.row });
+    if (c && t.closest(".sl-slot")) S.rack?.(c.dataset.kind === "beat" ? "drums" : "notes");
+    if (c && t.closest(".sl-slot, .sl-plus")) {
+      if (!(filled && c.getAttribute("aria-selected") === "true")) select(c); // the one selection: what the editor shows
+      if (filled) S.post("/fragment/perform/slot/launch", JSON.parse(filled.dataset.launch)); // its loop opened on its lane
+      else if (sel && t.closest(".sl-slot")) S.post("/fragment/perform/slot/select", { lane: c.dataset.lane, row: c.dataset.row });
     }
-    const btn = t?.closest("#perform-slots .sl-scene, #perform-slots .sl-go, #perform-slots .sl-stop, #perform-slots .sl-stop-all, #loops-dock .lp-scene");
+    const btn = t?.closest("#perform-slots .sl-scene, #perform-slots .sl-stop, #perform-slots .sl-stop-all, #loops-dock .lp-scene") || filled;
     if (!btn || btn.disabled) return;
-    if (btn.matches(".sl-go")) {
-      if (c.dataset.state === "playing" && !grid().querySelector(`.sl-lane[data-lane="${c.dataset.lane}"]`)?.matches(".is-stopped")) {
-        if (!S.isPlaying?.()) document.getElementById("play")?.click();
-        return; // it plays already: the click only selects it (the server launches nothing)
-      }
-    }
+    // a cell that plays already is only selected (the server launches nothing); from silence nothing waits
+    if (btn === filled && (c.dataset.state === "playing" || !S.isPlaying?.())) return;
     mark(btn);
     heard = btn.matches(".sl-scene") ? sceneOf(btn) : btn.matches(".sl-stop-all") ? {} : null;
     silent = !S.isPlaying?.(); // from silence ▶ starts it: no switch to wait for
     waiting = true; pending = !btn.matches(".sl-stop, .sl-stop-all") || S.isPlaying?.();
-    if (!btn.matches(".sl-stop, .sl-stop-all") && !S.isPlaying?.()) document.getElementById("play")?.click();
+    if (btn.matches(".sl-scene, .lp-scene") && !S.isPlaying?.()) S.post("/fragment/preview", { view: "perform", play: "1" }); // a scene from silence starts the loop
   });
-  // a double-click on a filled slot launches it (its two clicks selected it)
-  document.addEventListener("dblclick", (e) => e.target.closest?.("#perform-slots .sl-slot:not(.sl-empty)")?.parentElement.querySelector(".sl-go")?.click());
+  // "Save as loop" (the editor's head, a sketch): into the selected empty cell of its lane, else a loop in the Loops panel
+  function saveSketch() {
+    const s = S.slotSel(), head = document.querySelector("#transport .ed-head");
+    if (s && !s.filled && String(s.lane) === head?.dataset.lane) return void S.post("/fragment/perform/slot/keep", { lane: String(s.lane), row: String(s.row) });
+    S.post("/loop/save", { lane: "1", bars: head?.dataset.bars || "1" });
+  }
   document.addEventListener("preview-ready", (e) => {
     if (!e.detail?.queue) return;
     waiting = false;
@@ -254,7 +259,6 @@
     const [lane, row] = [Number(c.dataset.lane), Number(c.dataset.row)];
     if (MOVES[e.key]) { take(); cell(lane + MOVES[e.key][0], row + MOVES[e.key][1])?.querySelector(".sl-slot")?.focus(); }
     else if (e.key === "Enter" && e.shiftKey) { take(); c.closest(".sl-row")?.querySelector(".sl-scene")?.click(); }
-    else if (e.key === "Enter" && c.getAttribute("aria-selected") === "true" && c.querySelector(".sl-go")) { take(); c.querySelector(".sl-go").click(); }
     else if (e.key === "Backspace" || e.key === "Delete") { take(); grid().querySelectorAll(".sl-stop")[lane]?.click(); }
   }, true); // capture: before piano.js hears the arrows or Alt+digit
 

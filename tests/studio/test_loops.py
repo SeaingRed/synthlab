@@ -184,7 +184,7 @@ def test_edit_opens_it_on_the_grid_and_every_change_saves_to_it(client):
     r = _edit(client)
     assert r.status_code == 200
     assert "Editing the loop" in r.headers["HX-Trigger"]
-    assert "lp-edit-note" in r.text and "keys-1" in r.text  # the banner
+    assert "ed-head is-saved" in r.text and "keys-1" in r.text  # the editor's head
     a = s.arrangement
     assert (a.bars, a.steps_per_bar) == (2, 16)
     assert ("A1", 0) in [(p, int(st)) for p, st in a.cells]
@@ -391,7 +391,7 @@ def test_a_loop_from_before_these_keys_reads_as_one_with_no_audio(client):
     assert row["audio"] == "" and row["detail"].startswith("1 bar · 1/16 · 110 bpm")
     page = client.get("/view/perform").text
     # no audio: its ▶ asks for a render (/loop/preview), no take to fetch
-    plays = re.findall(r"<button[^>]*aria-label=\"hear old\"[^>]*>", page)
+    plays = re.findall(r"<button[^>]*aria-label=\"listen to old\"[^>]*>", page)
     assert plays and all("data-take-url" not in b for b in plays)
     assert all("data-preview=" in b for b in plays)
 

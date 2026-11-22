@@ -2,9 +2,16 @@
       hx-post="/fragment/arrangement" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last"
       hx-include="#patch, #transport" hx-swap="none"
       >
-  <div class="transport-controls"><fieldset class="tcluster ed-lane"><legend>editing</legend>
-      <span class="ed-lane-name" title="This grid edits lane 1: init — pick another lane in the lane inspector (at the right) or select a slot in the launcher"><b>1</b> init</span>
-    </fieldset>
+  <div class="transport-controls">
+    <div class="ed-head" role="group" aria-label="what the editor shows" data-lane="0" data-bars="2">
+      <span class="caps ed-cap">editing</span>
+      <span class="ed-name ed-sketch" title="the working grid: what you draw here plays, but saves to no loop until “Save as loop”">sketch</span>
+      <span class="ed-lane" title="lane 1 plays init"><b>1</b> init</span>
+      <span class="ed-state"><i class="led" aria-hidden="true"></i>not saved</span>
+      <button type="button" class="btn btn-s ed-save" data-save-sketch
+              data-cmd="Save the sketch as a loop" data-cmd-group="Loops"
+              title="save this lane as a loop: into the selected empty cell of this lane (it plays from it), else into the Loops panel — named from what it is, the grid then edits it">Save as loop</button>
+    </div>
     <fieldset class="tcluster"><legend>length</legend>
       <span class="label-text">bars</span>
       <div class="seg barchips">

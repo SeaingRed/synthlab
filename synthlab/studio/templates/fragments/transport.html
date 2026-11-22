@@ -17,30 +17,36 @@
             hx-vals='{"index": "{{ lane_follow.layer - 1 }}", "on": "0"}'
             title="Follow off: this lane plays the notes drawn on this grid" data-cmd="Draw this lane's own notes" data-cmd-group="Pattern">draw its own</button></p>
   {%- endif %}
-  {%- if loop_edit %}
-  {#- a saved loop is open on this grid (loops.py, `StudioState.loop_edit`):
-      every change to its lane's notes saves to it. Done, another loop or
-      section on the grid, or Ctrl+Z past its opening end it -#}
-  <div class="lp-edit-note" role="note"><span class="lp-on">✎ editing</span>
-    {% if loop_edit.here -%}
-    the loop “{{ loop_edit.title }}” — every change to these notes saves to it.
-    {%- else -%}
-    the loop “{{ loop_edit.title }}” on lane {{ loop_edit.lane }}: this lane's notes are not the loop's.
-    {%- endif %}
-    {%- if loop_edit.here and loop_edit.row and loop_edit.row.played %}
-    {{ quantise_menu(loop_edit.row) }}
-    {%- endif %}
-    <button type="button" class="btn btn-s lp-done" hx-post="/loop/edit/done" hx-swap="none"
-            title="stop editing the loop: it keeps every change, and the notes stay on the grid as the working loop"
-            data-cmd="Done editing the loop" data-cmd-group="Loops">Done</button></div>
-  {%- endif %}
+  {#- The editor's head (loop-and-perform.md, "One selection"): what this
+        grid is — the loop open on the edited lane (`StudioState.loop_edit`:
+        every change to its notes saves to it; its Q, and Done) or the
+        working grid, a sketch saved to no loop (Save as loop: into the
+        selected empty cell of this lane, else a loop in the Loops panel —
+        slots.js) — and its lane. The lane is the selected cell's (or a lane
+        head's, in the inspector at the right). -#}
+  {%- set here = loop_edit and loop_edit.here %}
   <div class="transport-controls">
-    {#- which lane this grid edits (the lane heads are in the lane
-        inspector at the right; a slot selected in the launcher, or a
-        head there, picks it) -#}
-    <fieldset class="tcluster ed-lane"><legend>editing</legend>
-      <span class="ed-lane-name" title="This grid edits lane {{ active_layer + 1 }}: {{ patch.name }} — pick another lane in the lane inspector (at the right) or select a slot in the launcher"><b>{{ active_layer + 1 }}</b> {{ patch.name }}</span>
-    </fieldset>
+    <div class="ed-head{% if here %} is-saved{% endif %}" role="group" aria-label="what the editor shows" data-lane="{{ active_layer }}" data-bars="{{ arrangement.bars }}">
+      <span class="caps ed-cap">editing</span>
+      {% if here -%}
+      <span class="ed-name" title="the loop “{{ loop_edit.title }}” is open on lane {{ active_layer + 1 }}: every change to these notes saves to it">“{{ loop_edit.title }}”</span>
+      <span class="ed-lane" title="lane {{ active_layer + 1 }} plays {{ patch.name }}"><b>{{ active_layer + 1 }}</b> {{ patch.name }}</span>
+      <span class="ed-state lp-on"><i class="led" data-on aria-hidden="true"></i>saved</span>
+      {%- if loop_edit.row and loop_edit.row.played %}
+      {{ quantise_menu(loop_edit.row) }}
+      {%- endif %}
+      <button type="button" class="btn btn-s btn-ghost lp-done" hx-post="/loop/edit/done" hx-swap="none"
+              title="stop editing the loop: it keeps every change, and the notes stay on the grid as a sketch"
+              data-cmd="Done editing the loop" data-cmd-group="Loops">Done</button>
+      {%- else -%}
+      <span class="ed-name ed-sketch" title="the working grid: what you draw here plays, but saves to no loop until “Save as loop”">sketch</span>
+      <span class="ed-lane" title="lane {{ active_layer + 1 }} plays {{ patch.name }}"><b>{{ active_layer + 1 }}</b> {{ patch.name }}</span>
+      <span class="ed-state"><i class="led" aria-hidden="true"></i>not saved</span>
+      <button type="button" class="btn btn-s ed-save" data-save-sketch
+              data-cmd="Save the sketch as a loop" data-cmd-group="Loops"
+              title="save this lane as a loop: into the selected empty cell of this lane (it plays from it), else into the Loops panel — named from what it is, the grid then edits it">Save as loop</button>
+      {%- endif %}
+    </div>
     <fieldset class="tcluster"><legend>length</legend>
       <span class="label-text">bars</span>
       <div class="seg barchips">

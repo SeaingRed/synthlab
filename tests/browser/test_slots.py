@@ -91,8 +91,8 @@ def test_fill_launch_a_slot_and_a_scene_edit_undo_and_stop(studio, server):
     # play, then launch a slot: it waits for the bar, then plays
     page.click("#play")
     studio.wait_sound()
-    # (a filled slot's click selects it; its ▶ launches)
-    page.locator(f"{_slot(0, 0)} .sl-go").click()
+    # (a cell's click selects it: its loop opened on its lane, launched)
+    page.locator(f"{_slot(0, 0)} .sl-slot").click()
     page.wait_for_function(QUEUED)
     page.wait_for_function(SWITCHED, timeout=8000)
     page.locator(f'{_slot(0, 0)}[data-state="playing"]').wait_for()
@@ -128,8 +128,8 @@ def test_fill_launch_a_slot_and_a_scene_edit_undo_and_stop(studio, server):
             page.keyboard.press("Control+z")
     page.locator(f'{_slot(0, 0)}[data-state="playing"]').wait_for()
     assert s.loop_edit_of(4) is None
-    # ■ lane 1: it stops at its point, its ■ pressed
-    stop = page.locator("#slots .sl-stop").nth(0)
+    # ■ lane 1 (its head's): it stops at its point, its ■ pressed
+    stop = page.locator("#slots .sl-heads .sl-lane .sl-stop").nth(0)
     with page.expect_response("**/fragment/perform/slot/stop"):
         stop.click()
     page.wait_for_function(SWITCHED, timeout=8000)
@@ -139,10 +139,12 @@ def test_fill_launch_a_slot_and_a_scene_edit_undo_and_stop(studio, server):
     assert studio.unexplained() == []
 
 
-def test_a_slots_click_selects_and_play_double_click_or_enter_launch(studio, server):
-    """Deliberately, a filled slot's click only selects it
-    (its lane edited, nothing queued, nothing plays); its ▶, a double-click
-    or Enter on the selected slot launches it at the quantise point."""
+def test_a_cells_click_selects_it_and_the_editor_shows_it(studio, server):
+    """One selection: a filled cell's click (or Enter on it) selects it and
+    opens its loop on its lane — queued while the loop plays, then playing
+    — and the editor's head names it, saved; a drum cell turns the editor
+    to the drums, whose head names the beat; an empty cell's click makes
+    its lane a sketch ("not saved", Save as loop)."""
     _seed(server)
     page = _open(studio)
     s = server.state
@@ -151,35 +153,120 @@ def test_a_slots_click_selects_and_play_double_click_or_enter_launch(studio, ser
     _drop(page, "techno beat", 4, 1)
     page.click("#play")
     studio.wait_sound()
-    # a click: selected, no launch
-    with page.expect_response("**/fragment/perform/slot/select"):
+    with page.expect_response("**/fragment/perform/slot/launch"):
         page.locator(f"{_slot(0, 1)} .sl-slot").click()
     page.locator(f'{_slot(0, 1)}[aria-selected="true"]').wait_for()
-    page.wait_for_timeout(400)
-    assert page.locator("#slots .sl-cell[data-q]").count() == 0
-    assert s.slot_playing(0) is None and not s.loop_edit
-    # Enter on the selected slot: it launches (queued, then playing)
-    page.locator(f"{_slot(0, 1)} .sl-slot").focus()
-    with page.expect_response("**/fragment/perform/slot/launch"):
-        page.keyboard.press("Enter")
     page.wait_for_function(SWITCHED, timeout=8000)
     page.locator(f'{_slot(0, 1)}[data-state="playing"]').wait_for()
     assert s.loop_edit_of(0)["name"] == "Pluck hook"
-    # a double-click on another: it launches
+    page.wait_for_selector("#transport .ed-head.is-saved")
+    assert "Pluck hook" in page.locator("#transport .ed-head .ed-name").inner_text()
+    # Enter on another: selected and opened
+    page.locator(f"{_slot(0, 0)} .sl-slot").focus()
     with page.expect_response("**/fragment/perform/slot/launch"):
-        page.locator(f"{_slot(0, 0)} .sl-slot").dblclick()
+        page.keyboard.press("Enter")
     page.wait_for_function(SWITCHED, timeout=8000)
     page.locator(
         f'{_slot(0, 0)}[data-state="playing"][aria-selected="true"]'
     ).wait_for()
     assert s.loop_edit_of(0)["name"] == "Acid line"
-    # the drums' ▶: it launches the beat
+    # the drums' cell: the editor turns to the drums, which name the beat
     with page.expect_response("**/fragment/perform/slot/launch"):
-        page.locator(f"{_slot(4, 1)} .sl-go").click()
+        page.locator(f"{_slot(4, 1)} .sl-slot").click()
     page.wait_for_function(SWITCHED, timeout=8000)
     page.locator(f'{_slot(4, 1)}[data-state="playing"]').wait_for()
+    page.wait_for_selector("#perform-drums .ed-head.is-saved")
+    assert page.evaluate("() => document.documentElement.dataset.rack") == "drums"
     studio.wait_sound()
+    # an empty cell of lane 1: its lane a sketch, saved to no loop
+    with page.expect_response("**/fragment/perform/slot/select"):
+        page.locator(f"{_slot(0, 2)} .sl-empty").click()
+    page.wait_for_selector("#transport .ed-head:not(.is-saved) [data-save-sketch]")
+    assert s.loop_edit_of(0) is None and s.slot_at(0, 0) == "Acid line"
+    # Save as loop: into the selected empty cell, which then plays it
+    with page.expect_response("**/fragment/perform/slot/keep"):
+        page.click("#transport [data-save-sketch]")
+    page.locator(f'{_slot(0, 2)}[data-state="playing"]').wait_for()
+    page.wait_for_selector("#transport .ed-head.is-saved")
     page.click("#play")
+    assert studio.unexplained() == []
+
+
+def test_select_a_cell_play_it_alone_on_the_deck_and_rec_into_it(studio, server):
+    """The journey: a cell selected is what the editor shows; the deck's
+    Loop ▶ plays its loop alone (and Now playing says so); an edit saves to
+    it and is heard alone again; the deck's ⏺ Rec — the dock's, lit
+    together — overdubs the take into it, as its ▾ says."""
+    _seed(server)
+    page = _open(studio)
+    s = server.state
+    page.evaluate(
+        """() => { localStorage.setItem('synthlab.keyRecBars', '1');
+          localStorage.setItem('synthlab.keyRecCount', '0');
+          localStorage.setItem('synthlab.keyRecHow', 'overdub'); }"""
+    )
+    page.reload()  # (keyrec.js reads its settings once)
+    page.wait_for_selector("#slots")
+    studio.settle()
+    _drop(page, "acid line", 0, 0)
+    with page.expect_response("**/fragment/perform/slot/launch"):
+        page.locator(f"{_slot(0, 0)} .sl-slot").click()
+    page.wait_for_selector("#transport .ed-head.is-saved")
+    assert "Acid line" in page.locator("#transport .ed-head .ed-name").inner_text()
+    # the deck's Loop (the default): ▶ plays the cell's loop alone
+    assert page.get_attribute('[data-deck-src="loop"]', "aria-pressed") == "true"
+    with page.expect_response("**/fragment/perform/slot/hear") as heard:
+        page.click("#play")
+    assert heard.value.ok
+    page.wait_for_function("() => window.synthlab.isPlaying()", timeout=20000)
+    studio.wait_sound()
+    page.wait_for_function(
+        "() => document.querySelector('#now-playing .np-label')"
+        ".textContent.includes('alone')"
+    )
+    assert "Acid line" in page.locator("#now-playing .np-label").inner_text()
+    assert page.get_attribute("#play", "aria-pressed") == "true"
+    page.wait_for_selector('#perform-transport .deck-meter > i[data-s="now"]')
+    # an edit saves to its loop, and the deck asks for it alone again
+    with page.expect_response("**/fragment/perform/slot/hear"):
+        page.locator('[hx-post="/fragment/pattern/notes/shift_right"]').first.click()
+    _wait(
+        page,
+        lambda: ["A2", 1] in loops.load(server.data_dir, "Acid line")["lane"]["cells"],
+        "the edit saved to the cell's loop",
+    )
+    # Rec ▾ says where the take lands: the selected cell, overdubbed
+    page.click("#perform-transport .deck-rec-more")
+    page.wait_for_selector("#deck-rec-menu:popover-open")
+    assert "overdub" in page.locator("#deck-rec-menu .deck-lands").inner_text()
+    page.keyboard.press("Escape")
+    # the deck's ⏺ Rec: the dock's lights with it; C4 into the cell's loop
+    page.locator(".view-head h1").click()
+    page.click("#deck-rec")
+    page.wait_for_selector('#key-rec[aria-pressed="true"]')
+    page.wait_for_function(
+        "() => document.getElementById('deck-rec').textContent.startsWith('■')",
+        timeout=10000,
+    )
+    page.keyboard.down("KeyA")
+    page.wait_for_timeout(400)
+    page.keyboard.up("KeyA")
+    with page.expect_response("**/take/keys", timeout=20000) as answer:
+        pass  # one bar: it stops by itself
+    assert answer.value.ok
+    _wait(
+        page,
+        lambda: any(
+            c[0] == "C4"
+            for c in loops.load(server.data_dir, "Acid line")["lane"]["cells"]
+        ),
+        "the take overdubbed into the cell's loop",
+    )
+    assert s.slot_at(0, 0) == "Acid line"
+    page.wait_for_selector('#deck-rec[aria-pressed="false"]')
+    # ▶ again is its own stop
+    page.click("#play")
+    page.wait_for_function("() => !window.synthlab.isPlaying()")
     assert studio.unexplained() == []
 
 
@@ -214,6 +301,8 @@ def test_keys_quantise_keep_and_a_section_as_a_scene(studio, server):
         "kind": "notes",
         "filled": False,
         "name": "",
+        "free": 2,  # (the lane's next empty row: itself, empty)
+        "playing": False,
     }
     empty.click()
     page.locator(f'{_slot(1, 2)}[aria-selected="false"]').wait_for()
