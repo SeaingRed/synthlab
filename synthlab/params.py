@@ -244,6 +244,8 @@ FILTER_TYPES_ALL = (
 # where filter 2 sits: nowhere (every older patch), after filter 1, or
 # beside it (the two outputs averaged)
 FILTER2_ROUTES = ("off", "serial", "parallel")
+# a route slot's switch: "off" bypasses the route (it keeps its settings)
+ROUTE_SWITCH = ("on", "off")
 
 # An envelope time's hard ceiling: a 4 s pad release is sound design, not
 # corruption, however narrow the musical gene range is.
@@ -306,15 +308,19 @@ def slot_active(p, slot: str) -> bool:
     return (
         src in MOD_SOURCES
         and src != "none"
+        and getattr(p, f"{slot}_on", "on") != "off"
         and getattr(p, f"{slot}_dst") in MOD_RANGES
         and abs(getattr(p, f"{slot}_amt")) >= 1e-3
     )
 
 
 def _routed(p, source: str) -> bool:
-    """Some slot reads `source` with an amount worth mutating around."""
+    """Some slot reads `source` with an amount worth mutating around (and
+    is not bypassed)."""
     return any(
-        getattr(p, f"{s}_src") == source and abs(getattr(p, f"{s}_amt")) >= 0.05
+        getattr(p, f"{s}_src") == source
+        and abs(getattr(p, f"{s}_amt")) >= 0.05
+        and getattr(p, f"{s}_on", "on") != "off"
         for s in MOD_SLOTS
     )
 
@@ -447,6 +453,10 @@ _WARP_WHY = "a hand-made phase warp: breeding never draws one"
 _OSC3_WHY = "a hand-made third oscillator: breeding never draws one"
 _VOICE_WHY = "how the keys and the loop play the sound, not the sound itself"
 _SAMPLE_WHY = "a sampler setting: it shapes a recording, not a bred sound"
+_ROUTE_WHY = (
+    "a route's switch and source curve: hand-made, never bred (a longer genome "
+    "would re-draw every seeded litter)"
+)
 
 _SLOT_AMTS = [_lin(f"{s}_amt", -1.0, 1.0) for s in MOD_GENE_SLOTS]
 _SLOT_CATS = [
@@ -799,6 +809,10 @@ _ALL: list[Param] = [
             ),
         )
     ],
+    # each route slot's switch and the curve on its source, appended as
+    # one run (synth.route_curve): "on" and 0 are the route as it was
+    *[_p(f"{s}_on", "cat", cap=ROUTE_SWITCH, nogene=_ROUTE_WHY) for s in MOD_SLOTS],
+    *[_p(f"{s}_curve", "lin", cap=(-1.0, 1.0), nogene=_ROUTE_WHY) for s in MOD_SLOTS],
 ]
 
 PARAMS: dict[str, Param] = {p.name: p for p in _ALL}

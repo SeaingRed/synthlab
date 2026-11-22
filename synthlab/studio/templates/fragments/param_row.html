@@ -35,13 +35,15 @@
                 "filter2_cutoff", "filter2_resonance", "filter2_key_track", "filter2_env",
                 "mod_wheel", "aftertouch", "lfo2_rate", "lfo2_phase", "lfo3_rate", "lfo3_phase"] %}
 {#- route amounts 5-12, envelopes 3 and 4 — knobs too -#}
-{% set dial_runs = spec.name[:3] == "mod" and spec.name.endswith("_amt") and spec.name != "mod_wheel"
+{% set dial_runs = spec.name[:3] == "mod" and (spec.name.endswith("_amt") or spec.name.endswith("_curve")) and spec.name != "mod_wheel"
                    or spec.name[:5] in ("env3_", "env4_") %}
 {#- the FM4 panel's operator matrix (editor.html): every fm4 number is a knob
     whose row and column say what it is, so its name is for the deck, MIDI
     learn and a screen reader (visually hidden) -#}
 {% set fm4_knob = spec.name[:4] == "fm4_" and spec.kind == "range" %}
 {% set dial = spec.kind == "range" and (spec.name in dials or fm4_knob or dial_runs) %}
+{#- a route's source curve: a small knob beside its amount (.knob-s) -#}
+{% set knob_cls = "knob knob-s" if dial_runs and spec.name.endswith("_curve") else "knob" %}
 {# a group's heading stands before its first row (a knob cell is a fifth of
    the line, so it cannot hold one), with its own id so a shape block's
    heading still hides with its rows (editor.html's generated rule). Never
@@ -140,7 +142,7 @@
      carries the real value the form posts (a linear 60-8000
      cutoff gave the musical 60-500 Hz region ~5% of the travel) #}
   <input type="hidden" name="{{ spec.name }}" value="{{ patch_values[spec.name] }}">
-  <input type="range" id="p-{{ spec.name }}"{% if dial %} class="knob"{% endif %} data-log="1"
+  <input type="range" id="p-{{ spec.name }}"{% if dial %} class="{{ knob_cls }}"{% endif %} data-log="1"
          data-min="{{ spec.min }}" data-max="{{ spec.max }}"
          data-default="{{ spec.default }}"
          min="0" max="1" step="0.001"
@@ -153,7 +155,7 @@
      (forms.slider_bounds / patch_from_form) #}
   {% set lo = [spec.min, patch_values[spec.name]] | min %}
   {% set hi = [spec.max, patch_values[spec.name]] | max %}
-  <input type="range" id="p-{{ spec.name }}" name="{{ spec.name }}"{% if dial %} class="knob"{% endif %}
+  <input type="range" id="p-{{ spec.name }}" name="{{ spec.name }}"{% if dial %} class="{{ knob_cls }}"{% endif %}
          min="{{ lo }}" max="{{ hi }}" step="{{ spec.step }}"
          {% if spec.default is not none %}data-default="{{ spec.default }}"{% endif %}
          value="{{ patch_values[spec.name] }}"

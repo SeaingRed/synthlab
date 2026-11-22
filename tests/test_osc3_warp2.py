@@ -201,7 +201,9 @@ def test_the_second_warps_are_appended_hand_made_and_out_of_older_keys():
     from synthlab.studio.render import KEY_ADDED_FIELDS, keyed_patch
 
     names = list(PARAMS)
-    assert names[-len(WARP2_FIELDS) :] == WARP2_FIELDS  # appended last, in order
+    at = names.index(WARP2_FIELDS[0])
+    assert names[at : at + len(WARP2_FIELDS)] == WARP2_FIELDS  # one run, in order
+    assert at > names.index("osc3_warp_amt")  # appended after osc 3's run
     for name in WARP2_FIELDS:
         assert PARAMS[name].gene is None and PARAMS[name].nogene, name
         assert KEY_ADDED_FIELDS[name] == getattr(Patch(), name)

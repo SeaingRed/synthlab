@@ -523,6 +523,33 @@ class Patch:
     osc2_warp2_amt: float = 0.0
     osc3_warp2: str = "off"
     osc3_warp2_amt: float = 0.0
+    # each route slot's switch ("off" bypasses it: the slot keeps its
+    # source, target and amount but routes nothing) and the curve on its
+    # source (-1..1, `route_curve`; 0 = the source as it is)
+    mod1_on: str = "on"
+    mod2_on: str = "on"
+    mod3_on: str = "on"
+    mod4_on: str = "on"
+    mod5_on: str = "on"
+    mod6_on: str = "on"
+    mod7_on: str = "on"
+    mod8_on: str = "on"
+    mod9_on: str = "on"
+    mod10_on: str = "on"
+    mod11_on: str = "on"
+    mod12_on: str = "on"
+    mod1_curve: float = 0.0
+    mod2_curve: float = 0.0
+    mod3_curve: float = 0.0
+    mod4_curve: float = 0.0
+    mod5_curve: float = 0.0
+    mod6_curve: float = 0.0
+    mod7_curve: float = 0.0
+    mod8_curve: float = 0.0
+    mod9_curve: float = 0.0
+    mod10_curve: float = 0.0
+    mod11_curve: float = 0.0
+    mod12_curve: float = 0.0
 
     def tweak(self, **kw) -> Patch:
         """Return a copy with parameters changed: pad.tweak(cutoff=800)."""
@@ -728,6 +755,27 @@ def _fit_arrays(p: Patch, n: int) -> Patch:
     return p.tweak(**fit) if fit else p
 
 
+# how far a route's curve bends its source at +-1: the warp's bend
+# (core.warp_phase's k = 1 + 15 x amount), so the steepest is 16 x
+ROUTE_CURVE_K = 15.0
+
+
+def route_curve(s, c: float) -> np.ndarray:
+    """A route's source bent by its curve `c` (-1..1) before the amount:
+    the source's size |s| (up to 1) through a rational curve that keeps 0
+    at 0 and 1 at 1, its sign kept, so a bipolar LFO bends the same either
+    side of zero and a 0..1 envelope or velocity stays 0..1. `c` > 0 rises
+    early (k |s| / (1 + (k - 1) |s|)), `c` < 0 late (|s| / (k - (k - 1)
+    |s|): the first's inverse), k = 1 + 15 |c|. Only + - x / and a
+    comparison, so the live voice (voice-worklet.js `route`) computes the
+    same numbers; `_mod_routes` never calls it at 0."""
+    s = np.asarray(s, dtype=np.float64)
+    k = 1.0 + ROUTE_CURVE_K * abs(float(c))
+    a = np.minimum(np.abs(s), 1.0)
+    y = k * a / (1.0 + (k - 1.0) * a) if c > 0 else a / (k - (k - 1.0) * a)
+    return np.where(s < 0, -y, y)
+
+
 def _mod_routes(
     p: Patch,
     n: int,
@@ -754,8 +802,12 @@ def _mod_routes(
         src, dst, amt = (getattr(p, f"{slot}_{k}") for k in ("src", "dst", "amt"))
         if src not in sources:
             sources[src] = _mod_source(p, src, n, sr, velocity, gate, duration, f0)
+        s = sources[src]
+        c = float(getattr(p, f"{slot}_curve", 0.0))
+        if c != 0.0:  # (a curve of 0 is the source untouched, bit for bit)
+            s = route_curve(s, c)
         if dst == PITCH_ROUTE:
-            bend = amt * PITCH_ROUTE_ST * sources[src]
+            bend = amt * PITCH_ROUTE_ST * s
             pitch = bend if pitch is None else pitch + bend
             continue
         lo, hi = MOD_RANGES[dst]
@@ -769,7 +821,7 @@ def _mod_routes(
         b = np.asarray(getattr(p, dst), dtype=np.float64)
         clip_lo = min(lo, float(np.min(b)))
         clip_hi = max(hi, float(np.max(b)))
-        changes[dst] = np.clip(base + amt * (hi - lo) * sources[src], clip_lo, clip_hi)
+        changes[dst] = np.clip(base + amt * (hi - lo) * s, clip_lo, clip_hi)
     return (p.tweak(**changes) if changes else p), pitch
 
 

@@ -774,6 +774,23 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   added to the patch's (`keys-and-midi.md`, "The mod wheel and
   aftertouch"). Every field is opt-in: `tests/test_modulators_filters.py` fails a
   render of a patch that leaves them off yet reaches their code.
+- **More modulation** (`tests/test_modulation_range.py`). **A route's
+  switch and source curve** (Patch `modN_on` "on" / "off", `modN_curve`
+  -1..1, one each a slot, 24 fields): "off" bypasses the route —
+  `params.slot_active` says no, so the engine, the live voice (`wire`),
+  the gate and the breeder's `_routed` all skip it — and it keeps its
+  source, target, amount and curve. The curve bends the source before
+  the amount (`synth.route_curve`): its size |s|, held at 1, through
+  k |s| / (1 + (k - 1) |s|) for a curve above 0 (rises early) or
+  |s| / (k - (k - 1) |s|) below (late: the first's inverse), k = 1 + 15
+  |curve| (the warp's bend), its sign kept — so a bipolar LFO bends the
+  same either side of zero and a 0..1 envelope stays 0..1, 0 stays 0 and
+  1 stays 1. Only + - x / and a comparison: the voice's `route` computes
+  the same float64 numbers. At 0 `_mod_routes` never calls it; "on" and 0
+  are `KEY_ADDED_FIELDS` entries, so every older key and render stands
+  (`test_routes_left_on_and_straight_never_reach_the_curve`). Not genes,
+  not curves, not targets; a mod mix writes its routes on and straight.
+  Live, both are exact (parity cases `route_curve`, `route_switch`).
 - **More filter types and filter 2** (`core.filt`, `params.FILTER_TYPES_ALL`
   appended after the six, so saved indexes stand; the gene keeps the six):
   `lowpass24` / `highpass24` (two SVFs, Butterworth at 0, the second's q

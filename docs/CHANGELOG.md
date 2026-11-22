@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A route's switch and curve**: each mod-matrix row gains an on / off
+  switch (off keeps the route but bypasses it) and a curve knob that bends
+  its source before the amount — up rises early, down late. On and
+  straight by default, so no sound changes; both play on the live keys.
 - **Two warps at once**: each oscillator's warp block gains a second
   warp, bending the phase the first made (PD then mirror, a bend then
   quantize...), band-limited as one warp is. Off by default, so no sound

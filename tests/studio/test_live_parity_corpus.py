@@ -1393,6 +1393,53 @@ CASES.update(
     }
 )
 
+# A route's switch and the curve on its source (synth.route_curve): curves
+# both ways on a bipolar LFO, an envelope, velocity and the pitch; a
+# bypassed route beside a live one (it would move the cutoff and the level)
+CASES.update(
+    {
+        "route_curve": (
+            Patch(
+                mod1_src="lfo2",
+                mod1_dst="cutoff",
+                mod1_amt=0.5,
+                mod1_curve=0.7,
+                lfo2_rate=3.0,
+                mod2_src="aenv",
+                mod2_dst="osc1_level",
+                mod2_amt=-0.4,
+                mod2_curve=-0.6,
+                mod5_src="lfo",
+                mod5_dst="pitch",
+                mod5_amt=0.04,
+                mod5_curve=-1.0,
+                mod_lfo_rate=5.0,
+                mod12_src="velocity",
+                mod12_dst="drive",
+                mod12_amt=0.5,
+                mod12_curve=1.0,
+            ),
+            {"vel": 0.6},
+        ),
+        "route_switch": (
+            Patch(
+                mod1_src="lfo",
+                mod1_dst="osc1_detune",
+                mod1_amt=0.4,
+                mod3_src="lfo",
+                mod3_dst="cutoff",
+                mod3_amt=0.9,
+                mod3_on="off",
+                mod10_src="aenv",
+                mod10_dst="osc1_level",
+                mod10_amt=-0.8,
+                mod10_on="off",
+            ),
+            {},
+        ),
+    }
+)
+
 # Every field the gate lets through (WORKLET_FIELDS, and every GATED
 # predicate) names the case that proves it.
 FIELD_CASES: dict[str, str] = {
@@ -1485,6 +1532,8 @@ FIELD_CASES: dict[str, str] = {
         + tuple(f"fm4_{k}{i}" for k in ("ratio", "level", "decay") for i in range(1, 5))
     },
     **{f"{s}_{k}": s for s in MOD_SLOTS for k in ("src", "dst", "amt")},
+    **{f"{s}_on": "route_switch" for s in MOD_SLOTS},
+    **{f"{s}_curve": "route_curve" for s in MOD_SLOTS},
     # filter 2, the general modulators
     **{
         f"filter2_{k}": "f2_serial"

@@ -156,8 +156,10 @@ def test_the_mod_matrix_is_a_patch_bay_over_the_form_fields(client):
     matrix = html[html.index('id="panel-mod-matrix"') :].split("</fieldset>")[0]
     for slot in MOD_SLOTS:
         row = matrix.split(f'data-slot="{slot}"')[1].split('class="route"')[0]
-        for k in ("src", "dst", "amt"):
+        for k in ("on", "src", "dst", "amt", "curve"):
             assert f'name="{slot}_{k}"' in row, (slot, k)
+        # the switch is the row's lamp: an id'd radio group, on / off
+        assert f'id="p-{slot}_on" role="radiogroup"' in row
         assert 'data-route="off"' in row and 'data-route="flip"' in row
     # the fields left Motion's module but not the form
     form = html[html.index('<form id="patch"') :].split("</form>")[0]

@@ -106,7 +106,9 @@
 // noteOn / noteOff with `at`, the context's time — waits in `due` for the
 // block nearest it (half a quantum either side), so an arpeggio lands on
 // the loop's grid whatever the main thread's timers do; allOff drops it.
-// Budget: <= 1180 code lines.
+// 1180 -> 1186: a route's switch (a bypassed slot is not wired) and the
+// curve on its source (synth.route_curve, in route()).
+// Budget: <= 1186 code lines.
 
 const D = { // Patch defaults for anything a message left out
   osc1: "saw", osc1_level: 0.8, osc1_octave: 0, osc1_detune: 0, osc2: null, osc2_level: 0.5,
@@ -154,6 +156,7 @@ const RING = 2048, COMB_MAX = 2000, COMB_FB = 0.97, DIODE_B = 0.25, TB = Math.ta
 // core.lfo_ext: the logistic map, the per-note keys (synth._RANDOM_KEY,
 // _LFO_FREE_KEY), an empty drawing's triangle
 const CHAOS_R = 3.99, RANDOM_KEY = 0x30000, FREE_KEY = 0x40000, DRAW_DEFAULT = [[0, -1], [0.5, 1]];
+const ROUTE_K = 15; // synth.ROUTE_CURVE_K: a route curve's bend at +-1
 const BLOCK = 64; // core.biquad's coefficient block: cutoff sampled at its start
 const MAXU = 8;
 const MAXV = 16; // voices per layer node; past it one is stolen (steal())
@@ -900,14 +903,15 @@ class SynthlabVoice extends AudioWorkletProcessor {
     for (const s of T.mod_slots || []) {
       const src = T[`${s}_src`], dst = T[`${s}_dst`], amt = Number(T[`${s}_amt`]), span = T.mod_ranges?.[dst];
       if (src === "none" || !(T.mod_sources || []).includes(src) || !span || !(Math.abs(amt) >= 1e-3)) continue;
+      if (T[`${s}_on`] === "off") continue; // bypassed (params.slot_active)
       // "pitch" is no param: its routes sum amt x half its span x the source
-      const pitch = dst === "pitch";
+      const pitch = dst === "pitch", c = Number(T[`${s}_curve`]) || 0; // its source's curve
       SMOOTH[`${s}_amt`] ??= 0; if (!pitch) SMOOTH[dst] ??= 0;
       const first = !(dst in idx);
       if (first) idx[dst] = Object.keys(idx).length;
       R.push({ src: SOURCES[src], dst, amt: `${s}_amt`, lo: span[0], hi: span[1], pitch,
         span: (span[1] - span[0]) / (pitch ? 2 : 1), block: !!BLOCK_RATE[dst], i: idx[dst], first,
-        log: !!SMOOTH[dst], sd: null, sa: null });
+        log: !!SMOOTH[dst], sd: null, sa: null, c, k: 1 + ROUTE_K * Math.abs(c) });
     }
     this.routes = R; this.idx = idx; this.routed = new Set(Object.keys(idx));
     this.acc = new Float64Array(Math.max(1, R.length)); this.names = Object.keys(SMOOTH);
@@ -930,14 +934,18 @@ class SynthlabVoice extends AudioWorkletProcessor {
   // Route every wired slot at this sample into this.acc (one value per
   // target, this.idx): each adds amt * span * source to the value so far,
   // clipped to the span widened to the patch's own value
-  // (synth._mod_routes). Filter targets only at a block start. "pitch"
+  // (synth._mod_routes); a route with a curve bends its source first. Filter targets only at a block start. "pitch"
   // starts from 0 semitones and is never clipped. `sv`: each source's
   // value at this sample, by its SOURCES number.
   route(x, sv, bs) {
     const acc = this.acc;
     for (const r of this.routes) {
       if (r.block && !bs) continue;
-      const src = sv[r.src];
+      let src = sv[r.src];
+      if (r.c) { // synth.route_curve: |src| (to 1) bent, its sign kept
+        const a = Math.min(Math.abs(src), 1), y = r.c > 0 ? r.k * a / (1 + (r.k - 1) * a) : a / (r.k - (r.k - 1) * a);
+        src = src < 0 ? -y : y;
+      }
       const b0 = r.pitch ? 0 : r.log ? this.at(r.dst, x) : r.sd[0] + r.sd[1] * x;
       const y = (r.first ? b0 : acc[r.i]) + (r.sa[0] + r.sa[1] * x) * r.span * src;
       acc[r.i] = r.pitch ? y : Math.min(Math.max(r.hi, b0), Math.max(Math.min(r.lo, b0), y));

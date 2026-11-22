@@ -9,7 +9,9 @@
   the route it feeds moves a held note's spectral centre;
 - routes 5-12: "+ route" opens them one by one, a route set there posts;
 - a mod-wheel route from a stand-in MIDI port: CC 1 opens the cutoff of a
-  held note (and the Modulators panel is on the page).
+  held note (and the Modulators panel is on the page);
+- a route's switch (its lamp) bypasses it and switches it back on, its
+  curve knob posts.
 
 Nobody listens: each proves the sound changed, not that it is good.
 """
@@ -246,3 +248,37 @@ def test_a_mod_wheel_route_from_a_midi_port(studio, server):
     assert open_ > shut * 1.3, (shut, open_)
     # a route reads the wheel: CC 1 is its source, not the old cutoff sweep
     assert page.evaluate("() => window.synthlab.piano.patch().cutoff") == 250.0
+
+
+def test_a_routes_switch_bypasses_it_and_its_curve_posts(studio, server):
+    """The lamp is the switch: pressed, the route is bypassed (its lead
+    faint, the live keys still on the worklet, the held note back where an
+    unrouted one sits); pressed again it plays. The curve knob posts."""
+    page = _open(
+        studio,
+        server,
+        filter_type="lowpass",
+        cutoff=300.0,
+        filter_env=0.0,
+        mod1_src="velocity",
+        mod1_dst="cutoff",
+        mod1_amt=0.8,
+    )
+    routed = _held(studio)
+    lamp = "#p-mod1_on label:not(:has(:checked))"
+    assert page.locator(lamp).get_attribute("class") == "sw-off"  # on: press to bypass
+    page.click(lamp)
+    _wait(page, lambda: server.state.patch.mod1_on == "off", "the bypass posted")
+    _patch_follows(page, "mod1_on", "off")
+    page.wait_for_selector('#patchbay .cable.off[data-slot="mod1"]')
+    assert page.evaluate("() => window.synthlab.piano.patch().worklet_ok") is True
+    bypassed = _held(studio)
+    assert bypassed < routed * 0.7, (routed, bypassed)
+    page.click(lamp)
+    _wait(page, lambda: server.state.patch.mod1_on == "on", "switched back on")
+    # the curve: a small knob, posted as any control
+    assert page.locator("#p-mod1_curve.knob.knob-s").count() == 1
+    page.focus("#p-mod1_curve")
+    page.keyboard.press("Home")
+    _wait(page, lambda: server.state.patch.mod1_curve == -1.0, "the curve posted")
+    _patch_follows(page, "mod1_curve", -1.0)

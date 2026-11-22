@@ -163,14 +163,18 @@ wider margins:
   (Measured: unison detune and spread change nothing with one voice and
   glide nothing on hold / arp / stab.)
 - **The mod matrix is its own module** (`#panel-mod-matrix`: Motion's
-  `modN_*` fields — 36 for its twelve slots, `paramui.ROUTE_FIELDS`,
+  `modN_*` fields — 60 for its twelve slots, `paramui.ROUTE_FIELDS`,
   the Jinja global `route_fields` — same form). Its `#patchbay` is a *view* of the
   `.route` rows — source jacks, target jacks, one lead a route drawn
   by `static/bench.js` into `.pb-cables` (redrawn on a field's `input` /
   `change`, after a swap and on resize; never per frame). A drag from
-  jack to jack sets the same fields (the first free slot of twelve); each
-  row has ± (invert) and ✕ (source off). `aria-hidden`: the rows are the
-  controls. **Twelve slots, dense**: routes 1-4 always stand
+  jack to jack sets the same fields (the first free slot of twelve, its
+  switch put on); each row is lamp, **switch** (`modN_on`: on / off pills
+  — off bypasses the route and keeps it: its lamp goes out, its controls
+  stand back and its lead is drawn faint), source, target, amount, the
+  **curve** on its source (`modN_curve`, a knob -1..1: up rises early,
+  down late, `synth.route_curve`), ± (invert) and ✕ (source off).
+  `aria-hidden`: the rows are the controls. **Twelve slots, dense**: routes 1-4 always stand
   (the ones the breeder and the mixes write); 5-12 (`data-extra`) stand
   only while they route, or once **+ route** opens the next (bench.js:
   `data-open`, kept until the next swap). Twelve source jacks; a target

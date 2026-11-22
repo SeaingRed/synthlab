@@ -176,8 +176,11 @@ LFO_SHAPE_LABELS = {
     "chaos": "chaos",
     "smooth": "smooth random",
 }
-# a route row's three fields, every slot (the mod matrix draws them)
-ROUTE_FIELDS = frozenset(f"{s}_{k}" for s in MOD_SLOTS for k in ("src", "dst", "amt"))
+# a route row's fields, every slot (the mod matrix draws them): its switch,
+# source, target, amount and source curve
+ROUTE_FIELDS = frozenset(
+    f"{s}_{k}" for s in MOD_SLOTS for k in ("on", "src", "dst", "amt", "curve")
+)
 
 
 EXACT, IGNORED, DEFAULT = "exact", "ignored", "default"
@@ -645,10 +648,18 @@ _ENTRIES: list[tuple[str, Ui]] = [
         entry
         for i, s in enumerate(MOD_SLOTS, start=1)
         for entry in (
+            # the switch: "off" bypasses the route, which keeps its settings
+            (f"{s}_on", _ui(_M, f"Route {i} on", EXACT, widget="pills",
+                hint=f"Route {i} on, or bypassed: off keeps its source, target, "
+                     "amount and curve but moves nothing.")),
             (f"{s}_src", _ui(_M, f"Route {i} source", _slot_gate(s),
                 widget="select", option_labels=MOD_SOURCE_LABELS)),
             (f"{s}_dst", _ui(_M, f"Route {i} target", EXACT, widget="select")),
             (f"{s}_amt", _ui(_M, f"Route {i} amount", EXACT)),
+            # the curve on the source, before the amount (synth.route_curve)
+            (f"{s}_curve", _ui(_M, f"Route {i} curve", EXACT,
+                hint=f"Bends route {i}'s source before its amount: up, it rises "
+                     "early; down, late; 0 leaves it as it is.")),
         )
     ],
 

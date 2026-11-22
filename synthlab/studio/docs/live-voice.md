@@ -605,7 +605,10 @@ voice's to the last f32 bit on every one.
   / 2. The new targets reach what the module reads: `WP` (wt_pos), `FA`
   (cross FM — a route switches the cross path on), `IX` (fm index), `E1..E4`
   (the fm4 levels); filter 2's cutoff / resonance and the vowel at the
-  block start (`BLOCK_RATE`).
+  block start (`BLOCK_RATE`). A bypassed slot (`modN_on` "off") is not
+  wired, as `params.slot_active` refuses it; a slot's curve (`modN_curve`)
+  bends the source in `route()` before its amount, by `synth.route_curve`'s
+  arithmetic (`ROUTE_K` = `ROUTE_CURVE_K`).
 
 Cost, 16 voices at 48 kHz (an x86-64 desktop, the bench's harness over hand-made
 variants), JS / WebAssembly: the default ladder 5.2 / 3.8 %, low 12 4.4 /

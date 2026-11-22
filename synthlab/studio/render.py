@@ -28,6 +28,7 @@ from ..effects import chain as fx_chain
 from ..effects import limit as fx_limit
 from ..effects import pan as fx_pan
 from ..effects import to_stereo
+from ..params import MOD_SLOTS
 from ..sequencer import Song
 from ..synth import Patch, Synth
 from .arrange import (
@@ -409,6 +410,10 @@ KEY_ADDED_FIELDS = {
         for k in (1, 2, 3)
         for part in ("warp2", "warp2_amt")
     },
+    # each route's switch and source curve: "on" and 0 are the route as it
+    # always was
+    **{f"{s}_on": "on" for s in MOD_SLOTS},
+    **{f"{s}_curve": 0.0 for s in MOD_SLOTS},
 }
 
 

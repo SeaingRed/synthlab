@@ -16,7 +16,8 @@
 //    to jack patches: source -> target takes the first unused slot (and
 //    gives it +50 % if its amount is 0); from a plugged target to another
 //    re-routes that lead; from a plugged target to nowhere unplugs it. The
-//    row's ± and ✕ buttons invert and unplug.
+//    row's ± and ✕ buttons invert and unplug; a bypassed route (its switch,
+//    `modN_on`, off) keeps its lead, faint.
 // 2. `.player` (a shared component, style.css section 15): play / pause, a
 //    seek bar, the time and (`.player-loop`, when it has one) loop on / off
 //    for a control-less <audio> — the Voice take, the
@@ -42,7 +43,9 @@
 //    it, and one opened or touched stays open for the page's life, so
 //    nothing folds under the hand. No state: the patch says what rests.
 // 146 -> 188: the sections at rest.
-// Budget: <= 188 code lines.
+// 188 -> 190: a route's switch — a bypassed route's lead is drawn faint,
+// and a lead dropped into a bypassed free slot switches it on.
+// Budget: <= 190 code lines.
 
 (() => {
   "use strict";
@@ -55,14 +58,16 @@
   const field = (slot, k) => document.querySelector(`:is(#patch, .patch-panel) [name="${slot}_${k}"]`);
   const routes = () => [...document.querySelectorAll("#mod-matrix .route")].map((r) => {
     const slot = r.dataset.slot;
-    return { slot, src: field(slot, "src")?.value || "none", dst: field(slot, "dst")?.value, amt: +field(slot, "amt")?.value || 0 };
+    return { slot, src: field(slot, "src")?.value || "none", dst: field(slot, "dst")?.value, amt: +field(slot, "amt")?.value || 0,
+      off: !!document.querySelector(`:is(#patch, .patch-panel) [name="${slot}_on"][value="off"]:checked`) };
   });
+  const switchOn = (slot) => { const on = document.querySelector(`:is(#patch, .patch-panel) [name="${slot}_on"][value="on"]`); if (on && !on.checked) { on.checked = true; fire(on, "input", "change"); } };
   const set = (el, v) => { if (el && el.value !== v) { el.value = v; fire(el, "input", "change"); } };
-  function lead(a, z, { src, amt = 0, slot = "" }, cls = "") {
+  function lead(a, z, { src, amt = 0, slot = "", off = false }, cls = "") {
     const sag = Math.min(24, 6 + Math.abs(z[0] - a[0]) * 0.12), dx = z[0] - a[0];
     const d = `M${a[0]} ${a[1]}C${a[0] + dx * 0.3} ${a[1] + sag} ${a[0] + dx * 0.7} ${z[1] + sag} ${z[0]} ${z[1]}`;
     const text = slot ? `<text x="${a[0] + dx / 2}" y="${(a[1] + z[1]) / 2 + sag * 0.75 - 3}">${amt > 0 ? "+" : ""}${Math.round(amt * 100)}%</text>` : "";
-    return `<g class="cable${amt < 0 ? " neg" : ""}${cls}" data-signal="mod" data-src="${src}" data-slot="${slot}"><path d="${d}"/><circle cx="${a[0]}" cy="${a[1]}" r="2.2"/><circle cx="${z[0]}" cy="${z[1]}" r="2.2"/>${text}</g>`;
+    return `<g class="cable${amt < 0 ? " neg" : ""}${off ? " off" : ""}${cls}" data-signal="mod" data-src="${src}" data-slot="${slot}"><path d="${d}"/><circle cx="${a[0]}" cy="${a[1]}" r="2.2"/><circle cx="${z[0]}" cy="${z[1]}" r="2.2"/>${text}</g>`;
   }
   function draw(drag) {
     const b = bay(), box = b?.getBoundingClientRect();
@@ -94,7 +99,7 @@
     if (!to || !src || !dst || rs.some((r) => r.src === src && r.dst === dst)) return;
     const slot = rs.find((r) => r.src === "none")?.slot;
     if (!slot) return void S.toast?.("All twelve routes are in use — unplug one (✕) first", "error");
-    set(field(slot, "dst"), dst); set(field(slot, "src"), src);
+    set(field(slot, "dst"), dst); set(field(slot, "src"), src); switchOn(slot); // a new lead plays
     if (!+field(slot, "amt").value) S.tweak?.(field(slot, "amt"), 0.5, true);
   }
   let pull = null;
