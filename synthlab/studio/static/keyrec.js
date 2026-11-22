@@ -66,10 +66,20 @@
 //   and ends where ■ is pressed (never past the clip cap), its audio cut
 //   to that. POST /take/keys/free (the arp's notes flagged: a fifth item
 //   1); the answer's `free-shape` opens the shaper (shaper.js).
-// Budget: <= 260 code lines (110 -> 180: the key bus, takes
+// - What was TURNED during a take (S.keyMove, takemoves.py): every Patch
+//   control's `input` (a slider or knob dragged, stepped, typed, a deck dial
+//   or a MIDI-learned CC: all end in that event; a select or pills too, said
+//   as not recorded), a macro knob, an FX unit's slider (said as not
+//   recorded: a loop has no FX lanes), the XY pad's axes and the pitch bend,
+//   mod wheel and aftertouch (piano.js) — stamped on the take's beats as its
+//   notes are, at most a point each 1/50 beat, and posted beside them
+//   (`moves`: the live patch's values at the downbeat, then the moves).
+//   The loop keeps them as curves; the session's sound stays as left.
+// Budget: <= 280 code lines (110 -> 180: the key bus, takes
 // on the loop's bars, their notes, ▶ in time — kept in this island;
 // 190 -> 250: Rec into the selected slot, ⟲ Capture, the arp's
-// print; 250 -> 260: free record — a take is this island's).
+// print; 250 -> 260: free record — a take is this island's; 260 -> 280:
+// the controls turned during a take, S.keyMove — the take's clock is here).
 
 (() => {
   "use strict";
@@ -188,7 +198,8 @@
     src.connect(tap);
     const r = (rec = { at, beat, bar, lag, bars, most, len: bars * bar, grid: line != null || !!bars, beatToo: withBeat(),
       src, tap, media, began: c.currentTime, chunks: [], notes: [], held: new Map(), timers: [], nodes: [],
-      view: $("view")?.dataset.view, to: loose ? null : into(), free: loose }); // (a free take's slot is Make loop's)
+      view: $("view")?.dataset.view, to: loose ? null : into(), free: loose, // (a free take's slot is Make loop's)
+      moves: {}, from0: { ...(S.piano?.patch?.() || {}) } }); // the controls turned, and the live patch at the start
     r.from = r.to && line != null ? S.loopBar?.(at) : 0; // the loop's bar the take begins on (an overdub folds from it)
     media.ondataavailable = (e) => r.chunks.push(e.data);
     media.onstart = () => { r.began = c.currentTime; };
@@ -238,6 +249,32 @@
     const n = { start: Math.max(0, t), midi, vel: typeof vel === "number" ? Math.min(1, Math.max(0, vel)) : 1, arp: !!own };
     r.notes.push(n); r.held.set(id, n);
   };
+  // a control turned (the input listener below; piano.js: the XY pad, the
+  // wheels): before the downbeat it sets where the take starts from
+  const GESTURE = new Set(["pitch_bend", "mod_wheel", "aftertouch"]);
+  S.keyMove = (name, v) => {
+    const r = rec;
+    if (!r || r.free || !Number.isFinite(v)) return;
+    const t = r.at == null ? -1 : heardIn(r) / r.beat;
+    if (t < 0 && !GESTURE.has(name)) { if (name in r.from0) r.from0[name] = v; return; }
+    if ((r.len && t >= r.len / r.beat) || (r.cut != null && t >= r.cut)) return;
+    const m = r.moves[name] ?? (Object.keys(r.moves).length < 32 ? (r.moves[name] = []) : null); // limits.MAX_TAKE_MOVE_FIELDS
+    const last = m?.[m.length - 1], at = Math.max(0, t);
+    if (last && at - last[0] < 0.02) last[1] = v;
+    else if (m && m.length < 4000) m.push([r3(at), v]); // limits.MAX_TAKE_MOVE_POINTS
+  };
+  document.addEventListener("input", (e) => {
+    const el = e.target, id = el?.id || "";
+    if (!rec || !(el instanceof Element)) return;
+    const range = el.type === "range";
+    if (range && id.startsWith("p-")) S.keyMove(id.slice(2), el.dataset.log ? S.logVal(el) : +el.value);
+    else if (range && id.startsWith("macro-")) S.keyMove(`macro:${id.slice(6)}`, +el.value);
+    else if (range && id.startsWith("fx-")) S.keyMove(`fx:${id.split("-").pop()}`, +el.value);
+    else if (el.form?.id === "patch" && el.name && !range) S.keyMove(el.name, el.selectedIndex ?? +el.checked);
+  }, true);
+  const movesOf = (r) => JSON.stringify({ moves: r.moves,
+    from: Object.fromEntries(Object.keys(r.moves).filter((k) => typeof r.from0[k] === "number").map((k) => [k, r.from0[k]])) });
+
   // ---- ⟲ Capture: every note the keys sounded lately, Rec or not --------------------
   const heard = [], sounding = new Map(); // {t, end, midi, vel, arp}, in loop time; id -> its note
   function hear(id, midi, vel, at, own) {
@@ -296,7 +333,8 @@
 
   async function post(r, cut) {
     const form = new FormData(), asked = stamp(), bars = r3(r.len / r.bar), notes = notesOf(r);
-    const fields = { name: asked, bpm: String(r3(60 / r.beat)), bars: String(bars), notes: JSON.stringify(notes), beat: r.beatToo ? "1" : "" };
+    const fields = { name: asked, bpm: String(r3(60 / r.beat)), bars: String(bars), notes: JSON.stringify(notes), beat: r.beatToo ? "1" : "",
+      ...(Object.keys(r.moves).length && !r.free ? { moves: movesOf(r) } : {}) };
     // (a page change ended it: the slot is the Loops page's, so it lands free)
     for (const [k, v] of Object.entries({ ...fields, ...(r.left ? {} : slotFields(r.to, r.from)) })) form.append(k, v);
     form.append("file", S.wavEncode(cut, 2, cap(r)), "take.wav");

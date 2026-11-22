@@ -32,7 +32,7 @@ import copy
 from dataclasses import replace
 
 from ...synth import Patch
-from .. import limits, schema
+from .. import limits, notefeel, schema
 from .. import patternops as po
 from .model import (
     DRUM_LANE,
@@ -290,7 +290,10 @@ class Slots:
         without one plays every note: none is left from what was there)."""
         chance = dict(fields.get("note_chance") or {})
         if lane == self.active_layer:
-            own = {k: copy.deepcopy(fields.get(k) or {}) for k in ("note_nudge",)}
+            own = {
+                k: copy.deepcopy(fields.get(k) or {})
+                for k in ("note_nudge", "note_feel")
+            }
             own |= {k: copy.deepcopy(fields[k]) for k in NOTE_LANE[2:] if k not in own}
             self.arrangement = replace(self.arrangement, **own, note_chance=chance)
             return
@@ -300,6 +303,9 @@ class Slots:
         seq.pop("note_nudge", None)  # timing inside a step: absent when unset
         if fields.get("note_nudge"):
             seq["note_nudge"] = dict(fields["note_nudge"])
+        seq.pop("note_feel", None)  # a note's own feel: likewise
+        if fields.get("note_feel"):
+            seq["note_feel"] = copy.deepcopy(fields["note_feel"])
         seq.pop("note_chance", None)
         seq |= {"note_chance": chance} if chance else {}
         lay |= {"cells": [list(c) for c in fields["cells"]], "seq": seq}
@@ -326,6 +332,7 @@ class Slots:
                     "velocities": po.repeat_lane(f["velocities"], was, total),
                     "slides": po.repeat_steps(f["slides"], was, total),
                     "note_nudge": po.repeat_lane(f.get("note_nudge") or {}, was, total),
+                    "note_feel": notefeel.repeat(f.get("note_feel") or {}, was, total),
                     "note_chance": po.repeat_lane(f["note_chance"], was, total),
                 }
             self._put_lane(lane, f)

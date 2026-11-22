@@ -410,7 +410,9 @@ pattern undo and the pool need nothing of their own for the roll. (One
 more lane sits the same way: **timing
 inside a step**, `note_nudge`, which only free record's loops write —
 "Free record and the shaper" below. No gesture writes it; every tool
-carries it with its note's start step, as a velocity.) What each
+carries it with its note's start step, as a velocity. And one lane is
+per NOTE: **a note's own feel**, `note_feel`, which a take's loop writes —
+"A note's own feel" below; the tools carry it with its note.) What each
 gesture becomes:
 
 | Gesture | Becomes | Through |
@@ -426,6 +428,7 @@ gesture becomes:
 | ½× / 2× | each note's length halved (at least a step) or doubled (to the next note on its row, or the grid's end); starts never move | `…/notes/half`, `double` |
 | a stamp | the in-key chord on the clicked row (`STAMPS`: triad, 7th, 9th, sus2, sus4, power — scale steps up `key_ladder`) as simultaneous notes of the chosen length; in the drawer also "chord track": the tones `chordtrack.resolve` holds under that step, root position from the nearest root at or below the row. A tone the window has no row for is left out, and the toast says how many | `…/notes/stamp` (`row`, `step`, `q`, `len`) |
 | ◀ ▶ ▲ ▼ ±8va with a selection | the same `move` (an octave = however many rows of the window an octave is); without one they are the pattern tools (the whole window; shift wraps) | `…/notes/shift_left` … with `sel` |
+| snap | each note (each selected note) loses its own feel (`note_feel`) and plays as a grid note again: its step's timing and velocity, gated | `…/notes/snap` |
 
 `…` is `/fragment/pattern` on Perform (`@pattern_edit`: one pattern-undo
 step) and `/song/pattern/{id}/tool/` in the drawer (one song-undo step;
@@ -483,6 +486,87 @@ form that does not carry the field leaves the value alone
 (`routes/patch._merge_arrangement`). It is a feel setting like the swing
 beside it: not a pattern undo step. The stamp still writes simultaneous
 notes; the lane's strum spreads them.
+
+### A note's own feel (a take as played)
+
+The owner's ask: a take recorded on the keys plays back exactly as it was
+played — the same presses at the same times, as long and as hard — and
+every press can then be adjusted on the grid. The grid stays a step grid;
+beside its cells a note lane holds, **per note**, what the steps cannot
+(`Arrangement.note_feel`, `studio/notefeel.py`,
+`tests/studio/test_note_feel.py`):
+
+    "<pitch>.<step>": [start, end, share]
+
+keyed by the note's row and its start step: `start` where it starts from
+its step's line (-0.5..0.5 of a step), `end` where it ends from its run's
+END line (the line after its last cell, -1.5..0.5, no gate), `share` its
+velocity as a share of its start step's (the step holds the loudest note
+starting there, so the velocity lane and its tools still move a chord as
+one and keep its balance). **Absent when unset** (`schema.ARR_OPTIONAL`, a
+pattern's and a loop file's optional key, a slot's `seq`): no saved state,
+loop, song, key or render moved, and `RENDER_REV` did not. A key that
+names no note's start is dropped wherever a lane is written down
+(`schema.clean_feel`: a note erased, drawn over, merged into the cell
+before it); a hostile one is conformed (`limits.MAX_FEEL_NOTES`, a real
+pitch, a grid step, three finite numbers clamped).
+
+- **One schedule.** `arrange._lane_timeline` plays a felt note where it
+  was played — its start `(step + start)` steps in, held `run + end -
+  start` steps (never under 1/64), at `share` of its step's velocity — and
+  **no swing, no step nudge and no NOTE_GATE**: the timeline's `dur` is its
+  held length over `NOTE_GATE`, so every reader of the timeline (the gate,
+  a mono / legato line, the MIDI file's note-off) gets that length back.
+  Start and length are rounded to a billionth of a beat, so a take's own
+  decimals come back as the very floats it posted. A lane with feel takes
+  the timeline path (`_uses_timeline`). An arp ignores it (as the nudge,
+  `notefeel.of`); a strum still spreads notes that start together (felt
+  ones rarely do); the chance lane rests a felt note whole; a slide on its
+  start step still glides; a following layer plays the main lane's feel at
+  its octave (`follow_layer`, `notefeel.shifted`); a layer slot keeps its
+  own (`seq`, `song_bridge.lane_render` on its notes' starts).
+- **Sections and patterns** carry it as cells (`song.md`, "Patterns carry
+  timing and chance"): tiled, cropped, regridded onto a finer grid
+  (dropped onto a coarser one), in `songops`' windows, the launcher's
+  windows and regrids, pattern undo. A note felt early onto a chunk's
+  first line plays in the chunk before (`song_model._window_notes`).
+- **Every tool carries it with its note**: shift, reverse (onto the
+  mirror image's start, early for late: `notefeel.reverse`), ×2, transpose,
+  move, copy / paste / dup (the copy keeps it), a hand resize, legato, ½× /
+  2× (the start and velocity kept, the end SNAPS to its new line — a length
+  set by hand is on the steps, with no gate), remove (gone with its note), a
+  stamp over it (fresh notes have none), the velocity tools (untouched: the
+  share rides the step), clear and tidy (cleaned), **snap** (the roll's
+  button: back on the grid), Q (100 % clears it; below, placed again from
+  `played`). A cell painted after a felt note lengthens it, and its release
+  keeps its place against the new end line.
+- **The roll draws it** on the cells it already has (`notefeel.marks`,
+  grids.html `feel_marks`): the start cell `felt-s`, off its step line by
+  `--fs` of a cell (`translate`), its edge lit; the last cell `felt-e`, the
+  share `--fe` of it past where the note was let go painted as the roll (a
+  background layer: no clip, no opacity, so no cell gains a layer of its
+  own); let go past the line, its end handle in the signal colour
+  (`felt-past`); a title in words (how late or early, how far before or
+  past the line, the share of the step's velocity). Measured
+  (`tests/browser/test_take_feel.py`): a 16-bar chromatic grid, 6,400 cells
+  and 177 felt notes, restyles and lays out in 552-558 ms against 546-582
+  ms on the steps (noise); the Perform page is 1.097 MB against 1.054 MB
+  and renders in 158 against 148 ms on the server.
+- **The proof** (`tests/studio/test_take_exact.py`): a take — a chord of
+  mixed velocities struck apart, releases between the steps, a note over a
+  bar line, a staccato note, a downbeat played early onto a chunk's line,
+  a bend and a cutoff sweep — renders in its loop (▶), its Edit and its
+  chunked → Song section as `Song.notes` renders the raw events (each held
+  its own length, at its own velocity): ▶ and Edit one render, within one
+  16-bit step of it (measured 0 but float rounding); the section within
+  one 16-bit step without a curve, within 2e-3 (measured 1.4e-3) where its
+  chunks read the cropped curves; the knob as turned against the curve
+  kept, within 3e-3 (2.2e-3: the curve's samples sit at i / (n - 1) of the
+  loop). One difference is left, not built (the strict xfail there): the
+  early downbeat, sounding in the chunk before past its last line, reads a
+  drawn curve frozen at that line (0.106 under the moving cutoff) — as any
+  note held over a seam already does; reading cycle-long curves per chunk
+  moves every chunked section with a curve, a `RENDER_REV` call.
 
 ### Tools
 
@@ -861,7 +945,7 @@ clip (`studio/loops.py`, `studio_data/loops/<name>.json`,
 
 | key | what |
 |---|---|
-| `arr` | the note lane (bars, steps a bar, cells, cuts, velocities, slides), the tempo, the key and the meter — `state.model.LOOP_FIELDS` |
+| `arr` | the note lane (bars, steps a bar, cells, cuts, velocities, slides; each note's own feel, `note_feel`, when it has one), the tempo, the key and the meter — `state.model.LOOP_FIELDS` |
 | `sound` | the whole sound that played it, with its layers (a format-2 preset's body) |
 | `take` | the clip of its audio (absent on an older loop file, or one saved from the lane until it is rendered) |
 | `played` | the notes **exactly as played**, `[start, length, midi, velocity]` in beats from the take's first downbeat — never rewritten; the arp's notes as they sounded |
@@ -888,20 +972,22 @@ meter; **no triplets**, which the note grid has no steps for in a duple
 meter) — the meter's sixteenths first. The **strength** says how much of
 its timing a note keeps (`loops._spans`, `tests/studio/test_loops.py`):
 
-- **100** (the default): every note on its nearest step, held for its
-  length in whole steps (at least one) — on the steps, no timing inside
-  one (a loop placed at 100 is the grid it always was).
-- **below 100, the timing as played** (free record's rule, `place_free`):
-  each note heard where `shaped_start` puts it — `strength`% of the way to
-  its nearest line, **0 = exactly as played** — on the step nearest that,
-  the rest of its start that step's **`note_nudge`** (a share of a step,
-  -0.5..0.5: "Free record and the shaper", "Timing inside a step on the
-  note grid"; the notes starting on one step share the mean, as they share
-  a velocity — a rolled chord on one step is one start). **A held note
-  keeps its length to the step**: its end on the step line nearest where
-  it ended as played (at least one step), and the render moves only its
-  start, so it releases where it was released. The roll draws a nudged
-  start off its step line. When nothing was played past the grid the
+- **as played, 0** (the default for a take's loop — ⏺ Rec, ⟲ Capture, a
+  take's first action): every note on its nearest step **with its own
+  feel** (`note_feel`, "A note's own feel" above): where it started off
+  that line, where it ended (its cells running to the line nearest that,
+  at least one step) and its share of the step's velocity — the step
+  holding the loudest note starting there exactly, not rounded through
+  MIDI. A note cut short of where it was let go (by the grid's end, or the
+  next note on its row) ends on its cut line.
+- **25, 50, 75**: the start and the end each pulled that share of the
+  way to their nearest lines, the rest kept as the note's feel; velocities
+  as played.
+- **100**: every note on its nearest step, held for its length in whole
+  steps (at least one) — on the steps, no feel (a loop placed at 100 is
+  the grid it always was). Free record's loops (`place_free`) still keep
+  their timing as the step's `note_nudge` ("Free record and the shaper"),
+  held to the step. When nothing was played past the grid the
   loop is a circle: a note played early onto the grid's end line is its
   first step, early, which the render wraps to the end (as a free loop's).
   So **Q "as played" plays back like the take**: the grid, the render, ▶

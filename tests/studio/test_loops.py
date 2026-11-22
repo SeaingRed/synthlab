@@ -95,40 +95,50 @@ def test_a_take_is_kept_with_its_loop_the_notes_as_played_and_placed(client):
     # the nearest step: A1 on 0, C2 on 4 (beat 2), E2 on 16 (bar 2)
     assert ("A1", 0) in _cells(lane) and ("C2", 4) in _cells(lane)
     assert ("E2", 16) in _cells(lane)
-    assert loop["quantise"] == 100 and loop["edited"] is False
+    # as played, unasked: each note on its nearest step with its own feel
+    # (`note_feel`) — where it starts and ends between the lines
+    assert loop["quantise"] == 0 and loop["edited"] is False
+    assert lane["note_feel"]["C2.4"] == [-0.16, -0.16, 1.0]
     assert loop["key"]["bpm"] == 120
     assert loop["sound"] is not None  # the sound that played it
 
 
-def test_the_strength_keeps_each_notes_timing_inside_its_step_below_100():
+def test_the_strength_keeps_each_notes_feel_below_100():
     late, early = [[0.06, 0.25, 60, 1]], [[0.96, 0.25, 62, 1]]  # 0.24 / 3.84 steps
 
     def placed(notes, q):
         lane = loops.place(notes, "4/4", 1, 16, q)
-        return sorted(int(s) for _p, s in lane["cells"]), lane["note_nudge"]
+        return sorted(int(s) for _p, s in lane["cells"]), lane["note_feel"]
 
-    # 100: on the nearest step, no timing inside one (as it always was)
+    # 100: on the nearest step, no feel of its own (as it always was)
     assert placed(late, 100) == ([0], {}) and placed(early, 100) == ([4], {})
-    # as played (0): the nearest step, the rest of its timing that step's
-    # `note_nudge` (free record's rule, `place_free`) — a hair late on 0, a
-    # hair early on beat 2
-    assert placed(late, 0) == ([0], {"0": 0.24})
-    assert placed(early, 0) == ([4], {"4": -0.16})
-    # between: pulled that share of the way to the step, the rest kept
-    assert placed(early, 50) == ([4], {"4": -0.08})
-    assert placed(early, 25) == ([4], {"4": -0.12})
-    # a held note keeps its length to the step: its end on the line nearest
-    # where it ended (0.4 + 3.4 steps ends at 3.8: four steps, not three)
+    # as played (0): the nearest step, and the note's own feel — where it
+    # starts from its step's line, where it ends from its run's end line, its
+    # share of the step's velocity — a hair late on 0, a hair early on beat 2
+    assert placed(late, 0) == ([0], {"C4.0": [0.24, 0.24, 1.0]})
+    assert placed(early, 0) == ([4], {"D4.4": [-0.16, -0.16, 1.0]})
+    # between: start and end pulled that share of the way to their lines
+    assert placed(early, 50) == ([4], {"D4.4": [-0.08, -0.08, 1.0]})
+    assert placed(early, 25) == ([4], {"D4.4": [-0.12, -0.12, 1.0]})
+    assert loops.place(early, "4/4", 1, 16, 0)["note_nudge"] == {}
+    # a held note runs to the line nearest where it ended (0.4 + 3.4 steps
+    # ends at 3.8: four steps) and is let go 0.2 before it
     held = [[0.1, 0.85, 64, 1]]
-    assert placed(held, 0) == ([0, 1, 2, 3], {"0": 0.4})
+    assert placed(held, 0) == ([0, 1, 2, 3], {"E4.0": [0.4, -0.2, 1.0]})
     assert placed(held, 100)[0] == [0, 1, 2]
     # played early onto the grid's end line: its first step, early (the
     # render wraps it to the end, where it was played) — a loop is a circle
     pickup = [[0, 1, 60, 1], [3.95, 0.05, 64, 1]]  # 15.8 steps of 16
-    cells, nudge = placed(pickup, 0)
+    cells, feel = placed(pickup, 0)
     assert ["E4", 0] in loops.place(pickup, "4/4", 1, 16, 0)["cells"]
-    assert nudge == {"0": -0.1}  # the mean of C4's 0 and E4's -0.2
+    assert feel["E4.0"] == [-0.2, -1.0, 1.0]  # 0.05 beats: 0.2 of a step
     assert ["E4", 0] not in loops.place(pickup, "4/4", 1, 16, 100)["cells"]
+    # a chord of mixed velocities: the step holds the loudest exactly, each
+    # note its share of it
+    chord = [[0, 1, 60, 0.9], [0.01, 1, 64, 0.45]]
+    lane = loops.place(chord, "4/4", 1, 16, 0)
+    assert lane["velocities"] == {"0": 0.9}
+    assert lane["note_feel"]["E4.0"] == [0.04, 0.04, 0.5]
     # the rate: eighths in 4/4, and in 3/4 the meter's own steps
     assert loops.place(early, "4/4", 1, 8, 100)["cells"] == [["D4", 2]]
     assert [n for n, _w in loops.rates("3/4")] == [3, 6, 12, 24]
@@ -248,10 +258,11 @@ def test_quantise_places_the_notes_as_played_again_and_the_grid_follows(client):
     loop = loops.load(s.data_dir, "keys-1")
     # on its step, a hair early: the timing inside the step kept
     assert ("C2", 4) in _cells(loop["lane"])
-    assert loop["lane"]["note_nudge"] == {"0": 0.08, "4": -0.16}
+    feel = {"A1.0": [0.08, 0.08, 1.0], "C2.4": [-0.16, -0.16, 1.0]}
+    assert loop["lane"]["note_feel"] == feel | {"E2.16": [0.0, 0.0, 1.0]}
     assert loop["quantise"] == 0 and loop["played"] == NOTES
     assert ("C2", 4) in [(p, int(st)) for p, st in s.arrangement.cells]
-    assert s.arrangement.note_nudge == {"0": 0.08, "4": -0.16}
+    assert s.arrangement.note_feel == loop["lane"]["note_feel"]
     client.post(
         "/loop/quantise",
         data={"name": "keys-1", "steps": "8", "strength": "100"},
@@ -259,6 +270,7 @@ def test_quantise_places_the_notes_as_played_again_and_the_grid_follows(client):
     )
     loop = loops.load(s.data_dir, "keys-1")
     assert loop["lane"]["steps_per_bar"] == 8 and ("C2", 2) in _cells(loop["lane"])
+    assert loop["lane"]["note_feel"] == {} == s.arrangement.note_feel  # on the steps
     assert loop["edited"] is False  # placed, not edited by hand
     # a rate the meter has not, a strength past 100: refused, nothing moved
     for bad in ({"steps": "12"}, {"strength": "101"}, {"steps": "x"}):
@@ -780,15 +792,18 @@ def test_to_song_lays_out_every_bar_played_a_section_each_grid(client):
 def test_as_played_the_timing_reaches_the_rest_and_the_song(client):
     """Below 100 the bars past the grid keep their timing too (`rest_lanes`:
     a note held over a lane's line starts again on it), and → Song's
-    patterns carry every lane's `note_nudge`."""
+    patterns carry every lane's `note_feel`."""
     (lane,) = loops.rest_lanes(LONG, "4/4", 16, 16, 0)
-    assert lane["note_nudge"] == {"20": 0.04}  # beat 69.01: a hair late
-    assert loops.rest_lanes(LONG, "4/4", 16, 16, 100)[0]["note_nudge"] == {}
+    assert lane["note_feel"]["A3.20"] == [0.04, 0.04, 1.0]  # beat 69.01: late
+    # the chord held over the line starts again on it, and ends where it did
+    assert lane["note_feel"]["C3.0"] == [0.0, 0.0, 1.0]
+    assert loops.rest_lanes(LONG, "4/4", 16, 16, 100)[0]["note_feel"] == {}
     name = unquote(_take(client, notes=LONG, bars="18").headers["X-Loop-Name"])
     s = _st(client)
     client.post("/loop/quantise", data={"name": name, "strength": "0"}, headers=PERFORM)
     loop = loops.load(s.data_dir, name)
-    assert loop["lane"]["note_nudge"] == {}  # the grid's notes are all on lines
+    # the chord held over the grid's last line ends on it (cut there)
+    assert loop["lane"]["note_feel"]["C3.252"] == [0.0, 0.0, 1.0]
     client.post("/loop/song", data={"name": name}, headers=PERFORM)
     first, second = s.song["sections"]
     pats = [
@@ -797,7 +812,10 @@ def test_as_played_the_timing_reaches_the_rest_and_the_song(client):
         for p in sec["cells"].values()
         if p
     ]
-    assert [p.get("note_nudge", {}) for p in pats] == [{}, {"20": 0.04}]
+    assert [p.get("note_feel", {}) for p in pats] == [
+        loop["lane"]["note_feel"],
+        lane["note_feel"],
+    ]
 
 
 # --- like for like: ▶, Edit and → Song hear the same loop ---------------------------
@@ -839,7 +857,7 @@ def _three_renders(client, own_cells, *, follow=True, curve=True):
     r = client.post("/loop/quantise", data={"name": name, "strength": "0"})
     assert r.status_code == 200
     loop = loops.load(s.data_dir, name)
-    assert loop["lane"]["bars"] == 8 and loop["lane"]["note_nudge"]
+    assert loop["lane"]["bars"] == 8 and loop["lane"]["note_feel"]
     extras = loop["sound"][1]
     assert len(extras["layers"]) == 1 + follow and extras["main_fx"]
     assert bool(extras["curves"]) == curve
@@ -847,7 +865,7 @@ def _three_renders(client, own_cells, *, follow=True, curve=True):
     played = takes._render_loop(svc, loop).audio()
     r = client.post("/loop/edit", data={"name": name}, headers=PERFORM)
     assert r.status_code == 200
-    assert s.arrangement.note_nudge == loop["lane"]["note_nudge"]
+    assert s.arrangement.note_feel == loop["lane"]["note_feel"]
     edited = svc.render("perform", parts=("synth",)).audio()
 
     r = client.post("/loop/song", data={"name": name}, headers=PERFORM)
@@ -856,7 +874,7 @@ def _three_renders(client, own_cells, *, follow=True, curve=True):
     (sec,) = song["sections"]
     pats = [song["patterns"][p] for p in sec["cells"].values() if p]
     assert len(pats) == 2 + follow and sec["bars"] == 8
-    assert any(p.get("note_nudge") == loop["lane"]["note_nudge"] for p in pats)
+    assert any(p.get("note_feel") == loop["lane"]["note_feel"] for p in pats)
     raw = svc.section_result(song, 0, loop=True, gain=0.25, master_fx=master)
     heard = render._normalize(raw.audio() / 0.25)[0]
     return played, edited, heard
@@ -864,7 +882,8 @@ def _three_renders(client, own_cells, *, follow=True, curve=True):
 
 def test_like_for_like_play_edit_and_song_render_the_same_loop(client):
     """A loop's ▶, its Edit on the grid and its → Song section render the
-    same notes — the timing as played (`note_nudge`) — in the same sound:
+    same notes — as played, each with its own feel (`note_feel`) — in the
+    same sound:
     its patch, a following layer, a layer with notes of its own, the main
     lane's FX (the layer's copy too) and a curve. ▶ and Edit are one
     render; the section is the same samples, up to the 16-bit WAVs."""

@@ -76,7 +76,10 @@ and a layer's dict carries its own the same way
 record's loops: `arrange.nudge_of` — set, and no arp; a
 layer's only on its note steps): no key of a loop without one moved, and
 `RENDER_REV` did not (`tests/studio/test_render_cache_keys.py`,
-"timing inside a step").
+"timing inside a step"). **And each note's own feel** (`note_feel`, a
+take as played: `notefeel.of` — set, and no arp; a layer's only on its
+notes' starts, `song_bridge.lane_render`): absent from every key of a lane
+without one (`tests/studio/test_note_feel.py`).
 **A loop with chance is several passes** (`RenderInputs.passes`:
 `song_model.loop_passes` at the end of `svc.render_inputs`
 tiles a loop whose lanes hold a chance lane to `LOOP_CHANCE_PASSES`

@@ -37,7 +37,7 @@ from typing import Any
 
 from ..core import SR, n_samples
 from ..sequencer import SCALES, midi, name_of
-from . import limits, schema
+from . import limits, notefeel, schema
 from . import meter as _meter
 from .curves import (
     FX_LANES,
@@ -1576,15 +1576,33 @@ class SectionParts:
         at = clock.bar_sample(b0)
         whole = (b0, b1) == (0, f.cycle_bars)
         drums, hits = _window_drums(a, b0 * ds, b1 * ds, f.cycle_bars * ds)
+        cells, vels, feel = _window_notes(
+            a.cells,
+            a.cuts,
+            a.velocities,
+            a.note_feel,
+            f.breaks,
+            lo,
+            hi,
+            whole,
+            f.cycle_bars * s,
+        )
+        nxt = hi % (f.cycle_bars * s)
+        if (
+            not whole
+            and str(nxt) in a.velocities
+            and any(lay.get("note_feel") for lay in f.layers)
+        ):  # a layer playing the main lane's velocities moves its own too
+            vels[str(hi - lo)] = a.velocities[str(nxt)]
         arr = replace(
             a,
             # a ramp, seen from the window's first bar
             ramp=list(clock.window(b0).ramp),
             bars=b1 - b0,
             drum_bars=b1 - b0,
-            cells=_crop_runs(a.cells, lo, hi, f.breaks, a.cuts),
+            cells=cells,
             cuts=[[c[0], int(c[1]) - lo] for c in a.cuts if lo <= int(c[1]) < hi],
-            velocities=_crop_keys(a.velocities, b0 * s, b1 * s),
+            velocities=vels,
             slides=[x - b0 * s for x in a.slides if b0 * s <= x < b1 * s],
             drums=drums,
             drum_vel=_crop_keys(a.drum_vel, b0 * ds, b1 * ds),
@@ -1592,13 +1610,17 @@ class SectionParts:
             clips=[],
             note_nudge=_crop_nudge(a.note_nudge, lo, hi, whole),
             note_chance=_crop_keys(a.note_chance, lo, hi),
+            note_feel=feel,
         )
         c = f.cycle_bars
         return replace(
             f,
             arr=arr,
             curves={k: _crop_curve(v, b0 / c, b1 / c) for k, v in f.curves.items()},
-            layers=tuple(_crop_layer(lay, lo, hi, at, whole) for lay in f.layers),
+            layers=tuple(
+                _crop_layer(lay, lo, hi, at, whole, f.cycle_bars * s)
+                for lay in f.layers
+            ),
             auto=_auto_from(f.auto, at),
             cycle_bars=b1 - b0,
             breaks=tuple(b - lo for b in f.breaks if b > lo),
@@ -1972,6 +1994,8 @@ def _flat(
         # for a lane without them, so no key gains them
         note_nudge=_tile_keys(a.note_nudge, main_p, cycle * s, lo, hi),
         note_chance=chance_tile(a.note_chance, main_p, cycle * s, lo, hi),
+        # each note's own feel follows it (empty for a lane without)
+        note_feel=notefeel.tile(a.note_feel, main_p, cycle * s, lo, hi),
     )
     gate = (lo, hi) if where.get("main") else ()
     return replace(
@@ -2131,6 +2155,8 @@ def _tile_layer(lay: dict, period: int, total: int, block=None) -> dict:
         out["slides"] = [t for _x, t in _tile(slides, period, total, lo, hi)]
     if lay.get("note_nudge"):
         out["note_nudge"] = _tile_keys(lay["note_nudge"], period, total, lo, hi)
+    if lay.get("note_feel"):
+        out["note_feel"] = notefeel.tile(lay["note_feel"], period, total, lo, hi)
     if lay.get("note_chance"):  # every pass rolls afresh (`chance_tile`)
         out["note_chance"] = chance_tile(lay["note_chance"], period, total, lo, hi)
     mode = lay.get("arp_mode", "off")
@@ -2141,13 +2167,31 @@ def _tile_layer(lay: dict, period: int, total: int, block=None) -> dict:
     return out
 
 
-def _crop_layer(lay: dict, lo: int, hi: int, at: int = 0, whole: bool = True) -> dict:
+def _crop_layer(
+    lay: dict, lo: int, hi: int, at: int = 0, whole: bool = True, cycle: int = 0
+) -> dict:
     """Steps [lo, hi) of a tiled layer, shifted to start at 0, as
     `SectionParts.window` crops the main lane (`at`: the window's first
     sample, where its automation lanes are read from; `whole`: the window
-    is the whole cycle — `_crop_nudge`)."""
+    is the whole cycle — `_crop_nudge`; `cycle`: its steps, for a note felt
+    early onto the next window's first step — `_window_notes`)."""
     brk = lay.get("breaks", ())
     out = {**lay, "cells": _crop_runs(lay["cells"], lo, hi, brk, lay.get("cuts"))}
+    if lay.get("note_feel"):
+        vel = lay.get("velocities")
+        out["cells"], moved_vel, out["note_feel"] = _window_notes(
+            lay["cells"],
+            lay.get("cuts") or (),
+            vel or {},
+            lay["note_feel"],
+            brk,
+            lo,
+            hi,
+            whole,
+            cycle or hi,
+        )
+        if vel is not None:
+            out["velocities"] = moved_vel
     if lay.get("auto"):
         out["auto"] = _auto_from(lay["auto"], at)
     if "cuts" in lay:
@@ -2157,7 +2201,7 @@ def _crop_layer(lay: dict, lo: int, hi: int, at: int = 0, whole: bool = True) ->
     out.pop("breaks", None)
     if moved := [b - lo for b in brk if b > lo]:
         out["breaks"] = moved
-    if "velocities" in lay:
+    if "velocities" in lay and not lay.get("note_feel"):
         out["velocities"] = _crop_keys(lay["velocities"], lo, hi)
     if "slides" in lay:
         out["slides"] = [x - lo for x in lay["slides"] if lo <= x < hi]
@@ -2350,6 +2394,56 @@ def _crop_nudge(nudge: dict, lo: int, hi: int, whole: bool) -> dict:
     if not whole and float(out.get("0", 0.0)) < 0.0:
         out.pop("0")
     return out
+
+
+def _run_steps(cells, start: int, pitch: str, breaks, cuts) -> list[int]:
+    """The steps of `pitch`'s note that starts on `start` (its run, split at
+    `breaks` and its row's cuts, as `arrange._merge_runs` joins it)."""
+    on = {int(c[1]) for c in cells if c[0] == pitch}
+    stop = set(breaks) | {int(c[1]) for c in cuts or () if c[0] == pitch}
+    out = [start]
+    while out[-1] + 1 in on and out[-1] + 1 not in stop:
+        out.append(out[-1] + 1)
+    return out
+
+
+def _window_notes(
+    cells, cuts, vel: dict, feel: dict, breaks, lo: int, hi: int, whole: bool, cycle
+) -> tuple[list[list], dict, dict]:
+    """Steps [lo, hi) of a tiled lane as a window's cells, velocities and
+    per-note feel (`notefeel`): every note that STARTS there (`_crop_runs`),
+    shifted to start at 0. A note FELT EARLY on a window's first step
+    sounds before that window starts: it belongs to the window before —
+    the cycle's first step to the cycle's last window, where the loop
+    wraps it (`arrange._lane_timeline`) — and rides there on the step one
+    past its grid, which `arrange._playing_steps` plays for a note felt
+    early (the drum hit's rule, `_window_drums`). The whole cycle as one
+    window moves nothing."""
+    out = _crop_runs(cells, lo, hi, breaks, cuts)
+    vels = _crop_keys(vel, lo, hi)
+    felt = notefeel.crop(feel, lo, hi)
+    if whole or not feel:
+        return out, vels, felt
+
+    def early(step: int) -> list[str]:
+        return [
+            at[0]
+            for k, v in feel.items()
+            if (at := notefeel.split(k)) and at[1] == step and float(v[0]) < 0
+        ]
+
+    for p in early(lo):  # sounds in the window before: not here
+        gone = {s - lo for s in _run_steps(cells, lo, p, breaks, cuts)}
+        out = [c for c in out if not (c[0] == p and int(c[1]) in gone)]
+        felt.pop(notefeel.key(p, 0), None)
+    nxt = hi % cycle if cycle else hi
+    for p in early(nxt):  # the next window's, felt early: here
+        steps = _run_steps(cells, nxt, p, breaks, cuts)
+        out += [[p, hi - lo + s - nxt] for s in steps]
+        felt[notefeel.key(p, hi - lo)] = feel[notefeel.key(p, nxt)]
+        if str(nxt) in vel:
+            vels[str(hi - lo)] = vel[str(nxt)]
+    return out, vels, felt
 
 
 def _crop(cells, lo: int, hi: int) -> list[list]:

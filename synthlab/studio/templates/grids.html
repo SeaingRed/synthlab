@@ -19,10 +19,13 @@
    octave window, ghosts, zoom — for a `.pattern-tools` toolbar. `tool` is
    the pattern tool route's prefix. Every one is a command (`data-cmd`). #}
 
-{% macro note_grid(pitch_rows, total_steps, cells, slides, velocities, root_rows=(), steps_per_bar=0, cuts=(), roll=none, zoom="perform", span=0, oct=0, bar_meter="4/4", chords=none, chance=none, nudge=none) -%}
+{% macro note_grid(pitch_rows, total_steps, cells, slides, velocities, root_rows=(), steps_per_bar=0, cuts=(), roll=none, zoom="perform", span=0, oct=0, bar_meter="4/4", chords=none, chance=none, nudge=none, feel=none) -%}
 {#- another meter's bar (meter.py): its beats and its groups' heads, from
     `meter.accents`; 4/4 marks every fourth step, as it always did -#}
 {%- set acc = meter.grid_accents(bar_meter, steps_per_bar) if steps_per_bar else none -%}
+{#- each note's own feel (`note_feel`, a take as played): drawn on the cells
+    it already has (notefeel.marks: classes and custom properties) -#}
+{%- set fmarks = feel_marks(feel, cells, cuts) if feel else none -%}
 <div class="grid roll" aria-label="Note grid" data-zoom="{{ zoom }}"{% if steps_per_bar %} data-bars="{{ total_steps // steps_per_bar }}" data-spb="{{ steps_per_bar }}"{% endif %}{% if span %} data-span="{{ span }}" data-oct="{{ oct }}"{% endif %} style="--steps: {{ total_steps }}; --rows: {{ pitch_rows | length }}; --step-w: var(--zoom-{{ zoom }})">
     <i class="playhead" aria-hidden="true" style="grid-row: 1 / span {{ (pitch_rows | length) + (3 if steps_per_bar else 2) + (1 if chords is not none else 0) }}"></i>
     {% if steps_per_bar %}
@@ -42,8 +45,9 @@
       {% for step in range(total_steps) -%}
       {#- timing inside a step (`note_nudge`, free record's loops): a note's
           start cell drawn off its step line, by that share of a step -#}
-      {%- set nd = nudge.get(step | string) if nudge and [pitch, step] in cells and ([pitch, step - 1] not in cells or [pitch, step] in cuts) else none -%}
-      <input type="checkbox" name="cell.{{ pitch }}.{{ step }}" class="cell{% if acc is none %}{% if step % 4 == 0 %} beat{% endif %}{% else %}{{ meter.mark(acc, step, ' ') }}{% endif %}{% if steps_per_bar and step and step % steps_per_bar == 0 %} bar{% endif %}{% if (pitch, step) in marks %} {{ marks[(pitch, step)] }}{% endif %}{% if nd %} nudged{% endif %}"{% if nd %} style="--nudge: {{ nd }}" title="{{ '%+d' | format((nd * 100) | round | int) }}% of a step {{ 'late' if nd > 0 else 'early' }}: played off the grid"{% endif %}{% if [pitch, step] in cuts %} value="cut"{% endif %}{% if [pitch, step] in cells %} checked{% endif %} aria-label="{{ pitch }} step {{ step + 1 }}">
+      {%- set fm = fmarks.get((pitch, step)) if fmarks else none -%}
+      {%- set nd = nudge.get(step | string) if nudge and not fm and [pitch, step] in cells and ([pitch, step - 1] not in cells or [pitch, step] in cuts) else none -%}
+      <input type="checkbox" name="cell.{{ pitch }}.{{ step }}" class="cell{% if acc is none %}{% if step % 4 == 0 %} beat{% endif %}{% else %}{{ meter.mark(acc, step, ' ') }}{% endif %}{% if steps_per_bar and step and step % steps_per_bar == 0 %} bar{% endif %}{% if (pitch, step) in marks %} {{ marks[(pitch, step)] }}{% endif %}{% if nd %} nudged{% endif %}{% if fm %} {{ fm[0] }}{% endif %}"{% if nd %} style="--nudge: {{ nd }}" title="{{ '%+d' | format((nd * 100) | round | int) }}% of a step {{ 'late' if nd > 0 else 'early' }}: played off the grid"{% endif %}{% if fm %} style="{{ fm[1] }}"{% if fm[2] %} title="{{ fm[2] }}"{% endif %}{% endif %}{% if [pitch, step] in cuts %} value="cut"{% endif %}{% if [pitch, step] in cells %} checked{% endif %} aria-label="{{ pitch }} step {{ step + 1 }}">
       {%- endfor %}
     </div>
     {% endfor %}
@@ -127,6 +131,8 @@
               title="Halve the length of every note (every selected note)" aria-label="halve the note lengths" data-cmd="Halve the lengths" data-cmd-group="Pattern">½×</button>
       <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}double" hx-swap="none"
               title="Double the length of every note (every selected note)" aria-label="double the note lengths" data-cmd="Double the lengths" data-cmd-group="Pattern">2×</button>
+      <button type="button" class="btn btn-s pt wide" hx-post="{{ tool }}snap" hx-swap="none"
+              title="Snap: every note (every selected note) back on the grid — a take's own timing, release and velocity of each press dropped, so it plays as a grid note" aria-label="snap the notes to the grid" data-cmd="Snap the notes to the grid" data-cmd-group="Pattern">snap</button>
     </div>
     <div class="pt-group roll-sel" role="group" aria-label="the selection">
       <button type="button" class="btn btn-s btn-icon pt" hx-post="{{ tool }}resize" hx-vals='{"by": "-1"}' hx-swap="none" data-menu

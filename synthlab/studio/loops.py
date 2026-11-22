@@ -61,7 +61,7 @@ from pathlib import Path
 
 from .. import midifile as mf
 from ..sequencer import NOTE_NAMES, SCALES, midi, name_of
-from . import limits, midi_bridge, schema
+from . import limits, midi_bridge, notefeel, schema
 from . import meter as _meter
 from .files import dir_sig, rename_file, safe_name
 from .files import free_name as free_name_in
@@ -268,27 +268,30 @@ def _step_of(t: float, strength: int) -> int:
 
 
 def _spans(notes, step: float, strength: int) -> list[tuple]:
-    """Each note as played as it is placed, in steps: `(start, end,
-    midi, velocity, offset)`. At 100 it starts on its nearest step
+    """Each note as played as it is placed, in steps: `(start, end, midi,
+    velocity, offset, heard_end)`. At 100 it starts on its nearest step
     (`_step_of`) and is held for its length in whole steps (at least one),
-    on the steps. Below 100 it KEEPS ITS TIMING, as free record's loops do
-    (`place_free`): heard where `shaped_start` puts it — `strength`% of the
-    way to its nearest line, 0 exactly as played — on the step nearest
-    that, `offset` the rest (a share of a step, -0.5..0.5: the step's
-    `note_nudge`), held to the step line nearest where it ENDED as played
-    (at least one step): the render moves its start by the offset and
-    leaves its end on that line, so a held note keeps its length."""
+    on the steps (`offset` 0, `heard_end` its end line). Below 100 it KEEPS
+    ITS FEEL: heard where `shaped_start` puts it — `strength`% of the way to
+    its nearest line, 0 exactly as played — on the step nearest that,
+    `offset` the rest (-0.5..0.5); its end pulled the same share of the way
+    to its nearest line (`heard_end`), its cells running to the line
+    nearest that (at least one step). `_lane_of` writes both as the note's
+    own feel (`notefeel`), so it starts, ends and is struck as played."""
     out = []
     for s, ln, m, v in notes:
         t = float(s) / step
         if strength >= 100:
             k = _step_of(t, 100)
-            out.append((k, k + max(1, round(float(ln) / step)), int(m), v, 0.0))
+            end = k + max(1, round(float(ln) / step))
+            out.append((k, end, int(m), v, 0.0, float(end)))
             continue
         at = shaped_start(t, strength)
         k = round(at)
-        end = max(k + 1, round(at + float(ln) / step))
-        out.append((k, end, int(m), v, at - k))
+        raw_end = t + float(ln) / step
+        heard_end = raw_end + (round(raw_end) - raw_end) * strength / 100.0
+        end = max(k + 1, round(heard_end))
+        out.append((k, end, int(m), v, at - k, heard_end))
     return out
 
 
@@ -297,9 +300,11 @@ def _lane_of(spans, meter: str, bars: int, steps: int, timed: bool) -> dict:
     note lane's fields on a grid of `bars` x `steps`: one that starts where
     its row still sounds is a cut; a step's velocity is the loudest note
     starting there (the MIDI import's write, `midi_bridge.to_grid`, on
-    every pitch the notes play); `timed`, a step's `note_nudge` is the mean
-    offset of the notes starting there (they share it as they share a
-    velocity), else none. Notes past the grid stay off it."""
+    every pitch the notes play); `timed`, each note keeps its own feel
+    (`note_feel`: its offset, its end against its run's end line and its
+    share of its step's velocity — a step's velocity then the loudest
+    note's exactly, not rounded through MIDI), else none. Notes past the
+    grid stay off it."""
     step = _meter.bar_beats(meter) / steps
     lane = {
         "bars": bars,
@@ -314,7 +319,7 @@ def _lane_of(spans, meter: str, bars: int, steps: int, timed: bool) -> dict:
         name="",
         notes=[
             mf.Note(k * step, (end - k) * step, m, max(1, min(127, round(v * 127))))
-            for k, end, m, v, _off in spans
+            for k, end, m, v, *_feel in spans
         ],
     )
     rows = sorted({name_of(n[2]) for n in spans})
@@ -322,17 +327,43 @@ def _lane_of(spans, meter: str, bars: int, steps: int, timed: bool) -> dict:
         out, _said = midi_bridge.to_grid(track, lane, rows)
     except midi_bridge.ImportRefused:
         out = {k: lane[k] for k in ("cells", "cuts", "velocities", "slides")}
-    nudge: dict = {}
-    if timed:
-        offs: dict[int, list[float]] = {}
-        for k, _end, _m, _v, off in spans:
-            offs.setdefault(k, []).append(off)
-        nudge = {
-            str(k): round(max(-0.5, min(0.5, sum(o) / len(o))), 4)
-            for k, o in offs.items()
-        }
-        nudge = schema.clean_nudge(nudge, out["cells"])
-    return {"bars": bars, "steps_per_bar": steps, **out, "note_nudge": nudge}
+    feel = _feel_of(spans, out) if timed else {}
+    return {
+        "bars": bars,
+        "steps_per_bar": steps,
+        **out,
+        "note_nudge": {},
+        "note_feel": feel,
+    }
+
+
+def _feel_of(spans, out: dict) -> dict:
+    """Placed notes' own feel (`notefeel`) on the grid `out` holds them on
+    (its cells and cuts as `midi_bridge.to_grid` wrote them), and the
+    velocity lane set to each start step's loudest note exactly (in place).
+    A note the grid did not keep (past it, or the same note twice) has
+    none."""
+    starts = notefeel.starts(out["cells"], out["cuts"])
+    loudest: dict[int, float] = {}
+    for k, _end, _m, v, *_rest in spans:
+        loudest[k] = max(loudest.get(k, 0.0), float(v))
+    feel: dict = {}
+    for k, _end, m, v, off, heard_end in sorted(spans, key=lambda x: (x[0], x[2])):
+        p = name_of(m)
+        if (p, k) not in starts or notefeel.key(p, k) in feel or loudest[k] <= 0:
+            continue
+        line = notefeel.end_line(out["cells"], out["cuts"], p, k)
+        # cut short of where it was let go (by the grid's end, or the next
+        # note on its row): it ends on its cut line, never past it
+        end = heard_end - line if heard_end - line <= 0.5 else 0.0
+        clean = notefeel.value([off, end, float(v) / loudest[k]])
+        if clean is not None:
+            feel[notefeel.key(p, k)] = clean
+    on = {k for _p, k in starts}
+    for k, v in loudest.items():
+        if k in on and v > 0:
+            out["velocities"][str(k)] = float(v)
+    return feel
 
 
 def place(notes, meter: str, bars: int, steps: int, strength: int = 100) -> dict:
@@ -358,8 +389,10 @@ def _wrapped(span: tuple, total: int) -> tuple:
     """A placed note whose start rounded onto the grid's end line (`total`,
     played up to half a step early) as its first step, early — the render
     wraps a start before the first beat to the end. Any other: as it is."""
-    k, end, m, v, off = span
-    return (0, min(end - k, total), m, v, off) if k == total else span
+    k, end, m, v, off, heard_end = span
+    if k != total:
+        return span
+    return (0, min(end - k, total), m, v, off, min(heard_end - k, float(total)))
 
 
 def played_bars(notes, meter: str) -> int:
@@ -399,12 +432,14 @@ def rest_lanes(notes, meter: str, bars: int, steps: int, strength: int) -> list[
     for lo in range(span, total, span):
         hi = min(lo + span, total)
         held = []
-        for a, b, m, v, off in placed:
+        for a, b, m, v, off, end in placed:
             if a < hi and b > lo:  # held over the line: on again, on it
                 o = 0.0 if a < lo else max(off, 0.0) if a == lo else off
-                held.append((max(a, lo) - lo, min(b, hi) - lo, m, v, o))
+                # one held over the lane's last line ends on it
+                e = min(end, float(hi)) if b > hi else end
+                held.append((max(a, lo) - lo, min(b, hi) - lo, m, v, o, e - lo))
             elif a == hi == total and strength < 100:
-                held.append(_wrapped((a - lo, b - lo, m, v, off), hi - lo))
+                held.append(_wrapped((a - lo, b - lo, m, v, off, end - lo), hi - lo))
         lanes.append(
             _lane_of(held, meter, math.ceil((hi - lo) / steps), steps, strength < 100)
         )

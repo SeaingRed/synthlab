@@ -17,6 +17,20 @@
   transient keeper that holds attacks sharp when stretched. The sampler
   panel draws where the read goes. Deterministic, so renders cache; the
   keys play it from the server's render, not the live voice.
+- **A take plays back exactly as it was played**: a ⏺ Rec take's loop is
+  placed "as played" unasked, every press keeping its own start between
+  the lines, its own release and its own velocity (a chord's notes each
+  their own) — a per-note feel beside the grid's cells, played by the
+  loop, Edit, → Song and the MIDI file alike, carried by every grid tool,
+  drawn on the roll (its start off the line, its tail where it was let go)
+  and dropped by the roll's new **snap**. Q still puts it on the steps at
+  100 %.
+- **Gestures and knob turns in a take**: the pitch bend, mod wheel,
+  aftertouch, every Patch knob or slider (dragged, typed, a deck dial, a
+  MIDI CC), the XY pad and the macros moved during ⏺ Rec are kept with the
+  loop as automation from where the take began; what cannot be automated
+  (envelope times, shapes, an FX unit's sliders) is named in the take's
+  toast. The session's sound stays as you left it.
 - **Tempo-synced envelopes**: the filter envelope's and envelopes 3 and
   4's attack, decay and release can each be a beat division (1/16, 1/4,
   a bar...) instead of seconds, following the tempo — in the loop and on

@@ -112,6 +112,11 @@ def _merge_arrangement(svc: StudioService, form: dict) -> Arrangement:
     keep["cuts"] = [c for c in keep["cuts"] if (c[0], int(c[1])) in on]
     # ... and a step's timing a note on its step (no form carries it)
     keep["note_nudge"] = schema.clean_nudge(s.arrangement.note_nudge, keep["cells"])
+    # ... and a note's own feel its note's start (no form carries it either:
+    # a note drawn over, erased or merged into another loses it)
+    keep["note_feel"] = schema.clean_feel(
+        s.arrangement.note_feel, keep["cells"], keep["cuts"]
+    )
     if "bpm" not in form:
         keep["bpm"] = s.arrangement.bpm
     if "bars" not in form and "steps" not in form:

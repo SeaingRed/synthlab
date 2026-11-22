@@ -70,6 +70,9 @@ ARR_OPTIONAL = (
     "note_chance",
     # the arp pattern (arppattern.py): absent until one is written
     "arp_pattern",
+    # a note's own feel (notefeel.py: a take as played): absent while no
+    # note has one
+    "note_feel",
 )
 # an optional field whose unset value is not falsy: the meter, unset at 4/4
 # (`meter.py`; a loop or a section in another meter, and a section's ramp,
@@ -82,6 +85,33 @@ def arr_unset(key: str, value) -> bool:
     if key in ARR_NEUTRAL:
         return value is None or value == ARR_NEUTRAL[key]
     return not value
+
+
+def clean_feel(feel, cells, cuts=()) -> dict:
+    """A note lane's per-note feel (`Arrangement.note_feel`) as it is kept:
+    only on a note's start, every value clamped (`notefeel.clean`)."""
+    from . import notefeel
+
+    return notefeel.clean(feel, cells, cuts)
+
+
+def _feel_key(x) -> str:
+    """A feel key: "<pitch>.<step>", a real pitch on a grid step."""
+    from . import notefeel
+
+    at = notefeel.split(x)
+    if at is None or not valid_pitch(at[0]) or not 0 <= at[1] < limits.MAX_GRID_STEPS:
+        raise Invalid("not a feel key")
+    return notefeel.key(*at)
+
+
+def _feel_value(x) -> list:
+    from . import notefeel
+
+    v = notefeel.value(x)
+    if v is None:
+        raise Invalid("not a feel value")
+    return v
 
 
 def clean_nudge(nudge, cells) -> dict:
@@ -841,6 +871,14 @@ def nodes() -> SimpleNamespace:
         Num(-0.5, 0.5, example=0.25),
         max_len=limits.MAX_GRID_STEPS,
     )
+    # a note's own feel (`Arrangement.note_feel`, notefeel.py): "<pitch>.
+    # <step>" -> [start, end, share], each clamped; a key on no note's start
+    # is dropped by the posts below (`clean_feel`)
+    note_feel = MapOf(
+        Leaf(_feel_key, example="A1.0"),
+        Leaf(_feel_value, example=[0.1, -0.2, 0.8]),
+        max_len=limits.MAX_FEEL_NOTES,
+    )
 
     # the arp pattern (arppattern.py): up to 16 steps and the arp's own
     # settings; every value clamped, a bad step its default, no step at all
@@ -931,6 +969,8 @@ def nodes() -> SimpleNamespace:
         # step, on a note's start step; absent when unset (`ARR_OPTIONAL`)
         "note_nudge": note_nudge,
         "note_chance": note_chance,
+        # a note's own feel: absent when unset (`ARR_OPTIONAL`)
+        "note_feel": note_feel,
         "drums": ListOf(
             Tuple(drum_voice, step), max_len=limits.MAX_DRUM_CELLS, unique=tuple
         ),
@@ -1013,6 +1053,8 @@ def nodes() -> SimpleNamespace:
             out["drum_hits"] = {k: v for k, v in out["drum_hits"].items() if k in on}
         if out.get("note_nudge"):  # a step's timing needs a note on it; 0 is none
             out["note_nudge"] = clean_nudge(out["note_nudge"], out["cells"])
+        if out.get("note_feel"):  # a note's feel needs its note's start
+            out["note_feel"] = clean_feel(out["note_feel"], out["cells"], out["cuts"])
         _fit_steps(out, out.get("meter", _meter.DEFAULT))
         # 8 or 16 bars only while bars x steps fits the grid: past it, the
         # longest that does (a 1-4 bar grid always fits: nothing moves)
@@ -1058,7 +1100,7 @@ def nodes() -> SimpleNamespace:
         return out
 
     def seq_post(out: dict) -> dict:
-        for k in ("strum", "note_nudge", "note_chance", "arp_pattern"):
+        for k in ("strum", "note_nudge", "note_chance", "arp_pattern", "note_feel"):
             if not out.get(k):
                 out.pop(k, None)
         return out
@@ -1092,6 +1134,7 @@ def nodes() -> SimpleNamespace:
                         "note_nudge": Opt(arr_fields["note_nudge"]),
                         "note_chance": Opt(arr_fields["note_chance"]),
                         "arp_pattern": Opt(arr_fields["arp_pattern"]),
+                        "note_feel": Opt(arr_fields["note_feel"]),
                     },
                     post=lambda out, raw: seq_post(out),
                 )
@@ -1363,10 +1406,14 @@ def nodes() -> SimpleNamespace:
             out["hits"] = {k: v for k, v in out["hits"].items() if k in on}
         if out.get("note_nudge"):  # a step's timing needs a note on it
             out["note_nudge"] = clean_nudge(out["note_nudge"], out["cells"])
+        if out.get("note_feel"):  # a note's feel needs its note's start
+            out["note_feel"] = clean_feel(
+                out["note_feel"], out["cells"], out.get("cuts")
+            )
         return _unset(
             out,
             *("gen", "fam", "var", "strum", "hits", "swing"),
-            *("note_nudge", "note_chance", "arp_pattern"),
+            *("note_nudge", "note_chance", "arp_pattern", "note_feel"),
         )
 
     def pattern_kind(kind: str, extra: dict[str, Node]) -> Node:
@@ -1417,6 +1464,8 @@ def nodes() -> SimpleNamespace:
             # from before them gains a key or moves its content hash
             "note_nudge": note_nudge,
             "note_chance": note_chance,
+            # a note's own feel (a take as played): absent when unset
+            "note_feel": note_feel,
             # the arp pattern a loop's grid arp plays (absent when unset)
             "arp_pattern": arr_fields["arp_pattern"],
         },

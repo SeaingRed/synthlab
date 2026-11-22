@@ -31,6 +31,7 @@ from ..effects import to_stereo
 from ..params import ENV_SYNC_TIMES, MOD_SLOTS
 from ..sequencer import Song
 from ..synth import Patch, Synth
+from . import notefeel
 from .arrange import (
     NoteMemo,
     bar_beats,
@@ -204,6 +205,7 @@ class RenderInputs:
         if "synth" not in parts:
             arr_d["cells"], arr_d["velocities"], arr_d["slides"] = [], {}, []
             arr_d.pop("note_chance", None)  # the note grid's, as its velocities
+            arr_d.pop("note_feel", None)
         if "synth" not in parts or self.arr.arp_mode != "pattern":
             # the arp pattern is heard only from the grid arp's "pattern"
             # mode: one kept for the keys arp alone re-keys nothing
@@ -723,6 +725,8 @@ def _stem_jobs(inp: RenderInputs) -> list[_StemJob]:
                 **({"strum": arr.strum} if strum_beats(arr) else {}),
                 # timing inside a step: absent when unset (or under an arp)
                 **({"note_nudge": nudge} if (nudge := nudge_of(arr)) else {}),
+                # each note's own feel: absent when unset (or under an arp)
+                **({"note_feel": feel} if (feel := notefeel.of(arr)) else {}),
                 # absent when no step has a chance: every stem
                 # key from before the chance lane holds
                 **({"note_chance": arr.note_chance} if arr.note_chance else {}),

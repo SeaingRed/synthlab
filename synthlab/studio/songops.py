@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import copy
 
-from . import limits
+from . import limits, notefeel
 from . import song_model as sm
 from .song_model import SongError
 
@@ -184,6 +184,15 @@ def window(p: dict, phase: int, bars: int) -> dict:
     for k in ("note_nudge", "note_chance"):
         if moved := keyed(p.get(k) or {}):
             out[k] = moved
+    # each note's own feel follows its start (a note the window cuts into
+    # starts afresh there: none)
+    feel = {}
+    for key, v in (p.get("note_feel") or {}).items():
+        at = notefeel.split(key)
+        if at and (x := to(at[1])) is not None:
+            feel[notefeel.key(at[0], x)] = v
+    if feel := notefeel.clean(feel, out["cells"], out["cuts"]):
+        out["note_feel"] = feel
     return out
 
 

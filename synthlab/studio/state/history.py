@@ -218,6 +218,8 @@ class History:
         # the note grid's timing inside a step (free record's loops): it
         # goes back with the notes it sits on
         "note_nudge",
+        # each note's own feel (a take as played): likewise
+        "note_feel",
     )
 
     def pattern_snapshot(self) -> dict:
@@ -337,6 +339,7 @@ class History:
             "slides": list(seq.get("slides") or []),
             "note_nudge": dict(seq.get("note_nudge") or {}),
             "note_chance": dict(seq.get("note_chance") or {}),
+            "note_feel": copy.deepcopy(seq.get("note_feel") or {}),
         }
 
     def _edit_state(self, e: dict) -> dict:

@@ -57,6 +57,7 @@ from .. import (
     song_bridge,
     takeclean,
     takecoach,
+    takemoves,
     tosong,
 )
 from .. import meter as _meter
@@ -142,6 +143,16 @@ def take_keys(
     if a.meter != _meter.DEFAULT:
         meta["meter"] = a.meter
     payload = s.sound_payload()
+    # the controls turned during the take: its loop's curves (takemoves.py),
+    # over the grid its loop is placed on; the session's sound is left as
+    # the knobs are now
+    meter = _take_meter(meta)
+    grid = loops.grid_bars(bars, loops.default_steps(meter))
+    sent = takemoves.parse(form.get("moves", ""))
+    payload, kept, missed = takemoves.apply(
+        payload, sent, grid * _meter.bar_beats(meter), s.macros
+    )
+    moved = takemoves.said(kept, missed, sent["capped"])
     meta["sound"] = kt.save_sound(s.data_dir, payload)
     if form.get("beat") == "1":
         meta["beat"] = True
@@ -158,18 +169,30 @@ def take_keys(
         return with_toast(resp, f"Kept the take “{name}” — no loop of it: {err}")
     at = slotrec.target(s, form)
     if at:
-        return _landed(svc, resp, made, at, notes)
+        return _moved_too(_landed(svc, resp, made, at, notes), moved, s, made)
     loop = loops.load(s.data_dir, made)
     if loop is not None and (rest := loops.rest_bars(loop)):
         on = loop["lane"]["bars"]
-        return with_toast(
+        resp = with_toast(
             resp,
             f"Took “{_title(s, made)}”: {plural(on + rest, 'bar')}, "
             f"{plural(len(notes), 'note')}. The loop's grid holds bars 1–{on}; "
             f"bars {on + 1}–{on + rest} are kept as played — → Song lays out "
             "every bar as sections you can edit.",
         )
-    return resp
+    return _moved_too(resp, moved, s, made)
+
+
+def _moved_too(resp: Response, said: str, s: StudioState, made: str) -> Response:
+    """The take's answer with what its controls did said too
+    (`takemoves.said`): after the toast it has, or as its own."""
+    if not said:
+        return resp
+    trig = json.loads(resp.headers.get("HX-Trigger") or "{}")
+    was = (trig.get("studio-toast") or {}).get("message")
+    return with_toast(
+        resp, f"{was} {said}" if was else f"Took “{_title(s, made)}”. {said}"
+    )
 
 
 @router.post("/take/keys/capture")
@@ -252,17 +275,18 @@ def _loop_from_take(
     notes: list,
     sound: dict | None,
     steps: int = 0,
-    strength: int = 100,
+    strength: int = 0,
     *,
     clip: bool = True,
 ) -> str:
     """A keys take's loop, kept under the take's name: its notes as played
     (`played`, never rewritten) placed on a grid of the take's bars
     (`loops.grid_bars`) at `steps` a bar (the meter's sixteenths unasked)
-    and `strength` (`loops.place`), `sound` (the one that played it), the
-    take's tempo, key and meter; its audio is the take (`clip` False: a
-    ⟲ Capture's, which has none). The loop's name. OSError past
-    `limits.MAX_LOOPS`."""
+    and `strength` (`loops.place`: unasked "as played", 0 — every note on
+    its nearest step with its own feel, so the loop plays the take),
+    `sound` (the one that played it), the take's tempo, key and meter;
+    its audio is the take (`clip` False: a ⟲ Capture's, which has none).
+    The loop's name. OSError past `limits.MAX_LOOPS`."""
     meter = _take_meter(meta)
     steps = steps if steps in _meter.step_choices(meter) else loops.default_steps(meter)
     played = kt.bars_of(meta) or (
@@ -826,6 +850,7 @@ def loop_quantise(request: Request, form: StrForm, svc: Svc) -> Response:
         bars = loops.grid_bars(max(loop["lane"]["bars"], math.ceil(took - 1e-6)), steps)
         lane = loops.place(loop["played"], m, bars, steps, strength)
     lane.setdefault("note_nudge", {})  # (placed on the steps: no timing inside one)
+    lane.setdefault("note_feel", {})  # (... nor a note's own feel)
     loops.update(s.data_dir, got, arr=lane, quantise=strength, edited=False)
     e = s.loop_edit_of()
     if e is not None and e["name"] == loop["name"]:
