@@ -57,6 +57,9 @@
 // (The Library's filter, chips and arrow keys are
 // library.js's, its own island; a card's audition hands its buffer source on
 // as `audition-start`, so the card can light while it sounds.)
+// 762 (kept): the Loops page's deck — its ▶ keeps its glyph beside its ■, it
+// takes its own ▶ click first, and `deckHold` lets it hold a preview while
+// it plays a cell's loop alone (loopdeck.js).
 // Budget: <= 762 code lines.
 
 (() => {
@@ -464,7 +467,7 @@
   // transport.js, names the loop and stops it on every page)
   function setPlayButton(on) {
     const btn = document.getElementById("play");
-    const glyph = on ? "■" : "▶"; // (only what moved: a new text node restyled #view through a :has() rule)
+    const glyph = on && !btn?.closest(".deck") ? "■" : "▶"; // (only what moved: a new text node restyled #view through a :has() rule; the Loops page's deck keeps ▶, its ■ beside it)
     if (btn) { btn.setAttribute("aria-pressed", String(on)); if (btn.textContent !== glyph) btn.textContent = glyph; }
   }
 
@@ -650,7 +653,7 @@
   // Delegated so preset-load / A/B-swap full-body swaps (hx-target="body")
   // don't orphan listeners bound to the old #play / #volume nodes.
   document.addEventListener("click", (e) => {
-    if (e.target.closest("#play")) playing ? stop() : play();
+    if (e.target.closest("#play") && !e.defaultPrevented) playing ? stop() : play(); // (the Loops page's deck takes its own ▶ first: loopdeck.js)
   });
   // Double-click a slider = back to the Patch default for that one field —
   // the per-param escape hatch the scope-level reset system skips.
@@ -1010,6 +1013,7 @@
     // "/factory/" + "/breed/note/" one-shots survive the flush either way
     if (detail.url && detail.url !== lastUrl) window.synthlab.flushKeys();
     if (!detail.url) return;
+    if (!detail.deck && window.synthlab.deckHold?.(detail)) return; // the Loops page's deck plays a cell's loop alone: it asks for that instead
     plays = detail.plays || ""; // a render that names itself (the booth, the vocoder): Now playing says so
     // autoplay (breed "in loop" audition): hearing it is the point of the
     // click, so a stopped transport starts instead of stashing the URL

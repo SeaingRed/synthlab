@@ -248,7 +248,10 @@ def test_a_loop_becomes_a_song(studio):
     page = studio.open("perform")
     tally = Tally(page)
     tally.start()
-    page.click('[data-cmd="Make this loop a song"]')  # one click, on Perform
+    # the deck's Song source; ▶ on an empty song makes the loop one first
+    # (the old ▶ Whole song: "make it a song", #deck-arrange) — two clicks
+    page.click('[data-deck-src="song"]')
+    page.click("#play")
     page.wait_for_selector('#view[data-view="song"]')
     studio.wait_sound(timeout=10.0)
     got = tally.settle()
@@ -282,8 +285,8 @@ EMPTY = (
     # (Perform's "no saved sounds", Drums' empty beat library and Voice's
     # empty take and result point at their own next step:
     # tests/studio/test_empty_states.py EXEMPT)
-    # ("Make this loop a song" is the Loops page's Song module's ▶ Whole
-    # song, never empty: test_a_loop_becomes_a_song presses it)
+    # ("Make this loop a song" is the Loops page's deck — its Song source's
+    # ▶ on an empty song —, never empty: test_a_loop_becomes_a_song presses it)
     ("library", ".lib-dock .empty-state .empty-start", "Library: nothing selected"),
     # (the Lab's empty states are not in this list: their one action
     # is the Lab's own next step, choosing a song — "Start a song" there was

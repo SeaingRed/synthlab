@@ -176,7 +176,7 @@ def test_commands_carry_their_shortcuts(tmp_path):
         ), cmd
     perform = client.get("/view/perform").text
     assert re.search(
-        r'data-cmd="Play / stop the loop"[^>]*data-keys="Space"', perform, re.S
+        r'data-cmd="Play / stop the deck: [^"]*"[^>]*data-keys="Space"', perform, re.S
     )
     assert re.search(r'id="pattern-undo" data-keys="Ctrl\+Z"', perform)
     # the momentary FX are keys, not commands: they are named for the sheet
