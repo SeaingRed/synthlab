@@ -430,14 +430,17 @@ STRIP_UNDRAWN = ("quantise",)
 def watch(ctx: dict, *, strip: bool = False) -> tuple:
     """A Loops list's watch value from its context: every row as drawn
     (`strip`: as the dock's strip draws it, without `STRIP_UNDRAWN`).
-    A loop open on a grid is drawn by its name, its audio and "editing"
-    alone (loop_rows.html: what its notes are is Perform's grid, and its
-    Quantise is the grid's banner), so a stroke on the grid — which writes
-    that loop (`StudioState.mirror_loop_edit`) — sends no list again; the
-    lists catch up when the edit ends. (A slot of Perform's launcher that
-    plays is such a loop: one open on its lane.)"""
+    A loop open on a grid is drawn by its name, its audio, "editing", its
+    tempo (▶ plays in time) and — in the Song page's drawer, where it
+    drags — its bars alone (loop_rows.html: what its notes are is Perform's
+    grid, and its Quantise is the grid's banner), so a stroke on the grid —
+    which writes that loop (`StudioState.mirror_loop_edit`) — sends no list
+    again; the lists catch up when the edit ends. (A slot of Perform's
+    launcher that plays is such a loop: one open on its lane.)"""
     return tuple(
         (r["name"], "editing", r["audio"], r["kind"], r["title"], r["star"], r["tags"])
+        + (r.get("bpm"),)  # (its row's data-bpm, and ▶'s tempo)
+        + ((r.get("bars"),) if ctx.get("view") == "song" else ())
         if r["editing"]
         else tuple(
             sorted(repr(x) for x in r.items() if not (strip and x[0] in STRIP_UNDRAWN))

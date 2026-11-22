@@ -154,3 +154,105 @@ def test_a_loop_with_no_audio_is_bounced_at_the_keys_level(client):
     # its own tempo's render, kept at the keys' level (110.5 bpm is ~0.5 %
     # off its tempo: the same notes, a hair faster)
     assert kept == pytest.approx(rendered + gain, abs=0.3)
+
+
+# --- the take's length: keep, trim, fit -----------------------------------------
+
+
+def test_a_take_off_the_bar_lines_asks_keep_trim_or_fit(client):
+    r = _take(client)
+    ask = _trigger(r)["song-ask"]
+    labels = [c["label"] for c in ask["choices"]]
+    assert labels == ["Keep 3 bars", "Trim to 2 bars", "Fit the tempo"]
+    assert all(c["path"] == "/loop/length" for c in ask["choices"])
+    assert [c["vals"]["how"] for c in ask["choices"]] == ["keep", "trim", "fit"]
+    assert "89.286 bpm" in ask["choices"][2]["title"]  # 100 x 2 / 2.24
+    assert "2.24 bars" in ask["message"]
+    # a take of whole bars asks nothing
+    r = _take(client, bars="2", name="keys-2")
+    assert "song-ask" not in _trigger(r)
+
+
+def test_keep_trim_and_fit_each_place_the_loop_from_its_take(client):
+    _take(client)
+    s = _st(client)
+    loop = loops.load(s.data_dir, "keys-1")
+    assert loop["lane"]["bars"] == 3 and loop["key"]["bpm"] == 100  # as taken
+    post = {"name": "keys-1"}
+    # fit: 89.286 bpm, two bars exactly, every note where it was in time
+    r = client.post("/loop/length", data=post | {"how": "fit"}, headers=PERFORM)
+    assert r.status_code == 200 and "89.286 bpm" in r.headers["HX-Trigger"]
+    loop = loops.load(s.data_dir, "keys-1")
+    assert loop["lane"]["bars"] == 2 and loop["key"]["bpm"] == pytest.approx(89.286)
+    k = 2 / 2.24
+    for got, was in zip(loop["played"], RIFF, strict=True):
+        assert got[0] == pytest.approx(was[0] * k, abs=1e-5)
+        assert got[1] == pytest.approx(was[1] * k, abs=1e-5)
+        assert got[0] * 60 / 89.286 == pytest.approx(was[0] * 60 / 100, abs=1e-3)
+    # trim: two bars at 100 bpm, the note past bar 2's line gone
+    client.post("/loop/length", data=post | {"how": "trim"}, headers=PERFORM)
+    loop = loops.load(s.data_dir, "keys-1")
+    assert loop["lane"]["bars"] == 2 and loop["key"]["bpm"] == 100
+    assert [n[2] for n in loop["played"]] == [60, 64, 67]
+    # keep: back as taken
+    client.post("/loop/length", data=post | {"how": "keep"}, headers=PERFORM)
+    loop = loops.load(s.data_dir, "keys-1")
+    assert loop["lane"]["bars"] == 3 and loop["played"] == RIFF
+    assert loop["key"]["bpm"] == 100 and loop["edited"] is False
+
+
+def test_trim_cuts_a_note_held_over_the_line_at_it(client):
+    held = [[0, 1, 60, 1], [7, 2, 62, 1]]  # the second held past bar 2's end
+    _take(client, notes=held, bars="2.4")
+    client.post("/loop/length", data={"name": "keys-1", "how": "trim"}, headers=PERFORM)
+    loop = loops.load(_st(client).data_dir, "keys-1")
+    assert loop["played"] == [[0, 1, 60, 1], [7, 1.0, 62, 1]]
+
+
+def test_open_on_the_grid_it_follows_and_ctrl_z_puts_it_all_back(client):
+    _take(client)
+    s = _st(client)
+    client.post("/loop/edit", data={"name": "keys-1"}, headers=PERFORM)
+    assert (s.arrangement.bars, s.arrangement.bpm) == (3, 100)
+    r = client.post(
+        "/loop/length", data={"name": "keys-1", "how": "fit"}, headers=PERFORM
+    )
+    trig = _trigger(r)
+    assert "preview-ready" in trig and "gain" in trig["preview-ready"]  # heard now
+    assert s.arrangement.bars == 2 and s.arrangement.bpm == pytest.approx(89.286)
+    client.post("/fragment/pattern/undo", headers=PERFORM)
+    assert (s.arrangement.bars, s.arrangement.bpm) == (3, 100)
+    loop = loops.load(s.data_dir, "keys-1")
+    assert loop["played"] == RIFF and loop["key"]["bpm"] == 100
+    assert loop["lane"]["bars"] == 3
+
+
+def test_what_cannot_be_set_is_refused_in_words(client):
+    s = _st(client)
+    r = client.post(
+        "/loop/length", data={"name": "keys-1", "how": "stretch"}, headers=PERFORM
+    )
+    assert r.status_code == 422 and "one of the three" in r.text
+    # a loop with no take: nothing recorded to set the length of
+    s.arrangement = Arrangement(bpm=110, cells=[["A2", 0]])
+    client.post(
+        "/loop/save", data={"lane": "1", "bars": "1", "loop": "riff"}, headers=PERFORM
+    )
+    r = client.post(
+        "/loop/length", data={"name": "riff", "how": "fit"}, headers=PERFORM
+    )
+    assert r.status_code == 422 and "no take of its own" in r.text
+    # under a bar: nothing to trim to
+    _take(client, notes=[[0, 1, 60, 1]], bars="0.6", name="keys-short")
+    r = client.post(
+        "/loop/length", data={"name": "keys-short", "how": "trim"}, headers=PERFORM
+    )
+    assert r.status_code == 422 and "shorter than a bar" in r.text
+    # edited on the grid since: Q is the way back
+    _take(client)
+    client.post("/loop/edit", data={"name": "keys-1"}, headers=PERFORM)
+    client.post("/fragment/pattern/notes/shift_right", headers=PERFORM)
+    r = client.post(
+        "/loop/length", data={"name": "keys-1", "how": "trim"}, headers=PERFORM
+    )
+    assert r.status_code == 422 and "edited on the grid" in r.text

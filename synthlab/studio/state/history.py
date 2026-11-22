@@ -276,6 +276,12 @@ class History:
             if back != was:  # the lanes the step does not hold follow
                 self.fit_other_lanes(was, back)
             self.arrangement = replace(self.arrangement, **step["arr"])
+            if "played" in step:  # a take's loop placed again by its length
+                from .. import loops  # lazy: loops reads the model this package holds
+
+                # (`/loop/length`): its notes as played back too
+                name, played = step["played"]
+                loops.update(self.data_dir, name, played=played)
             return None
         return "Nothing to undo in the pattern."
 

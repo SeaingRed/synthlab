@@ -207,6 +207,16 @@ def _recorded(client) -> None:
     client.post("/take/keys", data=data, files=files, headers=_hx("editor"))
 
 
+def _short(client) -> None:
+    """A take of 1.5 bars (nothing played under it: not whole bars), keys-s,
+    and its loop — open on Perform's grid."""
+    data = {"name": "keys-s", "bpm": "124", "bars": "1.5"}
+    data["notes"] = "[[0.02, 1, 33, 0.8], [4.5, 1, 36, 1]]"
+    files = {"file": ("take.wav", _wav(), "audio/wav")}
+    client.post("/take/keys", data=data, files=files, headers=_hx("editor"))
+    client.post("/loop/edit", data={"name": "keys-s"}, headers=_hx("perform"))
+
+
 def _editing(client) -> None:
     """keys-r open on Perform's grid (`/loop/edit`)."""
     _recorded(client)
@@ -1460,6 +1470,9 @@ CASES: list[Case] = [
     C("/loop/quantise", "perform", {"name": "keys-r", "strength": "0"}, _recorded),
     C("/loop/quantise", "perform", {"name": "keys-r", "steps": "8"}, _editing),
     C("/loop/quantise", "editor", {"name": "keys-r", "steps": "12"}, _recorded),
+    C("/loop/length", "perform", {"name": "keys-s", "how": "trim"}, _short),
+    C("/loop/length", "perform", {"name": "keys-s", "how": "fit"}, _short),
+    C("/loop/length", "editor", {"name": "keys-r", "how": "keep"}, _recorded),
     C("/loop/song", "perform", {"name": "riff"}, _a_loop),
     C("/loop/song", "editor", {"name": "keys-r", "as": "audio"}, _recorded),
     C("/loop/song", "song", {"take": "keys-t"}, _keys_take),

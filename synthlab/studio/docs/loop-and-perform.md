@@ -1000,6 +1000,38 @@ loudest note starting there — the MIDI import's write
 below 100 before this (each note in the step it began in, no timing kept)
 keeps its file until Q places it again.
 
+**The take's length: keep, trim or fit** (`routes/takes.py`
+`_length_ask`, `POST /loop/length`, `tests/studio/test_take_length_level.py`,
+`tests/browser/test_take_level.py`): a take that is not whole bars —
+recorded with nothing playing, or "to ■" off the grid (1.5 bars, a
+2.24-bar riff at 100 bpm) — is placed as any take (its bars rounded up:
+the riff a 3-bar grid, 0.76 bar of silence before it repeats), and its
+answer asks, in the `song-ask` popover tosong.py's questions use
+(songdrag.js draws it on every page, beside the take's toast):
+- **Keep N bars** — as it is: the gap before it repeats;
+- **Trim to M bars** — the longest grid inside the take (its whole bars,
+  1-4, 8, 16), the notes past its end line cut at it (a note held over it
+  ends there; one starting past it goes) — offered from one bar up;
+- **Fit the tempo** — the tempo at which the take is exactly whole bars:
+  the nearest of the bars either side that is a grid (else the nearest
+  grid), inside `limits.BPM_RANGE` (the riff: 2 bars at 89.286 bpm); every
+  note keeps its place in time, its beats scaled with the tempo.
+
+Each places the loop **from its take** (`_take_basis`: the take's bars,
+tempo and notes as played — never from the loop, so Keep after Fit is the
+take again) at the loop's rate and strength, and writes the placed notes
+as the loop's `played` (Fit's in the new tempo's beats; Q starts from
+them). The loop open on the grid by Edit follows: **one pattern undo
+step**, which also carries the tempo and the loop's notes as played back
+(`pop_pattern_undo` restores a step's `arr` fields, `bpm` among them, and
+its `played`) — the transport hears it at once (a `preview-ready`).
+Refused in words: a loop with no take of its own (a capture, a lane saved,
+a beat, a free loop), one edited on the grid since ("Q places it again"),
+one playing in a launcher slot, a trim of a take under a bar. A take that
+landed in a slot, or that runs past the longest grid (→ Song lays out the
+rest), is not asked. A take's turned controls (its curves) stay drawn
+over the grid as it was placed: a length action re-places the notes only.
+
 **A long grid** (8 or 16 bars; `tests/studio/test_loops.py`,
 `test_limits.py`): the working loop's `bars` is any of
 `limits.LOOP_BAR_CHOICES` that fits its steps (`limits.loop_bar_choices`;

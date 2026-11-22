@@ -190,3 +190,39 @@ def test_a_chords_loop_plays_at_the_keys_level(studio, server):
     assert abs(render_db + gain - wav_db) < 1.0, (render_db, gain, wav_db)
     assert abs(loop_db - take_db) < 1.0, (loop_db, take_db)
     assert studio.unexplained() == []
+
+
+def test_a_take_off_the_bar_lines_asks_and_fit_makes_it_whole_bars(studio, server):
+    """ "to ■" with nothing playing: the take is as long as it was played —
+    the question after it (keep / trim / fit), and Fit makes the loop that
+    many whole bars at the tempo that holds them."""
+    page = _bench(studio, bars="0")
+    studio.start_voice()
+    page.click("#key-rec")
+    page.wait_for_function(
+        "() => document.getElementById('key-rec').textContent.startsWith('■')",
+        timeout=10000,
+    )
+    for k, m in enumerate((60, 64, 67)):
+        _note(page, k, m, 300)
+        page.wait_for_timeout(500)
+    with page.expect_response("**/take/keys", timeout=30000) as answer:
+        page.click("#key-rec")  # ■: here, off the bar lines
+    name = unquote(answer.value.headers["x-loop-name"])
+    ask = page.locator(".song-ask:popover-open")
+    ask.wait_for()
+    labels = [b.strip() for b in ask.locator("button").all_text_contents()]
+    assert labels[0].startswith("Keep ") and labels[-1] == "Fit the tempo"
+    meta, _pcm, _rate = _take(server)
+    took = meta["bars"]
+    assert abs(took - round(took)) > 0.01
+    with page.expect_response("**/loop/length") as fit:
+        ask.locator("button", has_text="Fit the tempo").click()
+    assert fit.value.ok
+    loop = loops.load(server.data_dir, name)
+    bars, bpm = loop["lane"]["bars"], loop["key"]["bpm"]
+    assert bars in {max(1, math.floor(took)), math.ceil(took)}  # the bars either side
+    # the take's seconds are the loop's whole bars, at its new tempo
+    seconds = took * 4 * 60 / meta["bpm"]
+    assert abs(bars * 4 * 60 / bpm - seconds) < 0.01
+    assert studio.unexplained() == []
