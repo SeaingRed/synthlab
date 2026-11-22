@@ -591,9 +591,10 @@ voice's to the last f32 bit on every one.
 - **The modulation** lives in the JS control pass, as every route always
   has (a voice with routes runs it; the module's `control()` is
   route-free): `route(x, sv, bs)` reads each source from `this.SV` by its
-  `SOURCES` number — LFO 1 (`lfoX` for its new shapes), LFO 2 / 3
-  (`lfoG`: their phases `v.p2` / `v.p3` start at `lfoN_phase` plus, when
-  free, `driftU(seed, 0x40000 + k)`), the filter / amp envelopes,
+  `SOURCES` number — LFO 1 (`lfoX` for its new shapes), LFOs 2-6
+  (`lfoG`, sources 5, 6, 13-15: their phases `v.p2` .. `v.p6` start at
+  `lfoN_phase` plus, when free, `driftU(seed, 0x40000 + k)`; their shapes,
+  rates and drawings read in `wire()`), the filter / amp envelopes,
   velocity, envelopes 3 / 4 (`envK`, their release levels taken at
   note-off, revived like the filter envelope's), the wheels (the patch's
   `mod_wheel` / `aftertouch` smoothed, plus the live `wheel_cc` / `at_cc`

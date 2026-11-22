@@ -58,6 +58,8 @@ from ..paramui import MACRO_PARAMS, UI, spec_of
 # which are the player's, not the sound's. Filter 2 and the general
 # modulators are no genes either, but they are the sound's: they are here
 # (routes 5-12 are `add_mod_route`'s, by slot)
+# (LFOs 4-6 are routed by `add_mod_route` but set on the panel: six more
+# catalogue lines on every request for what LFOs 2 / 3 already offer)
 _R6_AGENT = ("filter2_", "env3_", "env4_", "lfo2_", "lfo3_")
 UI_PARAMS: tuple[str, ...] = tuple(
     n

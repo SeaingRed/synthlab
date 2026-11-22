@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 
 from .. import wavetables
-from ..params import META_CLEAN, PARAMS
+from ..params import GENERAL_LFOS, META_CLEAN, PARAMS
 from ..synth import Patch
 from .paramui import _SPEC_BY_NAME, ParamSpec
 
@@ -110,4 +110,4 @@ def patch_from_form(form: Mapping[str, str], base: Patch) -> Patch:
 
 
 # the general LFOs' drawn shapes (meta strings, no slider)
-DRAWN = ("lfo_draw", "lfo2_draw", "lfo3_draw")
+DRAWN = ("lfo_draw", *(f"lfo{k}_draw" for k in GENERAL_LFOS))

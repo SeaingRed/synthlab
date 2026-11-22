@@ -174,9 +174,12 @@ def test_the_catalogue_is_under_half_the_schema_it_replaced():
     # out of the catalogue as the warps are) to 4,499 and 13,208; the
     # second warps (three more route targets, curve and macro entries) to
     # 4,544 and 13,406; the routes' source curves (twelve macro entries —
-    # the switches and curves are hand-made, out of the catalogue) to 13,565
-    assert sizes["set_params"] < 4_600
-    assert sum(sizes.values()) < 13_700
+    # the switches and curves are hand-made, out of the catalogue) to 13,565;
+    # the Lorenz and Rössler LFO shapes (LFO 1-3's shape choices) and the
+    # sources LFO 4-6 (whose own fields are the panel's, not the
+    # catalogue's) to 4,574 and 13,691
+    assert sizes["set_params"] < 4_650
+    assert sum(sizes.values()) < 13_900
 
 
 def test_the_other_tools_are_generated_from_their_tables():
@@ -201,7 +204,7 @@ def test_the_other_tools_are_generated_from_their_tables():
     )
     # every declaration is plain JSON and every one has an implementation
     blob = json.dumps(atools.declarations())
-    assert len(blob) < 14_250  # the catalogue as it stands (above): 14,110
+    assert len(blob) < 14_450  # the catalogue as it stands (above): 14,245
     assert atools.TOOL_NAMES == tuple(atools.TOOLS)
 
 

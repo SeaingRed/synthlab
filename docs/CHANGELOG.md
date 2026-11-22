@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **LFOs 4, 5 and 6**: three more general LFOs in the Modulators panel
+  (rate, shape, sync, phase, retrig / free, a drawing) and three more
+  sources in the mod matrix. Folded away until a route uses one; they
+  play on the live keys.
 - **Chaotic LFO shapes**: every general LFO's shape menu gains Lorenz and
   Rössler — a line wandering round a chaotic flow, never repeating, the
   same on every render and on the live keys.

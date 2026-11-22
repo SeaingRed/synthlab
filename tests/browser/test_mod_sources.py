@@ -11,7 +11,9 @@
 - a mod-wheel route from a stand-in MIDI port: CC 1 opens the cutoff of a
   held note (and the Modulators panel is on the page);
 - a route's switch (its lamp) bypasses it and switches it back on, its
-  curve knob posts.
+  curve knob posts;
+- LFOs 4-6 rest folded while nothing routes them; opened, one takes a
+  chaotic flow and a route from it plays on the worklet.
 
 Nobody listens: each proves the sound changed, not that it is good.
 """
@@ -282,3 +284,21 @@ def test_a_routes_switch_bypasses_it_and_its_curve_posts(studio, server):
     page.keyboard.press("Home")
     _wait(page, lambda: server.state.patch.mod1_curve == -1.0, "the curve posted")
     _patch_follows(page, "mod1_curve", -1.0)
+
+
+def test_lfos_4_to_6_rest_folded_until_opened_and_route_like_any(studio, server):
+    page = _open(studio, server)
+    for k in (4, 5, 6):
+        head = page.locator(f"#panel-modulators #sub-lfo{k}_rate")
+        assert head.get_attribute("data-rest") == "folded", k
+        assert not page.locator(f"#row-lfo{k}_rate").is_visible()
+    page.click("#sub-lfo5_rate")
+    assert page.locator("#row-lfo5_rate").is_visible()
+    page.select_option("#p-lfo5_shape", "rossler")
+    _wait(page, lambda: server.state.patch.lfo5_shape == "rossler", "the shape posted")
+    # a source jack of its own; a route from it plays on the worklet
+    assert page.locator('#patchbay .pb-jack[data-src="lfo5"]').count() == 1
+    page.select_option("#p-mod1_src", "lfo5")
+    _wait(page, lambda: server.state.patch.mod1_src == "lfo5", "the route posted")
+    _patch_follows(page, "mod1_src", "lfo5")
+    assert page.evaluate("() => window.synthlab.piano.patch().worklet_ok") is True

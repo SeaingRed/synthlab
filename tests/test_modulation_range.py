@@ -1,5 +1,5 @@
 """More modulation: a route's switch and the curve on its source, two
-chaotic flows as LFO shapes.
+chaotic flows as LFO shapes, LFOs 4-6.
 
 Each is opt-in — a route "on" with its curve at 0 is the route as it always
 was, so a patch that leaves them at their defaults renders bit for bit as
@@ -20,7 +20,9 @@ from synthlab import synth as synth_mod
 from synthlab.core import SR
 from synthlab.params import (
     GENERAL_LFO_SHAPES,
+    GENERAL_LFOS,
     MOD_SLOTS,
+    MOD_SOURCES,
     PARAMS,
     clamp,
     live,
@@ -30,6 +32,7 @@ from synthlab.studio.factory import FACTORY, get_factory
 from synthlab.studio.library import LIBRARY, get_library
 from synthlab.synth import Patch, Synth, route_curve
 
+LFO_PARTS = ("rate", "shape", "sync", "phase", "mode", "draw")
 ROUTE_FIELDS = [f"{s}_{k}" for k in ("on", "curve") for s in MOD_SLOTS]
 
 
@@ -191,3 +194,71 @@ def test_the_lfos_take_the_flows(k):
     )
     assert clamp(p) == p
     assert not np.array_equal(_note(p), _note(replace(p, **{shape: "sine"})))
+
+
+# --- LFOs 4, 5 and 6 ----------------------------------------------------------------
+
+LFO456 = [f"lfo{k}_{t}" for k in (4, 5, 6) for t in LFO_PARTS]
+
+
+def test_lfos_4_to_6_are_appended_hand_made_and_out_of_older_keys():
+    from synthlab.studio.render import KEY_ADDED_FIELDS, keyed_patch
+
+    names = list(PARAMS)
+    at = names.index("lfo4_rate")
+    assert names[at : at + len(LFO456)] == LFO456  # one run, in order
+    assert at > names.index("mod12_curve")
+    for name in LFO456:
+        assert PARAMS[name].gene is None, name
+        assert KEY_ADDED_FIELDS[name] == getattr(Patch(), name)
+    assert not set(LFO456) & set(keyed_patch(Patch()))
+    # their sources appended; the gene draws the five it always did
+    assert MOD_SOURCES[-3:] == ("lfo4", "lfo5", "lfo6")
+    assert PARAMS["mod1_src"].gene == MOD_SOURCES[:5]
+    assert GENERAL_LFOS == (2, 3, 4, 5, 6)
+
+
+def test_an_unrouted_lfo_is_unheard():
+    quiet = Patch(lfo4_rate=9.0, lfo5_shape="lorenz", lfo6_mode="free", lfo6_sync="1/8")
+    assert np.array_equal(_note(quiet), _note(Patch()))
+
+
+@pytest.mark.parametrize("k", [4, 5, 6])
+def test_lfos_4_to_6_play_as_2_and_3_do(k):
+    """LFO k with LFO 2's settings is LFO 2, sample for sample, but for its
+    seeded parts (its own seed, its own stepped stream k - 1)."""
+    two = {
+        f"lfo2_{t}": v
+        for t, v in (("rate", 3.0), ("shape", "triangle"), ("phase", 0.3))
+    }
+    mine = {f"lfo{k}_{t[5:]}": v for t, v in two.items()}
+    p2 = Patch(**two, mod1_src="lfo2", mod1_dst="cutoff", mod1_amt=0.5)
+    pk = Patch(**mine, mod1_src=f"lfo{k}", mod1_dst="cutoff", mod1_amt=0.5)
+    assert np.array_equal(_note(pk), _note(p2))
+    n = SR
+    lk = synth_mod.general_lfo(
+        replace(pk, **{f"lfo{k}_shape": "noise"}), k, n, SR, 261.6
+    )
+    ref = core.lfo_ext("noise", 3.0, n, SR, 0.3, 0, "", table_seed=k - 1)
+    assert np.array_equal(lk, ref)
+    # synced: at_bpm resolves the division, as it does LFO 2's
+    synced = synth_mod.at_bpm(replace(pk, **{f"lfo{k}_sync": "1/8"}), 120.0)
+    assert getattr(synced, f"lfo{k}_rate") == 4.0
+    # free: each note picks the cycle up at a place of its own
+    free = replace(pk, **{f"lfo{k}_mode": "free"})
+    a = synth_mod.general_lfo(free, k, 64, SR, 261.6)
+    b = synth_mod.general_lfo(free, k, 64, SR, 329.6)
+    assert not np.array_equal(a, b)
+
+
+def test_lfos_4_to_6_fold_while_no_route_reads_them():
+    from synthlab.studio.paramui import idle
+
+    rows = {f"lfo{k}_{t}" for k in (4, 5, 6) for t in ("rate", "phase", "shape")}
+    assert rows <= set(idle(Patch()))
+    routed = idle(Patch(mod3_src="lfo5", mod3_dst="cutoff", mod3_amt=0.4))
+    assert "lfo5_rate" not in routed and "lfo4_rate" in routed
+    bypassed = idle(
+        Patch(mod3_src="lfo5", mod3_dst="cutoff", mod3_amt=0.4, mod3_on="off")
+    )
+    assert "lfo5_rate" in bypassed

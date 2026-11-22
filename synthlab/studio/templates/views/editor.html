@@ -112,7 +112,7 @@
         its shape is "drawn"; a target jack while its module can be heard
         (or a lead is plugged into it) -#}
     #view:has([name="filter2_route"][value="off"]:checked) .f2-block > .param:not(#row-filter2_route) { display: none; }
-    {% for k in ("lfo", "lfo2", "lfo3") %}
+    {% for k in ("lfo", "lfo2", "lfo3", "lfo4", "lfo5", "lfo6") %}
     #view:not(:has(#p-{{ k }}_shape option[value="drawn"]:checked)) #draw-{{ k }} { display: none; }
     {% endfor %}
     #view:has([name="filter2_route"][value="off"]:checked) .pb-jack[data-dst^="filter2_"]:not([data-on]),
@@ -155,7 +155,7 @@
     {% set notes = {"Source": "FM, FM4, pluck, wavetable, sampler and granular settings appear here when an oscillator uses that shape.",
                     "Vowel": "Shapes the sound like a sung vowel. Raise Vowel amount to hear it; automate the vowel for talking sounds.",
                     "Motion": "The modulators: LFO 1, the filter LFO, vibrato, tremolo, pulse width, the pitch envelope and bend, the wheels. The mod matrix routes them.",
-                    "Modulators": "Envelopes 3 and 4 and LFOs 2 and 3: they move nothing until a route in the mod matrix reads them."} %}
+                    "Modulators": "Envelopes 3 and 4 and LFOs 2 to 6: they move nothing until a route in the mod matrix reads them (LFOs 4-6 fold away until one does)."} %}
     {% for col in layout %}
     <div class="pcol">
     {% set rest = (groups | map(attribute=0) | reject("in", named) | list) if loop.last else [] %}
@@ -310,7 +310,7 @@
         {% with spec = spec_of(name) %}{% include "fragments/param_row.html" %}{% endwith %}
         {% endfor %}
       </div>
-      {% elif spec.name in ("lfo_shape", "lfo2_shape", "lfo3_shape") %}
+      {% elif spec.name[:3] == "lfo" and spec.name.endswith("_shape") %}
       {% include "fragments/param_row.html" %}
       {% with lfo = spec.name[:-6] %}{% include "fragments/lfo_draw.html" %}{% endwith %}
       {% elif spec.name == "osc2_sync" %}

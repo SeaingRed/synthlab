@@ -39,6 +39,7 @@ from .core import (
 from .granular import Settings as GrainSettings
 from .params import (
     FILTER_TYPES,
+    GENERAL_LFOS,
     LFO_SHAPES,
     MOD_DESTINATIONS,
     MOD_RANGES,
@@ -550,6 +551,26 @@ class Patch:
     mod10_curve: float = 0.0
     mod11_curve: float = 0.0
     mod12_curve: float = 0.0
+    # LFOs 4, 5 and 6 (route sources "lfo4".."lfo6"): general LFOs as 2
+    # and 3 are — rate, shape, sync, start phase, retrig / free, a drawing
+    lfo4_rate: float = 1.0
+    lfo4_shape: str = "sine"
+    lfo4_sync: str = "off"
+    lfo4_phase: float = 0.0
+    lfo4_mode: str = "retrig"
+    lfo4_draw: str = ""
+    lfo5_rate: float = 4.0
+    lfo5_shape: str = "sine"
+    lfo5_sync: str = "off"
+    lfo5_phase: float = 0.0
+    lfo5_mode: str = "retrig"
+    lfo5_draw: str = ""
+    lfo6_rate: float = 0.25
+    lfo6_shape: str = "sine"
+    lfo6_sync: str = "off"
+    lfo6_phase: float = 0.0
+    lfo6_mode: str = "retrig"
+    lfo6_draw: str = ""
 
     def tweak(self, **kw) -> Patch:
         """Return a copy with parameters changed: pad.tweak(cutoff=800)."""
@@ -629,7 +650,7 @@ def at_bpm(p: Patch, bpm: float) -> Patch:
     rate = synced_rate(p.filter_lfo_sync, bpm)
     if rate is not None:
         kw["filter_lfo_rate"] = rate
-    for k in (2, 3):  # the general LFOs
+    for k in GENERAL_LFOS:  # the general LFOs 2-6
         rate = synced_rate(getattr(p, f"lfo{k}_sync"), bpm)
         if rate is not None:
             kw[f"lfo{k}_rate"] = rate
@@ -691,10 +712,13 @@ def lfo_free_phase(f0: float, k: int) -> float:
     return drift_u(drift_seed(f0), _LFO_FREE_KEY + k)
 
 
+_LFO_SOURCES = {f"lfo{k}": k for k in GENERAL_LFOS}
+
+
 def general_lfo(p: Patch, k: int, n: int, sr: int, f0: float | None) -> np.ndarray:
-    """General LFO `k` (1, 2, 3) over a note's `n` samples, -1..1. LFO 1 in
+    """General LFO `k` (1-6) over a note's `n` samples, -1..1. LFO 1 in
     an old shape is the call it always was (`core.lfo`); the new shapes and
-    LFO 2 / 3 are `core.lfo_ext` (LFO 1 always restarts at phase 0)."""
+    LFOs 2-6 are `core.lfo_ext` (LFO 1 always restarts at phase 0)."""
     if k == 1:
         shape, rate, phase, draw = p.lfo_shape, p.mod_lfo_rate, 0.0, p.lfo_draw
         if shape in LFO_SHAPES:
@@ -717,8 +741,8 @@ def _mod_source(p: Patch, src: str, n: int, sr: int, velocity, gate, duration, f
     0..1 (the envelopes, velocity, the wheel, aftertouch)."""
     if src == "lfo":
         return general_lfo(p, 1, n, sr, f0)
-    if src in ("lfo2", "lfo3"):
-        return general_lfo(p, int(src[3]), n, sr, f0)
+    if src in _LFO_SOURCES:  # LFOs 2-6
+        return general_lfo(p, _LFO_SOURCES[src], n, sr, f0)
     if src == "fenv":
         return _filter_env(p, n, sr, gate, duration)
     if src == "aenv":

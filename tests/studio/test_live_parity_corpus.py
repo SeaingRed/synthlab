@@ -1393,34 +1393,9 @@ CASES.update(
     }
 )
 
-# A route's switch and the curve on its source (synth.route_curve): curves
-# both ways on a bipolar LFO, an envelope, velocity and the pitch; a
-# bypassed route beside a live one (it would move the cutoff and the level)
+# The Lorenz and Rössler flows; LFOs 4-6
 CASES.update(
     {
-        "route_curve": (
-            Patch(
-                mod1_src="lfo2",
-                mod1_dst="cutoff",
-                mod1_amt=0.5,
-                mod1_curve=0.7,
-                lfo2_rate=3.0,
-                mod2_src="aenv",
-                mod2_dst="osc1_level",
-                mod2_amt=-0.4,
-                mod2_curve=-0.6,
-                mod5_src="lfo",
-                mod5_dst="pitch",
-                mod5_amt=0.04,
-                mod5_curve=-1.0,
-                mod_lfo_rate=5.0,
-                mod12_src="velocity",
-                mod12_dst="drive",
-                mod12_amt=0.5,
-                mod12_curve=1.0,
-            ),
-            {"vel": 0.6},
-        ),
         # the two chaotic flows: LFO 1 and LFO 2, slow and fast (a fast one
         # walks hundreds of points into its trajectory over the note)
         "lfo_flows": (
@@ -1439,22 +1414,95 @@ CASES.update(
             ),
             {},
         ),
-        "route_switch": (
+        # LFOs 4-6: an oscillator shape free running from a phase, the
+        # stepped one (table stream 4), a drawing; then two more drawings
+        # and every one synced
+        "lfo456": (
             Patch(
-                mod1_src="lfo",
+                lfo4_shape="triangle",
+                lfo4_rate=4.5,
+                lfo4_phase=0.25,
+                lfo4_mode="free",
+                lfo5_mode="free",
+                lfo6_mode="free",
+                mod1_src="lfo4",
                 mod1_dst="osc1_detune",
-                mod1_amt=0.4,
-                mod3_src="lfo",
-                mod3_dst="cutoff",
-                mod3_amt=0.9,
-                mod3_on="off",
-                mod10_src="aenv",
-                mod10_dst="osc1_level",
-                mod10_amt=-0.8,
-                mod10_on="off",
+                mod1_amt=0.5,
+                lfo5_shape="noise",
+                lfo5_rate=7.0,
+                lfo5_phase=0.5,
+                mod2_src="lfo5",
+                mod2_dst="cutoff",
+                mod2_amt=0.4,
+                lfo6_shape="drawn",
+                lfo6_draw="0:1,0.5:-1,0.8:0.2",
+                lfo6_rate=3.0,
+                lfo6_phase=0.6,
+                mod7_src="lfo6",
+                mod7_dst="osc1_level",
+                mod7_amt=-0.4,
             ),
             {},
         ),
+        "lfo_drawn456": (
+            Patch(
+                lfo4_shape="drawn",
+                lfo4_draw="0:0,0.25:1,0.5:0,0.75:-1",
+                lfo4_sync="1/8",
+                mod1_src="lfo4",
+                mod1_dst="osc1_detune",
+                mod1_amt=0.5,
+                lfo5_shape="drawn",
+                lfo5_draw="0.1:-1,0.6:1",
+                lfo5_sync="1/4",
+                mod2_src="lfo5",
+                mod2_dst="cutoff",
+                mod2_amt=0.4,
+                lfo6_shape="saw",
+                lfo6_sync="1/16",
+                mod3_src="lfo6",
+                mod3_dst="pitch",
+                mod3_amt=0.03,
+            ),
+            {},
+        ),
+    }
+)
+
+# A route's switch and source curve (synth.route_curve) in every slot:
+# twelve routes, each curved its own way (bipolar and 0..1 sources, the
+# pitch among the targets); the same twelve each bypassed — the voice must
+# hear none of them
+_ROUTES12 = (
+    ("lfo2", "cutoff", 0.5),
+    ("aenv", "osc1_level", -0.4),
+    ("lfo", "pitch", 0.04),
+    ("velocity", "drive", 0.5),
+    ("fenv", "resonance", 0.4),
+    ("lfo3", "osc1_detune", 0.4),
+    ("env3", "tremolo_depth", 0.5),
+    ("key", "filter_env", 0.3),
+    ("random", "sub_level", 0.4),
+    ("lfo4", "vibrato_depth", 0.3),
+    ("env4", "pwm_depth", 0.5),
+    ("lfo5", "filter_lfo_depth", 0.4),
+)
+_CURVES12 = (0.7, -0.6, -1.0, 1.0, 0.3, -0.3, 0.5, -0.8, 0.9, 0.4, -0.5, 0.6)
+
+
+def _routes12(**per_slot) -> dict:
+    out = {"osc1": "square", "lfo2_rate": 3.0, "mod_lfo_rate": 5.0, "lfo5_rate": 6.0}
+    out["env3_attack"] = 0.2
+    for i, (slot, (src, dst, amt)) in enumerate(zip(MOD_SLOTS, _ROUTES12, strict=True)):
+        out |= {f"{slot}_src": src, f"{slot}_dst": dst, f"{slot}_amt": amt}
+        out |= {f"{slot}_{k}": v[i] for k, v in per_slot.items()}
+    return out
+
+
+CASES.update(
+    {
+        "route_curve": (Patch(**_routes12(curve=_CURVES12)), {"vel": 0.6}),
+        "route_switch": (Patch(**_routes12(on=("off",) * 12)), {"vel": 0.6}),
     }
 )
 
@@ -1570,6 +1618,12 @@ FIELD_CASES: dict[str, str] = {
     "lfo_draw": "lfo_drawn",
     "lfo2_draw": "lfo_drawn23",
     "lfo3_draw": "lfo_drawn23",
+    **{f"lfo{e}_{k}": "lfo456" for e in (4, 5, 6) for k in ("rate", "shape", "phase")},
+    **{f"lfo{e}_mode": "lfo456" for e in (4, 5, 6)},
+    **{f"lfo{e}_sync": "lfo_drawn456" for e in (4, 5, 6)},
+    "lfo4_draw": "lfo_drawn456",
+    "lfo5_draw": "lfo_drawn456",
+    "lfo6_draw": "lfo456",
     "mod_wheel": "wheels",
     "aftertouch": "wheels",
 }

@@ -200,8 +200,11 @@ wider margins:
 - **The Modulators panel** (`paramui` group "Modulators", the
   last column under Motion): envelopes 3 and 4 (five knobs each: attack,
   decay, sustain, release — log knobs, 1 ms to 8 s — curve) and LFOs 2
-  and 3 (rate and phase knobs, shape and sync selects, retrig / free
-  pills). **A drawn LFO** (LFO 1 in Motion, 2 and 3 here):
+  to 6 (rate and phase knobs, shape and sync selects, retrig / free
+  pills). LFOs 4-6 rest folded to their headings while no route that
+  plays reads them (their rows idle: `paramui._IDLE_HAND`), so the panel
+  is as long as it was until one is used; fifteen source jacks in the
+  bay. **A drawn LFO** (LFO 1 in Motion, 2 and 3 here):
   `fragments/lfo_draw.html` under the shape row, shown while the shape is
   "drawn" — a well with the cycle drawn (`oscfaces.draw_face`: the
   polyline the engine reads and a handle a point) over a hidden

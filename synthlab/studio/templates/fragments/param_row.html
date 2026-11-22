@@ -33,7 +33,8 @@
                 "osc3_level", "osc3_octave", "osc3_semi", "osc3_detune", "osc3_warp_amt",
                 "osc1_warp2_amt", "osc2_warp2_amt", "osc3_warp2_amt",
                 "filter2_cutoff", "filter2_resonance", "filter2_key_track", "filter2_env",
-                "mod_wheel", "aftertouch", "lfo2_rate", "lfo2_phase", "lfo3_rate", "lfo3_phase"] %}
+                "mod_wheel", "aftertouch", "lfo2_rate", "lfo2_phase", "lfo3_rate", "lfo3_phase",
+                "lfo4_rate", "lfo4_phase", "lfo5_rate", "lfo5_phase", "lfo6_rate", "lfo6_phase"] %}
 {#- route amounts 5-12, envelopes 3 and 4 — knobs too -#}
 {% set dial_runs = spec.name[:3] == "mod" and (spec.name.endswith("_amt") or spec.name.endswith("_curve")) and spec.name != "mod_wheel"
                    or spec.name[:5] in ("env3_", "env4_") %}

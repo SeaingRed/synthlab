@@ -22,6 +22,7 @@ import numpy as np
 from .. import sampler
 from ..params import (
     FILTER_TYPES_ALL,
+    GENERAL_LFOS,
     GENES,
     MOD_DESTINATIONS,
     MOD_SLOTS,
@@ -148,6 +149,9 @@ MOD_SOURCE_LABELS = {
     "aftertouch": "Aftertouch",
     "key": "Key",
     "random": "Random",
+    "lfo4": "LFO 4",
+    "lfo5": "LFO 5",
+    "lfo6": "LFO 6",
 }
 # the filter types as the menus say them (filter 1's select, filter 2's)
 FILTER_LABELS = {
@@ -210,8 +214,10 @@ def _cross_fm_ok(p) -> bool:
 
 
 # sources whose value later in a note the first sample cannot know: an LFO
-# (any of the three), and the wheels a player moves
-_LATE_SOURCES = frozenset({"lfo", "lfo2", "lfo3", "wheel", "aftertouch"})
+# (any of the six), and the wheels a player moves
+_LATE_SOURCES = frozenset(
+    {"lfo", *(f"lfo{k}" for k in GENERAL_LFOS), "wheel", "aftertouch"}
+)
 # route targets the live voice has no part for, and whose silence at the
 # patch's own value a route can break
 _WAV_TARGETS = frozenset({"osc3_level"})
@@ -668,7 +674,7 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ],
 
     # the general modulators the routes read — envelopes 3 and
-    # 4 (gated as the filter envelope is), LFOs 2 and 3 (the general shapes,
+    # 4 (gated as the filter envelope is), LFOs 2-6 (the general shapes,
     # each its own drawing; a sync division reaches the worklet resolved)
     *[
         entry
@@ -688,7 +694,7 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ],
     *[
         entry
-        for k in (2, 3)
+        for k in GENERAL_LFOS
         for entry in (
             (f"lfo{k}_rate", _ui(_O, f"LFO {k} rate", EXACT, unit="Hz",
                 subhead=f"LFO {k}", hint=f"Speed of LFO {k}.")),
@@ -731,7 +737,10 @@ _ENTRIES: list[tuple[str, Ui]] = [
     *[
         (f"{name}_draw", Ui(None, worklet=EXACT,
             why=f"{label}'s drawn shape: the LFO's drawing sets it"))
-        for name, label in (("lfo", "LFO 1"), ("lfo2", "LFO 2"), ("lfo3", "LFO 3"))
+        for name, label in (
+            ("lfo", "LFO 1"),
+            *((f"lfo{k}", f"LFO {k}") for k in GENERAL_LFOS),
+        )
     ],
 ]
 # fmt: on
@@ -994,6 +1003,16 @@ _SHOWN = frozenset(spec.name for _, specs in PARAM_GROUPS for spec in specs)
 _IDLE_ASKED = tuple(
     n for n in GENES if n in _SHOWN and not (n.startswith("mod") and n[4:5] == "_")
 )
+
+
+def _lfo_routed(k: int) -> Callable[[Any], bool]:
+    """Does a route that plays read general LFO k?"""
+    src = f"lfo{k}"
+    return lambda p: any(
+        slot_active(p, s) and getattr(p, f"{s}_src") == src for s in MOD_SLOTS
+    )
+
+
 # hand-made fields (no genes, so `params.live` never asks about them) that
 # are idle under a rule of their own: the rule says when they are heard
 _IDLE_HAND: tuple[tuple[tuple[str, ...], Callable[[Any], bool], str], ...] = (
@@ -1010,6 +1029,16 @@ _IDLE_HAND: tuple[tuple[tuple[str, ...], Callable[[Any], bool], str], ...] = (
         ),
         osc3_on,
         "oscillator 3's level is 0",
+    ),
+    # LFOs 4-6: heard only through a route (their section folds while none
+    # reads them: bench.js)
+    *(
+        (
+            tuple(f"lfo{k}_{t}" for t in ("rate", "phase", "shape", "sync", "mode")),
+            _lfo_routed(k),
+            f"no route uses LFO {k}",
+        )
+        for k in (4, 5, 6)
     ),
 )
 IDLE_WHY.update({n: why for names, _rule, why in _IDLE_HAND for n in names})

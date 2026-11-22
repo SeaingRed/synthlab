@@ -414,6 +414,13 @@ KEY_ADDED_FIELDS = {
     # always was
     **{f"{s}_on": "on" for s in MOD_SLOTS},
     **{f"{s}_curve": 0.0 for s in MOD_SLOTS},
+    # LFOs 4-6: read only by a route from them, so at these every older
+    # key stays the key it was
+    **{
+        f"lfo{k}_{t}": getattr(Patch(), f"lfo{k}_{t}")
+        for k in (4, 5, 6)
+        for t in ("rate", "shape", "sync", "phase", "mode", "draw")
+    },
 }
 
 

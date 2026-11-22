@@ -74,6 +74,10 @@ MOD_SOURCES = (
     "aftertouch",
     "key",
     "random",
+    # LFOs 4-6 (appended: GENERAL_LFOS)
+    "lfo4",
+    "lfo5",
+    "lfo6",
 )
 # what a bred route draws from: the five it always did (a longer source
 # gene re-draws every seeded litter); a hand-made route to the rest is kept
@@ -171,6 +175,11 @@ LFO_SHAPES = ("sine", "triangle", "saw", "square", "noise")
 # and loop-safe (core.lfo_ext). LFO 1's gene keeps the five: the rest are
 # its cap, a hand-made choice
 GENERAL_LFO_SHAPES = (*LFO_SHAPES, "drawn", "chaos", "smooth", "lorenz", "rossler")
+# the general LFOs beside LFO 1 (each its own rate, shape, sync, phase, mode
+# and drawing): 2 and 3, then 4, 5, 6 — six in all, not more: each is six
+# Patch fields and a source jack, and six already outnumber the routes a
+# sound tends to spend on LFOs
+GENERAL_LFOS = (2, 3, 4, 5, 6)
 # "retrig": a general LFO starts each note at its phase; "free": each note
 # picks the cycle up where its own seed puts it (core.lfo_free_phase)
 LFO_MODES = ("retrig", "free")
@@ -496,6 +505,7 @@ def _r6(name, kind, cap, **kw):
 
 
 _ENV_T = (0.001, 8.0)  # a general envelope's times (log sliders)
+_LFO_RATE = (0.02, 30.0)  # a general LFO's rate, Hz
 # The second filter, two general envelopes, two
 # general LFOs, the mod wheel and aftertouch, route slots 5-12. None is a
 # gene — a longer genome re-draws every seeded litter — so each is a
@@ -522,7 +532,7 @@ _ROUND6: list[Param] = [
         _r6(f"lfo{k}_{part}", kind, cap)
         for k in (2, 3)
         for part, kind, cap in (
-            ("rate", "log", (0.02, 30.0)),
+            ("rate", "log", _LFO_RATE),
             ("shape", "cat", GENERAL_LFO_SHAPES),
             ("sync", "cat", SYNC_CHOICES),
             ("phase", "lin", (0.0, 1.0)),
@@ -814,6 +824,25 @@ _ALL: list[Param] = [
     # one run (synth.route_curve): "on" and 0 are the route as it was
     *[_p(f"{s}_on", "cat", cap=ROUTE_SWITCH, nogene=_ROUTE_WHY) for s in MOD_SLOTS],
     *[_p(f"{s}_curve", "lin", cap=(-1.0, 1.0), nogene=_ROUTE_WHY) for s in MOD_SLOTS],
+    # LFOs 4-6, appended as one run: general LFOs as 2 and 3 are (never
+    # genes), each with its drawing
+    *[
+        param
+        for k in (4, 5, 6)
+        for param in (
+            *[
+                _r6(f"lfo{k}_{part}", kind, cap)
+                for part, kind, cap in (
+                    ("rate", "log", _LFO_RATE),
+                    ("shape", "cat", GENERAL_LFO_SHAPES),
+                    ("sync", "cat", SYNC_CHOICES),
+                    ("phase", "lin", (0.0, 1.0)),
+                    ("mode", "cat", LFO_MODES),
+                )
+            ],
+            _p(f"lfo{k}_draw", "meta"),
+        )
+    ],
 ]
 
 PARAMS: dict[str, Param] = {p.name: p for p in _ALL}
@@ -854,6 +883,9 @@ META_CLEAN: dict[str, Callable[[Any], str]] = {
     "lfo_draw": clean_draw,
     "lfo2_draw": clean_draw,
     "lfo3_draw": clean_draw,
+    "lfo4_draw": clean_draw,
+    "lfo5_draw": clean_draw,
+    "lfo6_draw": clean_draw,
     "sampler_zones": sampler.clean_zones,
 }
 

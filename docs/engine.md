@@ -808,6 +808,22 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   lock: renders run in threads). Straight-line + - x / in a fixed order:
   the voice's `lfoX` (`attrF` / `attrStep`) computes the same doubles
   (parity case `lfo_flows`, LFO 1 at 2 Hz and LFO 2 at 40 Hz: 0.00 dB).
+  **LFOs 4, 5 and 6** (Patch `lfoK_rate` / `_shape` / `_sync` /
+  `_phase` / `_mode` / `_draw`, k = 4-6, defaults 1 / 4 / 0.25 Hz, sine,
+  off, 0, retrig, "": 18 fields, appended as one run, built from
+  `params.GENERAL_LFOS`): general LFOs exactly as 2 and 3 are —
+  `synth.general_lfo(p, k)`, their own seed (crc32 "lfoK"), the stepped
+  shape on `sample_hold`'s stream k - 1 (3-5, in the live table), synced
+  by `at_bpm`, free from `lfo_free_phase(f0, k)`. Their sources "lfo4" ..
+  "lfo6" are appended to `MOD_SOURCES` (the gene's five stand). **Six
+  LFOs, not ten**: each is six Patch fields, a source jack and a panel
+  section, and six already outnumber the routes a sound tends to spend
+  on LFOs. Read only by a route, so a patch that leaves them alone
+  renders as before (`KEY_ADDED_FIELDS`); their rows are idle — and their
+  sections folded — while no route that plays reads them
+  (`paramui._IDLE_HAND`). The agent routes from them but does not set
+  them (its catalogue keeps LFOs 2 / 3). Live: exact (parity cases
+  `lfo456`, `lfo_drawn456`).
 - **More filter types and filter 2** (`core.filt`, `params.FILTER_TYPES_ALL`
   appended after the six, so saved indexes stand; the gene keeps the six):
   `lowpass24` / `highpass24` (two SVFs, Butterworth at 0, the second's q
