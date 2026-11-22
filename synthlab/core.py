@@ -12,6 +12,7 @@ glide, vibrato) work everywhere for free.
 from __future__ import annotations
 
 import math
+import threading
 from collections.abc import Callable
 from functools import cache
 from typing import NamedTuple
@@ -1480,6 +1481,86 @@ def chaos_x0(seed: int) -> float:
     return 0.1 + 0.8 * hash_u(seed, 0)
 
 
+# The two chaotic flows ("lorenz", "rossler"): RK4 at a fixed step in
+# float64, ATTRACTOR_POINTS points a cycle (each `steps` RK4 steps of `h`
+# after the last), joined by straight lines, from a start seeded from the
+# LFO's seed and WARM points of warm-up (so a note starts on the
+# attractor). A cycle is about one turn round it: 0.75 time units of the
+# Lorenz system (sigma 10, rho 28, beta 8/3), 6 of the Rössler (a = b =
+# 0.2, c = 5.7, whose spike needs the finer step). The LFO reads x, centred
+# and scaled to -1..1 (`centre`, `scale`, measured over a long run: Lorenz
+# x within +-19.2, Rössler -9.1..11.5) and held there. Straight-line + - x /
+# in a fixed order, so the live voice (voice-worklet.js `attr`) computes
+# the same doubles.
+ATTRACTOR_POINTS = 8
+ATTRACTOR_WARM = 64
+LORENZ_B = 8.0 / 3.0
+ATTRACTORS = {
+    # h, RK4 steps a point, centre, scale
+    "lorenz": (0.046875, 2, 0.0, 20.0),
+    "rossler": (0.1875, 4, 1.0, 10.5),
+}
+_ATTR_CACHE: dict[tuple[str, int], tuple[list[float], tuple]] = {}
+_ATTR_LOCK = threading.Lock()
+
+
+def _attr_f(m: str, x: float, y: float, z: float) -> tuple[float, float, float]:
+    if m == "lorenz":
+        return 10.0 * (y - x), x * (28.0 - z) - y, x * y - LORENZ_B * z
+    return -y - z, x + 0.2 * y, 0.2 + z * (x - 5.7)
+
+
+def attractor_step(m: str, s: tuple) -> tuple[float, float, float]:
+    """One point's worth of RK4 steps of flow `m` from state `s`."""
+    h, steps = ATTRACTORS[m][:2]
+    hh, h6 = 0.5 * h, h / 6.0
+    x, y, z = s
+    for _ in range(steps):
+        a = _attr_f(m, x, y, z)
+        b = _attr_f(m, x + hh * a[0], y + hh * a[1], z + hh * a[2])
+        c = _attr_f(m, x + hh * b[0], y + hh * b[1], z + hh * b[2])
+        d = _attr_f(m, x + h * c[0], y + h * c[1], z + h * c[2])
+        x = x + h6 * (a[0] + 2.0 * b[0] + 2.0 * c[0] + d[0])
+        y = y + h6 * (a[1] + 2.0 * b[1] + 2.0 * c[1] + d[1])
+        z = z + h6 * (a[2] + 2.0 * b[2] + 2.0 * c[2] + d[2])
+    return x, y, z
+
+
+def attractor_start(m: str, seed: int) -> tuple[float, float, float]:
+    """Flow `m`'s state at point 0: a start drawn from `seed` (hash_u keys
+    1-3), near the attractor, then ATTRACTOR_WARM points on."""
+    u = [hash_u(seed, k) for k in (1, 2, 3)]
+    if m == "lorenz":
+        s = (2.0 * u[0] - 1.0, 2.0 * u[1] - 1.0, 19.0 + 2.0 * u[2])
+    else:
+        s = (2.0 * u[0] - 1.0, 2.0 * u[1] - 1.0, u[2])
+    for _ in range(ATTRACTOR_WARM):
+        s = attractor_step(m, s)
+    return s
+
+
+def attractor_value(m: str, x: float) -> float:
+    centre, scale = ATTRACTORS[m][2:]
+    return min(1.0, max(-1.0, (x - centre) / scale))
+
+
+def attractor_points(m: str, seed: int, count: int) -> np.ndarray:
+    """The first `count` points of flow `m` from `seed`, as LFO values.
+    The same every call (a pure function of its arguments), so it is kept
+    and extended per (flow, seed): the trajectory never changes, only how
+    far a note reads into it."""
+    with _ATTR_LOCK:
+        vals, s = _ATTR_CACHE.get((m, seed)) or ([], None)
+        if s is None:
+            s = attractor_start(m, seed)
+            vals = [attractor_value(m, s[0])]
+        while len(vals) < count:
+            s = attractor_step(m, s)
+            vals.append(attractor_value(m, s[0]))
+        _ATTR_CACHE[(m, seed)] = (vals, s)
+        return np.asarray(vals[:count])
+
+
 def lfo_ext(
     shape: str,
     rate,
@@ -1498,10 +1579,18 @@ def lfo_ext(
     a cycle, smoothstepped from one to the next; "noise" the stepped random
     of `sample_hold`'s stream `table_seed` (the live voice's table holds the
     streams 0..7), stepped at each whole cycle of the phase; the rest are
-    `osc` shapes from `phase0`."""
-    if shape not in ("noise", "drawn", "chaos", "smooth"):
+    `osc` shapes from `phase0`. "lorenz" and "rossler" read their flow's
+    points (`attractor_points`, ATTRACTOR_POINTS a cycle) by straight lines."""
+    if shape not in ("noise", "drawn", "chaos", "smooth", *ATTRACTORS):
         return osc(shape, rate, n, sr, phase0=phase0)
     acc = np.cumsum(as_array(rate, n)) / sr + phase0
+    if shape in ATTRACTORS:
+        pos = acc * ATTRACTOR_POINTS
+        j = np.floor(pos)
+        fr = pos - j
+        j = j.astype(np.int64)
+        v = attractor_points(shape, seed, int(j[-1]) + 2 if n else 2)
+        return v[j] + (v[j + 1] - v[j]) * fr
     k = np.floor(acc)
     fr = acc - k
     k = k.astype(np.int64)

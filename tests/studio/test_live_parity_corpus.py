@@ -1421,6 +1421,24 @@ CASES.update(
             ),
             {"vel": 0.6},
         ),
+        # the two chaotic flows: LFO 1 and LFO 2, slow and fast (a fast one
+        # walks hundreds of points into its trajectory over the note)
+        "lfo_flows": (
+            Patch(
+                lfo_shape="lorenz",
+                mod_lfo_rate=2.0,
+                mod1_src="lfo",
+                mod1_dst="cutoff",
+                mod1_amt=0.5,
+                lfo2_shape="rossler",
+                lfo2_rate=40.0,
+                lfo2_phase=0.3,
+                mod2_src="lfo2",
+                mod2_dst="osc1_detune",
+                mod2_amt=0.3,
+            ),
+            {},
+        ),
         "route_switch": (
             Patch(
                 mod1_src="lfo",

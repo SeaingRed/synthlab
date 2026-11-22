@@ -175,6 +175,8 @@ LFO_SHAPE_LABELS = {
     "drawn": "drawn",
     "chaos": "chaos",
     "smooth": "smooth random",
+    "lorenz": "Lorenz",
+    "rossler": "Rössler",
 }
 # a route row's fields, every slot (the mod matrix draws them): its switch,
 # source, target, amount and source curve
@@ -592,9 +594,11 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ("mod_lfo_rate", _ui(_M, "LFO 1 rate", EXACT, 0.05, unit="Hz", subhead="LFO 1",
         hint="Speed of LFO 1, the LFO the routes use.")),
     ("lfo_shape", _ui(_M, "LFO 1 shape", EXACT, widget="select",
-        option_labels=LFO_SHAPE_LABELS, extra=("drawn", "chaos", "smooth"),
+        option_labels=LFO_SHAPE_LABELS,
+        extra=("drawn", "chaos", "smooth", "lorenz", "rossler"),
         hint="LFO 1's waveform. Stepped is a random step a cycle; drawn is the "
-             "curve drawn for it; chaos a chaotic line; smooth random glides.")),
+             "curve drawn for it; chaos a chaotic line; smooth random glides; "
+             "Lorenz and Rössler wander round a chaotic flow, never repeating.")),
     ("lfo_sync", _ui(_M, "LFO 1 sync", EXACT, widget="select",
         hint="Lock LFO 1 to the tempo. Overrides the rate.")),
     ("filter_lfo_rate", _ui(_M, "Filter LFO rate", EXACT, 0.05,

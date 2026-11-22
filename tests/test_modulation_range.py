@@ -1,4 +1,5 @@
-"""More modulation: a route's switch and the curve on its source.
+"""More modulation: a route's switch and the curve on its source, two
+chaotic flows as LFO shapes.
 
 Each is opt-in — a route "on" with its curve at 0 is the route as it always
 was, so a patch that leaves them at their defaults renders bit for bit as
@@ -14,8 +15,17 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
+from synthlab import core
 from synthlab import synth as synth_mod
-from synthlab.params import MOD_SLOTS, PARAMS, live, slot_active
+from synthlab.core import SR
+from synthlab.params import (
+    GENERAL_LFO_SHAPES,
+    MOD_SLOTS,
+    PARAMS,
+    clamp,
+    live,
+    slot_active,
+)
 from synthlab.studio.factory import FACTORY, get_factory
 from synthlab.studio.library import LIBRARY, get_library
 from synthlab.synth import Patch, Synth, route_curve
@@ -124,3 +134,60 @@ def test_a_curve_on_a_pitch_route_and_a_bipolar_lfo():
     assert np.array_equal(np.sign(bent), np.sign(straight))
     assert np.max(np.abs(bent)) == pytest.approx(np.max(np.abs(straight)), abs=1e-9)
     assert np.mean(np.abs(bent)) > np.mean(np.abs(straight))  # rises early
+
+
+# --- the chaotic flows -------------------------------------------------------------
+
+
+def test_no_shipped_patch_reaches_the_flows(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("a chaotic flow ran on a patch that has none")
+
+    monkeypatch.setattr(core, "attractor_points", boom)
+    for p in _all_shipped():
+        Synth(p).note("C3", 0.2, gate=0.15)
+
+
+@pytest.mark.parametrize("shape", ["lorenz", "rossler"])
+def test_a_flow_is_bounded_continuous_seeded_and_the_same_every_render(shape):
+    assert GENERAL_LFO_SHAPES[-2:] == ("lorenz", "rossler")  # appended
+    n = 20 * SR
+    a = core.lfo_ext(shape, 3.0, n, SR, 0.0, 7)
+    assert np.array_equal(a, core.lfo_ext(shape, 3.0, n, SR, 0.0, 7))
+    assert np.all(np.abs(a) <= 1.0) and a.max() > 0.5 and a.min() < -0.5
+    # joined by lines, 8 points a cycle: no step bigger than a point's move
+    assert np.max(np.abs(np.diff(a))) < 0.01
+    # another seed, another path (the LFOs each have their own)
+    assert not np.allclose(a, core.lfo_ext(shape, 3.0, n, SR, 0.0, 8))
+    # a function of the phase: twice the rate reads the same path twice as fast
+    b = core.lfo_ext(shape, 6.0, n // 2, SR, 0.0, 7)
+    assert np.allclose(b, a[1::2][: len(b)], atol=1e-9)  # (a cumsum: phase at i + 1)
+    # it never settles: a long read keeps moving
+    tail = core.lfo_ext(shape, 50.0, n, SR, 0.0, 7)[-SR:]
+    assert tail.std() > 0.2
+
+
+def test_the_flows_points_are_one_cached_trajectory():
+    first = core.attractor_points("lorenz", 123, 50)
+    longer = core.attractor_points("lorenz", 123, 400)
+    assert np.array_equal(longer[:50], first)
+    # the cache holds the same numbers a fresh walk computes
+    s = core.attractor_start("lorenz", 123)
+    vals = [core.attractor_value("lorenz", s[0])]
+    for _ in range(399):
+        s = core.attractor_step("lorenz", s)
+        vals.append(core.attractor_value("lorenz", s[0]))
+    assert np.array_equal(np.asarray(vals), longer)
+    # the Lorenz flow swaps lobes (x changes sign) — a chaotic flow, not a cycle
+    assert (longer > 0.3).any() and (longer < -0.3).any()
+
+
+@pytest.mark.parametrize("k", [1, 2])
+def test_the_lfos_take_the_flows(k):
+    name = "lfo" if k == 1 else f"lfo{k}"
+    shape = "lfo_shape" if k == 1 else f"lfo{k}_shape"
+    p = Patch(
+        **{shape: "rossler", "mod1_src": name, "mod1_dst": "cutoff", "mod1_amt": 0.5}
+    )
+    assert clamp(p) == p
+    assert not np.array_equal(_note(p), _note(replace(p, **{shape: "sine"})))

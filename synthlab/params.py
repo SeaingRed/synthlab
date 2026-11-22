@@ -166,10 +166,11 @@ MOD_GENE_DESTINATIONS = tuple(
 # core.lfo() dispatches these: WAVEFORMS plus its own "noise" special case
 LFO_SHAPES = ("sine", "triangle", "saw", "square", "noise")
 # the general LFOs' shapes (LFO 1, 2, 3): those, then a drawn
-# curve (`lfo_draw`...), a chaotic map and a smooth random line, all seeded
+# curve (`lfo_draw`...), a chaotic map, a smooth random line and two
+# chaotic flows (appended: core.ATTRACTORS), all seeded
 # and loop-safe (core.lfo_ext). LFO 1's gene keeps the five: the rest are
 # its cap, a hand-made choice
-GENERAL_LFO_SHAPES = (*LFO_SHAPES, "drawn", "chaos", "smooth")
+GENERAL_LFO_SHAPES = (*LFO_SHAPES, "drawn", "chaos", "smooth", "lorenz", "rossler")
 # "retrig": a general LFO starts each note at its phase; "free": each note
 # picks the cycle up where its own seed puts it (core.lfo_free_phase)
 LFO_MODES = ("retrig", "free")

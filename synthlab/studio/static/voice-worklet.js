@@ -108,7 +108,9 @@
 // the loop's grid whatever the main thread's timers do; allOff drops it.
 // 1180 -> 1186: a route's switch (a bypassed slot is not wired) and the
 // curve on its source (synth.route_curve, in route()).
-// Budget: <= 1186 code lines.
+// 1186 -> 1213: two chaotic flows as LFO shapes, Lorenz and Rössler (core's
+// RK4 a point, ATTR_P points a cycle, in lfoX: attrF / attrStep / attrVal).
+// Budget: <= 1213 code lines.
 
 const D = { // Patch defaults for anything a message left out
   osc1: "saw", osc1_level: 0.8, osc1_octave: 0, osc1_detune: 0, osc2: null, osc2_level: 0.5,
@@ -157,6 +159,26 @@ const RING = 2048, COMB_MAX = 2000, COMB_FB = 0.97, DIODE_B = 0.25, TB = Math.ta
 // _LFO_FREE_KEY), an empty drawing's triangle
 const CHAOS_R = 3.99, RANDOM_KEY = 0x30000, FREE_KEY = 0x40000, DRAW_DEFAULT = [[0, -1], [0.5, 1]];
 const ROUTE_K = 15; // synth.ROUTE_CURVE_K: a route curve's bend at +-1
+// core.ATTRACTORS: the two chaotic flows an LFO may read — h, RK4 steps a
+// point, centre, scale — ATTRACTOR_POINTS a cycle, ATTRACTOR_WARM, LORENZ_B
+const ATTR = { lorenz: [0.046875, 2, 0, 20], rossler: [0.1875, 4, 1, 10.5] }, ATTR_P = 8, ATTR_WARM = 64;
+const LORENZ_B = 8 / 3, AK = [0, 1, 2, 3].map(() => new Float64Array(3));
+// core._attr_f / attractor_step: the same doubles in the same order
+const attrF = (m, x, y, z, d) => {
+  if (m === "lorenz") { d[0] = 10 * (y - x); d[1] = x * (28 - z) - y; d[2] = x * y - LORENZ_B * z; } else {
+    d[0] = -y - z; d[1] = x + 0.2 * y; d[2] = 0.2 + z * (x - 5.7);
+  }
+};
+const attrStep = (m, s) => {
+  const h = ATTR[m][0], hh = 0.5 * h, h6 = h / 6, [a, b, c, d] = AK;
+  for (let i = 0; i < ATTR[m][1]; i++) {
+    const x = s[0], y = s[1], z = s[2];
+    attrF(m, x, y, z, a); attrF(m, x + hh * a[0], y + hh * a[1], z + hh * a[2], b);
+    attrF(m, x + hh * b[0], y + hh * b[1], z + hh * b[2], c); attrF(m, x + h * c[0], y + h * c[1], z + h * c[2], d);
+    for (let q = 0; q < 3; q++) s[q] = s[q] + h6 * (a[q] + 2 * b[q] + 2 * c[q] + d[q]);
+  }
+};
+const attrVal = (m, x) => Math.min(1, Math.max(-1, (x - ATTR[m][2]) / ATTR[m][3]));
 const BLOCK = 64; // core.biquad's coefficient block: cutoff sampled at its start
 const MAXU = 8;
 const MAXV = 16; // voices per layer node; past it one is stolen (steal())
@@ -597,6 +619,17 @@ class SynthlabVoice extends AudioWorkletProcessor {
       return row < 0 ? 0 : tb.uniform[row * tb.un + K % tb.un];
     }
     const st = v.lx[k], seed = this.seeds[k];
+    if (ATTR[shape]) { // core.attractor_points: ATTR_P points a cycle, joined by lines
+      const pos = acc * ATTR_P, J = Math.floor(pos), f = pos - J;
+      if (st.am !== shape) { // core.attractor_start: a seeded start, then the warm-up
+        const u = [1, 2, 3].map((q) => driftU(seed, q));
+        st.as = Float64Array.of(2 * u[0] - 1, 2 * u[1] - 1, shape === "lorenz" ? 19 + 2 * u[2] : u[2]);
+        for (let w = 0; w < ATTR_WARM; w++) attrStep(shape, st.as);
+        st.am = shape; st.aJ = 0; st.a = attrVal(shape, st.as[0]); attrStep(shape, st.as); st.b = attrVal(shape, st.as[0]);
+      }
+      while (st.aJ < J) { st.a = st.b; attrStep(shape, st.as); st.b = attrVal(shape, st.as[0]); st.aJ++; }
+      return st.a + (st.b - st.a) * f;
+    }
     if (shape === "chaos") {
       if (st.K === undefined) { st.K = 0; st.a = 0.1 + 0.8 * driftU(seed, 0); st.b = CHAOS_R * st.a * (1 - st.a); }
       while (st.K < K) { st.a = st.b; st.b = CHAOS_R * st.b * (1 - st.b); st.K++; }

@@ -791,6 +791,23 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   (`test_routes_left_on_and_straight_never_reach_the_curve`). Not genes,
   not curves, not targets; a mod mix writes its routes on and straight.
   Live, both are exact (parity cases `route_curve`, `route_switch`).
+  **Two chaotic flows** (`GENERAL_LFO_SHAPES` "lorenz", "rossler",
+  appended; any general LFO): `core.ATTRACTORS` — the Lorenz system
+  (sigma 10, rho 28, beta 8/3) and the Rössler (a = b = 0.2, c = 5.7) by
+  RK4 at a fixed step in float64, `ATTRACTOR_POINTS` (8) points a cycle,
+  each 2 steps of 0.046875 (Lorenz: 0.75 time units a cycle, about a turn
+  round a lobe) or 4 of 0.1875 (Rössler: 6, about one orbit — its z spike
+  needs the finer step; 0.375 blows up), joined by straight lines along
+  the phase, as the logistic "chaos" is. The start is drawn from the
+  LFO's seed (`hash_u` keys 1-3) near the attractor, then
+  `ATTRACTOR_WARM` (64) points of warm-up; the LFO reads x, centred and
+  scaled to -1..1 (Lorenz x / 20, Rössler (x - 1) / 10.5: measured x
+  within +-19.2 and -9.1..11.5) and held there. A function of the phase
+  from the note's start, so loop-safe; one trajectory per (flow, seed)
+  that never changes, so `attractor_points` keeps it and extends it (a
+  lock: renders run in threads). Straight-line + - x / in a fixed order:
+  the voice's `lfoX` (`attrF` / `attrStep`) computes the same doubles
+  (parity case `lfo_flows`, LFO 1 at 2 Hz and LFO 2 at 40 Hz: 0.00 dB).
 - **More filter types and filter 2** (`core.filt`, `params.FILTER_TYPES_ALL`
   appended after the six, so saved indexes stand; the gene keeps the six):
   `lowpass24` / `highpass24` (two SVFs, Butterworth at 0, the second's q

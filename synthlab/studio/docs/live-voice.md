@@ -600,7 +600,10 @@ voice's to the last f32 bit on every one.
   from the "modwheel" / "aftertouch" messages, clipped to 0..1), the key
   and the note's random value (`driftInit`). `lfoX`: the drawing parsed in
   `wire()` and read as `np.interp` does; chaos the logistic map advanced
-  as the phase crosses each cycle (`v.lx[k]`); smooth the hashed pair of
+  as the phase crosses each cycle (`v.lx[k]`); the Lorenz and Rössler
+  flows (`attrF` / `attrStep`, core.attractor_step's RK4 in the same
+  order) advanced a point as the phase crosses each eighth of a cycle,
+  their seeded start and warm-up run when the shape is first read; smooth the hashed pair of
   the cycle, smoothstepped; LFO 2 / 3's stepped from the table's streams 1
   / 2. The new targets reach what the module reads: `WP` (wt_pos), `FA`
   (cross FM — a route switches the cross path on), `IX` (fm index), `E1..E4`

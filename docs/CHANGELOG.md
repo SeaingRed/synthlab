@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Chaotic LFO shapes**: every general LFO's shape menu gains Lorenz and
+  Rössler — a line wandering round a chaotic flow, never repeating, the
+  same on every render and on the live keys.
 - **A route's switch and curve**: each mod-matrix row gains an on / off
   switch (off keeps the route but bypasses it) and a curve knob that bends
   its source before the amount — up rises early, down late. On and
