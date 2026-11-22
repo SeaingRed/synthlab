@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **A take with the keys arp lands on the grid it was played on**: the
+  note grid has triplets — 1/8T and 1/16T (12 and 24 steps a bar in 4/4;
+  9 and 18 in 3/4; none in 6/8, 7/8 or 12/8, whose eighths already are
+  their beat's triplets) — and a take placed as played picks the rate its
+  notes sit on best, said in its toast ("on 1/8T (12 a bar)"): a 1/8T arp
+  lands with every note on a line, a riff of sixteenths stays on 16. A
+  take recorded with nothing playing now counts the keys arp from the
+  take's own bars (it counted from each press, so no grid held it), and
+  the live arp counts each bar from its line ("bar" retrigger restarts at
+  every bar, as the grid's does). The drum grid keeps its straight steps;
+  1/16T holds 8 bars at most. Loops already saved keep their rate.
+- **Every row the notes use**: the roll's rows have a fourth range,
+  "notes" — the key's rows from the lowest note to the highest (and any
+  note's row out of the key), scrolling — and a loop or take whose notes no
+  24-row window holds (a take over three octaves and more) opens on it.
+- **Rec ▾ → Arp: its notes | the keys I held**: with "the keys I held", a
+  take made while the keys arp plays keeps the keys you pressed — when,
+  how long, how hard — and its loop plays them through the grid arp set as
+  the keys arp was (its pattern, rate, direction, octaves, gate, swing), so
+  the loop edits as a few held notes, not every note of the arpeggio; the
+  same switch is in the keys arp's ⚙. Its render is the keys arp's notes,
+  pitch for pitch and time for time. Nobody has listened.
 - **The Loops page has one transport, the deck**: ■ and ▶ (Space) at the
   top of the page play what its source says — **Loop** (the selected
   cell's loop alone), **Scene** (that cell's row) or **Song** (an empty

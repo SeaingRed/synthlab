@@ -196,6 +196,8 @@ at the top of the centre:
   it lands** — **a new loop** (the selected cell when it is empty, else
   the lane's next empty one, never over a loop: slots.js's `free`; no cell
   selected, the Loops panel) | **the selected cell: overdub | replace** —
+  (above it, **arp: its notes | the keys I held**, `[data-key-arp]`:
+  keys-and-midi.md, "⏺ Rec") —
   shown always, never a hidden mode, with a line saying where this take
   will go ("overdub “Acid line” · lane 1, scene 1"), then **⟲ Keep what I
   just played** (Alt+T: keys capture) and **⏺ resample** (`#jam-rec`:
@@ -698,8 +700,25 @@ tool (grid.js).
 ### Rows, the octave window, ghosts, chord tones
 
 - **Rows**: six tones (`span` 1), the key over two octaves (2: every row
-  in key — this is scale lock) or chromatic (3: 24 semitones, the rows
-  outside the key `.off-key`, dimmed). Root rows are bold.
+  in key — this is scale lock), chromatic (3: 24 semitones, the rows
+  outside the key `.off-key`, dimmed) or **every row the notes use** (4,
+  "notes": `state.model.note_rows`) — no window: the key's rows from the
+  root at or below the lowest note to the root at or above the highest (at
+  least an octave), and the row of any note out of the key among them (not
+  the chromatic run between), the pane scrolling down them. Root rows are
+  bold. The octave buttons stay put on span 4 (`oct_range` is the window
+  it is at); `grid_span` 4 is saved as the others are (`schema` 1-4).
+  **Measured** (`tests/browser/test_arp_take.py`, a 16-bar 1/16 grid over
+  A3-F7, every note felt, the roll's style and layout redone whole):
+  span 3, 24 rows, 6,400 cells (the slide row's counted): 415 ms, the page
+  1,037 KB; span 4, 30 rows (29 of the key's and one held out of it),
+  7,936 cells: 561 ms, 1,194 KB; the full chromatic run, 49 rows, 12,800
+  cells: 887 ms, 1,590 KB. The key's rows and the held ones, not the
+  chromatic run: the cost follows the cells (+35 % for every note shown,
+  against +114 %), and five octaves chromatic, 61 rows, would be ~2.5x
+  span 3. `limits.MAX_GRID_PITCHES` (24) stays what it was — the distinct
+  pitches a lane may hold: a take over five octaves of one key holds far
+  fewer (the owner's: 14) — and is no longer the most rows a roll shows.
 - **The octave window** moves the rows' bottom whole octaves from the
   root (`state.model.grid_rows(arr, span, octave)`; `pitch_rows` is the
   window at 0). On Perform it is `state.grid_oct` (-1..+3): **runtime
@@ -715,6 +734,9 @@ tool (grid.js).
   launch. The notes are never moved: the window finds the nearest octave
   that shows them all, widening to two octaves of the key or to the
   chromatic rows when a note is out of the key (`model.notes_window`).
+  When no window shows them all (a take over three octaves and more),
+  the roll shows every row they use (span 4), and a roll on span 4 stays
+  there.
   An empty grid keeps the window where it was. PageUp on
   the top row / PageDown on the bottom row pages it and keeps the
   cursor on the pitch asked for. Notes outside the window are hidden
@@ -961,7 +983,46 @@ played, random), **oct** (1-4) and **retrig** (note, bar, free).
 - **Limits**: a section renders one cycle (the lcm of its lanes' bars)
   and repeats it, so "free" starts again there and the rolls repeat with
   it. The chord is the grid's every row, never the notes held at a step
-  (a chunk of a long section does not see the notes before it).
+  (a chunk of a long section does not see the notes before it) — but for
+  a HELD pattern, below.
+- **The keys I held** (a take's, `arp_pattern["held"]`: keys-and-midi.md,
+  "⏺ Rec"; `arrange._held_timeline`, `arppattern.from_keys`,
+  `tests/studio/test_arp_take.py`): a ⏺ Rec take made with "Arp: the keys
+  I held" keeps the keys pressed and its loop plays them through the grid
+  arp set as the keys arp was — `arp_mode` "pattern", the pattern the keys
+  arp's ▦ (its "grid" rate named, the loop may sit on another step; `held`
+  "pattern") or, in its up / down / up-down / random / as-played modes, one
+  step at its gate on its rate in its mode and octaves (`held` "plain"),
+  with the keys arp's `swing` (the pattern's own, not the loop's). A held
+  pattern is NOT the grid's chord: at each step the chord is the notes the
+  keys arp read then — held `HELD_READ_S` (50 ms) before the step (its pump
+  reads 40-60 ms ahead), a run's first step the first at or after its first
+  press less `HELD_LATE_S` (30 ms) — and a run (a stretch with a key down)
+  starts the walk afresh ("plain" never again within it; a ▦ pattern's
+  "note" at the first step read after a strike, "bar" at every bar line,
+  "free" goes on from the last run). A hit's velocity is the newest held
+  note's times the step's. Held to a model of arp.js's clock (its 20 ms
+  pump, `stepAt`, the take's bar lines; arppat.js's `hits`) in every mode
+  and retrig: the same pitches at the same times within a render quantum,
+  and in Chromium against the notes the keys arp sent the voice
+  (`tests/browser/test_arp_take.py`). **Where it differs from the take**,
+  said exactly: a run's first note struck up to 30 ms after its step
+  sounded live when struck, and plays on the step; a key pressed or let go
+  in the 40-60 ms before a step joins / leaves at that step or the next as
+  the pump's 20 ms phase fell (the model takes 50 ms); a chunked → Song
+  section (past 10 s of loop) starts the walk again at each chunk; the
+  chance lane rests a held NOTE (not an arp step); a held loop's arp is
+  its own — Edit, a launch or ▶ of a loop with none turns it off
+  (`_loop_lane`, `slots._arp_fields`), and the grid arp turned or the
+  pattern edited while it is open is not saved to the loop (the editor
+  keeps `held` and `swing`). The keys arp's chord mode (stabs) has no grid
+  arp: such a take keeps its notes.
+- **The live arp counts each bar from its line** (arp.js): its next step
+  counts from the bar line at or before that step's own line (it took the
+  one before half a step back, so a step on a bar line was step 12 of the
+  bar before, never 0) — "bar" retrig now starts the walk at every bar line
+  live, as the grid does, and the swing's odd steps restart with each bar
+  (in 3/4 at 1/8T, 9 a bar, they had drifted).
 
 `tests/studio/test_arp_pattern.py`; `tests/browser/test_arp_pattern.py`.
 **Nobody has listened**: whether a pattern grooves.
@@ -1056,7 +1117,7 @@ clip (`studio/loops.py`, `studio_data/loops/<name>.json`,
 
 | key | what |
 |---|---|
-| `arr` | the note lane (bars, steps a bar, cells, cuts, velocities, slides; each note's own feel, `note_feel`, when it has one), the tempo, the key and the meter — `state.model.LOOP_FIELDS` |
+| `arr` | the note lane (bars, steps a bar, cells, cuts, velocities, slides; each note's own feel, `note_feel`, when it has one), the tempo, the key and the meter — `state.model.LOOP_FIELDS`; its grid arp (`arp_mode`, `arp_pattern`: `loops.ARP_FIELDS`) only when it plays one — a take of "the keys I held" |
 | `sound` | the whole sound that played it, with its layers (a format-2 preset's body) |
 | `take` | the clip of its audio (absent on an older loop file, or one saved from the lane until it is rendered) |
 | `played` | the notes **exactly as played**, `[start, length, midi, velocity]` in beats from the take's first downbeat — never rewritten; the arp's notes as they sounded |
@@ -1077,10 +1138,10 @@ grid and the loop is as long as its notes; a take longer than the longest
 grid keeps the rest in `played` —
 `loops.rest_bars` — and says so: the take's toast, "+n bars played" on its
 row, Edit's toast; → Song lays every bar out, below), at the
-**rate** — the meter's own steps (`meter.step_choices`: 1/4, 1/8, 1/16,
-1/32 in 4/4; 3, 6, 12, 24 a bar in 3/4; no quarter-note step in an x/8
-meter; **no triplets**, which the note grid has no steps for in a duple
-meter) — the meter's sixteenths first. The **strength** says how much of
+**rate** — the meter's own steps (`meter.step_choices`: 1/4, 1/8, 1/8T,
+1/16, 1/16T, 1/32 in 4/4 — 4, 8, 12, 16, 24, 32 a bar; "The loop's meter"
+below says each meter's) — **the one its notes sit on best**. The
+**strength** says how much of
 its timing a note keeps (`loops._spans`, `tests/studio/test_loops.py`):
 
 - **as played, 0** (the default for a take's loop — ⏺ Rec, ⟲ Capture, a
@@ -1104,6 +1165,30 @@ its timing a note keeps (`loops._spans`, `tests/studio/test_loops.py`):
   So **Q "as played" plays back like the take**: the grid, the render, ▶
   in time at another tempo, → Song (the pattern carries `note_nudge`; its
   sections' chunks keep it) and a bounce all play the timing.
+
+**Placement picks the rate** (`loops.pick_steps`,
+`tests/studio/test_arp_take.py`): a take placed as played (⏺ Rec, ⟲
+Capture, a take's first action) lands on the rate whose lines its note
+STARTS sit on best — the least total |offset| in milliseconds at its tempo
+(`loops.offsets_ms`) — of `loops.pick_order`: the meter's sixteenths first
+(every grid before; they hold every 1/8 and 1/4 line, so nothing coarser is
+offered), then its triplets coarsest first, then 1/32. A rate within
+`PICK_TIE_MS` (6 ms) a note of the best is a tie, and the first in that
+order takes it: a 1/8T arp lands on 12 steps a bar with its notes on the
+lines (but for its swing: the odd steps late, as the arp played them), a
+1/16T roll on 24, a riff of sixteenths played loosely on 16, quarter-note
+chords on 16. The rate is said in the take's toast ("on 1/8T (12 a bar)":
+`X-Loop-Rate`, keyrec.js; the rest-of-the-take toast says it too). A loop
+keeps its rate from then on: Q, the length question and Edit place at the
+loop's own (`/loop/length` at `lane.steps_per_bar`), and nothing saved
+moved (no loop file, key or `RENDER_REV`). **The owner's take**
+(2026-11-22, 1/8T over three octaves, 100 bpm, nothing playing) re-placed:
+the arp had counted from each press, not from the take's bars (0.25 beat
+off the take's triplet lines, a different phase each press), so no grid
+holds it — it picks 1/32, mean 17.0 ms, worst 31.2 ms off its lines (on
+1/16: mean 37.1, worst 70.8; on 1/8T: mean 58.4, worst 79.2). A take from
+silence now counts the arp from its own bars (keys-and-midi.md, "The keys
+arp"), which lands such a take on 12 a bar.
 
 One starting where its row still sounds is a cut; a step's velocity is the
 loudest note starting there — the MIDI import's write
@@ -1916,6 +2001,29 @@ it); Stream Deck dials on the zoom or the cursor's velocity (a lane is
 a `role=slider`, not a value control the deck's focus mode pages).
 
 ### The loop's meter
+
+**Triplets** (`meter.triplet_choices`, `tests/studio/test_meter.py`): a /4
+meter's note grid also has the triplets of its quarter-note beat — three to
+a beat (1/8T) and six (1/16T): 4/4's 12 and 24 a bar, 2/4's 6 and 12, 3/4's
+9 and 18, 5/4's 15 and 30. **An x/8 meter has none**: its beat (6/8's and
+12/8's dotted quarter, 7/8's groups) already divides in three — its eighths
+are that beat's triplets — and a quarter-note triplet there (4.5 to a 6/8
+bar) falls across its groups. The drum grid keeps the straight steps
+(`meter.straight_choices`: its notation, its generators and its kits are
+written in sixteenths). A triplet grid's lines group in threes: every third
+step a beat at 1/8T, every sixth at 1/16T (`meter.grid_accents`; a straight
+4/4 grid still marks every fourth step, byte for byte); the steps select
+says "12 · 1/8T". **The bar cap**: bars x steps still fits
+`limits.MAX_GRID_STEPS` (256), so 1/16T holds 8 bars at most, as 1/32 does
+(16 x 24 = 384), and 1/8T all six (16 x 12 = 192); a take longer than its
+grid keeps the rest as played (→ Song lays it out). Two grids meet on their
+least common multiple when the meter has it (`meter.common_steps`: 12 and 8
+on 24), else on the finer (12 and 16 on 16: a triplet lane launched beside
+a straight one goes onto the straight grid, its starts on the nearest lines
+there; launched alone it keeps its 12). A start moved between grids is
+`meter.regrid_start` (whole multiples as they always were). Swing on a
+triplet grid delays its odd steps, as the keys arp's swing at 1/8T does.
+MIDI out is exact (480 ticks a quarter: a 1/8T step is 160).
 
 The "bar" picker by Perform's bpm (`fragments/meter_pick.html`, region
 `meter-pick`; `consume`s its change, so the deck's form does not
