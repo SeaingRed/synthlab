@@ -118,7 +118,7 @@ dead server ("server unreachable", the LED red) or the timeout (htmx's
 brings none (keyrec.js names the loop it made from `X-Loop-Name`). It
 resolves to `{ headers, text, trigger }`, or null when refused or failed.
 Its callers: audio.js (the jam's resample), coach.js, keyrec.js,
-loopspanel.js, shaper.js, songrec.js, songtake.js, talkbox.js, vocal.js,
+loopdeck.js, loopspanel.js, shaper.js, songrec.js, songtake.js, talkbox.js, vocal.js,
 voice.js, chords.js — none fetches, swaps or reads `HX-Trigger` itself
 (`tests/studio/test_island.py::test_one_send_for_the_posts_islands_build_by_hand`).
 **A GET an island wants swapped is `htmx.ajax`**, from `#post-from` (so
@@ -1778,14 +1778,26 @@ hue (green in Studio Teal, orange in Warm Tube), ⏸'s the pause hue, ⏺'s red
 pulse stops too). The glyph is the role's `-text` colour; a latched key
 stays sunk. Same shape everywhere: the views' ▶, the top dock's ▶ / ⏸ / ■,
 ▶ beat, the Song's and the Mixer's transport, the pattern editor's ▶, every
-⏺ (the Song's record, the dock's ⏺ Rec, Perform's jam, the sampler's, the
+⏺ (the Song's record, the dock's ⏺ Rec and the Loops page's deck's — one
+take —, its ⏺ resample, the sampler's, the
 Voice lab's, the vocal chain's, the talkbox's, the bend's), and the deck's
 Play, Stop all, Jam and Capture keys (deckart.js draws the same jewel). The
 dense footprint is the `.btn`'s. A ▶ that is its own stop
-(`.btn-toggle`: Synths, Perform, Drums, the pattern editor's ▶ Play, whose
+(`.btn-toggle`: Synths, Drums, the pattern editor's ▶ Play, whose
 two faces are `.when-off` / `.when-on`) shows the red ■ while it plays, its
-lamp lit; one with a ■ beside it (the Song page, the Mixer) keeps its ▶ and
-lights its lamp. The top dock's stop and the jam's Stop all are
+lamp lit; one with a ■ beside it (the Song page, the Mixer, the Loops
+page's deck) keeps its ▶ and lights its lamp.
+
+**The Loops page's deck** (`loop-and-perform.md`, "The deck";
+`static/loopdeck.js`) is that page's one transport: ■ ▶, a source switch
+(Loop — the selected cell's loop alone, else the working loop — | Scene |
+Song) that says what ▶ and Space start, ⏺ Rec with its ▾ (the keyboard
+dock's ⏺ Rec, the same take), a bar meter of lamps that counts in while
+Rec is armed, tempo, meter, key and level. It plays nothing of its own:
+it chooses, and audio.js or song.js plays — so the status strip mirrors
+it and stays valid on every page. Every other play control there is a
+**▷ listen** (`.lp-play.listen`: hollow, the signal's colour, a quiet
+layer over what plays that the deck stops when it starts). The top dock's stop and the jam's Stop all are
 `.btn-stop`; the small auditions (`.sc-play`) and the shared player's ▶
 are green glyphs, the player orange (⏸) while it plays. The Song page
 and the Mixer have ⏸ (song.js `pause`): the song stops where it is
