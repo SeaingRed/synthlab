@@ -11,12 +11,12 @@
 //   S.tempo) — a whole bar off when count-in (#key-count,
 //   synthlab.keyRecCount, on) is lit: the loop is the count-in. Nothing
 //   playing: count-in blips one bar in to the speakers, never the take.
-// - How long (#key-bars, synthlab.keyRecBars): 1, 2, 4 or 8 bars, then it
-//   stops by itself; or "until stopped" (the default): until pressed again, rounded
+// - How long (#key-bars, synthlab.keyRecBars): 1, 2, 4, 8 or 16 bars, then
+//   it stops by itself; or "until stopped" (the default): until pressed again, rounded
 //   up to the bar line (free length when nothing plays). Never past
-//   limits.MAX_CLIP_SECONDS (#key-rec's data-max-clip-seconds): the bars
-//   that fit; a free take limits.MAX_FREE_TAKE_SECONDS (data-max-free-seconds:
-//   60 s).
+//   limits.MAX_KEY_TAKE_SECONDS (#key-rec's data-max-take-seconds, 60 s: a
+//   16-bar grid's take from 64 bpm up): the bars that fit; a free take
+//   limits.MAX_FREE_TAKE_SECONDS (data-max-free-seconds: 60 s).
 // - The cut: from its first downbeat as heard — the context's time plus
 //   the output latency, as samplerec.js cuts a mic take — for exactly its
 //   length (silence pads a short one).
@@ -102,10 +102,10 @@
   const keep = (k, v) => { prefs[k] = v; try { localStorage.setItem(PREFS[k], v); } catch { /* private mode */ } };
   const counts = () => prefs.count !== "0";
   const withBeat = () => prefs.beat === "1";
-  const wanted = () => ({ 1: 1, 2: 2, 4: 4, 8: 8 })[prefs.bars] || 0; // 0: until stopped
+  const wanted = () => ({ 1: 1, 2: 2, 4: 4, 8: 8, 16: 16 })[prefs.bars] || 0; // 0: until stopped
   const free = () => prefs.bars === "free"; // from the first note to ■: no bars
   const bpm = () => Math.min(200, Math.max(40, S.tempo() || 120)); // limits.BPM_RANGE
-  const cap = (r = rec) => (r?.free ? Number($("key-rec")?.dataset.maxFreeSeconds) || 60 : Number($("key-rec")?.dataset.maxClipSeconds) || 30);
+  const cap = (r = rec) => Number($("key-rec")?.dataset[r?.free ? "maxFreeSeconds" : "maxTakeSeconds"]) || 60;
   const ms = (t) => Math.max(0, (t - S.getCtx().currentTime) * 1000);
   const r3 = (x) => Math.round(x * 1000) / 1000;
   const pad2 = (n) => String(n).padStart(2, "0");

@@ -13,6 +13,8 @@
   it, and a held note ends where it was released — the loop plays back
   like the take, on the grid, in the song and in a bounce. 100% stays on
   the steps.
+- **⏺ Rec runs to 60 s**, as a free take does (it stopped at 30 s): the
+  length select offers 16 bars, and the take's audio is kept whole.
 - **A long take reaches the song whole**: → Song on a loop recorded past
   its 4-bar grid lays out every bar played as sections in a row, each an
   editable pattern in the sound that played it. The take's toast, its row

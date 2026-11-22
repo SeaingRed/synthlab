@@ -4,8 +4,8 @@ to the size wanted.
 
 ⏺ Rec's **free** mode (static/keyrec.js: the dock's length "free", or the
 Loops panel's ⏺ free) records from the first note to ■ — no count-in, no
-bar line, any length up to `limits.MAX_FREE_TAKE_SECONDS` (60 s; every
-other take stops at the clip cap, 30) — and the shaper
+bar line, any length up to `limits.MAX_FREE_TAKE_SECONDS` (60 s, as
+every take of ⏺ Rec: `limits.MAX_KEY_TAKE_SECONDS`) — and the shaper
 (static/shaper.js, `fragments/free_shaper.html`) makes a loop of it:
 
 - `POST /take/keys/free`: the free take — its audio from its first note (a

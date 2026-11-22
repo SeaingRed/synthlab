@@ -61,10 +61,10 @@ def _wav(seconds: float = 0.5, sr: int = 44100) -> bytes:
 NOTES = [[0, 1, 33, 0.8], [1, 0.5, 36, 0.6], [4, 2, 40, 1]]
 
 
-def _take(client, view="editor", notes=NOTES, **over):
+def _take(client, view="editor", notes=NOTES, seconds=0.5, **over):
     data = {"name": "keys-1", "bpm": "120", "bars": "2", "notes": json.dumps(notes)}
-    data |= over
-    files = {"file": ("take.wav", _wav(), "audio/wav")}
+    data |= {k: v for k, v in over.items() if v is not None}
+    files = {"file": ("take.wav", _wav(seconds), "audio/wav")}
     return client.post("/take/keys", data=data, files=files, headers=_hx(view))
 
 
@@ -96,6 +96,30 @@ def test_a_take_is_kept_with_what_it_is(client):
     # the strip under the keys lists it (its loop), out of band
     assert 'id="key-takes"' in r.text and "keys-1" in r.text
     assert _take(client, name="keys-1", beat="1").headers["X-Clip-Name"] != "keys-1"
+
+
+def test_a_take_runs_to_sixty_seconds_and_is_kept_whole(client):
+    """⏺ Rec's takes — whole bars or to ■ — run to a free take's 60 s
+    (`limits.MAX_KEY_TAKE_SECONDS`): a 16-bar take at 90 bpm is 42.7 s, past
+    the clip cap (30), and its audio is kept whole, its loop all 16 bars."""
+    assert limits.MAX_KEY_TAKE_SECONDS == limits.MAX_FREE_TAKE_SECONDS == 60
+    assert limits.MAX_STORED_CLIP_SECONDS >= limits.MAX_KEY_TAKE_SECONDS
+    seconds = 16 * 4 * 60 / 90
+    notes = [[0, 1, 33, 0.8], [61, 2, 40, 1]]  # bar 1, bar 16
+    r = _take(client, notes=notes, bpm="90", bars="16", seconds=seconds)
+    assert r.status_code == 200, r.text[:300]
+    name = r.headers["X-Clip-Name"]
+    with wave.open(str(_st(client).data_dir / "clips" / f"{name}.wav")) as w:
+        assert abs(w.getnframes() / w.getframerate() - seconds) < 0.01
+    loop = loops.load(_st(client).data_dir, unquote(r.headers["X-Loop-Name"]))
+    assert loop["lane"]["bars"] == 16 and loops.rest_bars(loop) == 0
+    # past 60 s the audio is cut there (the browser stops it there first)
+    r = _take(client, name="long", bpm="90", bars="16", seconds=75)
+    with wave.open(str(_st(client).data_dir / "clips" / "long.wav")) as w:
+        assert abs(w.getnframes() / w.getframerate() - 60) < 0.01
+    # the dock says so, and offers 16 bars
+    html = client.get("/view/perform").text
+    assert 'data-max-take-seconds="60"' in html and '<option value="16">' in html
 
 
 @pytest.mark.parametrize(

@@ -1432,8 +1432,8 @@ sized into a loop.
   select has **free** too — `keys-and-midi.md`, "⏺ Rec"): no count-in, no
   bar line, no length. The take starts on its **first note** (keys, pads,
   MIDI; the keys arp's notes flagged) and ends where ■ is pressed — never
-  past `limits.MAX_FREE_TAKE_SECONDS`, 60 s (every other take stops at
-  the clip cap, 30 s) —, its audio cut to that. A page change
+  past `limits.MAX_FREE_TAKE_SECONDS`, 60 s (as every take of ⏺ Rec,
+  `limits.MAX_KEY_TAKE_SECONDS`) —, its audio cut to that. A page change
   ends it as ⏺ Rec's (before a note: nothing taken). `POST
   /take/keys/free` keeps it as a keys take (meta `free: true`, the arp's
   notes' indices in its sidecar's `arp`) and makes **no loop**: its answer's

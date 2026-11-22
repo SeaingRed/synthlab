@@ -83,9 +83,18 @@ MAX_TREATED_SECONDS = 35.5
 # from its first note to ■, so a whole idea fits — 60 s (deliberately past
 # the clip cap, 30). Its audio is a clip that long.
 MAX_FREE_TAKE_SECONDS = 60.0
+# Every take of the keys' ⏺ Rec — whole bars, to ■, free (POST /take/keys,
+# keyrec.js): as long as a free take, so a take of 16 bars (the note grid's
+# longest, `LOOP_BAR_CHOICES`) fits from 64 bpm up. Its audio is a clip that
+# long, which the store keeps and every reader of clips reads back
+# (`MAX_STORED_CLIP_SECONDS`); a reader with a cap of its own takes the
+# start (the sampler's 30 s, `sampler.MAX_SAMPLE_SECONDS`).
+MAX_KEY_TAKE_SECONDS = MAX_FREE_TAKE_SECONDS
 # the longest clip the store keeps (`clips.save_clip`) and reads back (the
 # hub, a project bundle): a free take's
-MAX_STORED_CLIP_SECONDS = max(MAX_TREATED_SECONDS, MAX_FREE_TAKE_SECONDS)
+MAX_STORED_CLIP_SECONDS = max(
+    MAX_TREATED_SECONDS, MAX_FREE_TAKE_SECONDS, MAX_KEY_TAKE_SECONDS
+)
 # A whole song. A club or trance arrangement is five to seven minutes. 480
 # was measured, not assumed (tools/song_measure.py): the
 # loudness-mastered export of a 480 s, 8-synth song had to
