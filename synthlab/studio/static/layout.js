@@ -11,18 +11,22 @@
 //   - folds: a `[data-fold]` toggle hides the `.fold-body` parts of the
 //     section it names, VS Code pane style, remembered per section;
 //   - tabs: a `[data-tab-of]` button shows one part of a box at a time
-//     (the Loops page's Play module: pads, XY, FX, beats), remembered per
+//     (the Loops page's Play: pads, XY, FX, beats), remembered per
 //     box — a fold's sibling;
+//   - a toolbar's Tools ▾ (`.pt-more`, the Loops page's editors) stays open
+//     while you work in it: an action redraws its region, which draws it
+//     shut — the new one opens again (Esc or a click away shuts it);
 //   - slice markers: the sampler panel's chop starts, dragged over its
 //     waveform (or nudged from the keyboard) — a resize-by-drag gesture
 //     like the splitters, so it lives here rather than in a new island.
 // Each is re-applied after every swap: a view swap brings new panes.
-// Budget: <= 172 code lines (110 -> 150 for the slice markers: pointer drag,
+// Budget: <= 180 code lines (110 -> 150 for the slice markers: pointer drag,
 // keyboard nudge with one debounced post, focus kept across the OOB swap;
 // 150 -> 156 for a splitter that drags a height: the Song page's editor;
 // 156 -> 158 for a fold that starts folded by a media query: the keys dock;
 // 158 -> 172 for the tabs: the Loops page's Play module, a
-// fold's sibling, re-applied after a swap as a fold is).
+// fold's sibling, re-applied after a swap as a fold is; 172 -> 180 for
+// Tools ▾ kept open through its region's redraw).
 
 (() => {
   "use strict";
@@ -213,7 +217,18 @@
     refocus = null;
   }
 
-  const apply = () => { restore(); refold(); retab(); refocusMark(); };
+  // ---- Tools ▾: open through its region's redraw ---------------------------
+  let more = null; // the Tools ▾ an action was pressed in
+  document.addEventListener("htmx:config:request", (e) => { more = e.detail?.ctx?.sourceElement?.closest?.(".pt-more:popover-open") || more; });
+  document.addEventListener("toggle", (e) => { if (e.target === more && e.newState === "closed") more = null; }, true); // shut by hand
+  function reopenMore() {
+    if (!more || more.isConnected) return;
+    const m = document.getElementById(more.id);
+    more = null;
+    if (m && !m.matches(":popover-open")) m.showPopover();
+  }
+
+  const apply = () => { restore(); refold(); retab(); refocusMark(); reopenMore(); };
   document.addEventListener("htmx:after:settle", apply);
   document.addEventListener("DOMContentLoaded", apply);
 })();

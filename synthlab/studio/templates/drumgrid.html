@@ -372,3 +372,100 @@
               title="Undo the last pattern edit (Ctrl+Z)" aria-label="undo the last pattern edit" data-cmd="Undo the last pattern edit" data-cmd-group="Pattern">↶</button>
     </div>
 {%- endmacro %}
+
+
+{# Perform's drum rack row (perform_drums.html): the beat's variations in
+   sight, the rest behind Tools ▾, a row a group (move, length, velocity,
+   generate, clipboard, beat), as the note grid's. The same buttons, routes
+   and commands as drum_tools / beat_bar — Drums draws those, and its
+   golden pins their bytes (tests/studio/test_grid_macros.py): keep the
+   two in step. `target` as drum_grid's (Perform's: none). #}
+{% macro beat_vars(variants, target=none) -%}
+<div class="beat-bar" role="group" aria-label="Beat variations">
+      <span class="caps">beat</span>
+      {% set cmds = {"A": 'data-cmd="Beat variation A" data-keys="Alt+1"', "B": 'data-cmd="Beat variation B" data-keys="Alt+2"',
+                     "C": 'data-cmd="Beat variation C" data-keys="Alt+3"', "D": 'data-cmd="Beat variation D" data-keys="Alt+4"'} %}
+      <div class="seg var-pick" role="group" aria-label="beat variation">
+        {%- for v, on, has in variants %}
+        <button type="button" data-var="{{ v }}" class="{{ '' if has else 'empty' }}" aria-pressed="{{ 'true' if on else 'false' }}"
+                hx-post="/fragment/drums/var" hx-vals='{"var": "{{ v }}"}' {{ swap_to(target) }}
+                {{ cmds[v] | safe }} data-cmd-group="Pattern"
+                title="{{ 'variation ' ~ v ~ ' (on the grid)' if on else ('switch to variation ' ~ v ~ ' on the next bar' if has else 'variation ' ~ v ~ ': empty — a press copies this beat into it') }}">{{ v }}</button>
+        {%- endfor %}
+      </div>
+    </div>
+{%- endmacro %}
+
+{% macro drum_menu(can_double, beat_style, variants, target=none) -%}
+<span class="pt-menu">
+      <button type="button" class="btn btn-s pt wide pt-more-btn" popovertarget="ptm-drums" aria-label="the other drum tools"
+              data-cmd="Drum tools…" data-cmd-group="Pattern"
+              title="Tools: move, ×2, velocities, a new beat, fills, sparser / busier, a build, copy to a variation, clear — every one also in the palette (Ctrl+K)">Tools ▾</button>
+      <div popover id="ptm-drums" class="pop menu pt-menu-panel pt-more" role="group" aria-label="drum tools">
+        <div class="ptm-row" role="group" aria-label="move">
+          <span class="caps ptm-cap">move</span>
+          <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/drums/shift_left" {{ swap_to(target) }}
+                  data-anim="left" title="Shift the beat a step earlier (wraps round)" aria-label="shift the beat left" data-cmd="Shift the beat left" data-cmd-group="Pattern">◀</button>
+          <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/drums/shift_right" {{ swap_to(target) }}
+                  data-anim="right" title="Shift the beat a step later (wraps round)" aria-label="shift the beat right" data-cmd="Shift the beat right" data-cmd-group="Pattern">▶</button>
+          <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/drums/reverse" {{ swap_to(target) }}
+                  data-anim="flip" title="Reverse the beat" aria-label="reverse the beat" data-cmd="Reverse the beat" data-cmd-group="Pattern">⇆</button>
+        </div>
+        <div class="ptm-row" role="group" aria-label="length">
+          <span class="caps ptm-cap">length</span>
+          <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/drums/duplicate" {{ swap_to(target) }}
+                  data-anim="grow" {% if not can_double %}disabled{% endif %}
+                  title="{{ 'Double the beat: the bars you have, twice' if can_double else 'The drum grid is at its longest' }}"
+                  aria-label="duplicate the beat" data-cmd="Duplicate the beat" data-cmd-group="Pattern">×2</button>
+        </div>
+        <div class="ptm-row" role="group" aria-label="velocity">
+          <span class="caps ptm-cap">velocity</span>
+          {% for op, word, hint in (("vel_humanise", "humanise", "Nudge each hit's velocity a little, at random"), ("vel_ramp", "ramp ↗", "Quiet to loud across the loop: a build"),
+                                    ("vel_accent", "accent", "Loud on the beat, softer between"), ("vel_reset", "reset", "Every step back to full")) %}
+          <button type="button" class="btn btn-s pt wide" hx-post="/fragment/pattern/drums/{{ op }}" {{ swap_to(target) }}
+                  title="{{ hint }}" data-cmd="Drum velocity: {{ word | replace(' ↗', '') }}" data-cmd-group="Pattern">{{ word }}</button>
+          {% endfor %}
+        </div>
+        <div class="ptm-row" role="group" aria-label="generate">
+          <span class="caps ptm-cap">generate</span>
+          <button type="button" class="btn btn-s pt wide" hx-post="/fragment/drums/randomise" {{ swap_to(target) }}
+                  hx-vals='{"style": "{{ beat_style }}", "seed": ""}' data-anim="roll"
+                  title="A new {{ beat_style }} beat (style and seed are on Kit)" aria-label="randomise the beat" data-cmd="Randomise the beat" data-cmd-group="Pattern">⚄ new</button>
+          <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "sparser"}' {{ swap_to(target) }}
+                  data-cmd="Make it sparser" data-cmd-group="Pattern"
+                  title="The weakest hits out: ghosts first, then what sits between the eighths — never a kick on the beat, never the backbeat">sparser</button>
+          <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "busier"}' {{ swap_to(target) }}
+                  data-cmd="Make it busier" data-cmd-group="Pattern"
+                  title="Hits in: quiet ghosts beside the backbeat, then offbeat hats, then the sixteenths between — never a kick">busier</button>
+          <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "build"}' {{ swap_to(target) }}
+                  data-anim="roll" data-cmd="Add a build" data-cmd-group="Pattern"
+                  title="The beat becomes a roll over the grid's bars (two at least): quarters, eighths, sixteenths, 32nds — the snare getting louder and higher. Ctrl+Z brings the beat back">⚄ build</button>
+        </div>
+        <div class="ptm-row" role="group" aria-label="fills">
+          <span class="caps ptm-cap">fill</span>
+          <button type="button" class="btn btn-s pt wide" hx-post="/fragment/gen" hx-vals='{"kind": "fill"}' {{ swap_to(target) }}
+                  data-anim="roll" data-cmd="Add a fill" data-cmd-group="Pattern"
+                  title="A fill in the last bar, in the {{ beat_style }} style — press again for another (one Ctrl+Z takes them all back)">⚄ fill</button>
+          <span class="ptm-sep" aria-hidden="true"></span>
+          {%- for label, vals in (("last ½ bar", '{"kind": "fill", "len": "0.5"}'), ("last bar", '{"kind": "fill", "len": "1"}'), ("last 2 bars", '{"kind": "fill", "len": "2"}'),
+                                  ("every bar", '{"kind": "fill", "every": "1", "len": "0.5"}'), ("every 2", '{"kind": "fill", "every": "2"}'), ("every 4", '{"kind": "fill", "every": "4"}')) %}
+          <button type="button" class="btn btn-s pt wide rowtool" hx-post="/fragment/gen" hx-vals='{{ vals }}' {{ swap_to(target) }}
+                  title="a fill: {{ label }}">{{ label }}</button>
+          {%- endfor %}
+        </div>
+        <div class="ptm-row" role="group" aria-label="clipboard">
+          <span class="caps ptm-cap">copy to</span>
+          {%- set here = (variants | selectattr(1) | first)[0] %}
+          {%- for v, on, has in variants if not on %}
+          <button type="button" class="btn btn-s pt wide rowtool" hx-post="/fragment/drums/var" hx-vals='{"var": "{{ v }}", "copy": "{{ here }}"}' {{ swap_to(target) }}
+                  title="{{ here }} over {{ v }}, and switch to it">{{ here }} → {{ v }}</button>
+          {%- endfor %}
+        </div>
+        <div class="ptm-row" role="group" aria-label="the beat">
+          <span class="caps ptm-cap">beat</span>
+          <button type="button" class="btn btn-s btn-icon btn-danger pt danger" hx-post="/fragment/drums/clear" {{ swap_to(target) }}
+                  data-anim="clear" title="Clear the beat (Ctrl+Z brings it back)" aria-label="clear the beat" data-cmd="Clear the beat" data-cmd-group="Pattern">✕</button>
+        </div>
+      </div>
+    </span>
+{%- endmacro %}

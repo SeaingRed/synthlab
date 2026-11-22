@@ -6416,6 +6416,28 @@ input[type="range"].knob.fader {
   border-color: transparent; background: transparent; box-shadow: none; }
 .pattern-tools .pt-group > :is(.btn, .pt-menu > .btn):not(:disabled):hover {
   background: color-mix(in oklab, var(--text), transparent 90%); }
+/* Perform's toolbars (the note grid's, the drum rack's): one line — what a
+   hand reaches for while drawing, undo and Tools ▾ at the right end — and
+   the grid's length and steps in it (a fieldset whose legend the bars'
+   label already says: read, not drawn) */
+.pattern-tools > .pt-end { margin-left: auto; }
+.pattern-tools > .tcluster { flex-wrap: nowrap; gap: var(--s1); margin: 0; padding: 0; border: 0; }
+.pattern-tools > .tcluster > legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.pattern-tools > .tcluster .label-text, .pattern-tools > .tcluster label { font-size: var(--fs-xs); color: var(--text-dim); }
+/* Tools ▾: the rest of a toolbar, a row a group — its caption, then its
+   buttons, one inset well as a toolbar's group is — opening leftwards under
+   its button at the toolbar's right end */
+.pt-more[popover] { position-area: bottom span-left; }
+.pt-more:popover-open { display: grid; gap: var(--s1); padding: var(--s2); min-width: 0; }
+.ptm-row { display: flex; align-items: center; gap: 1px; padding: 1px 1px 1px var(--s15);
+  background: var(--bg-inset); border: 1px solid var(--line); border-radius: var(--r-s); }
+.ptm-cap { flex: none; width: 6.5em; font-size: var(--fs-2xs); color: var(--text-dim); }
+.ptm-row .btn:not([aria-pressed="true"]) { border-color: transparent; background: transparent; box-shadow: none; }
+.ptm-row .btn:not(:disabled):hover { background: color-mix(in oklab, var(--text), transparent 90%); }
+.ptm-row > .roll-stamp { display: inline-flex; align-items: center; gap: 1px; }
+.ptm-sep { flex: none; width: 1px; align-self: stretch; margin: 3px var(--s1); background: var(--line); }
+/* Q (the loop open on the grid): its rates and strengths, ✦ */
+.lp-q-panel:popover-open { display: grid; justify-items: start; gap: var(--s1); padding: var(--s2); }
 
 /* Synths: one ghost "+ layer" row, never three rows that say "empty" */
 .lrow.empty ~ .lrow.empty { display: none; }

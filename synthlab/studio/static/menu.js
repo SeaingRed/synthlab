@@ -234,7 +234,7 @@
     if (open(e.target, keyed ? 0 : e.clientX, keyed ? 0 : e.clientY)) e.preventDefault();
   });
   document.addEventListener("keydown", (e) => {
-    // ↓ / ↑ on the button that opened a menu popover walk into it (a pattern tool's vel, ⚄ write)
+    // ↓ / ↑ on the button that opened a menu popover walk into it (Tools ▾: its rows' buttons, in order)
     const of = (e.key === "ArrowDown" || e.key === "ArrowUp") && e.target.getAttribute?.("popovertarget");
     const m = e.target.closest?.(".menu:popover-open") || (of && document.querySelector(`#${CSS.escape(of)}.menu:popover-open`));
     if (!m) return;
@@ -244,7 +244,7 @@
     // → opens a section's submenu, ← comes back from one
     const sub = e.key === "ArrowRight" ? e.target.closest?.("[aria-haspopup]") : e.key === "ArrowLeft" ? m.querySelector(".menu-back") : null;
     if (sub && m === menu) { e.preventDefault(); return void sub.click(); }
-    const rows = [...m.querySelectorAll(".menu-item:not(:disabled, [hidden])")].filter((b) => b.offsetParent), i = rows.indexOf(e.target), n = rows.length;
+    const rows = [...m.querySelectorAll(".menu-item:not(:disabled, [hidden]), .ptm-row .btn:not(:disabled)")].filter((b) => b.offsetParent), i = rows.indexOf(e.target), n = rows.length;
     const to = i < 0 && e.key === "ArrowUp" ? n - 1 : { ArrowDown: (i + 1) % n, ArrowUp: (i - 1 + n) % n, Home: 0, End: n - 1 }[e.key];
     if (to === undefined || !n || e.target.matches("input, select, textarea")) return;
     e.preventDefault();
