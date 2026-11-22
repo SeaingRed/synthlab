@@ -154,7 +154,15 @@ _DRUM_AND_CLIP_FIELDS = (
     "drum_row_swing",
 )
 _CELL_FIELDS = ("cells", "velocities", "slides", "cuts", "note_chance")
-_GRID_FIELDS = ("bars", "steps_per_bar", "swing", "arp_mode", "arp_octaves", "strum")
+_GRID_FIELDS = (
+    "bars",
+    "steps_per_bar",
+    "swing",
+    "arp_mode",
+    "arp_octaves",
+    "strum",
+    "arp_pattern",
+)
 # (the bar and a section's tempo ramp, meter.py: shared by both grids)
 _SHARED_FIELDS = ("bpm", "root", "scale_name", "meter", "ramp")
 

@@ -46,7 +46,7 @@ _NOTE_FIELDS = (
 # ... and what a pattern holds only when set (`schema` drops it at 0)
 # (timing inside a step and the chance lane too: a song pattern plays
 # exactly what its loop plays)
-_NOTE_OPTIONAL = ("strum", "note_nudge", "note_chance")
+_NOTE_OPTIONAL = ("strum", "note_nudge", "note_chance", "arp_pattern")
 SONG_WIDE = ("bpm", "root", "scale_name", "swing", "drum_swing", "drum_humanize")
 KIT = ("drum_params", "drum_mix", "drum_samples")
 # a lane's own sequencing: velocities, slides, arp (state.LAYER_SEQ_KEYS)
@@ -387,7 +387,8 @@ def lane_render(seq: dict, cells, main_vel: dict | None, total: int) -> dict:
       different lengths). A step it has no value for plays 0.9.
     - `slides`: the ones on its note steps (no others are heard).
     - `cuts`: the ones on its own cells (two notes side by side).
-    - `arp_mode`/`arp_octaves`: only when the arp is on.
+    - `arp_mode`/`arp_octaves`: only when the arp is on; `arp_pattern`
+      only when it plays one (arp_mode "pattern").
     - `strum`: only when set, and never under an arp (one note a step).
     - `note_chance`: on the steps it reads, only when any.
     """
@@ -415,6 +416,8 @@ def lane_render(seq: dict, cells, main_vel: dict | None, total: int) -> dict:
     if arp_on:
         out["arp_mode"] = seq["arp_mode"]
         out["arp_octaves"] = int(seq.get("arp_octaves", 1))
+        if seq["arp_mode"] == "pattern" and seq.get("arp_pattern"):
+            out["arp_pattern"] = copy.deepcopy(seq["arp_pattern"])
     elif seq.get("strum"):
         out["strum"] = float(seq["strum"])
     if not arp_on and (nudge := seq.get("note_nudge")):
@@ -454,6 +457,7 @@ def pattern_seq(pat: dict, spb: int) -> dict:
         "arp_mode": pat["arp_mode"],
         "arp_octaves": pat["arp_octaves"],
         **({"strum": pat["strum"]} if pat.get("strum") else {}),
+        **({"arp_pattern": pat["arp_pattern"]} if pat.get("arp_pattern") else {}),
         # timing inside a step and a step's chance: absent
         # when the pattern has none, so no lane's key gains them
         **({"note_nudge": nudge} if nudge else {}),
@@ -835,6 +839,7 @@ def _lane_seq(pat: dict, spb: int, period: int, total: int, main_vel: dict) -> d
         "arp_mode": seq["arp_mode"],
         "arp_octaves": seq["arp_octaves"],
         **({"strum": seq["strum"]} if seq.get("strum") else {}),
+        **({"arp_pattern": seq["arp_pattern"]} if seq.get("arp_pattern") else {}),
         # a slot's own timing inside a step and chance lane (absent unset)
         **(
             {"note_nudge": sm._tile_keys(seq["note_nudge"], period, total)}

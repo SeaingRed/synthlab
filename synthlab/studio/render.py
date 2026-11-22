@@ -203,6 +203,10 @@ class RenderInputs:
         if "synth" not in parts:
             arr_d["cells"], arr_d["velocities"], arr_d["slides"] = [], {}, []
             arr_d.pop("note_chance", None)  # the note grid's, as its velocities
+        if "synth" not in parts or self.arr.arp_mode != "pattern":
+            # the arp pattern is heard only from the grid arp's "pattern"
+            # mode: one kept for the keys arp alone re-keys nothing
+            arr_d.pop("arp_pattern", None)
         # absent unless a lane has one: every key from before cuts holds
         if not arr_d.get("cuts"):
             arr_d.pop("cuts", None)
@@ -539,6 +543,18 @@ def _bar_clock(arr: Arrangement) -> dict:
     return out
 
 
+def _arp_keyed(mode, pattern: dict, arr: Arrangement) -> dict:
+    """A stem payload's arp pattern entries: the pattern (when there is one
+    of its own) and the key a step's `tr` counts in — only for a lane whose
+    grid arp plays a pattern (arppattern.py), so no other key moves."""
+    if mode != "pattern":
+        return {}
+    return {
+        **({"arp_pattern": pattern} if pattern else {}),
+        "arp_key": [arr.root, arr.scale_name],
+    }
+
+
 def _timing(arr: Arrangement) -> dict:
     return {
         "bpm": arr.bpm,
@@ -663,6 +679,9 @@ def _stem_jobs(inp: RenderInputs) -> list[_StemJob]:
                 **({"cuts": arr.cuts} if arr.cuts else {}),
                 "arp_mode": arr.arp_mode,
                 "arp_octaves": arr.arp_octaves,
+                # the pattern it plays, and the key its steps transpose in:
+                # absent unless it plays one
+                **_arp_keyed(arr.arp_mode, arr.arp_pattern, arr),
                 # absent at 0: every stem key from before the strum holds
                 **({"strum": arr.strum} if strum_beats(arr) else {}),
                 # timing inside a step: absent when unset (or under an arp)
@@ -706,7 +725,13 @@ def _stem_jobs(inp: RenderInputs) -> list[_StemJob]:
             # a layer reads the main velocity lane when it carries none of its
             # own (`arrange.layer_arrangement`); its own velocities, slides and
             # arp ride in `lay` itself
-            {"layer": lay, "velocities": arr.velocities, **_timing(arr)},
+            {
+                "layer": lay,
+                "velocities": arr.velocities,
+                **_timing(arr),
+                # (its pattern rides in `lay`; the key it transposes in here)
+                **_arp_keyed(lay.get("arp_mode"), {}, arr),
+            },
             lambda lay=lay: build_song(
                 inp.patch, empty_main, None, layers=[lay], memo=NOTE_MEMO
             ),
