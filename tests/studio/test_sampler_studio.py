@@ -528,3 +528,63 @@ def test_the_granular_shape_plays_the_sample_on_the_wav_path(tmp_path):
     assert "grain_size" not in keyed_patch(s.patch)  # at its default
     # "use" the detected pitch works for the cloud too
     assert client.post("/fragment/sampler/root", headers=HX).status_code == 200
+
+
+# --- the spectral shape: the same sample resynthesised ---------------------------
+
+
+def test_the_spectral_shape_plays_the_sample_on_the_wav_path(tmp_path):
+    """Another pill away: the same sample, its panel and pitch tools stay,
+    the scan is drawn over the waveform (the position's line, what the scan
+    crosses in a second), the chops and zones go. Its keys take the server
+    WAV (`osc1` blocks, and every spectral field off its default:
+    "default"; off the shape they block nothing), and its render key
+    carries the spectral fields only when they move."""
+    client = _client(tmp_path)
+    s = client.app.state.studio
+    save_clip(tmp_path, "tone", _tone(220, 1.0))
+    _use(client, "tone")
+    r = client.post(
+        "/fragment/patch",
+        data={"osc1": "spectral", "spectral_pos": "0.25", "spectral_scan": "0.5"},
+        headers=HX,
+    )
+    assert r.status_code == 200
+    assert s.patch.osc1 == "spectral" and s.patch.spectral_pos == 0.25
+    page = client.get("/view/editor").text
+    panel = page.split('id="sampler-panel"')[1].split('id="row-')[0]
+    assert "sampler-svg" in panel and "sw-pos" in panel and "sw-scan" in panel
+    assert "sw-grain" not in panel and "Chop" not in panel and "＋ zone" not in panel
+    assert "#row-spectral_pos" in page and 'value="spectral"' in page
+    audio = client.app.state.svc.render("editor").audio()
+    assert np.abs(audio).max() > 0.02
+    pj = client.get("/patch.json?view=editor").json()
+    assert pj["worklet_ok"] is False
+    assert pj["worklet_blockers"] == ["osc1", "spectral_pos", "spectral_scan"]
+    assert pj["sampler_live"] is None
+    r = client.get("/note/A3.wav?view=editor")
+    assert r.status_code == 200 and len(r.content) > 10_000
+    # the spectral fields left on a synth block nothing, and stay out of its key
+    synth = replace(s.patch, osc1="saw")
+    assert "spectral_pos" not in blockers(synth)
+    assert "spectral_pos" in keyed_patch(s.patch)
+    assert "spectral_timbre" not in keyed_patch(s.patch)  # at its default
+    assert client.post("/fragment/sampler/root", headers=HX).status_code == 200
+
+
+def test_the_scan_is_drawn_where_the_read_goes():
+    from synthlab.studio import samplerview as sv
+
+    sid = sampler.register(_tone(220, 2.0))
+    base = Patch(osc1="spectral", osc2=None, sampler_sample=sid)
+    c = sv.scan(replace(base, spectral_pos=0.25, spectral_scan=0.5))
+    # a quarter in, a quarter of the 2 s sample crossed in the first second
+    assert c["pos"] == 0.25 and not c["back"]
+    assert c["spans"] == [(0.25, 0.25)]
+    c = sv.scan(replace(base, spectral_pos=0.25, spectral_scan=-1.0))
+    assert c["back"] and c["spans"] == [(0.0, 0.25)]  # held at the start
+    looped = replace(base, sampler_loop="on", spectral_pos=0.75, spectral_scan=1.0)
+    c = sv.scan(looped)  # the loop is the whole sample: round past its end
+    assert [round(a, 6) for a, _ in c["spans"]] == [0.75, 0.0]
+    assert sv.scan(replace(base, sampler_sample="")) is None
+    assert sv.watch(base) != sv.watch(replace(base, spectral_scan=2.0))

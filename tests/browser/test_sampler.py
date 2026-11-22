@@ -211,3 +211,43 @@ def test_the_granular_pill_keeps_the_sample_and_draws_the_cloud(studio):
     studio.pointer_down('.pkey[data-note="0"][data-rel="0"]')
     studio.wait_sound(floor=0.005)
     studio.pointer_up()
+
+
+def test_the_spectral_pill_keeps_the_sample_and_draws_the_scan(studio):
+    """The spectral shape plays the same sample too: its pill shows the
+    Spectral rows beside the sample's own (root, span, loop) while the
+    granular and the sampler's alone hide; the panel stays and draws the
+    position's line and the scan's reach over the waveform. Its keys take
+    the server WAV and still sound. Does not prove the resynthesis sounds
+    right: nobody has listened."""
+    page, views = studio.page, []
+    page.on("response", lambda r: "/view/editor" in r.url and views.append(r.url))
+    _sampler_from_clip(studio, "spectrum", stereo=False)
+    seen = len(views)
+    for _ in range(50):
+        if len(views) > seen:
+            break
+        page.wait_for_timeout(100)
+    studio.settle()
+    pill = page.locator('input[name="osc1"][value="spectral"]')
+    pill.evaluate("(el) => el.scrollIntoView({ block: 'center' })")
+    pill.check(force=True)
+    page.wait_for_function(
+        "() => { const p = window.synthlab.piano.patch();"
+        " return p.osc1 === 'spectral' && p.worklet_ok === false; }"
+    )
+    for row in ("spectral_pos", "spectral_scan", "spectral_timbre", "sampler_root"):
+        assert page.locator(f"#row-{row}").is_visible(), row
+    assert page.locator("#row-sampler_start").is_visible()
+    for row in ("grain_pos", "sampler_stretch", "sampler_mode"):
+        assert not page.locator(f"#row-{row}").is_visible(), row
+    page.wait_for_selector(
+        "#sampler-panel:not([hidden]) .sampler-svg .sw-scan", state="attached"
+    )
+    assert page.locator("#sampler-panel .sampler-svg .sw-pos").count() == 1
+    patch = page.evaluate("window.synthlab.piano.patch()")
+    assert patch["worklet_blockers"][0] == "osc1" and not patch["sampler_live"]
+    studio.settle()
+    studio.pointer_down('.pkey[data-note="0"][data-rel="0"]')
+    studio.wait_sound(floor=0.005)
+    studio.pointer_up()

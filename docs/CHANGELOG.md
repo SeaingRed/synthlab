@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **A spectral oscillator**: osc 1's "spectral" pill plays the sampler's
+  sample resynthesised from its spectrum, with time and pitch apart — a
+  scan position (drawable, a route target) and a scan rate (0.5 twice as
+  long at the same pitch, 0 a freeze, negative backwards), a timbre shift
+  that moves the formants without the pitch (riding the key, or kept
+  where the recording has them), low and high partial cuts, and a
+  transient keeper that holds attacks sharp when stretched. The sampler
+  panel draws where the read goes. Deterministic, so renders cache; the
+  keys play it from the server's render, not the live voice.
 - **Tempo-synced envelopes**: the filter envelope's and envelopes 3 and
   4's attack, decay and release can each be a beat division (1/16, 1/4,
   a bar...) instead of seconds, following the tempo — in the loop and on

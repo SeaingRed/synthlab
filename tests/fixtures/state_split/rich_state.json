@@ -237,7 +237,14 @@
     "env3_release_sync": "off",
     "env4_attack_sync": "off",
     "env4_decay_sync": "off",
-    "env4_release_sync": "off"
+    "env4_release_sync": "off",
+    "spectral_pos": 0.0,
+    "spectral_scan": 1.0,
+    "spectral_timbre": 0.0,
+    "spectral_formants": "move",
+    "spectral_low": 0.0,
+    "spectral_high": 512.0,
+    "spectral_transient": 0.0
   },
   "arrangement": {
     "bpm": 124.0,
@@ -570,7 +577,14 @@
     "env3_release_sync": "off",
     "env4_attack_sync": "off",
     "env4_decay_sync": "off",
-    "env4_release_sync": "off"
+    "env4_release_sync": "off",
+    "spectral_pos": 0.0,
+    "spectral_scan": 1.0,
+    "spectral_timbre": 0.0,
+    "spectral_formants": "move",
+    "spectral_low": 0.0,
+    "spectral_high": 512.0,
+    "spectral_transient": 0.0
   },
   "slot_b": {
     "name": "b",
@@ -809,7 +823,14 @@
     "env3_release_sync": "off",
     "env4_attack_sync": "off",
     "env4_decay_sync": "off",
-    "env4_release_sync": "off"
+    "env4_release_sync": "off",
+    "spectral_pos": 0.0,
+    "spectral_scan": 1.0,
+    "spectral_timbre": 0.0,
+    "spectral_formants": "move",
+    "spectral_low": 0.0,
+    "spectral_high": 512.0,
+    "spectral_transient": 0.0
   },
   "slot_prev": {
     "name": "dark",
@@ -1048,7 +1069,14 @@
     "env3_release_sync": "off",
     "env4_attack_sync": "off",
     "env4_decay_sync": "off",
-    "env4_release_sync": "off"
+    "env4_release_sync": "off",
+    "spectral_pos": 0.0,
+    "spectral_scan": 1.0,
+    "spectral_timbre": 0.0,
+    "spectral_formants": "move",
+    "spectral_low": 0.0,
+    "spectral_high": 512.0,
+    "spectral_transient": 0.0
   },
   "curves": {
     "cutoff": [
@@ -1338,7 +1366,14 @@
           "env3_release_sync": "off",
           "env4_attack_sync": "off",
           "env4_decay_sync": "off",
-          "env4_release_sync": "off"
+          "env4_release_sync": "off",
+          "spectral_pos": 0.0,
+          "spectral_scan": 1.0,
+          "spectral_timbre": 0.0,
+          "spectral_formants": "move",
+          "spectral_low": 0.0,
+          "spectral_high": 512.0,
+          "spectral_transient": 0.0
         },
         "curves": {
           "cutoff": [
@@ -1787,7 +1822,14 @@
         "env3_release_sync": "off",
         "env4_attack_sync": "off",
         "env4_decay_sync": "off",
-        "env4_release_sync": "off"
+        "env4_release_sync": "off",
+        "spectral_pos": 0.0,
+        "spectral_scan": 1.0,
+        "spectral_timbre": 0.0,
+        "spectral_formants": "move",
+        "spectral_low": 0.0,
+        "spectral_high": 512.0,
+        "spectral_transient": 0.0
       },
       "cells": [
         [
@@ -2088,7 +2130,14 @@
         "env3_release_sync": "off",
         "env4_attack_sync": "off",
         "env4_decay_sync": "off",
-        "env4_release_sync": "off"
+        "env4_release_sync": "off",
+        "spectral_pos": 0.0,
+        "spectral_scan": 1.0,
+        "spectral_timbre": 0.0,
+        "spectral_formants": "move",
+        "spectral_low": 0.0,
+        "spectral_high": 512.0,
+        "spectral_transient": 0.0
       },
       "cells": [],
       "muted": false,
@@ -2365,7 +2414,14 @@
         "env3_release_sync": "off",
         "env4_attack_sync": "off",
         "env4_decay_sync": "off",
-        "env4_release_sync": "off"
+        "env4_release_sync": "off",
+        "spectral_pos": 0.0,
+        "spectral_scan": 1.0,
+        "spectral_timbre": 0.0,
+        "spectral_formants": "move",
+        "spectral_low": 0.0,
+        "spectral_high": 512.0,
+        "spectral_transient": 0.0
       },
       "cells": [],
       "muted": false,
@@ -2629,7 +2685,14 @@
           "env3_release_sync": "off",
           "env4_attack_sync": "off",
           "env4_decay_sync": "off",
-          "env4_release_sync": "off"
+          "env4_release_sync": "off",
+          "spectral_pos": 0.0,
+          "spectral_scan": 1.0,
+          "spectral_timbre": 0.0,
+          "spectral_formants": "move",
+          "spectral_low": 0.0,
+          "spectral_high": 512.0,
+          "spectral_transient": 0.0
         },
         "cells": [
           [
@@ -2918,7 +2981,14 @@
           "env3_release_sync": "off",
           "env4_attack_sync": "off",
           "env4_decay_sync": "off",
-          "env4_release_sync": "off"
+          "env4_release_sync": "off",
+          "spectral_pos": 0.0,
+          "spectral_scan": 1.0,
+          "spectral_timbre": 0.0,
+          "spectral_formants": "move",
+          "spectral_low": 0.0,
+          "spectral_high": 512.0,
+          "spectral_transient": 0.0
         },
         "cells": [],
         "muted": false,
@@ -3184,7 +3254,14 @@
           "env3_release_sync": "off",
           "env4_attack_sync": "off",
           "env4_decay_sync": "off",
-          "env4_release_sync": "off"
+          "env4_release_sync": "off",
+          "spectral_pos": 0.0,
+          "spectral_scan": 1.0,
+          "spectral_timbre": 0.0,
+          "spectral_formants": "move",
+          "spectral_low": 0.0,
+          "spectral_high": 512.0,
+          "spectral_transient": 0.0
         },
         "cells": [],
         "muted": true,
@@ -3514,7 +3591,14 @@
           "env3_release_sync": "off",
           "env4_attack_sync": "off",
           "env4_decay_sync": "off",
-          "env4_release_sync": "off"
+          "env4_release_sync": "off",
+          "spectral_pos": 0.0,
+          "spectral_scan": 1.0,
+          "spectral_timbre": 0.0,
+          "spectral_formants": "move",
+          "spectral_low": 0.0,
+          "spectral_high": 512.0,
+          "spectral_transient": 0.0
         },
         "curves": {
           "cutoff": [
@@ -3783,7 +3867,14 @@
           "env3_release_sync": "off",
           "env4_attack_sync": "off",
           "env4_decay_sync": "off",
-          "env4_release_sync": "off"
+          "env4_release_sync": "off",
+          "spectral_pos": 0.0,
+          "spectral_scan": 1.0,
+          "spectral_timbre": 0.0,
+          "spectral_formants": "move",
+          "spectral_low": 0.0,
+          "spectral_high": 512.0,
+          "spectral_transient": 0.0
         },
         "curves": {
           "cutoff": [
@@ -4043,7 +4134,14 @@
           "env3_release_sync": "off",
           "env4_attack_sync": "off",
           "env4_decay_sync": "off",
-          "env4_release_sync": "off"
+          "env4_release_sync": "off",
+          "spectral_pos": 0.0,
+          "spectral_scan": 1.0,
+          "spectral_timbre": 0.0,
+          "spectral_formants": "move",
+          "spectral_low": 0.0,
+          "spectral_high": 512.0,
+          "spectral_transient": 0.0
         },
         "curves": {
           "cutoff": [
