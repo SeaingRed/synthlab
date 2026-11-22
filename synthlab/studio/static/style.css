@@ -1364,6 +1364,10 @@ html:is([data-keylayout="letters"], [data-keylayout="columns"]) .pkey.down::afte
 /* Play tools open over the page, above the whole dock at its right end —
    never over the keys, and their button never moves */
 .play-tools-btn:has(+ .play-tools:popover-open) { border-color: var(--accent); }
+/* "Pads ▴" (piano.html): the Loops page's Play opens from here — on that
+   page alone; lit while it is open (perform.js sets aria-expanded) */
+#view:not([data-view="perform"]) ~ .keys-dock .play-pads-btn { display: none; }
+.play-pads-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-text); }
 .keys-dock { anchor-name: --keys-dock; }
 .play-tools { inset: auto; margin: 0 var(--s2) var(--s1) 0; position-anchor: --keys-dock;
   position-area: top; justify-self: end; width: min(760px, calc(100vw - 32px)); }
@@ -3331,7 +3335,11 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
 .lp-pick .seg button { font-size: var(--fs-xs); white-space: nowrap; }
 /* open, a menu takes a line of its own under the row's actions: nothing it holds
    stretches the buttons beside it */
-.lp-acts { flex-wrap: wrap; align-items: center; }
+/* a row's actions are its right-click menu's (menu.js reads them here):
+   never drawn, in every Loops list */
+.lp-row > .lp-acts { display: none; }
+.lp-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.lp-row { cursor: default; user-select: none; } /* (a double-click edits: it selects no word) */
 .lp-pick[open] { flex-wrap: wrap; }
 .lp-list .lp-q[open] { flex-basis: 100%; order: 9; }
 .lp-all { flex: none; }
@@ -3407,23 +3415,21 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
 .lp-none { display: none; padding: var(--s2); }
 #loops-dock[data-none] .lp-none { display: block; }
 .lp-body > .kt-lane { margin-top: auto; padding: var(--s1); border-top: 1px solid var(--line); }
-/* a row: ▶, its roll, its name over its detail, ★ — then its tags, when it
-   has any, and its actions, each on a line of its own under them */
+/* a row: ▷, its name over its facts, ★ — nothing else is drawn: every
+   other action is its right-click menu (loop_rows.html: the controls are
+   there, `.lp-acts`, never shown). One tab stop: Enter edits, the Menu
+   key opens its menu (loopspanel.js) */
 .lp-panel-list { flex-direction: column; overflow: visible; gap: 1px; }
-.lp-panel-list > .lp-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto;
-  grid-template-areas: "play roll name star" "tags tags tags tags" "acts acts acts acts";
-  align-items: center; gap: var(--s0) var(--s1); flex: none; padding: var(--s1); }
+.lp-panel-list > .lp-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "play name star"; align-items: center; gap: 0 var(--s1); flex: none;
+  padding: var(--s0) var(--s1); }
 .lp-panel-list > .lp-row:hover { border-color: var(--line-strong); }
 .lp-panel-list .lp-play { grid-area: play; }
-.lp-panel-list .lp-roll { grid-area: roll; width: 48px; }
 .lp-panel-list .lp-name { grid-area: name; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; line-height: 1.25; font-size: var(--fs-xs); }
 .lp-panel-list .lp-name small { display: block; overflow: hidden; text-overflow: ellipsis; color: var(--text-dim);
   font-size: var(--fs-2xs); }
 .lp-panel-list .lp-star { grid-area: star; }
-.lp-panel-list .lp-tags { grid-area: tags; }
-.lp-panel-list .lp-acts { grid-area: acts; justify-content: flex-end; flex-wrap: wrap; }
-.lp-panel-list > .lp-row.lp-editing .lp-name { grid-column: roll / star; }
 .lp-panel-list > .lp-row[draggable="true"] { cursor: grab; }
 /* a row dragged over Perform's grids: the one it opens on lights */
 html[data-lp-drag="notes"] .perform-view #transport,
@@ -6414,6 +6420,32 @@ input[type="range"].knob.fader {
   border-color: transparent; background: transparent; box-shadow: none; }
 .pattern-tools .pt-group > :is(.btn, .pt-menu > .btn):not(:disabled):hover {
   background: color-mix(in oklab, var(--text), transparent 90%); }
+/* Perform's toolbars (the note grid's, the drum rack's): one line — what a
+   hand reaches for while drawing, undo and Tools ▾ at the right end — and
+   the grid's length and steps in it (a fieldset whose legend the bars'
+   label already says: read, not drawn) */
+.pattern-tools > .pt-end { margin-left: auto; }
+.pattern-tools > .tcluster { flex-wrap: nowrap; gap: var(--s1); margin: 0; padding: 0; border: 0; }
+.pattern-tools > .tcluster > legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.pattern-tools > .tcluster .label-text, .pattern-tools > .tcluster label { font-size: var(--fs-xs); color: var(--text-dim); }
+/* Tools ▾: the rest of a toolbar, a row a group — its caption, then its
+   buttons, one inset well as a toolbar's group is — opening leftwards under
+   its button at the toolbar's right end */
+/* (spelt .pattern-tools .pt-more: the menu-popover rule's :is() weighs a
+   class and an element; a short window puts it above its button) */
+.pattern-tools .pt-more[popover] { position-area: bottom span-left;
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  max-height: calc(100dvh - 2 * var(--s2)); overflow: auto; overscroll-behavior: contain; }
+.pt-more:popover-open { display: grid; gap: var(--s1); padding: var(--s2); min-width: 0; }
+.ptm-row { display: flex; align-items: center; gap: 1px; padding: 1px 1px 1px var(--s15);
+  background: var(--bg-inset); border: 1px solid var(--line); border-radius: var(--r-s); }
+.ptm-cap { flex: none; width: 6.5em; font-size: var(--fs-2xs); color: var(--text-dim); }
+.ptm-row .btn:not([aria-pressed="true"]) { border-color: transparent; background: transparent; box-shadow: none; }
+.ptm-row .btn:not(:disabled):hover { background: color-mix(in oklab, var(--text), transparent 90%); }
+.ptm-row > .roll-stamp { display: inline-flex; align-items: center; gap: 1px; }
+.ptm-sep { flex: none; width: 1px; align-self: stretch; margin: 3px var(--s1); background: var(--line); }
+/* Q (the loop open on the grid): its rates and strengths, ✦ */
+.lp-q-panel:popover-open { display: grid; justify-items: start; gap: var(--s1); padding: var(--s2); }
 
 /* Synths: one ghost "+ layer" row, never three rows that say "empty" */
 .lrow.empty ~ .lrow.empty { display: none; }
@@ -6914,11 +6946,12 @@ html[data-loops="over"][data-lp-drag] .loops-panel { opacity: 0.25; pointer-even
 /* ---------- 42. The Loops page, laid out ----------
    (views/perform.html; loop-and-perform.md, "Loops, laid out".) The
    Loops panel | the live strip, the launcher, the editor | the
-   right column. The right column (`.perform-side`, grid area `side`) is a
-   flex column of three modules: → Song, the lane inspector (its body the
-   region `lane-inspector`, ✦ Coach its other tab) and Play (pads, XY, FX,
-   beats: one tab shown, layout.js). Its width is --lane-w (the splitter on
-   its left seam). From 1200 px, in both densities, the page is the window
+   right column. The right column (`.perform-side`, grid area `side`) is the
+   lane inspector alone, its whole height (its body the region
+   `lane-inspector`, ✦ Coach its other tab); → Song sits in the launcher's
+   head, and Play (pads, XY, FX, beats: one tab shown, layout.js) is a
+   popover the keyboard dock's Tools open (below). Its width is --lane-w
+   (the splitter on its left seam). From 1200 px, in both densities, the page is the window
    — comfy tiles as dense does, with its own larger type and gaps (stacked,
    the launcher would sit ~1000 px below the grids' foot) — and every pane
    scrolls inside itself. Dense: D42. */
@@ -6927,10 +6960,11 @@ html[data-loops="over"][data-lp-drag] .loops-panel { opacity: 0.25; pointer-even
 .perform-side > .splitter { right: auto; left: -12px; }
 /* (laid out by the workspace, the column is empty and out of the way) */
 [data-ws-on] > .perform-side:not(:has(> .module)) { display: none; }
-.perform-side > #perform-arrange { flex: none; }
-/* its note opens under it (section 35): the button is the column's top, so the
-   foot is not held to the keyboard dock's top — that pinned it far below */
-.perform-side > #perform-arrange .to-song-note { bottom: auto; }
+/* → Song in the launcher's head, beside Scene → Song: its note opens under
+   it (section 35) — the button is near the page's top, so the foot is not
+   held to the keyboard dock's top, which pinned it far below */
+.sl-head > #perform-arrange { display: inline-flex; flex-wrap: nowrap; gap: var(--s1); }
+.sl-head > #perform-arrange .to-song-note { bottom: auto; }
 
 /* the lane inspector: a head (its fold, Lane | ✦ Coach), a body that
    scrolls: the lane or the coach */
@@ -6975,11 +7009,18 @@ html[data-loops="over"][data-lp-drag] .loops-panel { opacity: 0.25; pointer-even
 .insp-chain { flex: 1 1 8em; min-width: 0; font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .insp-synths { align-self: flex-start; }
 
-/* Play: its head (the fold, the tabs), one part shown */
-.play-module { display: flex; flex-direction: column; flex: none; min-width: 0; max-height: 62%;
-  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--r-m); }
-.play-head { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s2); }
-.play-fold { font: inherit; font-size: var(--fs-xs); letter-spacing: .08em; text-transform: uppercase; }
+/* Play: a manual popover over the page, above the keyboard dock's right end
+   as Play tools is (section 14: its button, "Pads ▴", is the dock's Tools'
+   and shows on this page alone); its head (Play, the tabs, ✕), one part
+   shown */
+.play-module[popover] { inset: auto; margin: 0 var(--s2) var(--s1) 0; position-anchor: --keys-dock;
+  position-area: top; justify-self: end; width: min(440px, calc(100vw - 32px)); max-height: 60dvh;
+  padding: 0; overflow: hidden; }
+.play-module:popover-open { display: flex; flex-direction: column; min-width: 0; }
+.play-head { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s2);
+  border-bottom: 1px solid var(--line); }
+.play-cap { font-size: var(--fs-xs); color: var(--text-dim); }
+.play-x { flex: none; }
 .play-tabs { margin-left: auto; }
 .play-tabs [aria-selected="true"] { color: var(--accent-text); box-shadow: inset 0 -2px 0 var(--accent); }
 .play-body { min-height: 0; overflow: auto; scrollbar-width: thin; padding: 0 var(--s2) var(--s2); }
@@ -7174,7 +7215,7 @@ html[data-motion="calm"] .pm-sweep { display: none; }
   font-family: var(--font-panel); font-stretch: calc(var(--panel-wdth) * 1%);
   font-variation-settings: "wdth" var(--panel-wdth); font-variant-numeric: tabular-nums;
   font-size: var(--fs-2xs); color: var(--text-dim); }
-.lp-facts .fc { flex: none; overflow: hidden; text-overflow: ellipsis; padding-inline-end: var(--s15); }
+.lp-facts .fc { flex: none; box-sizing: content-box; overflow: hidden; text-overflow: ellipsis; padding-inline-end: var(--s15); }
 .lp-facts .fc i { font-style: normal; margin-inline-start: 1px; color: var(--text-faint); }
 .lp-facts .c-len { width: 7.5ch; }
 .lp-facts .c-grid { width: 4.5ch; }

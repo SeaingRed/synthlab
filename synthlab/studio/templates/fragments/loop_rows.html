@@ -2,47 +2,54 @@
 {# The Loops list's rows (looplib.py: `lp` is a `looplib.context`), one
    macro for every place that draws them — the clip library's Loops group
    (every page), Perform's Loops panel, and the keyboard dock's strip
-   (`where` "strip": this session's, fewer actions). A row is a loop (of
-   notes, or a beat: `r.what`), a keys take no loop names yet (from before
-   one Rec made both), or a slot of the beat bank (`r.kind` "bank": shown
-   as a beat; ★, tags or a rename keep it as a beat loop) or a beat of the
-   old beat library (`r.kind` "lib", the same: the Kit page lists
-   neither): `r.ref` is what
-   its actions post, and a take's or a slot's first keeping action makes
-   its loop.
-   A row: ▷ listen — a quiet preview in time, layered over what plays and
-   stopped by the transport: from the next bar line of what plays, at its
-   tempo (loopspanel.js: the take's audio, or a render made on the first ▷,
-   `POST /loop/preview`) —, its notes as a mini piano roll or its beat as
-   a mini step grid (`r.roll`: one path), its name (`r.title`: what it is,
-   for a name the clock gave) · detail, ★, its tags (a click filters the
-   panel by one), then
-   - Edit — on Perform's note grid as THIS loop: edits save to it; a beat:
-     Open — on the drum grid (`/loop/beat`, one pattern undo step);
+   (`where` "strip": this session's). A row is a loop (of notes, or a beat:
+   `r.what`), a keys take no loop names yet (from before one Rec made
+   both), or a slot of the beat bank (`r.kind` "bank": shown as a beat; ★,
+   tags or a rename keep it as a beat loop) or a beat of the old beat
+   library (`r.kind` "lib", the same: the Kit page lists neither): `r.ref`
+   is what its actions post, and a take's or a slot's first keeping action
+   makes its loop.
+   A row SHOWS four things, in every list (loop-and-perform.md, "The Loops
+   panel"): ▷ listen — a quiet preview in time, layered over what plays and
+   stopped by the deck (loopspanel.js: the take's audio, or a render made
+   on the first ▷, `POST /loop/preview`) —, its name (`r.title`: what it
+   is, for a name the clock gave), its facts (one line of read-out cells:
+   bars · rate · bpm · key, "+n bars played") and ★. Everything else is
+   its RIGHT-CLICK MENU (menu.js: `data-ctx` on the row, `data-menu` on
+   each control under it, in this order; a `data-menu-group` box is a
+   submenu of the controls in it) — the controls are here, never drawn
+   (`.lp-acts`), so their routes, confirms, prompts and the palette's
+   commands work as a hand on them would:
+   - Edit — on Perform's note grid as THIS loop: edits save to it (a
+     double-click on the row, or Enter on it, is Edit; on the Loops page a
+     loop that sits in a launcher cell selects that cell instead —
+     loopspanel.js); a beat: Open — on the drum grid (`/loop/beat`);
+   - ✂ Shape (a free take, or the free loop made of one);
    - → Song ▸ pattern (a section, its notes on a track with its sound) |
      audio (a section, its take on an audio track) — notes only;
-   - Q ▸ (`quantise_menu`) a rate (the meter's steps) and a strength, 0 =
-     as played: placed again from the notes as played (an edited grid asks
-     first); ✦ the clean-up of its take's notes, placed; ↶;
-   - # tags (one prompt, the tags as words), ✎ rename, ✕ delete (its audio
+   - Quantise ▸ (`quantise_items`) a rate (the meter's steps) and a
+     strength, 0 = as played: placed again from the notes as played (an
+     edited grid asks first); ✦ the clean-up of its take's notes; ↶;
+   - Tags… (one prompt, the tags as words), Rename…, Delete (its audio
      too, unless something uses that clip).
-   The loop open on Perform's grid is drawn by its name alone, "editing":
-   its notes are the grid's, its Q the grid's banner (transport.html), so
+   The loop open on Perform's grid is drawn by its name alone, "✎ editing":
+   its notes are the grid's, its Q the grid's toolbar (transport.html), so
    a stroke there redraws no list (`looplib.watch`).
    No named field anywhere (htmx.ajax sweeps every named input on the
    page): names come from prompts, choices are buttons. The newest row's
    actions carry the palette's commands (`data-cmd`, the first row's only:
-   the palette lists a command once); every row's right-click menu is its
-   buttons by name (`data-menu` under the row's `data-ctx`). The `data-*`
-   a row carries (`find`, `what`, `at`, `bpm`, `rank`, `title`, `star`,
-   `tags`) are what the panel's search, sort and filters read.
-   `where`: "strip" (the dock: compact), "panel" (Perform: a row drags onto
-   the grids — loopspanel.js), "drawer" (the clip library: on Song a row
-   drags out of the drawer — songdrag.js — a loop of notes or a
-   beat onto a lane of its kind (a pattern there, from the bar under the
-   pointer) or onto a section's head (a new section there), and its audio,
-   when it has some, onto an audio lane as a clip row does). An idea's
-   → Song makes it a section (`/fragment/perform/scene/song`). #}
+   the palette lists a command once). The `data-*` a row carries (`find`,
+   `what`, `at`, `bpm`, `rank`, `title`, `star`, `tags`) are what the
+   panel's search, sort and filters read; `data-loop-name` the loop's name
+   (a launcher cell holding it is selected by an edit on the Loops page).
+   `where`: "strip" (the dock), "panel" (Perform: a row drags onto the
+   launcher's cells — slots.js — and onto the grids — loopspanel.js),
+   "drawer" (the clip library: on Song a row drags out of the drawer —
+   songdrag.js — a loop of notes or a beat onto a lane of its kind (a
+   pattern there, from the bar under the pointer) or onto a section's
+   head (a new section there), and its audio, when it has some, onto an
+   audio lane as a clip row does). An idea's → Song makes it a section
+   (`/fragment/perform/scene/song`). #}
 
 {#- a row's facts (looplib.facts): once, beside the name, as
     read-out cells in a fixed order — bars, grid, tempo, key, the
@@ -56,16 +63,18 @@
   {%- if when and r.when %}<time class="fc c-when">{{ r.when }}</time>{% endif -%}
 </small>{% endmacro %}
 
-{% macro quantise_menu(r, newest=false) %}
-<details class="kt-pick lp-pick lp-q">
-  <summary class="btn btn-s" data-menu="Quantise…" title="place the notes as played on the grid again: a rate and a strength (0 = as played: each note on its nearest step, its timing inside the step kept — it plays as you played it; 100 = every note on its step, no timing kept). The notes as played are never changed">Q {{ r.quantise }}%</summary>
+{#- Quantise's controls (a loop with notes as played): a rate (the meter's
+    steps) and a strength, then ✦ the clean-up of its take's notes and ↶.
+    `data-menu` names each in a right-click menu (a row's "Quantise ▸",
+    the piano roll's) -#}
+{% macro quantise_items(r, newest=false) %}
   {#- (a plain string, escaped once where it is written: built with ~ around
       `| e` it came out with its own quotes escaped and broke at a space) -#}
   {% set ask = "“" ~ r.name ~ "” was edited on the grid: place the notes as played again over it?" %}
   <span class="seg lp-seg" role="group" aria-label="rate">
     {% for n, word in r.rates %}
     <button type="button" hx-post="/loop/quantise" hx-swap="none"{% if r.edited %} hx-confirm="{{ ask }}"{% endif %}
-            hx-vals='{{ (r.ref | combine({"steps": n, "strength": r.quantise})) | tojson }}'
+            hx-vals='{{ (r.ref | combine({"steps": n, "strength": r.quantise})) | tojson }}' data-menu="Rate {{ word }}"
             aria-pressed="{{ 'true' if n == r.steps else 'false' }}" title="the grid's step: {{ word }}">{{ word }}</button>
     {% endfor %}
   </span>
@@ -73,7 +82,7 @@
     {% for q in (0, 25, 50, 75, 100) %}
     <button type="button" hx-post="/loop/quantise" hx-swap="none"{% if r.edited %} hx-confirm="{{ ask }}"{% endif %}
             hx-vals='{{ (r.ref | combine({"steps": r.steps, "strength": q})) | tojson }}'{% if newest and q == 0 %} data-cmd="Newest loop: as played" data-cmd-group="Loops"{% elif newest and q == 100 %} data-cmd="Newest loop: quantise 100%" data-cmd-group="Loops"{% endif %}
-            aria-pressed="{{ 'true' if q == r.quantise else 'false' }}"
+            data-menu="{{ 'Strength: as played' if q == 0 else 'Strength ' ~ q ~ '%' }}" aria-pressed="{{ 'true' if q == r.quantise else 'false' }}"
             title="{{ 'as played: every note keeps its timing inside its step' if q == 0 else 'on the steps: no timing inside one' if q == 100 else 'each note pulled ' ~ q ~ '% of the way to its step, the rest of its timing kept' }}">{{ 'as played' if q == 0 else q ~ '%' }}</button>
     {% endfor %}
   </span>
@@ -82,15 +91,26 @@
       grid, doubles, velocities, the key; Gemini's ear with a key), placed
       on the loop's grid: the notes as played stay -#}
   <button type="button" class="btn btn-s kt-clean" hx-post="/take/keys/clean" hx-swap="none" hx-sync="this:drop"
-          hx-vals='{{ {"name": r.audio} | tojson }}' data-menu="Clean up the notes"
+          hx-vals='{{ {"name": r.audio} | tojson }}' data-menu="✦ Clean up the notes"
           title="{% if r.cleaned %}Cleaned up: {{ r.fixes | join(' ') }} — again starts from the notes as played{% else %}✦ clean up: the timing lean, the grid, double hits, velocities, the key (and Gemini's ear, with a key), placed on the grid. The audio and the notes as played stay{% endif %}">✦{% if r.cleaned %} cleaned{% endif %}</button>
   {% if r.cleaned %}
   <button type="button" class="btn btn-ghost btn-icon btn-s kt-unclean" hx-post="/take/keys/unclean" hx-swap="none"
-          hx-vals='{{ {"name": r.audio} | tojson }}' data-menu="Undo the clean-up" aria-label="undo the clean-up of {{ r.name }}"
+          hx-vals='{{ {"name": r.audio} | tojson }}' data-menu="↶ Undo the clean-up" aria-label="undo the clean-up of {{ r.name }}"
           title="undo the clean-up: the notes as played, placed again">↶</button>
   {% endif %}
   {% endif %}
-</details>
+{% endmacro %}
+
+{#- Q on the note grid's toolbar (the loop open on it): a menu popover of
+    the same controls; in the piano roll's right-click menu, "Quantise ▸" -#}
+{% macro quantise_menu(r, newest=false) %}
+<span class="pt-menu lp-q">
+        <button type="button" class="btn btn-s pt wide" popovertarget="ptm-q" aria-label="quantise the loop: {{ r.quantise }}%"
+                title="Q: place the notes as played on the grid again: a rate and a strength (0 = as played: each note on its nearest step, its timing inside the step kept — it plays as you played it; 100 = every note on its step, no timing kept). The notes as played are never changed">Q {{ r.quantise }}%</button>
+        <div popover id="ptm-q" class="pop menu pt-menu-panel lp-q-panel" role="group" aria-label="quantise" data-menu-group="Quantise ({{ r.quantise }}%)">
+          {{ quantise_items(r, newest) }}
+        </div>
+      </span>
 {% endmacro %}
 
 {% macro loop_rows(lp, where, clip_bars={}) %}
@@ -104,15 +124,17 @@
       song's sections: each opens as a scene of the launcher -#}
   {% set scene = r.what in ("idea", "section") %}
   {% set can_drag = drawer and lp.view == "song" and (r.audio or r.what in ("notes", "beat")) %}
-  <li class="{{ 'cd-clip' if drawer else 'kt-take' }} lp-row{% if r.earlier and not panel %} kt-earlier{% endif %}{% if r.editing %} lp-editing{% endif %}"
+  {#- one tab stop a row: Enter edits it (opens a beat, an idea, a section),
+      the Menu key or Shift+F10 opens its menu — loopspanel.js -#}
+  <li class="{{ 'cd-clip' if drawer else 'kt-take' }} lp-row{% if r.earlier and not panel %} kt-earlier{% endif %}{% if r.editing %} lp-editing{% endif %}" tabindex="0"
       data-ctx="loop {{ r.name }}" data-what="{{ r.what }}" data-kind="{{ r.kind }}" data-find="{{ r.find }}"
       data-at="{{ r.at }}" data-bpm="{{ r.bpm or 0 }}" data-rank="{{ r.rank }}" data-title="{{ r.title | lower }}"
-      data-tags="{{ r.tags | join(' ') }}"{% if r.star %} data-star{% endif %}
+      data-tags="{{ r.tags | join(' ') }}"{% if r.star %} data-star{% endif %}{% if r.kind == "loop" and not scene %} data-loop-name="{{ r.name }}"{% endif %}
       {%- if can_drag %} draggable="true"{% if r.audio %} data-name="{{ r.audio }}" data-bars="{{ clip_bars.get(r.audio, 1) }}"{% endif %}
       {%- if r.what in ("notes", "beat") %} data-drag-loop='{{ v }}' data-loop-bars="{{ r.bars or 1 }}"{% endif %}
-      title="Drag it onto the song: {{ 'a beat onto the drums lane' if beat else 'its notes onto a synth lane' }} (a pattern from that bar) or onto a section's head (a new section there){% if r.audio %}; its audio onto an audio lane{% endif %}"
-      {#- (no title: a tip on every row the pointer crosses; the panel's
-          head says a row drags onto a grid) -#}
+      title="Drag it onto the song: {{ 'a beat onto the drums lane' if beat else 'its notes onto a synth lane' }} (a pattern from that bar) or onto a section's head (a new section there){% if r.audio %}; its audio onto an audio lane{% endif %} · double-click: {{ 'open it' if beat else 'edit it' }} · right-click: every action"
+      {#- (no title on the panel's rows: a tip on every row the pointer
+          crosses; the panel's head says what a row does) -#}
       {%- elif panel and not r.editing and not scene %} draggable="true" data-drag-loop='{{ v }}'{% endif %}>
     {#- ▷ listen in time (loopspanel.js): a quiet preview over what plays —
         never the transport (the Loops page's deck is: it stops a listen
@@ -122,26 +144,24 @@
     {% if scene %}
     <span class="btn btn-icon btn-s btn-ghost kt-play lp-scene-mark" aria-hidden="true">{{ '◆' if r.what == 'idea' else '§' }}</span>
     {% else %}
-    <button type="button" class="btn btn-icon btn-s btn-ghost kt-play lp-play listen" data-preview='{{ v }}'
+    <button type="button" class="btn btn-icon btn-s btn-ghost kt-play lp-play listen" data-preview='{{ v }}' tabindex="-1"
             {%- if r.audio %} data-take-url="/clip/{{ r.audio | urlencode }}.wav"{% endif %} data-loop-bpm="{{ r.bpm or 0 }}"
-            data-menu="Listen" aria-label="listen to {{ r.title }}"
+            data-menu="▷ Listen" aria-label="listen to {{ r.title }}"
             title="▷ listen: a quiet preview in time — from the next bar line of what plays, at its tempo{% if not r.audio %} (rendered the first time){% endif %}; it never stops what plays, and stops when the transport starts">▷</button>
     {% endif %}
     {% if r.editing %}
     <span class="kt-name lp-name"><span class="lp-on" title="open on the Loops page's note grid: every change there saves to it">✎ editing</span> {{ r.title }} <small>on the grid · saves as you go</small></span>
     {% else %}
-    <svg class="lp-roll{% if beat %} lp-steps{% endif %}" viewBox="0 0 {{ r.roll.w }} {{ r.roll.h }}" preserveAspectRatio="none" aria-hidden="true"><path d="{{ r.roll.d }}"/></svg>
-    <span class="kt-name lp-name">{% if beat %}<span class="badge lp-kind" title="{{ 'a slot of the beat bank' if r.kind == 'bank' else 'a beat of the old beat library' if r.kind == 'lib' else 'a beat' }}">{{ r.kind if r.kind in ('bank', 'lib') else 'beat' }}</span> {% elif scene %}<span class="badge lp-kind" title="{{ 'a scene of the launcher, kept' if r.what == 'idea' else 'a section of the song' }}">{{ r.what }}</span> {% endif %}{{ r.title }} {{ facts(r, not compact) }}</span>
+    <span class="kt-name lp-name">{% if beat %}<span class="badge lp-kind" title="{{ 'a slot of the beat bank' if r.kind == 'bank' else 'a beat of the old beat library' if r.kind == 'lib' else 'a beat' }}">{{ r.kind if r.kind in ('bank', 'lib') else 'beat' }}</span> {% elif scene %}<span class="badge lp-kind" title="{{ 'a scene of the launcher, kept' if r.what == 'idea' else 'a section of the song' }}">{{ r.what }}</span> {% endif %}{{ r.title }} {{ facts(r) }}</span>
     {% endif %}
-    {% if not compact and r.kind != "section" %}
-    <button type="button" class="btn btn-ghost btn-icon btn-s lp-star" hx-post="/loop/star" hx-swap="none"
+    {% if r.kind != "section" %}
+    <button type="button" class="btn btn-ghost btn-icon btn-s lp-star" hx-post="/loop/star" hx-swap="none" tabindex="-1"
             hx-vals='{{ v }}' aria-pressed="{{ 'true' if r.star else 'false' }}"
-            data-menu="{{ 'Unstar' if r.star else '★ Favourite' }}" aria-label="{{ 'unstar' if r.star else 'star' }} {{ r.title }}"
+            data-menu="{{ '☆ Unstar' if r.star else '★ Favourite' }}" aria-label="{{ 'unstar' if r.star else 'star' }} {{ r.title }}"
             title="{{ '★ a favourite: press to unstar' if r.star else ('★ keep this beat as a loop, a favourite' if r.kind in ('bank', 'lib') else '★ a favourite: the ★ filter lists them') }}">{{ '★' if r.star else '☆' }}</button>
     {% endif %}
-    {% if r.tags and not compact %}
-    <span class="lp-tags">{% for t in r.tags %}<button type="button" class="btn btn-ghost btn-s lp-tag" data-tag="{{ t }}" title="only the loops tagged #{{ t }}">#{{ t }}</button>{% endfor %}</span>
-    {% endif %}
+    {#- every other action: the row's right-click menu, in this order
+        (never drawn: style.css 14c) -#}
     <span class="kt-acts lp-acts">
       {% if beat %}
       <button type="button" class="btn btn-s lp-edit lp-open" hx-post="/loop/beat" hx-swap="none"
@@ -149,56 +169,57 @@
               title="put this beat on the drum grid (the notes stay; Ctrl+Z takes it back)">Open</button>
       {% elif scene %}
       {#- an idea or a section: a new scene of the launcher, launched -#}
-      <button type="button" class="btn btn-s lp-open lp-scene" hx-post="{{ '/fragment/perform/scene/idea' if r.what == 'idea' else '/fragment/perform/scene/section' }}" hx-swap="none"
+      <button type="button" class="btn btn-s lp-edit lp-open lp-scene" hx-post="{{ '/fragment/perform/scene/idea' if r.what == 'idea' else '/fragment/perform/scene/section' }}" hx-swap="none"
               hx-vals='{{ v }}' data-menu="Open as a scene"
               title="lay it out as a scene of the launcher (the first empty row{% if r.what == 'section' %}: each of its lanes and its beat kept as a loop{% endif %}) and play it at the next quantise point — its tempo and key too (Ctrl+Z takes it back)">Open</button>
       {% if r.what == "idea" %}
       <button type="button" class="btn btn-s lp-to-song" hx-post="/fragment/perform/scene/song" hx-swap="none"
-              hx-vals='{{ {"idea": r.name} | tojson }}' data-menu="Into the song"
+              hx-vals='{{ {"idea": r.name} | tojson }}' data-menu="→ Song: a section"
               title="a new section of the song: each of its loops a pattern on a track with its sound, its beat on the drums, its tempo, key and meter (Ctrl+Z on Song undoes it)">→ Song</button>
       {% endif %}
       {% else %}
-      {#- a free take (free record) — or the free loop made of one: the
-          shaper on it (shaper.js), from the take as played -#}
-      {% if r.get("shape") %}
-      <button type="button" class="btn btn-s lp-shape" data-free-take="{{ r.shape }}" data-menu="Shape the free take"
-              {%- if newest %} data-cmd="Shape the newest free take" data-cmd-group="Loops"{% endif %}
-              title="✂ Shape: the free take as you played it, in time — trim, split, fit or crop it to bars, quantise as much as you like, and make it a loop{% if r.kind == 'loop' %} (another one: this loop stays as it is){% endif %}">✂ Shape</button>
-      {% endif %}
+      {% if not r.editing %}
       <button type="button" class="btn btn-s lp-edit" hx-post="/loop/edit" hx-target="body" hx-swap="innerMorph"
               hx-vals='{{ v }}' data-menu="Edit on the Loops page"{% if newest %} data-cmd="Edit the newest loop on the Loops page" data-cmd-group="Loops"{% endif %}
               title="open it on the Loops page's note grid as this loop: the notes at their steps, its sound, tempo and key — every change you make there saves to it">Edit</button>
-      <details class="kt-pick lp-pick">
-        <summary class="btn btn-s" data-menu="To the song…" title="put it into the song as a new section: as a pattern on a track with its sound, or its audio as a take">→ Song</summary>
-        <button type="button" class="btn btn-s" hx-post="/loop/song" hx-swap="none"
+      {% endif %}
+      {#- a free take (free record) — or the free loop made of one: the
+          shaper on it (shaper.js), from the take as played -#}
+      {% if r.get("shape") %}
+      <button type="button" class="btn btn-s lp-shape" data-free-take="{{ r.shape }}" data-menu="✂ Shape the free take"
+              {%- if newest %} data-cmd="Shape the newest free take" data-cmd-group="Loops"{% endif %}
+              title="✂ Shape: the free take as you played it, in time — trim, split, fit or crop it to bars, quantise as much as you like, and make it a loop{% if r.kind == 'loop' %} (another one: this loop stays as it is){% endif %}">✂ Shape</button>
+      {% endif %}
+      <span class="lp-pick lp-tosong" data-menu-group="→ Song">
+        <button type="button" class="btn btn-s" hx-post="/loop/song" hx-swap="none" data-menu="as a pattern"
                 hx-vals='{{ (r.ref | combine({"as": "pattern"})) | tojson }}'{% if newest %} data-cmd="Newest loop → Song as a pattern" data-cmd-group="Loops"{% endif %}
                 aria-label="{{ r.name }} into the song as a pattern"
                 title="a new section: its notes as a pattern in the pool, on a track that plays its sound (Ctrl+Z on Song undoes it)">pattern</button>
-        <button type="button" class="btn btn-s" hx-post="/loop/song" hx-swap="none"
+        <button type="button" class="btn btn-s" hx-post="/loop/song" hx-swap="none" data-menu="as audio"
                 hx-vals='{{ (r.ref | combine({"as": "audio"})) | tojson }}'{% if newest %} data-cmd="Newest loop → Song as audio" data-cmd-group="Loops"{% endif %}
                 aria-label="{{ r.name }} into the song as audio"
                 title="a new section: its audio as played, a take on an audio track{% if not r.audio %} (rendered from its notes first){% endif %} (Ctrl+Z on Song undoes it)">audio</button>
-      </details>
+      </span>
       {% endif %}
-      {% if not compact and not r.editing and r.played and r.rates %}
-      {{ quantise_menu(r, newest) }}
+      {% if not r.editing and r.played and r.rates %}
+      <span class="lp-pick lp-q" data-menu-group="Quantise ({{ r.quantise }}%)">{{ quantise_items(r, newest) }}</span>
       {% endif %}
-      {% if not compact and not r.editing and r.kind != "section" %}
+      {% if not r.editing and r.kind != "section" %}
       <button type="button" class="btn btn-ghost btn-icon btn-s lp-tagit" hx-post="/loop/tag" hx-swap="none"
               hx-vals='{{ v }}' hx-prompt="Tags (words: dark bass wide)" data-name="{{ r.tags | join(' ') }}"
-              data-menu="Tags…" aria-label="tag {{ r.title }}" title="tags: words to find it by (#dark in the search)">#</button>
+              data-menu="# Tags…{% if r.tags %} ({{ r.tags | join(' ') }}){% endif %}" aria-label="tag {{ r.title }}" title="tags: words to find it by (#dark in the search)">#</button>
       <button type="button" class="btn btn-ghost btn-icon btn-s kt-rename" hx-post="/loop/rename" hx-swap="none"
               hx-vals='{{ v }}' hx-prompt="Rename the {{ 'beat' if beat else 'idea' if scene else 'loop' }}" data-name="{{ r.title }}"
-              data-menu="Rename…" aria-label="rename {{ r.title }}" title="rename">✎</button>
+              data-menu="✎ Rename…" aria-label="rename {{ r.title }}" title="rename">✎</button>
       {% endif %}
       {% if r.kind == "loop" %}
       <button type="button" class="btn btn-ghost btn-icon btn-s btn-danger kt-drop" hx-post="/loop/delete" hx-swap="none"
               hx-vals='{{ {"name": r.name, "audio": "1"} | tojson }}' hx-confirm="Delete the {{ 'beat' if beat else 'idea' if scene else 'loop' }} “{{ r.title }}”{% if r.audio %} and its audio{% endif %}?"
-              data-menu="Delete" aria-label="delete {{ r.title }}" title="delete it{% if r.audio %} and its audio{% endif %}">✕</button>
+              data-menu="✕ Delete" aria-label="delete {{ r.title }}" title="delete it{% if r.audio %} and its audio{% endif %}">✕</button>
       {% elif r.kind == "take" %}
       <button type="button" class="btn btn-ghost btn-icon btn-s btn-danger kt-drop" hx-post="/take/keys/discard" hx-swap="none"
               hx-vals='{{ {"name": r.name} | tojson }}' hx-confirm="Delete the take “{{ r.title }}”?"
-              data-menu="Delete" aria-label="delete {{ r.title }}" title="delete the take: its audio and its notes">✕</button>
+              data-menu="✕ Delete" aria-label="delete {{ r.title }}" title="delete the take: its audio and its notes">✕</button>
       {% endif %}
     </span>
   </li>

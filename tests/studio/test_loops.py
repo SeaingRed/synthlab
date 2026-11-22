@@ -355,7 +355,9 @@ def test_one_list_newest_first_in_the_drawer_the_panel_and_the_strip(client):
     assert page.count('hx-post="/loop/edit"') >= 6  # two rows, three lists
     # the drawer files a take with its loop, never in a Takes group as well
     assert 'data-group="take"' not in page and 'data-group="take-new"' not in page
-    assert 'class="lp-roll"' in page  # each row's notes, a mini piano roll
+    # a row is quiet: ▷, its name, its facts, ★ — its actions are its
+    # right-click menu's (never drawn: `.lp-acts`), no mini piano roll
+    assert 'class="lp-roll"' not in page and 'class="kt-acts lp-acts"' in page
     # the drawer's search narrows the Loops too
     found = client.get("/fragment/clips", params={"q": "seco"}).text
     assert "second" in found and "first" not in found

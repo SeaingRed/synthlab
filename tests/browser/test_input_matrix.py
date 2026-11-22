@@ -157,6 +157,24 @@ def tool(page, name: str):
     assert page.evaluate("() => document.documentElement.dataset.roll") == name
 
 
+TOOLS = "#transport .pt-more-btn"  # the note grid's Tools ▾ (#ptm-notes)
+
+
+def more(page, sel: str, how: str = "click", value: str | None = None) -> None:
+    """A control in the note grid's Tools ▾ (transpose, the stamp's chord
+    and length, the zoom, the selection's tools, the generators): open it,
+    use the control, shut it again — before the answer, so it does not
+    open again over the grid (layout.js keeps it open only while it is)."""
+    if not page.locator("#ptm-notes:popover-open").count():
+        getattr(page, "tap" if how == "tap" else "click")(TOOLS)
+        page.wait_for_selector("#ptm-notes:popover-open")
+    if how == "select":
+        page.select_option(sel, value)
+    else:
+        getattr(page, how)(sel)
+    page.evaluate("() => document.getElementById('ptm-notes')?.hidePopover()")
+
+
 @pytest.fixture
 def touch_studio(chromium, server):
     """A touch screen at a Surface Pro's size and scale: the coarse tier."""
@@ -230,7 +248,7 @@ def test_roll_mouse_draws_lengthens_moves_copies_and_deletes(studio, server):
     )
     # the copy is the selection now: the toolbar's delete takes it alone
     sync(page, server)
-    page.click('#transport [hx-post$="/notes/remove"]')
+    more(page, '#transport [hx-post$="/notes/remove"]')
     wait(page, lambda: notes(server) == [("E2", 6, 9)], "the copy deleted")
     # a right click erases a step in any tool (grid.js)
     page.click(cell("E2", 8), button="right")
@@ -265,7 +283,7 @@ def test_roll_mouse_erase_tool_and_the_stamp(studio, server):
     # the stamp: one click writes the chord of the key on that row
     sync(page, server)
     tool(page, "stamp")
-    page.select_option('#transport [data-roll-opt="len"]', "4")
+    more(page, '#transport [data-roll-opt="len"]', "select", "4")
     before = undo_steps(server)
     page.click(cell("D2", 16))
     want = [("A2", 16, 20), ("F2", 16, 20), ("D2", 16, 20)]
@@ -330,7 +348,7 @@ def test_roll_wheel_scrolls_and_zooms_and_never_changes_a_value(studio, server):
     # Ctrl+wheel down, then "fit": back to the pane's own width
     m.wheel(cell("A2", 34), dy=120, key="Control")
     assert float(page.evaluate(geo)["zoom"][:-2]) < float(zoomed["zoom"][:-2])
-    page.click('#transport [data-zoom-by="0"]')
+    more(page, '#transport [data-zoom-by="0"]')
     assert page.evaluate(geo)["zoom"] == ""
     # nothing was edited: no value moved, no post, no undo step
     sync(page, server)
@@ -341,12 +359,12 @@ def test_roll_wheel_scrolls_and_zooms_and_never_changes_a_value(studio, server):
 
 def test_roll_zoom_is_remembered_across_a_redraw_and_a_reload(studio, server):
     page = perform(studio, server)
-    page.click('#transport [data-zoom-by="1"]')
+    more(page, '#transport [data-zoom-by="1"]')
     z = page.evaluate(ZOOM)
     assert z.endswith("px")
     w = page.locator(cell("A1", 0)).bounding_box()["width"]
     assert abs(w - float(z[:-2])) < 1
-    page.click('#transport [hx-post$="/notes/shift_right"]')  # the grid is redrawn
+    more(page, '#transport [hx-post$="/notes/shift_right"]')  # the grid is redrawn
     sync(page, server)
     assert abs(page.locator(cell("A1", 0)).bounding_box()["width"] - w) < 1
     page.reload()
@@ -364,8 +382,9 @@ def test_roll_keyboard_only_a_chord_drawn_lengthened_moved_copied_deleted(
     page = perform(studio, server)
     k = Keys(page)
     # Tab to the grid: its cells are ONE stop, its velocity lanes one more
-    page.locator('#transport [data-zoom-by="1"]').focus()
-    k.press("Tab")  # (the ? at the end of the toolbar)
+    page.locator(
+        TOOLS
+    ).focus()  # Tools ▾, the toolbar's last (shut: its rows are no stops)
     # the chord lane over the roll: its tools, then its chords
     # (none yet: the button that rolls a progression in)
     k.press("Tab")
@@ -425,6 +444,13 @@ def test_roll_keyboard_only_a_chord_drawn_lengthened_moved_copied_deleted(
     wait(page, lambda: ("G2", 4, 7) in notes(server), "transposed back")
     # copy, and paste at the cursor (step 12, the chord's top row)
     sync(page, server)
+    # (the selection follows the notes by the answer's `roll-sel`, which can
+    # land a beat after the grid's redraw: copy what is selected then)
+    wait(
+        page,
+        lambda: page.locator(f"{ROLL} .cell.sel[name='cell.G2.4']").count() == 1,
+        "the selection on the moved chord",
+    )
     k.press("Control+c")
     k.press("ArrowUp", 6)
     k.press("ArrowRight", 12)
@@ -606,15 +632,15 @@ def test_roll_touch_tap_paint_note_end_tools_and_targets(touch_studio, server):
     wait(page, lambda: notes(server) == [("D2", 2, 7)], "the moved note")
     # "Copy here" without Ctrl: copy, put the cursor somewhere, paste
     sync(page, server, pause=300)
-    page.tap('#transport [data-roll-op="mark"]')
+    more(page, '#transport [data-roll-op="mark"]', "tap")
     page.wait_for_timeout(350)  # (two quick taps are a double tap, not two clicks)
     page.locator(cell("D2", 9)).focus()
-    page.tap('#transport [data-roll-op="paste"]')
+    more(page, '#transport [data-roll-op="paste"]', "tap")
     wait(
         page, lambda: notes(server) == [("D2", 2, 7), ("D2", 9, 14)], "the pasted copy"
     )
     sync(page, server, pause=300)
-    page.tap('#transport [hx-post$="/notes/remove"]')
+    more(page, '#transport [hx-post$="/notes/remove"]', "tap")
     wait(page, lambda: notes(server) == [("D2", 2, 7)], "the copy deleted")
 
 
@@ -807,7 +833,7 @@ def test_e9_the_note_part_of_journey_1_by_hand(studio, server):
     wait(page, lambda: s.active_layer == 1, "the chord lane")
     sync(page, server)
     page.click('#transport [data-roll-tool="stamp"]')
-    page.select_option('#transport [data-roll-opt="len"]', "16")
+    more(page, '#transport [data-roll-opt="len"]', "select", "16")
     for bar, pitch in enumerate(("A1", "F2", "C2", "G2")):
         page.click(cell(pitch, bar * 16))
         wait(page, lambda bar=bar: len(notes(server)) == 3 * (bar + 1), "a chord")
@@ -1747,13 +1773,13 @@ def test_strum_is_a_touch_target_and_the_drawer_has_the_same_knob(touch_studio, 
 # The note generators on the loop (the loose ends): write, roll again, vary
 # =============================================================================
 #
-# Native buttons and a popover menu (⚄ write, `#ptm-write`, not a
-# <details>), so a pen's tap is a click (the
+# Native buttons in a popover menu (the note grid's Tools ▾, `#ptm-notes`,
+# its ⚄ write row; not a <details>), so a pen's tap is a click (the
 # shell's own tests); here a mouse, the keyboard alone and a finger each
 # write a part, and the part plays.
 
-GEN = "#transport .roll-gen"
-WRITE = f'{GEN} .pt[popovertarget="ptm-write"]'  # opens the generators' popover
+GEN = "#ptm-notes .roll-gen"
+WRITE = TOOLS  # opens Tools ▾: the generators are its ⚄ write row
 
 
 def test_gen_on_the_loop_by_mouse_writes_plays_rolls_again_and_undoes(studio, server):
@@ -1782,11 +1808,14 @@ def test_gen_on_the_loop_by_keyboard_alone(studio, server):
     k = Keys(page)
     for _ in range(160):
         k.press("Tab")
-        if k.focused() == "write a part with a generator":
+        if k.focused() == "the other note tools":
             break
-    assert k.focused() == "write a part with a generator"
-    k.press("Enter")  # the menu opens; its first row is the next stop
-    k.press("Tab")
+    assert k.focused() == "the other note tools"
+    k.press("Enter")  # Tools ▾ opens; its rows are the next stops
+    for _ in range(40):
+        k.press("Tab")
+        if page.evaluate("() => document.activeElement.dataset.cmd") == "Write a bass":
+            break
     assert page.evaluate("() => document.activeElement.dataset.cmd") == "Write a bass"
     # the seed is drawn per press and a bass may be one held note a bar: the
     # row is that the press wrote a part, as one undo step, with no pointer
@@ -1798,10 +1827,13 @@ def test_gen_on_the_loop_by_keyboard_alone(studio, server):
 def test_gen_on_the_loop_by_touch(touch_studio, server):
     page = perform(touch_studio, server)
     t = Touch(page)
-    for sel in (WRITE, f'{GEN} [data-cmd="Roll the part again"]'):
-        box = page.locator(sel).bounding_box()
-        assert box["width"] >= 40 and box["height"] >= 40, (sel, box)
+    box = page.locator(WRITE).bounding_box()
+    assert box["width"] >= 40 and box["height"] >= 40, (WRITE, box)
     t.tap(*_mid(page, WRITE))
     page.wait_for_selector(f'{GEN} [data-cmd="Write a chords"]', state="visible")
-    t.tap(*_mid(page, f'{GEN} [data-cmd="Write a chords"]'))
+    page.wait_for_timeout(400)  # (Tools ▾ drops in: measured once it stands)
+    box = page.locator(f'{GEN} [data-cmd="Roll the part again"]').bounding_box()
+    assert box["width"] >= 40 and box["height"] >= 40, box
+    # (in Tools ▾, in the top layer: a tap where it stands, no page scroll)
+    page.tap(f'{GEN} [data-cmd="Write a chords"]')
     wait(page, lambda: len(notes(server)) > 3, "chords from a finger", server=server)

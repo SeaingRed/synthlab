@@ -61,11 +61,13 @@ itself:
   the window) and the **editor** under it — the note grid (`seq`) over the
   drum grid (`rack`), sharing the rest 1.5 : 1 in Both, one of them the
   whole of it in Notes or Drums;
-- **the right column** (`side`, `.perform-side`: a flex column of
-  modules, no id, so each is a workspace member of its own): **→ Song**,
-  **the lane inspector** (it takes the height) and **Play** (its own
-  height, at most 62 % of the column). Its width is `--lane-w` (300 px
-  dense, 320 comfy; the splitter on its left seam, 240-560 px).
+- **the right column** (`side`, `.perform-side`: no id, so its module is
+  a workspace member of its own): **the lane inspector alone**, the
+  column's whole height. Its width is `--lane-w` (300 px dense, 320
+  comfy; the splitter on its left seam, 240-560 px). **→ Song** stands in
+  the launcher's head ("Loop → Song", beside Scene → Song, and Arrange ▸),
+  and **Play** opens over the page from the keyboard dock's Tools
+  (below).
 
 A grid takes the height its pane has: a step is `clamp(17px, its share,
 30px)` dense (`clamp(20px, …, 34px)` comfy), from `--rows` on `.grid` and a
@@ -118,29 +120,46 @@ toggle it (an inspector folded to its head opens with it); the coach's
 own head hides there (the tabs are its head). It is a module still: it
 pops out and focuses, and moves with the inspector.
 
-**Play** (`#perform-play`, `data-module="perform.play"`): the eight pads,
-the drum XY, the performance FX and the beats
-launcher, **one tab at a time** — pads | XY | FX | beats (layout.js's
-tabs: `[data-tab-of][data-tab-pick]` set `data-tab` on the box, per
-browser `synthlab.tab.perform-play`, re-applied after a swap) — and its
-fold (its head's "Play", `data-fold`). Each part is a module of its own
-(it pops out — a popped-out part shows whatever tab is up — and focuses)
-inside Play; only Play moves in the dock. The pads' keys (Q W E R / A S D
-F) and the FX's (C V B N · I O P) play them whichever tab shows, Play
-folded too (perform.js clicks the buttons it finds).
+**Play** (`#perform-play`, `views/perform.html`): the eight pads, the
+drum XY, the performance FX and the beats launcher, **one tab at a time**
+— pads | XY | FX | beats (layout.js's tabs: `[data-tab-of][data-tab-pick]`
+set `data-tab` on the box, per browser `synthlab.tab.perform-play`,
+re-applied after a swap). It left the right column (the inspector has
+it whole) for **the keyboard dock's Tools**: **Pads ▴** (`#play-open`,
+piano.html, beside Play tools; shown on this page alone — style.css 14:
+`#view:not([data-view="perform"]) ~ .keys-dock`) opens it, a manual
+popover (`popovertarget`) over the page above the dock's right end, as
+Play tools is: a key played leaves it open, its ✕ or Pads ▴ shuts it.
+perform.js keeps one of the two open at a time (both stand there), lights
+Pads ▴ (`aria-expanded`) and opens it again on the next visit when it was
+left open (localStorage `synthlab.pads`). It is the same markup, moved —
+not a module of the dock (a popover is no tile): each part is a module
+of its own still (it pops out — a popped-out part shows whatever tab is
+up — and focuses). **The keys never needed it shown**: the pads' (Q W E
+R / A S D F) and the FX's (C V B N · I O P) play them with Play shut, as
+they did folded (perform.js clicks the buttons it finds; piano.js shows
+typing → pads where `#perform-pads` is, and it still is). Why there and
+not a module to add back: the least moved — the markup stays in the
+page, so its keys, its region (the beats) and its tabs work unchanged,
+and the dock already had the place a player reaches for while playing.
+`tests/browser/test_perform.py`
+(`test_play_opens_from_the_keys_dock_and_its_keys_play_it_shut`).
 
 **The workspace**: every block is a module — `perform.loops`,
-`.transport`, `.slots`, `.notes`, `.drums`, `.song`, `.lane`, `.play`
-(and inside them `.coach`, `.pads`, `.xy`, `.fx`, `.launch`). The
-presets (`workspace.PRESETS`, Grids / Launch / Compact) are redrawn on
-them, Reset returns to the page above, and **older saved layouts of
-Perform are dropped**: `synthlab.ws` keys this page `perform@2`
-(workspace.js `REV`), and a record under an older key is deleted on load.
+`.transport`, `.slots`, `.notes`, `.drums`, `.lane` (and inside them
+`.coach`; in Play, `.pads`, `.xy`, `.fx`, `.launch`). `.song` and `.play`
+are gone from the dock (→ Song is the launcher head's, Play the keyboard
+dock's). The presets (`workspace.PRESETS`, Grids / Launch / Compact) are
+redrawn on them, Reset returns to the page above, and **older saved
+layouts of Perform are dropped**: `synthlab.ws` keys this page `perform@3`
+(workspace.js `REV`; 3 since the right column is the inspector alone),
+and a record under an older key is deleted on load.
 
 The pattern tools are `.btn`s with a command each (`data-cmd`, group
 "Pattern": the palette and a Stream Deck find "Shift notes left"); the
-velocity tools are a `.menu`; the bars are a `.seg`; the how-to line is
-the tooltip of the (?) at the end of the toolbar. The momentary FX are
+note grid's and the drum rack's toolbars are one line each, the rest of
+their tools behind **Tools ▾** ("Pattern tools" below); the bars are a
+`.seg`; the how-to line is the tooltip of the (?) in Tools ▾'s view row. The momentary FX are
 `.btn`s named for the shortcut sheet with `data-keys` + `data-key-label`
 (they are held, so they are not commands). Launch cards are commands
 ("Launch beat …", "Launch section …"); a lane head's ▾ is "Pick the
@@ -248,8 +267,8 @@ describes, what Loop ▶ plays and where ⏺ Rec lands:
   Done), so what is drawn there next saves to no loop. Again: let it go.
 - **The editor's head** (`.ed-head`, `fragments/transport.html`; the
   drum rack's own in `perform_drums.html`, from `StudioService.
-  drum_editing`): the loop's name, its lane and **saved** (a lit lamp; its
-  Q and Done) — or **sketch — not saved** with **Save as loop**
+  drum_editing`): the loop's name, its lane and **saved** (a lit lamp;
+  Done — its Q is the toolbar's, beside snap) — or **sketch — not saved** with **Save as loop**
   (`[data-save-sketch]`, slots.js: into the selected empty cell of its
   lane — `/fragment/perform/slot/keep`, which then plays it — else
   `/loop/save`, a loop in the Loops panel the grid then edits). The
@@ -333,8 +352,8 @@ current loop's wrap (`startLoop(buffer, at)`) and fires `loop-switched`.
 bar / slots / seq / rack | side` ("The Loops page, laid out" above),
 named in **both** breakpoints (`test_perform_names_every_grid_area_at_both_breakpoints`;
 under 900 px one column: head, bar, slots, seq, rack, side, loops). The
-pads, the XY, the FX and the beats are the Play module's tabs in `side`,
-no areas of their own. `.launcher` is `auto-fill minmax(150px,
+pads, the XY, the FX and the beats are Play's tabs (a popover the
+keyboard dock's Tools open), no areas of their own. `.launcher` is `auto-fill minmax(150px,
 1fr)` so the 8 pattern slots land in one row, and
 `.launcher > :not(.launch)` spans the row — an empty state or the clip
 placer is prose, not a card, and would be crammed into one 150px column.
@@ -399,6 +418,45 @@ fill every 1/2/4/8 and a row shift. **Every tool acts on the window**
 `_carry_over` rule. Growing the note grid's bars repeats them
 (`routes/patch._grow`, as the drum transport's bars do) unless the new
 bars already hold hidden notes (then they reappear instead).
+
+**The toolbars, one line each** (Perform; `fragments/transport.html`,
+`perform_drums.html`, style.css 8b's "Perform's toolbars"). The note
+grid's shows what a hand reaches for while drawing — the tool (draw |
+select | stamp | erase), **snap**, **Q** (the loop open for edit: its
+rates and strengths, ✦, ↶ — a menu popover, `quantise_menu`; it was in
+the editor's head), **the length** (bars 1-16 and the steps a bar: they
+left the controls row, which with the key and the feel is one line at
+1920 dense and comfy now), the rows (6 | key | all) and the octave
+window (▲ ±0 ▼), ghosts, **↶** undo (Ctrl+Z) — and **Tools ▾** at its
+right end: a `.menu` popover (`#ptm-notes`, `.pt-more`) of rows, a group
+a row, its caption first —
+
+| row | holds |
+|---|---|
+| move | shift ◀ ▶, reverse ⇆, move (the selection to the cursor) |
+| notes | ▲ ▼ a key tone, +8va −8va, the stamp's chord and length and ♫ at the cursor, ⌦ the selected, ✕ clear |
+| length | ×2, legato ½× 2×, ⇤ ⇥ the selected |
+| velocity | humanise, ramp, accent, reset ("Note velocity: …" commands) |
+| ⚄ write | bass · rolling bass · chords · pad · arp · lead, ⚄ again, busier, sparser |
+| clipboard | dup, copy, paste |
+| view | − fit + (the zoom), ? (the how-to) |
+
+The drum rack's row shows the bars, the beat's variations A-D, ↶ and its
+Tools ▾ (`drumgrid.html` `drum_menu`, `#ptm-drums`: move, length,
+velocity, generate — ⚄ new, sparser, busier, ⚄ build —, fill and its
+lengths, copy to a variation, clear), then ✚ Keep and kit & bank ▸
+(`beat_vars` / `drum_menu` repeat `beat_bar` / `drum_tools`' buttons:
+Drums draws those, its golden pins their bytes). **Shut, every control
+is still in the page**: its `data-cmd` is the palette's and the Stream
+Deck's, the roll's keys (Ctrl+C / V / D, Ctrl+← →, Delete, the stamp's
+Enter: roll.js clicks the button by its op in its box) and a right
+click's rows (the piano roll's menu: its `data-menu`s; Q is "Quantise ▸")
+reach it. **Tools ▾ stays open while you work in it**: an action redraws
+the note grid's region (`outerHTML`), which draws it shut, and grid.js
+opens the new one again; Esc or a click away shuts it.
+`tests/browser/test_perform.py`
+(`test_the_toolbars_are_one_line_and_tools_holds_the_rest_its_keys_work_shut`),
+`test_frontend_contracts.py` (the popover: Esc, a click away, ↓ walks it).
 
 ### Pattern undo
 
@@ -1265,13 +1323,32 @@ its own watch, re-sent by whatever moves it — so a ⏺ Rec on Perform
 lists its loop in the panel at once: keyrec.js's `fetch` carries the page's
 `HX-Current-URL` (events.js `pageHeaders`, as every island's fetch post
 does; without it the server would read the post as Synths' and never
-re-send the Perform-only list). A row: ▷ listen in time, its
-notes as a mini piano roll (`loops.roll_of`: one SVG path of runs,
-cached with the file) or a beat's hits as a mini step grid
-(`loops.beat_roll`), its name (`title`) · bars · rate · bpm · key · sound,
-☆ / ★, its tags, and
-**Edit** (a beat: **Open**), **→ Song** ▸ pattern | audio, **Q** ▸
-(Quantise), **#** (tags), **✎**, **✕**.
+re-send the Perform-only list). **A row is quiet**: it shows ▷ listen
+in time, its name (`title`), its facts on one line (bars · rate · bpm ·
+key, a take's length, "+n bars played", the sound when the name does not
+say it) and ☆ / ★ — **nothing else**, in all three lists. Every other
+action is **its right-click menu** (menu.js; the Menu key or Shift+F10
+on a focused row): **Edit on the Loops page** (a beat: **Open on the
+drum grid**; an idea or a section: **Open as a scene**), **✂ Shape**,
+**→ Song ▸** pattern | audio, **Quantise ▸** (its rates, its strengths,
+✦ clean up, ↶), **# Tags…**, **✎ Rename…**, **✕ Delete** — the same
+controls as ever, in the row (`.lp-acts`) but never drawn, so their
+routes, confirms, prompts (anchored to the row: tweaktype.js) and the
+newest row's palette commands work as a hand on them would
+(`data-menu-group` makes → Song and Quantise submenus: `frontend.md`,
+"One context menu"). **A double-click on a row, or Enter on it** (a row
+is one tab stop), is its Edit (Open) — loopspanel.js — and **on the
+Loops page an Edit of a loop a launcher cell holds selects that cell**
+instead (the one selected that holds it, else the one playing, else the
+first: its click, "One selection" — the editor shows it, it plays there
+from the quantise point, every edit saves to it); a loop in no cell is
+`/loop/edit` as below, on the edited lane. The same rule holds for the
+menu's Edit, a row dropped on a grid and the palette's "Edit the newest
+loop" (`tests/browser/test_loops_panel.py`,
+`test_a_row_dragged_onto_a_cell_fills_it_and_a_double_click_selects_that_cell`).
+The mini piano roll a row once drew (`loops.roll_of`, still
+cached with the file) is no longer drawn, nor its tags (the panel's tag
+bar and `#tag` in the search find them).
 A take's row posts `take=` and its first action makes its loop
 (`routes/takes.py` `_loop_named`: from its notes as played and the sound
 that played it) — nothing recorded before is lost. The drawer's search
@@ -1564,9 +1641,13 @@ tweak it and build on it.
   is then the grid's, not the take's — played at `X-Preview-Gain`, the
   keys' level ("At the keys' level" above). A bank slot renders through
   the session's kit (nothing kept).
-- **Drag** a panel row onto the note grid (`#transport`) or the drum grid
-  (`#perform-drums`): its Edit (notes) or Open (a beat) is pressed, as a
-  click; the grid it opens on is outlined while it drags
+- **Drag** a panel row **onto a launcher cell** of its kind to put it
+  there (slots.js: `/fragment/perform/slot/place`; a beat only onto the
+  drums' column, a loop of notes onto a layer lane; the cell under the
+  pointer outlined, `data-drop`) — or onto the note grid (`#transport`)
+  or the drum grid (`#perform-drums`): its Edit (notes) or Open (a beat)
+  is pressed, as a click (the rule above: a loop a cell holds selects
+  that cell); the grid it opens on is outlined while it drags
   (`html[data-lp-drag]`). Onto the Song is the drawer's drag (the Loops
   panel is the Loops page's; the drawer is on every page): a loop onto a
   lane of its kind or a section's head, its audio onto an audio lane

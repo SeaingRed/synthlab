@@ -57,6 +57,21 @@
   after it begins, and the key bus's limiter delays the keys 6 ms); it is
   now measured, and the two agree within a few milliseconds.
 
+- **A quieter Loops page**: a loop's row (the Loops panel, the clip
+  drawer, the keyboard dock's strip) shows ▷ listen, its name, its facts
+  and ★ — every other action (Edit, → Song, Quantise, clean-up, tags,
+  rename, delete, ✂ Shape) is its right-click menu, with → Song and
+  Quantise as submenus. Double-click a row (or Enter) to edit it; on the
+  Loops page a loop that sits in a launcher cell selects that cell
+  instead. The note grid's and the drum rack's toolbars are one line
+  each — the tool, snap and Q, the bars and steps, the rows and octave
+  window, ghosts, undo — with the rest behind **Tools ▾**, grouped (move,
+  notes, length, velocity, write / generate, clipboard, view), every tool
+  still a palette command and its shortcut. The key and the feel fit one
+  line above it. The right column is the lane inspector alone: → Song
+  moved to the launcher's head, and Play (pads, XY, FX, beats) opens from
+  the keyboard dock's Tools ("Pads ▴"), its keys playing it shut too.
+  Saved layouts of the page are reset once.
 - **Import SFZ**: a zip of an `.sfz` and its WAV / FLAC / OGG samples becomes
   a sampler sound with a zone a region (keys, velocities, root, tune, gain,
   loops, round-robin takes, the first region's amplitude envelope). Every

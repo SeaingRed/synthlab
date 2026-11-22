@@ -63,11 +63,12 @@
   try { all = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch { all = {}; }
   const keep = () => { try { localStorage.setItem(KEY, JSON.stringify(all)); } catch { /* this page still shows it */ } };
   // a page's record key: bumped when its markup's default moved too far for
-  // an old layout to fit (Perform: 2, the Loops page's layout; Synths: 2,
+  // an old layout to fit (Perform: 3, the right column the lane inspector
+  // alone — Play and → Song left the dock; 2 was the Loops page's layout; Synths: 2,
   // its FX racks, Perform tools and Bass check split into modules) — a record under an older key is dropped, or carried
   // over where SPLIT names what an old module became (its place a column
   // of the new ones, a tab of them where it was a tab)
-  const REV = { perform: 2, editor: 2 }, keyOf = (v) => (REV[v] ? `${v}@${REV[v]}` : v);
+  const REV = { perform: 3, editor: 2 }, keyOf = (v) => (REV[v] ? `${v}@${REV[v]}` : v);
   const SPLIT = { editor: { "fx.rack": ["fx.layer", "fx.master"], "synths.perform": ["synths.macros", "synths.xy"], "synths.bass": ["synths.bass", "synths.sub"] } };
   const split = (n, to) => {
     if (!n?.t) return n && { ...n, k: n.k.map((k) => split(k, to)) };

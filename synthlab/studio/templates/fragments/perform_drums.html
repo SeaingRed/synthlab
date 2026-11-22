@@ -5,7 +5,7 @@
    as Drums; its tools answer with hx-swap none and this region comes back
    by its watch (service.REGIONS "perform-drums"). The kit's sounds, the
    bank and the beat library stay on Drums. #}
-{% from "drumgrid.html" import beat_bar, drum_grid, drum_tools %}
+{% from "drumgrid.html" import beat_vars, drum_grid, drum_menu, swap_to %}
 <section id="perform-drums" class="transport perform-drums module" data-module="perform.drums" aria-label="Drum pattern"
          {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
   <div class="pattern-tools" role="toolbar" aria-label="Drum pattern tools">
@@ -30,8 +30,15 @@
               title="{{ b }} bar{{ 's' if b > 1 else '' }} of drums">{{ b }}</button>
       {% endfor %}
     </div>
-    {{ drum_tools(can_double_drums, beat_style, target=none, extras=true) }}
-    {{ beat_bar(beat_variants, beat_style, target=none) }}
+    {#- the variations in sight, undo, then Tools ▾ (drumgrid.html
+        `drum_menu`: move, length, velocity, generate, fills, copy to,
+        clear) — as the note grid's toolbar -#}
+    {{ beat_vars(beat_variants, target=none) }}
+    <div class="pt-group pt-end" role="group" aria-label="undo and the other drum tools">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/undo" {{ swap_to(none) }}
+              title="Undo the last pattern edit (Ctrl+Z)" aria-label="undo the last pattern edit" data-cmd="Undo the last pattern edit" data-cmd-group="Pattern">↶</button>
+      {{ drum_menu(can_double_drums, beat_style, beat_variants, target=none) }}
+    </div>
     {#- the grid's beat into the Loops panel, a beat loop named from what it
         is (POST /loop/beat/keep) -#}
     <button type="button" class="btn btn-s lp-keep-beat" hx-post="/loop/beat/keep" hx-swap="none"
