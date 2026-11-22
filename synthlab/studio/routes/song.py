@@ -1261,9 +1261,9 @@ def _choice(form: dict, key: str, choices, current: int) -> int:
 
 def _bars(form: dict, per_bar: int, p: dict) -> int:
     """A pool pattern's bars from a grid form: one of the bars its
-    resolution allows (`sm.bar_choices`: up to 8 while bars x steps
+    resolution allows (`sm.bar_choices`: up to 16 while bars x steps
     fits the grid), else what it has, held to what still fits (finer
-    steps on an 8-bar pattern shorten it to 4)."""
+    steps on a 16-bar pattern shorten it to 8)."""
     fits = sm.bar_choices(per_bar)
     held = max((b for b in fits if b <= p["bars"]), default=1)
     return _choice(form, "bars", fits, held)

@@ -1145,7 +1145,8 @@ def pattern_bars(pattern: dict) -> int:
 
 def bar_choices(steps_per_bar: int) -> tuple[int, ...]:
     """The bars a pool pattern may have at this resolution: the loop's
-    own choices, and 8 while bars x steps fits the grid
+    own choices (`limits.LOOP_BAR_CHOICES`), 8 and 16 while bars x steps
+    fits the grid
     (`limits.PATTERN_BAR_CHOICES`, `limits.MAX_GRID_STEPS`)."""
     return tuple(
         b

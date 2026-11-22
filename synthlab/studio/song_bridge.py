@@ -856,7 +856,8 @@ def to_loop(song: dict, p: dict) -> None:
     - every lane on the main lane's grid over the whole cycle: a loop has
       one step grid, and renders a layer's cells on it. When a layer's
       pattern has other bars or steps than the main lane's, the loop grows
-      to the lcm of the lanes' bars (at most the grid's 4) with the main
+      to the lcm of the lanes' bars (at most the main lane's own bars, and
+      at least 4, on a length the grid has) with the main
       lane's notes, velocities, slides and curves tiled onto it, and each
       layer regridded (`song_model._regrid`) and tiled to its own length.
     - each layer's own `seq` (its pattern's velocities, slides, arp) and
