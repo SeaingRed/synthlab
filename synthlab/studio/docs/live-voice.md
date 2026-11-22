@@ -155,7 +155,11 @@ in closed form — **change one, change the other**) and not for those
 (`sampler-and-clips.md`, "Formant mode on the live keys"); and the
 granular oscillator, whole (osc1 "granular" is no `SHAPES` entry, its
 `grain_*` fields "default": `sampler-and-clips.md`, "The granular
-shape"). `loopDuration()` (used to decide the
+shape"); and oscillator 3 while it sounds (`osc3_level` "default", its
+other fields admitted while the level is 0 — `paramui._osc3_gate` — and
+a route onto `osc3_level` refused by `_slot_gate`, since it would lift a
+silent osc 3 into hearing: `docs/engine.md`, "Oscillator 3").
+`loopDuration()` (used to decide the
 fallback loop length for the shortcut sheet and elsewhere) lives on
 `static/audio.js`, not piano.js — piano.js reads it off
 `window.synthlab.loopDuration()`. Any new Patch field that the

@@ -466,6 +466,38 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   amount 0 (the live voice can't switch paths mid-note). The native stack
   hands a warped patch to the Python loop (~6 ms a second of a saw, ~20 a
   wavetable).
+- **Oscillator 3** (Patch `osc3`, `osc3_level`, `osc3_octave`,
+  `osc3_semi`, `osc3_detune`, `osc3_warp` / `osc3_warp_amt`;
+  `Synth._osc3`, `tests/test_osc3_warp2.py`): a third waveform summed
+  after osc2 and before the sub, in every unison copy (`_osc_stack` runs
+  per copy, so it takes the unison rules as osc1 and osc2 do), at `freq`
+  x 2^octave x 2^((100 semi + detune) / 1200) — osc3 at octave 1, semi
+  7, 10 cents is osc2 at octave 1 and 710 cents sample for sample.
+  Shapes `params.OSC3_SHAPES`: every oscillator shape but the sampler and
+  granular (the sample panel, the live sample payload and a project's
+  sample bundling follow osc1 / osc2); "fm", "fm4", "pluck" and
+  "wavetable" read the same shared fields as on the other two, its seeds
+  are `seed + 200` (osc2's + 100) and a drifting note starts it at
+  `drift_phase(seed, 2, copy)`. **No "off": its level is the switch** —
+  `params.osc3_on` (`np.any(level > 0)`, so a drawn level or a route onto
+  it opens it; in `_osc_stack` it reads the patch after the mod matrix),
+  and `params.shapes_of(p)` is the one list of shapes playing
+  (`uses_shape`, the shape kwargs). **No sync and no cross FM / ring**:
+  osc2's switches act on osc2 alone and a second set of amounts would be
+  new fields and a modulation order for no sound osc2 cannot already make;
+  osc3 is a plain layer. Level, detune and warp amount are CURVABLE and
+  route targets (no gene choices). All seven fields are `nogene`,
+  appended as one run at the end of `PARAMS`, `KEY_ADDED_FIELDS` entries
+  at their defaults; at level 0 nothing reaches `Synth._osc3`
+  (`test_patches_without_osc3_never_reach_it`): no `RENDER_REV` bump.
+  The native stack hands an osc3 patch to the Python loop. Measured (i9
+  desktop, a 1 s note, saw + square): 2.0 ms native -> 2.8 with an osc3
+  saw (the whole stack now in the loop), 5.5 at unison 4 (2.9 without).
+  **Not live**: the voice worklet has no third oscillator, so
+  `osc3_level` is "default" and its other fields gated on it
+  (`paramui._osc3_gate`), a route onto `osc3_level` refused by the slot
+  gate (`_WAV_TARGETS`): while osc3 sounds, a sound's keys take the
+  `/note` WAV.
 - **Your own wavetables** (`synthlab/wavetables.py`, Patch
   `wt_custom`): a clip or a sample sliced into 4-64 single cycles (equal
   slices, or one period of its YIN pitch at each point) or up to four

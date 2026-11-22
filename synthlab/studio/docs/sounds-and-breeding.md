@@ -1162,6 +1162,17 @@ one undo step, the new table picked and a wavetable oscillator switched
 on if none was. **Voices** and **Glide when** two pill rows under
 Character's knob line.
 
+**Oscillator 3** (`docs/engine.md`, "Oscillator 3") is its own section of
+the Source panel after osc 2's sync block, under the heading "Oscillator
+3": shape pills (`params.OSC3_SHAPES`, no "off"), level / octave /
+semitones / detune knobs, then its warp block. Its fields are hand-made
+(`nogene`) and out of `params.live`, so `paramui.idle` has a rule of its
+own for them (`_IDLE_HAND`): at level 0 every other row of it is idle
+("oscillator 3's level is 0"), the level a dial at 0, and bench.js folds
+the section to its heading. A shape row it plays shows for it (the
+generated `:has()` rules read `osc3`'s radios too, whatever its level);
+its warp amount's target jack hides while its warp is off.
+
 Four demo factory sounds (`factory.py`, 26): *PD Resonant Sine* (one sine,
 PD swept by the filter envelope through a route), *Bent Sine Bass* (bend +
 over an octave-down sine), *Mirror Lead* (an LFO walking a saw's mirror,
