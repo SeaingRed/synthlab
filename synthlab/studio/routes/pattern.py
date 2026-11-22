@@ -39,7 +39,7 @@ from ..routing import (
     studio_router,
 )
 from ..state import StudioState, key_ladder
-from ..state.model import GRID_OCTAVES, NOTE_LANE, grid_rows
+from ..state.model import NOTE_LANE, grid_rows, octave_range
 from .drums import _bank_response
 from .patch import _oct, _span
 
@@ -359,7 +359,7 @@ def grid_span(request: Request, form: StrForm, svc: Svc) -> Response:
             octave = min(4, max(-2, d["oct"] + int(by)))
             s.song_drawer = {**s.song_drawer, "oct": octave}
     elif by:
-        lo, hi = GRID_OCTAVES
+        lo, hi = octave_range(s.arrangement.root)
         s.grid_oct = min(hi, max(lo, s.grid_oct + int(by)))
     s.save_soon()
     return Response(status_code=204)

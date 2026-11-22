@@ -293,7 +293,8 @@ class History:
         grid from elsewhere (a loop, a take, a section, a generated part),
         so none lands out of sight ("48 hidden notes"). The notes are never
         moved: the window is (`notes_window`). An empty grid keeps it."""
-        midis = sorted({midi_of(p) for p, _st in self.arrangement.cells})
+        # a cell each, so a window is chosen by how much of the notes it shows
+        midis = sorted(midi_of(p) for p, _st in self.arrangement.cells)
         if midis:
             self.grid_span, self.grid_oct, _rows = notes_window(
                 self.arrangement, midis, self.grid_span, self.grid_oct
