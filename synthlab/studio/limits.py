@@ -41,6 +41,30 @@ MAX_MIDI_EVENTS = 200_000
 MAX_IR_SECONDS = 8.0
 MAX_IR_BYTES = 6_000_000
 
+# --- SFZ import (synthlab/sfz.py, POST /fragment/sampler/sfz) ----------------
+# A zip of an .sfz and its samples, untrusted from the first byte. The upload
+# cap is also the path's BodySizeLimit cap. The rest bound what is read out of
+# it: entries (counted from the zip's own directory before it is built), what
+# they claim to unpack to, one entry, and how well one may compress (a zip
+# bomb); the .sfz's text, lines, #include depth / count, #defines and what a
+# #define may expand to; regions; and the audio decoded in all.
+MAX_SFZ_UPLOAD_BYTES = 64_000_000
+MAX_SFZ_MEMBERS = 1024
+MAX_SFZ_UNCOMPRESSED = 256_000_000
+MAX_SFZ_MEMBER_BYTES = 48_000_000
+MAX_SFZ_RATIO = 100  # declared / compressed, for an entry over a megabyte
+MAX_SFZ_TEXT_BYTES = 1_000_000  # one .sfz or #include
+MAX_SFZ_LINES = 60_000  # every file together
+MAX_SFZ_INCLUDE_DEPTH = 8
+MAX_SFZ_INCLUDES = 64  # files read as text, the .sfz included
+MAX_SFZ_DEFINES = 512
+MAX_SFZ_DEFINE_CHARS = 4096  # one variable's value, expanded
+MAX_SFZ_LINE_CHARS = 16_384  # one line, once substituted
+MAX_SFZ_EXPANDED = 4_000_000  # the text, once substituted
+MAX_SFZ_HEADERS = 20_000
+MAX_SFZ_REGIONS = 4096  # past sampler.MAX_ZONES the rest are counted, not kept
+MAX_SFZ_AUDIO_SECONDS = 1200.0  # every sample decoded, as recorded
+
 # --- the Sample Lab (studio/sources.py, routes/lab.py) -----------------------
 # /lab/upload: a whole song as WAV / FLAC / MP3 / OGG. A ten-minute stereo
 # 16-bit WAV at 44.1 kHz is 106 MB and the same as FLAC about 60; 80 MB takes
