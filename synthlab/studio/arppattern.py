@@ -63,6 +63,12 @@ RATES: dict[str, float | None] = {
 }
 MODES = ("up", "down", "updown", "played", "random")
 RETRIGS = ("note", "bar", "free")
+# a take recorded as "the keys I held" (keyrec.js): the pattern plays over
+# the keys as they were held (`arrange._held_timeline`) — "pattern" the
+# keys arp's ▦ walk, "plain" its up / down / … modes — absent otherwise;
+# `swing` (0..SWING_MAX) the keys arp's, with it
+HELD = ("pattern", "plain")
+SWING_MAX = 0.6
 OCT_RANGE = (1, 4)
 TR_RANGE = (-12, 12)
 GATE_RANGE = (0.05, 1.0)
@@ -206,6 +212,66 @@ def step(run: Run, held: list[int], pat: dict, key) -> list[tuple]:
         return []
     r = int(st["rep"])
     return [(h / r, m, float(st["vel"]), float(st["gate"]) / r) for h in range(r)]
+
+
+def named_rate(beats: float) -> str | None:
+    """The rate named for a step of `beats` ("1/16" for 0.25), or None."""
+    for name, b in RATES.items():
+        if b is not None and abs(b - float(beats)) < 1e-9:
+            return name
+    return None
+
+
+def from_keys(arp: dict) -> dict | None:
+    """The grid arp's pattern that plays a take's held keys as the keys arp
+    played them (static/arp.js, keyrec.js's `arp`: its mode, rate, octaves,
+    gate, swing and — in its ▦ mode — the pattern and the note grid's step
+    in beats it read "grid" as). ▦: that pattern, its "grid" rate named
+    (the loop may be placed on another step), `held` "pattern"; up / down /
+    up-down / random / as played: one step at its gate on its rate, in its
+    mode and octaves (the walk the keys arp's `pick` makes, a note a step),
+    `held` "plain". Its swing with it. None for what the grid arp cannot
+    play (chord stabs) or nothing that reads as the keys arp's settings —
+    the take then keeps the arp's notes. Unconformed: the schema cleans
+    it (`schema` `arp_pattern_field`)."""
+    if not isinstance(arp, dict):
+        return None
+    try:
+        swing = min(SWING_MAX, max(0.0, float(arp.get("swing", 0.0))))
+    except (TypeError, ValueError):
+        swing = 0.0
+    swing = swing if math.isfinite(swing) else 0.0
+    mode = arp.get("mode")
+    if mode == "pattern":
+        pat = arp.get("pattern")
+        if not isinstance(pat, dict) or not isinstance(pat.get("steps"), list):
+            return None
+        out = dict(pat)
+        if out.get("rate") == "grid":
+            try:
+                out["rate"] = named_rate(float(arp.get("grid"))) or "grid"
+            except (TypeError, ValueError):
+                pass
+        return out | {"held": "pattern", "swing": swing}
+    if mode not in MODES or arp.get("rate") not in RATES or arp["rate"] == "grid":
+        return None
+    try:
+        gate = float(arp.get("gate", 0.5))
+        octaves = int(arp.get("oct", 1))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(gate):
+        return None
+    step = dict(STEP_DEFAULT, gate=min(GATE_RANGE[1], max(GATE_RANGE[0], gate)))
+    return {
+        "steps": [step],
+        "rate": arp["rate"],
+        "mode": mode,
+        "oct": min(OCT_RANGE[1], max(OCT_RANGE[0], octaves)),
+        "retrig": "note",
+        "held": "plain",
+        "swing": swing,
+    }
 
 
 def rate_beats(pat: dict, step_beats: float) -> float:

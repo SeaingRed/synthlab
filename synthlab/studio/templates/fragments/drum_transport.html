@@ -21,7 +21,7 @@
     {% endfor %}
   </div></span>
   <label>steps <select class="field field-s" name="steps">
-    {% for st in meter.step_choices(arrangement.meter) %}<option {% if arrangement.drum_steps == st %}selected{% endif %}>{{ st }}</option>{% endfor %}
+    {% for st in meter.straight_choices(arrangement.meter) %}<option {% if arrangement.drum_steps == st %}selected{% endif %}>{{ st }}</option>{% endfor %}
   </select></label>
   <label>swing <input type="range" class="knob knob-s" data-default="0" name="swing" min="0" max="0.6" step="0.01" value="{{ arrangement.drum_swing }}"
          style="--fill: {{ fill(arrangement.drum_swing, 0, 0.6) }}">

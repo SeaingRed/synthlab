@@ -141,9 +141,13 @@ def test_the_strength_keeps_each_notes_feel_below_100():
     assert lane["note_feel"]["E4.0"] == [0.04, 0.04, 0.5]
     # the rate: eighths in 4/4, and in 3/4 the meter's own steps
     assert loops.place(early, "4/4", 1, 8, 100)["cells"] == [["D4", 2]]
-    assert [n for n, _w in loops.rates("3/4")] == [3, 6, 12, 24]
-    assert [w for _n, w in loops.rates("4/4")] == ["1/4", "1/8", "1/16", "1/32"]
+    assert [n for n, _w in loops.rates("3/4")] == [3, 6, 9, 12, 18, 24]
+    words = ["1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32"]
+    assert [w for _n, w in loops.rates("4/4")] == words
+    assert [w for _n, w in loops.rates("3/4")][2] == "1/8T"  # 9 a bar
     assert loops.grid_bars(2.3, 16) == 3 and loops.grid_bars(8, 16) == 8
+    # 1/16T: 24 a bar, so 8 bars is its longest grid (16 x 24 = 384 > 256)
+    assert loops.grid_bars(12.5, 24) == 8 and loops.grid_bars(12.5, 12) == 16
     # past 4 bars the grid rounds up to 8 or 16 (a beat of 1, 2 or 4 bars
     # divides it); 256 steps is the grid's cap, so 1/32 stops at 8
     assert loops.grid_bars(5, 16) == 8 and loops.grid_bars(12.5, 16) == 16
@@ -273,7 +277,7 @@ def test_quantise_places_the_notes_as_played_again_and_the_grid_follows(client):
     assert loop["lane"]["note_feel"] == {} == s.arrangement.note_feel  # on the steps
     assert loop["edited"] is False  # placed, not edited by hand
     # a rate the meter has not, a strength past 100: refused, nothing moved
-    for bad in ({"steps": "12"}, {"strength": "101"}, {"steps": "x"}):
+    for bad in ({"steps": "9"}, {"strength": "101"}, {"steps": "x"}):
         r = client.post("/loop/quantise", data={"name": "keys-1"} | bad)
         assert r.status_code == 422
     assert loops.load(s.data_dir, "keys-1")["lane"] == loop["lane"]

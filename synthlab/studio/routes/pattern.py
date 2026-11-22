@@ -342,14 +342,15 @@ def pattern_undo(request: Request, svc: Svc) -> Response:
 @router.post("/fragment/grid/span")
 def grid_span(request: Request, form: StrForm, svc: Svc) -> Response:
     """The note grid's rows: `span` 1 = six tones of the key from the root,
-    2 = two octaves of the key, 3 = chromatic (24 semitones); `oct_by`
+    2 = two octaves of the key, 3 = chromatic (24 semitones), 4 = every
+    row the notes use (`state.model.note_rows`: no window); `oct_by`
     +1 / -1 moves the octave window (the loop's `state.grid_oct` on
     Perform; on the Song page the open drawer's own, kept with the drawer).
     A view setting — nothing is changed, so nothing renders; the grid
     comes back by its watch."""
     s: StudioState = svc.state
     raw, by = form.get("span", ""), form.get("oct_by", "")
-    if raw not in ("", "1", "2", "3") or by not in ("", "1", "-1") or not raw + by:
+    if raw not in ("", "1", "2", "3", "4") or by not in ("", "1", "-1") or not raw + by:
         return Response(status_code=422)
     if raw:
         s.grid_span = int(raw)

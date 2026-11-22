@@ -33,6 +33,7 @@ from dataclasses import replace
 
 from ...synth import Patch
 from .. import limits, notefeel, schema
+from .. import meter as _meter
 from .. import patternops as po
 from .model import (
     DRUM_LANE,
@@ -43,6 +44,20 @@ from .model import (
     loop_window,
     regrid_lane,
 )
+
+_LOOP_ARP = ("arp_mode", "arp_octaves", "arp_pattern")  # `loops.ARP_FIELDS`
+
+
+def _arp_fields(fields: dict, was) -> dict:
+    """A launched loop's grid arp for its lane (a take of "the keys I held"
+    keeps one: `loops.arp_of`): its own; none, and the lane held another
+    such take's (`arp_pattern["held"]`), the arp off; else nothing — the
+    lane's own arp stays, as it always did."""
+    if fields.get("arp_mode"):
+        return {k: copy.deepcopy(fields[k]) for k in _LOOP_ARP if k in fields}
+    if (was or {}).get("held"):
+        return {"arp_mode": "off", "arp_pattern": {}}
+    return {}
 
 
 def _row(slots=None, name: str = "") -> dict:
@@ -257,14 +272,16 @@ class Slots:
         return loop_refusal(a, replace(a, bars=bars, steps_per_bar=spb))
 
     def _grid_for(self, picks: dict[int, dict | None]) -> tuple[int, int]:
-        """The note grid a launch of `picks` leaves: the finest steps of
-        what plays, and the longest bars — a launched loop's own, a lane
-        that keeps playing its slot's, any other heard lane's the grid's."""
+        """The note grid a launch of `picks` leaves: the steps every grid
+        of what plays fits (`meter.common_steps`: the finest, or their
+        least common multiple — a triplet loop beside an eighths one is 24
+        a bar), and the longest bars — a launched loop's own, a lane that
+        keeps playing its slot's, any other heard lane's the grid's."""
         a = self.arrangement
         notes = [lp["lane"] for ln, lp in picks.items() if lp and ln != DRUM_LANE]
         if not notes:  # a beat alone, or stops: the note grid stays as it is
             return a.bars, a.steps_per_bar
-        spb = max([a.steps_per_bar] + [x["steps_per_bar"] for x in notes])
+        steps = [x["steps_per_bar"] for x in notes]
         bars = [x["bars"] for x in notes]
         for lane in range(DRUM_LANE):
             if (
@@ -276,6 +293,16 @@ class Slots:
             e = self.loop_edit_of(lane)
             own = e.get("bars") if e is not None and e.get("row") is not None else None
             bars.append(own or a.bars)
+        # the grid's own steps too (a straight grid's counts in one meter
+        # divide each other: the finest, as it always was) — unless no
+        # other lane holds notes and they would move the loops' lines (a
+        # triplet loop launched over an empty 16-step grid keeps its 12)
+        spb = _meter.common_steps(a.meter, [a.steps_per_bar, *steps])
+        kept = any(
+            ln not in picks and self._lane_has_notes(ln) for ln in range(DRUM_LANE)
+        )
+        if not kept and any(spb % x for x in steps):
+            spb = _meter.common_steps(a.meter, steps)
         return max([1, *bars]), spb
 
     def _lane_has_notes(self, lane: int) -> bool:
@@ -295,6 +322,7 @@ class Slots:
                 for k in ("note_nudge", "note_feel")
             }
             own |= {k: copy.deepcopy(fields[k]) for k in NOTE_LANE[2:] if k not in own}
+            own |= _arp_fields(fields, self.arrangement.arp_pattern)
             self.arrangement = replace(self.arrangement, **own, note_chance=chance)
             return
         lay = dict(self.layers[lane])
@@ -308,12 +336,18 @@ class Slots:
             seq["note_feel"] = copy.deepcopy(fields["note_feel"])
         seq.pop("note_chance", None)
         seq |= {"note_chance": chance} if chance else {}
+        arp = _arp_fields(fields, seq.get("arp_pattern"))
+        seq |= arp
+        if not arp.get("arp_pattern", True):
+            seq.pop("arp_pattern", None)
         lay |= {"cells": [list(c) for c in fields["cells"]], "seq": seq}
         self.layers[lane] = lay
 
     def _fit_lanes(self, picks: dict[int, dict | None], bars: int, spb: int) -> None:
         """Every note lane onto the launch's grid: a finer one regrids them
-        all (a whole multiple, nothing lost), a longer one repeats each
+        all (`regrid_lane`: a whole multiple, nothing lost; a triplet lane
+        onto a straight grid, its starts on the nearest lines there), a
+        longer one repeats each
         lane that keeps playing (`patternops.repeat_into`: hidden notes
         there come back instead), a shorter one hides what lies past it."""
         a = self.arrangement

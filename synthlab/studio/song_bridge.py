@@ -28,6 +28,7 @@ import logging
 import math
 
 from . import limits, notefeel, schema
+from . import meter as _meter
 from . import song_model as sm
 
 log = logging.getLogger(__name__)
@@ -455,7 +456,9 @@ def pattern_seq(pat: dict, spb: int) -> dict:
         for x in _regrid_steps([k], b, s, spb):
             chance.setdefault(str(x), v)
     nudge = _regrid_nudge(pat, spb)
-    feel = notefeel.regrid(pat.get("note_feel"), b, s, spb)
+    feel = notefeel.regrid(
+        pat.get("note_feel"), b, s, spb, pat.get("cells") or [], pat.get("cuts") or ()
+    )
     return {
         "velocities": moved if pat["velocities"] else None,
         "slides": sorted(set(_regrid_steps(pat["slides"], b, s, spb))),
@@ -824,8 +827,8 @@ def _regrid_steps(steps, bars: int, spb: int, to: int) -> list[int]:
     to where its note starts)."""
     own = [int(x) for x in steps if 0 <= int(x) < max(1, bars) * spb]
     if spb <= to:
-        return [x * max(1, round(to / spb)) for x in own]
-    return list(dict.fromkeys(x // max(1, round(spb / to)) for x in own))
+        return [_meter.regrid_start(x, spb, to) for x in own]
+    return list(dict.fromkeys(_meter.regrid_start(x, spb, to) for x in own))
 
 
 def _lane_seq(pat: dict, spb: int, period: int, total: int, main_vel: dict) -> dict:

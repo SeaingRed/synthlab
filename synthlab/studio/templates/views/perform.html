@@ -94,6 +94,11 @@
           <button type="button" class="btn btn-s" data-key-count aria-pressed="true" title="count one bar in before it records (lit): the loop's bar when it plays, else four blips"><i class="led" aria-hidden="true"></i>count-in</button>
           <button type="button" class="btn btn-s" data-key-beat aria-pressed="false" title="record the beat with the keys (lit): the whole mix as you hear it. Unlit, a take is the keys alone"><i class="led" aria-hidden="true"></i>+ beat</button>
         </span>
+        <span class="caps menu-cap">arp</span>
+        <span class="seg deck-arp" role="group" aria-label="with the keys arp on, a take keeps">
+          <button type="button" data-key-arp="notes" aria-pressed="true" data-cmd="Rec with the keys arp: its notes" data-cmd-group="Transport" title="its notes: the take keeps what the keys arp played, note for note, placed on the rate its notes sit on (a 1/8T arp on 12 steps a bar)">its notes</button>
+          <button type="button" data-key-arp="held" aria-pressed="false" data-cmd="Rec with the keys arp: the keys I held" data-cmd-group="Transport" title="the keys I held: the take keeps the keys you pressed — when, how long, how hard — and its loop plays them through the grid arp set as the keys arp was (its pattern, rate, direction, octaves, swing), so you edit the chord, not every note. The keys arp's chord mode keeps its notes">the keys I held</button>
+        </span>
         <span class="caps menu-cap">lands in</span>
         <span class="seg deck-how" role="group" aria-label="where the take lands">
           <button type="button" data-key-how="new" aria-pressed="true" title="a new loop: in the selected cell when it is empty, else the lane's next empty one (never over a loop) — with no cell selected, the Loops panel">a new loop</button>

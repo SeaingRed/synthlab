@@ -630,13 +630,19 @@ def _ladder(song: dict) -> list[int]:
     return [m for m in range(128) if m % 12 in pcs]
 
 
-def window_rows(song: dict, span: int = 1, octave: int = 0) -> list[str]:
+def window_rows(song: dict, span: int = 1, octave: int = 0, cells=None) -> list[str]:
     """The Song drawer's note-grid rows, highest first: the song key's
     rows (`state.pitch_rows`: six tones, or two octaves at `span` 2)
     from the root moved `octave` whole octaves (-2..+4) — the window a
     pattern is shown and edited at. Octave 0 is every drawer grid from
-    before there was a window."""
+    before there was a window. Span 4: every row the pattern's `cells`
+    use (`state.model.note_rows`), no window."""
     from .state import Arrangement, pitch_rows
+    from .state.model import SPAN_NOTES, note_rows
+
+    if span == SPAN_NOTES:
+        key = Arrangement(root=song["root"], scale_name=song["scale_name"])
+        return note_rows(key, cells or [])
 
     try:
         root = midi(song["root"])
@@ -2456,16 +2462,27 @@ def _crop_keys(values: dict, lo: int, hi: int) -> dict:
 
 def _regrid(cells, bars: int, spb: int, to: int) -> list[list]:
     """A layer's cells on its own `spb` grid, moved onto a `to`-step grid:
-    a coarser step fills every finer step it covers (so its length is
-    kept), a finer one lands on the step it starts in."""
+    a coarser step fills every finer step whose start lies in it (so its
+    length is kept), a finer one lands on the step it starts in. A whole
+    multiple is the rule it always was; a triplet grid onto a straight one
+    (12 -> 16) or back takes the same rule step by step
+    (`meter.regrid_start`)."""
     own = [c for c in cells if 0 <= int(c[1]) < max(1, bars) * spb]
     if spb == to:
         return [list(c) for c in own]
     if spb < to:
-        k = max(1, round(to / spb))
-        return [[c[0], int(c[1]) * k + i] for c in own for i in range(k)]
-    k = max(1, round(spb / to))
-    seen = dict.fromkeys((c[0], int(c[1]) // k) for c in own)
+        if to % spb == 0:
+            k = to // spb
+            return [[c[0], int(c[1]) * k + i] for c in own for i in range(k)]
+        return [
+            [c[0], j]
+            for c in own
+            for j in range(
+                _meter.regrid_start(int(c[1]), spb, to),
+                _meter.regrid_start(int(c[1]) + 1, spb, to),
+            )
+        ]
+    seen = dict.fromkeys((c[0], _meter.regrid_start(int(c[1]), spb, to)) for c in own)
     return [list(c) for c in seen]
 
 

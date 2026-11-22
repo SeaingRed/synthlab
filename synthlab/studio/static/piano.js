@@ -197,6 +197,7 @@
     voices.set(tok, { el, midi, vel: velocity, arp, holds: new Set(latching ? ["key", "latch"] : ["key"]) });
     active.set(id, tok);
     paint(el); paintLatch();
+    if (arp) window.synthlab.keyHeld?.(tok, midi, velocity); // keyrec.js: "the keys I held"
     if (arp) return void window.synthlab.arp.changed();
     sound(tok, el, midi, velocity, at, own);
     if (!holdMode && !own) setTimeout(() => { if (active.get(id) === tok) noteOff(id); }, GATE_MS);
@@ -231,6 +232,7 @@
     voices.delete(tok);
     for (const [id, t] of active) if (t === tok) active.delete(id);
     paint(v.el);
+    if (v.arp) window.synthlab.keyHeld?.(tok); // ... and where it is let go
     if (v.arp) return void window.synthlab.arp?.changed();
     stopVoice(tok, at);
     window.synthlab.keyNote?.(tok, undefined, undefined, at); // ... and where each ends
@@ -806,7 +808,7 @@
     mod: (param, value) => { if (patch) patch[param] = value; voiceNode?.port.postMessage({ type: "mod", param, value }); },
     patch: () => patch, reload: loadPatch, octave: () => octave, setOctave, midiOf,
     // the keys arp (arp.js): the notes it holds, in the order played; off, they sound as they are held
-    arpHeld: () => [...voices.values()].filter((v) => v.arp).map((v) => ({ midi: v.midi, vel: v.vel, key: v.holds.has("key") })),
+    arpHeld: () => [...voices].filter(([, v]) => v.arp).map(([tok, v]) => ({ tok, midi: v.midi, vel: v.vel, key: v.holds.has("key") })),
     arpOff: () => { for (const [tok, v] of voices) if (v.arp) { v.arp = false; paint(v.el); sound(tok, v.el, v.midi, v.vel); } },
   };
 

@@ -1284,7 +1284,7 @@ def _drums_grid(song: dict, p: dict, form: dict) -> None:
     merged. More bars at the same resolution repeat the ones there
     (`beatgen.extend_bars`), as the Drums transport does."""
     m = sm.pattern_meter(p)
-    steps = _choice(form, "steps", meter.step_choices(m), p["steps"])
+    steps = _choice(form, "steps", meter.straight_choices(m), p["steps"])
     bars = _bars(form, steps, p)
     merged = {"bars": str(bars), "steps": str(steps)}
     merged |= {k: v for k, v in form.items() if k.startswith("drum.")}
@@ -1342,8 +1342,8 @@ def _notes_grid(song: dict, p: dict, form: dict) -> None:
     whole = "bars" in form or "steps" in form
     # the rows the drawer's grid was drawn at: it posts its own `span`
     # and the octave window (`oct`) it was showing
-    span = int(form["span"]) if form.get("span") in ("1", "2", "3") else 1
-    rows = set(sm.window_rows(song, span, _octave(form)))
+    span = int(form["span"]) if form.get("span") in ("1", "2", "3", "4") else 1
+    rows = set(sm.window_rows(song, span, _octave(form), p["cells"]))
     total = bars * spb
     posted, posted_cuts = [], []
     for k, v in form.items():
@@ -1494,7 +1494,7 @@ def pattern_tool(request: Request, pattern_id: str, op: str, form: StrForm, svc:
     toast). Never touches the working loop."""
     note, now = "", None
     span = svc.state.grid_span
-    if form.get("span") in ("1", "2", "3"):
+    if form.get("span") in ("1", "2", "3", "4"):
         span = int(form["span"])
 
     def change(song):
@@ -1526,7 +1526,7 @@ def pattern_tool(request: Request, pattern_id: str, op: str, form: StrForm, svc:
             # the window the drawer shows this pattern at (a roll edit
             # posts the one its grid was drawn with)
             octave = _octave(form) if "oct" in form else svc.drawer_octave(p, span)
-            rows = sm.window_rows(song, span, octave)
+            rows = sm.window_rows(song, span, octave, p["cells"])
             if po.is_roll(op, form):
                 args = dict(form)
                 if op == "stamp" and form.get("q") == "track":

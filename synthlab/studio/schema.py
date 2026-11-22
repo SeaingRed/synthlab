@@ -164,11 +164,17 @@ def _meter_name(x) -> str:
 
 
 def _fit_steps(out: dict, meter_name: str, fields=("steps_per_bar", "drum_steps")):
-    """A grid's step counts held to its meter's (`meter.step_choices`): 4/4
-    keeps exactly the four it always had, and a count another meter's grid
-    has is that field's default here, as any stray value always was."""
-    ok = _meter.step_choices(meter_name)
+    """A grid's step counts held to its meter's (`meter.step_choices`, the
+    note grid's — a /4 meter's triplets too; the drum grid's
+    `meter.straight_choices`): 4/4 keeps the counts it always had, and a
+    count another meter's grid has is that field's default here, as any
+    stray value always was."""
     for k, d in zip(fields, (4, 16), strict=False):
+        ok = (
+            _meter.straight_choices(meter_name)
+            if k == "drum_steps"
+            else _meter.step_choices(meter_name)
+        )
         if k in out and out[k] not in ok:
             out[k] = _meter.like(meter_name, d)
 
@@ -802,6 +808,8 @@ def nodes() -> SimpleNamespace:
     # a grid in any meter (`meter.step_choices`); the record's post holds
     # it to its own meter's
     spb_any = Choice(_meter.ALL_STEP_CHOICES, limits.STEP_CHOICES[0])
+    # the drum grid's: straight steps only (`meter.straight_choices`)
+    drum_spb_any = Choice(_meter.ALL_STRAIGHT_CHOICES, limits.STEP_CHOICES[0])
     # a meter by name (`meter.METERS`); 2/4 the example: its grid takes the
     # 4/4 grid's default step counts, so an example stays a fixed point
     meter_name = Leaf(_meter_name, _meter.DEFAULT, example="2/4")
@@ -914,7 +922,17 @@ def nodes() -> SimpleNamespace:
     def _arp_pattern_or_none(x) -> dict:
         if x in (None, {}):
             return {}
-        return arp_pattern.conform(x)
+        out = arp_pattern.conform(x)
+        # a take's "the keys I held" (`held`, `swing`): absent unless set
+        if x.get("held") in ap.HELD:
+            out["held"] = x["held"]
+            try:
+                sw = float(x.get("swing", 0.0))
+            except (TypeError, ValueError):
+                sw = 0.0
+            if math.isfinite(sw) and sw > 0:
+                out["swing"] = round(min(ap.SWING_MAX, sw), 4)
+        return out
 
     arp_pattern_field = Leaf(_arp_pattern_or_none, dict, example=ap.default())
 
@@ -993,7 +1011,7 @@ def nodes() -> SimpleNamespace:
         "arp_octaves": Num(1, 3, integer=True),
         "arp_pattern": arp_pattern_field,
         "drum_bars": grid_choice,
-        "drum_steps": spb_any,
+        "drum_steps": drum_spb_any,
         "drum_swing": Num(0.0, 0.6),
         "drum_humanize": Num(0.0, 1.0),
         "drum_vel": step_values,
@@ -1390,7 +1408,7 @@ def nodes() -> SimpleNamespace:
         if out.get("meter") in (None, _meter.DEFAULT):
             out.pop("meter", None)
         _fit_steps(out, out.get("meter", _meter.DEFAULT), ("steps_per_bar",))
-        if "steps" in out and out["steps"] not in _meter.step_choices(
+        if "steps" in out and out["steps"] not in _meter.straight_choices(
             out.get("meter", _meter.DEFAULT)
         ):
             out["steps"] = _meter.like(out.get("meter", _meter.DEFAULT), 16)
@@ -1441,7 +1459,7 @@ def nodes() -> SimpleNamespace:
     pattern_drums = pattern_kind(
         "drums",
         {
-            "steps": Choice(_meter.ALL_STEP_CHOICES, 16),
+            "steps": Choice(_meter.ALL_STRAIGHT_CHOICES, 16),
             "drums": arr_fields["drums"],
             "drum_vel": arr_fields["drum_vel"],
             "hits": drum_hits,
@@ -1865,8 +1883,9 @@ def nodes() -> SimpleNamespace:
         "layer_focus": Bool(),
         # the note grid's range (`state.pitch_rows`): 1 = the key's first six
         # tones (every grid before there was a choice), 2 = two octaves
-        # 3 = chromatic: the 24 semitones from the window's bottom
-        "grid_span": Num(1, 3, 1, integer=True),
+        # 3 = chromatic: the 24 semitones from the window's bottom; 4 =
+        # every row the notes use (`state.model.note_rows`)
+        "grid_span": Num(1, 4, 1, integer=True),
         "fx_master": fx,
         # the song arranger (v3). The legacy `scenes` + scene running order
         # it replaced are read only by the v2 -> v3 migration

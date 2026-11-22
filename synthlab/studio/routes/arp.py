@@ -61,7 +61,9 @@ def pattern_from_form(form: StrForm, was: dict) -> dict:
         "oct": int(_num(form, "oct", was["oct"])),
         "retrig": form.get("retrig", was["retrig"]),
     }
-    return schema.conform(raw, schema.nodes().ARP_PATTERN)
+    out = schema.conform(raw, schema.nodes().ARP_PATTERN)
+    # a take's "the keys I held" stays one: the pattern edited plays the keys
+    return out | {k: was[k] for k in ("held", "swing") if k in was}
 
 
 @router.post("/fragment/arp/pattern")

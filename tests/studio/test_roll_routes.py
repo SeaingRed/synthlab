@@ -176,7 +176,7 @@ def test_chromatic_rows_are_24_semitones_and_the_window_moves_by_octaves(client)
     assert octave_range("C4") == (-4, 3) and octave_range("C-1") == (0, 8)
 
 
-@pytest.mark.parametrize("data", [{}, {"span": "4"}, {"oct_by": "2"}, {"span": "x"}])
+@pytest.mark.parametrize("data", [{}, {"span": "5"}, {"oct_by": "2"}, {"span": "x"}])
 def test_a_hostile_window_is_refused(client, data):
     s = client.app.state.studio
     r = client.post("/fragment/grid/span", data=data, headers=PERFORM)

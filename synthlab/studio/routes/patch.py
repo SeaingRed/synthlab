@@ -154,7 +154,7 @@ def _span(s: StudioState, form) -> int:
     own (`span`), so a page drawn before a range change still posts
     against the rows it shows."""
     raw = form.get("span", "")
-    return int(raw) if raw in ("1", "2", "3") else s.grid_span
+    return int(raw) if raw in ("1", "2", "3", "4") else s.grid_span
 
 
 def _oct(s: StudioState, form) -> int:

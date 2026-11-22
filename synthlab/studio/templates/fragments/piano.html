@@ -180,6 +180,11 @@
           {#- keyrec.js: ⟲ Capture of the arp's own notes -#}
           <button type="button" id="arp-print" class="btn btn-s" data-cmd="Print the keys arp to a loop"
                   title="Print: what the keys arp just played — its notes, as they sounded — as a loop (the last bars the Rec length says, or its latest phrase), into the launcher's selected slot as ⏺ Rec lands">⤓ print</button>
+          {#- keyrec.js: what ⏺ Rec keeps while the arp plays (the deck's Rec ▾ has the same switch, [data-key-arp]) -#}
+          <span class="seg" role="group" aria-label="⏺ Rec with the arp keeps">
+            <button type="button" data-key-arp="notes" aria-pressed="true" title="⏺ Rec keeps the arp's notes, note for note">rec: its notes</button>
+            <button type="button" data-key-arp="held" aria-pressed="false" title="⏺ Rec keeps the keys you held, and its loop plays them through the grid arp set as this arp is (its pattern, rate, direction, octaves, swing)">the keys I held</button>
+          </span>
         </div>
       </div>
       <span class="oct-ctl" title="the keys' octave (Z / X, or - / = while rows play)">
