@@ -634,7 +634,9 @@ def warp_phase(mode: str, t, a):
         return np.where(t < d, 0.5 * t / d, 0.5 + 0.5 * (t - d) / (1.0 - d))
     if mode == "mirror":  # forward to c, then back
         c = 1.0 - 0.5 * a
-        return np.where(t < c, t / c, (1.0 - t) / np.maximum(1.0 - c, 1e-9))
+        # (`<=`: the same samples for any t < 1; at t = 1, which only a
+        # second warp's input reaches, amount 0 is the identity's 1)
+        return np.where(t <= c, t / c, (1.0 - t) / np.maximum(1.0 - c, 1e-9))
     if mode == "asym":  # the first half bent, the second as it was
         return np.where(t < 0.5, 0.5 * _bend(2.0 * t, k), t)
     if mode == "quantize":  # 256 steps at 0 down to 2 at 1
@@ -657,6 +659,27 @@ def warp_end(mode: str, a):
         steps = 2.0 + np.floor(254.0 * q * q * q)
         return (steps - 1.0) / steps
     return np.ones_like(a, dtype=np.float64)
+
+
+def warp_twice(mode: str, a, mode2: str, a2, t):
+    """Two warps on one phase: `mode2` (amount `a2`) bends what `mode`
+    (amount `a`) made of `t`. The first warp's phase is in [0, 1] — pwm
+    holds it at 1, the mirror's peak reaches 1 — so the second reads its
+    input at 1 too."""
+    return warp_phase(mode2, warp_phase(mode, t, a), a2)
+
+
+def warp_end_twice(mode: str, a, mode2: str, a2):
+    """Where two warps leave the phase just before the cycle wraps. The
+    first ends at `warp_end(mode, a)`: approached from below when that is 1
+    (the second's own left limit there, `warp_end(mode2, a2)`), held
+    exactly (quantize's last step, pwm's hold at 1 — the second's value
+    there), or approached from above at 0 (the mirror: every mode is 0
+    at 0)."""
+    a = np.clip(a, 0.0, 1.0)
+    first = warp_end(mode, a)
+    held = (first < 1.0) | ((mode == "pwm") & (a > 0))
+    return np.where(held, warp_phase(mode2, first, a2), warp_end(mode2, a2))
 
 
 def warp_slope(mode: str, a):
@@ -690,6 +713,8 @@ def warped(
     pos=0.0,
     phase0: float = 0.0,
     naive: bool = False,
+    mode2: str = "off",
+    amount2=0.0,
 ) -> np.ndarray:
     """`shape` (one of WARP_SHAPES) with its phase warped by `mode` at
     `amount` (per sample or one), oversampled WARP_OS x and decimated
@@ -699,14 +724,23 @@ def warped(
     cycle's own wrap is polyBLEP'd with the step the warp leaves there, and
     output sample j is the FIR over sub-samples up to WARP_OS j + WARP_OS - 1
     (zeros before the note). `naive=True` is the warp at the output rate
-    with no band-limiting, for measuring what this buys."""
+    with no band-limiting, for measuring what this buys. `mode2` (not
+    "off") at `amount2` warps the warped phase again (`warp_twice`) on
+    the same path: the wrap's step is where both leave it
+    (`warp_end_twice`), a wavetable's mip as much darker as the two
+    slopes' product (the composition's steepest is at most that)."""
     os_ = 1 if naive else WARP_OS
     f = as_array(freq, n)
     d = np.repeat(f / (sr * os_), os_)
     t = np.cumsum(d) + phase0
     t -= np.floor(t)
     a = np.repeat(np.clip(as_array(amount, n), 0.0, 1.0), os_)
-    u = warp_phase(mode, t, a)
+    twice = mode2 != "off"
+    if twice:
+        a2 = np.repeat(np.clip(as_array(amount2, n), 0.0, 1.0), os_)
+        u = warp_twice(mode, a, mode2, a2, t)
+    else:
+        u = warp_phase(mode, t, a)
     if shape == "wavetable":
         stack = _wt_stack(table)
         nf = stack.shape[1]
@@ -718,6 +752,9 @@ def warped(
         peak = np.pad(np.abs(f), pad, mode="edge").reshape(nb, -1).max(axis=1)
         top = np.pad(as_array(amount, n), pad, mode="edge").reshape(nb, -1).max(axis=1)
         peak = peak * warp_slope(mode, top)
+        if twice:
+            top2 = np.pad(as_array(amount2, n), pad, mode="edge")
+            peak = peak * warp_slope(mode2, top2.reshape(nb, -1).max(axis=1))
         mip = np.repeat(_wt_mip_index(peak, sr * os_), _WT_MIP_BLOCK)[:n]
         mip = np.repeat(mip, os_)
         fp = np.repeat(np.clip(as_array(pos, n), 0.0, 1.0) * (nf - 1), os_)
@@ -741,7 +778,11 @@ def warped(
         return y
     edge = np.flatnonzero((t < d) | (t > 1.0 - d))
     if len(edge):
-        jump = read(np.zeros(len(edge)), edge) - read(warp_end(mode, a[edge]), edge)
+        if twice:
+            end = warp_end_twice(mode, a[edge], mode2, a2[edge])
+        else:
+            end = warp_end(mode, a[edge])
+        jump = read(np.zeros(len(edge)), edge) - read(end, edge)
         y[edge] += jump / 2 * _polyblep(t[edge], d[edge])
     from scipy.signal import upfirdn
 
@@ -1133,10 +1174,11 @@ def wavetable_numpy(freq, n: int, sr: int = SR, table="basic", pos=0.0, phase0=0
 
 def osc(shape: str, freq, n: int, sr: int = SR, **kw) -> np.ndarray:
     """Dispatch by name: osc('saw', 220, 44100). `warp=(mode, amount)`
-    bends a WARP_SHAPES phase (`warped`); "off" and the other shapes
-    ignore it."""
+    bends a WARP_SHAPES phase (`warped`), `(mode, amount, mode2, amount2)`
+    twice; "off" and the other shapes ignore it."""
     warp = kw.get("warp")
     if warp and warp[0] != "off" and shape in WARP_SHAPES:
+        second = {"mode2": warp[2], "amount2": warp[3]} if len(warp) > 2 else {}
         return warped(
             shape,
             freq,
@@ -1148,6 +1190,7 @@ def osc(shape: str, freq, n: int, sr: int = SR, **kw) -> np.ndarray:
             table=kw.get("table", "basic"),
             pos=kw.get("pos", 0.0),
             phase0=kw.get("phase0", 0.0),
+            **second,
         )
     if shape == "wavetable":
         return wavetable(

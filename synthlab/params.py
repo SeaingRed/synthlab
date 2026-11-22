@@ -128,6 +128,10 @@ MOD_DESTINATIONS = (
     "osc3_level",
     "osc3_detune",
     "osc3_warp_amt",
+    # each oscillator's second warp amount — no gene choices
+    "osc1_warp2_amt",
+    "osc2_warp2_amt",
+    "osc3_warp2_amt",
     "pitch",
 )
 ROUND6_DESTINATIONS = MOD_DESTINATIONS[
@@ -778,6 +782,23 @@ _ALL: list[Param] = [
         mod=True,
         nogene=_WARP_WHY,
     ),
+    # a second warp per oscillator, appended as one run (hand-made, as the
+    # first is): the same modes, applied to the first's phase
+    *[
+        param
+        for k in (1, 2, 3)
+        for param in (
+            _p(f"osc{k}_warp2", "cat", cap=WARP_MODES, nogene=_WARP_WHY),
+            _p(
+                f"osc{k}_warp2_amt",
+                "lin",
+                cap=(0.0, 1.0),
+                curve=True,
+                mod=True,
+                nogene=_WARP_WHY,
+            ),
+        )
+    ],
 ]
 
 PARAMS: dict[str, Param] = {p.name: p for p in _ALL}

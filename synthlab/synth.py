@@ -190,12 +190,19 @@ _DRIVEN = ("ladder", "diode")
 
 def warp_of(p, slot: int):
     """Oscillator `slot`'s (1, 2, 3) warp as `core.osc` takes it, or None:
-    off, a shape it doesn't bend, or a synced osc2 (sync restarts it)."""
-    mode = getattr(p, f"osc{slot}_warp")
+    off, a shape it doesn't bend, or a synced osc2 (sync restarts it). Its
+    warps that are on, in order — (mode, amount), or with the second warp
+    on as well (mode, amount, mode2, amount2); the second alone is one
+    warp, the same samples as the first set to it."""
     shape = getattr(p, f"osc{slot}")
-    if mode == "off" or shape not in core.WARP_SHAPES or (slot == 2 and _synced(p)):
+    if shape not in core.WARP_SHAPES or (slot == 2 and _synced(p)):
         return None
-    return mode, getattr(p, f"osc{slot}_warp_amt")
+    out: tuple = ()
+    for part in ("warp", "warp2"):
+        mode = getattr(p, f"osc{slot}_{part}")
+        if mode != "off":
+            out += (mode, getattr(p, f"osc{slot}_{part}_amt"))
+    return out or None
 
 
 def _wt_table(p):
@@ -508,6 +515,14 @@ class Patch:
     osc3_detune: float = 0.0  # cents
     osc3_warp: str = "off"
     osc3_warp_amt: float = 0.0
+    # a second warp per oscillator (core.warp_twice): the phase the first
+    # warp made, bent again by its own mode and amount. "off" is the bypass
+    osc1_warp2: str = "off"
+    osc1_warp2_amt: float = 0.0
+    osc2_warp2: str = "off"
+    osc2_warp2_amt: float = 0.0
+    osc3_warp2: str = "off"
+    osc3_warp2_amt: float = 0.0
 
     def tweak(self, **kw) -> Patch:
         """Return a copy with parameters changed: pad.tweak(cutoff=800)."""

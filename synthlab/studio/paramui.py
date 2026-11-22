@@ -31,7 +31,7 @@ from ..params import (
     slot_active,
     uses_shape,
 )
-from ..synth import Patch
+from ..synth import Patch, warp_of
 
 # Panels in signal-flow order: what makes the sound, what filters it, the
 # vowel tract, the amp, the character stage, then everything that moves it
@@ -298,6 +298,16 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ("osc1_warp_amt", _ui(_S, "Osc 1 warp amount", EXACT, mod_label="Osc 1 warp",
         hint="How far oscillator 1's warp bends. Draw it or route to it to sweep the "
              "timbre.")),
+    # a second warp (core.warp_twice): not in the live voice, so "default"
+    # — while it bends, a sound's keys take the server-rendered WAV; off
+    # (or on a shape it does not bend) it blocks nothing (`_UNHEARD`)
+    ("osc1_warp2", _ui(_S, "Osc 1 warp 2", DEFAULT, widget="select",
+        option_labels=WARP_LABELS,
+        hint="A second warp on oscillator 1's phase, after the first: two bends at "
+             "once (PD then mirror, a bend then quantize...).")),
+    ("osc1_warp2_amt", _ui(_S, "Osc 1 warp 2 amount", DEFAULT,
+        mod_label="Osc 1 warp 2",
+        hint="How far oscillator 1's second warp bends. Draw it or route to it.")),
     ("osc2", _ui(_S, "Oscillator 2", _osc2_ok, widget="pills", subhead="Oscillator 2",
         extra=("fm4",), hint="A second waveform layered on the first.")),
     ("osc2_level", _ui(_S, "Osc 2 level", EXACT,
@@ -313,6 +323,16 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ("osc2_warp_amt", _ui(_S, "Osc 2 warp amount", EXACT, mod_label="Osc 2 warp",
         hint="How far oscillator 2's warp bends. Draw it or route to it to sweep "
              "the timbre.")),
+    # a second warp (core.warp_twice): not in the live voice, so "default"
+    # — while it bends, a sound's keys take the server-rendered WAV; off
+    # (or on a shape it does not bend) it blocks nothing (`_UNHEARD`)
+    ("osc2_warp2", _ui(_S, "Osc 2 warp 2", DEFAULT, widget="select",
+        option_labels=WARP_LABELS,
+        hint="A second warp on oscillator 2's phase, after the first: two bends at "
+             "once (PD then mirror, a bend then quantize...).")),
+    ("osc2_warp2_amt", _ui(_S, "Osc 2 warp 2 amount", DEFAULT,
+        mod_label="Osc 2 warp 2",
+        hint="How far oscillator 2's second warp bends. Draw it or route to it.")),
     # core.sync: band-limited resets, osc2 one sample late (voice-worklet.js
     # holds the same sample)
     ("osc2_sync", _ui(_S, "Hard sync", EXACT, widget="pills",
@@ -346,6 +366,16 @@ _ENTRIES: list[tuple[str, Ui]] = [
         mod_label="Osc 3 warp",
         hint="How far oscillator 3's warp bends. Draw it or route to it to sweep "
              "the timbre.")),
+    # a second warp (core.warp_twice): not in the live voice, so "default"
+    # — while it bends, a sound's keys take the server-rendered WAV; off
+    # (or on a shape it does not bend) it blocks nothing (`_UNHEARD`)
+    ("osc3_warp2", _ui(_S, "Osc 3 warp 2", DEFAULT, widget="select",
+        option_labels=WARP_LABELS,
+        hint="A second warp on oscillator 3's phase, after the first: two bends at "
+             "once (PD then mirror, a bend then quantize...).")),
+    ("osc3_warp2_amt", _ui(_S, "Osc 3 warp 2 amount", DEFAULT,
+        mod_label="Osc 3 warp 2",
+        hint="How far oscillator 3's second warp bends. Draw it or route to it.")),
     ("fm_ratio", _ui(_S, "FM ratio", EXACT, 0.5, subhead="FM shape",
         hint="FM shape: modulator pitch as a multiple of the note.")),
     ("fm_index", _ui(_S, "FM index", EXACT, 0.05,
@@ -832,29 +862,51 @@ for _name, _u in UI.items():
 # --- the live voice's gate ---------------------------------------------------
 
 
+def _warp2_unheard(k: int) -> Callable[[Any], bool]:
+    """Is oscillator k's second warp unheard: off, on a shape no warp bends,
+    on a synced osc2 or a silent osc3 (`synth.warp_of` decides, as the
+    engine does)?"""
+
+    def unheard(p) -> bool:
+        if getattr(p, f"osc{k}_warp2") == "off" or (k == 3 and not osc3_on(p)):
+            return True
+        return warp_of(p, k) is None
+
+    return unheard
+
+
 def _osc3_silent(p) -> bool:
     return not osc3_on(p)
 
 
 # hand-made "default" fields the engine does not read under the patch's
-# other settings (no shape rule says so): oscillator 3's at level 0
+# other settings (no shape rule says so): oscillator 3's at level 0, a
+# second warp that is off or bends nothing
 _UNHEARD: dict[str, Callable[[Any], bool]] = {
-    name: _osc3_silent
-    for name in (
-        "osc3",
-        "osc3_octave",
-        "osc3_semi",
-        "osc3_detune",
-        "osc3_warp",
-        "osc3_warp_amt",
-    )
+    **{
+        name: _osc3_silent
+        for name in (
+            "osc3",
+            "osc3_octave",
+            "osc3_semi",
+            "osc3_detune",
+            "osc3_warp",
+            "osc3_warp_amt",
+        )
+    },
+    **{
+        f"osc{k}_{part}": _warp2_unheard(k)
+        for k in (1, 2, 3)
+        for part in ("warp2", "warp2_amt")
+    },
 }
 
 
 def _unheard(name: str, p) -> bool:
     """A "default" field the engine never reads under `p`'s other settings
     — a shape no oscillator plays (the granular one's), or a `_UNHEARD`
-    rule's (a silent osc 3's): any value is reproduced."""
+    rule's (a silent osc 3's, a second warp that bends nothing): any value
+    is reproduced."""
     if UI[name].worklet != DEFAULT:
         return False
     rule = PARAMS[name].live
@@ -938,6 +990,8 @@ _IDLE_HAND: tuple[tuple[tuple[str, ...], Callable[[Any], bool], str], ...] = (
             "osc3_detune",
             "osc3_warp",
             "osc3_warp_amt",
+            "osc3_warp2",
+            "osc3_warp2_amt",
         ),
         osc3_on,
         "oscillator 3's level is 0",

@@ -403,6 +403,12 @@ KEY_ADDED_FIELDS = {
             "osc3 osc3_level osc3_octave osc3_semi osc3_detune osc3_warp osc3_warp_amt"
         ).split()
     },
+    # each oscillator's second warp: "off" is the bypass
+    **{
+        f"osc{k}_{part}": getattr(Patch(), f"osc{k}_{part}")
+        for k in (1, 2, 3)
+        for part in ("warp2", "warp2_amt")
+    },
 }
 
 

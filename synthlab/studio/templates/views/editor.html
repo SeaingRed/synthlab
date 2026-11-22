@@ -118,7 +118,9 @@
     #view:has([name="filter2_route"][value="off"]:checked) .pb-jack[data-dst^="filter2_"]:not([data-on]),
     #view:has([name="osc2"][value=""]:checked) .pb-jack[data-dst="fm_amount"]:not([data-on]),
     #view:has([name="osc2_sync"][value="off"]:checked) .pb-jack[data-dst="sync_pitch"]:not([data-on]),
-    #view:has(#p-osc3_warp option[value="off"]:checked) .pb-jack[data-dst="osc3_warp_amt"]:not([data-on]) { display: none; }
+    #view:has(#p-osc3_warp option[value="off"]:checked) .pb-jack[data-dst="osc3_warp_amt"]:not([data-on]),
+    {% for k in (1, 2, 3) %}#view:has(#p-osc{{ k }}_warp2 option[value="off"]:checked) .pb-jack[data-dst="osc{{ k }}_warp2_amt"]:not([data-on]){{ "," if not loop.last }}
+    {% endfor %}{ display: none; }
     {% for shape, dsts in (("wavetable", ("wt_pos",)), ("fm", ("fm_index",)), ("fm4", ("fm4_level1", "fm4_level2", "fm4_level3", "fm4_level4")), ("granular", ("grain_pos",))) %}
     #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked)):not(:has([name="osc3"][value="{{ shape }}"]:checked))
       :is({% for d in dsts %}.pb-jack[data-dst="{{ d }}"]{{ ", " if not loop.last }}{% endfor %}):not([data-on]) { display: none; }
@@ -277,7 +279,7 @@
           inside their blocks: the FM4 panel, the sync block) -#}
       {% for spec in specs if spec.name not in route_fields
                               and not (spec.name[:4] == "fm4_" and spec.name != "fm4_algo") and spec.name != "sync_pitch"
-                              and spec.name not in ("osc1_warp_amt", "osc2_warp_amt", "osc3_warp_amt")
+                              and not (spec.name[:3] == "osc" and spec.name[5:] in ("warp_amt", "warp2", "warp2_amt"))
                               and not (spec.name[:8] == "filter2_" and spec.name != "filter2_route") %}
       {% if spec.name == "fm4_algo" %}
       {% include "fragments/fm4_panel.html" %}
@@ -307,6 +309,9 @@
       <div class="warp-block module-well" role="group" aria-label="Oscillator {{ spec.name[3] }} warp">
         {% include "fragments/param_row.html" %}
         {% with spec = spec_of(spec.name ~ "_amt") %}{% include "fragments/param_row.html" %}{% endwith %}
+        {#- the second warp, on the phase the first made: its mode and amount -#}
+        {% with spec = spec_of(spec.name ~ "2") %}{% include "fragments/param_row.html" %}{% endwith %}
+        {% with spec = spec_of(spec.name ~ "2_amt") %}{% include "fragments/param_row.html" %}{% endwith %}
       </div>
       {% else %}
       {% if spec.name == "filter_env" %}

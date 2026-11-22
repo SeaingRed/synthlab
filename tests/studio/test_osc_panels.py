@@ -179,6 +179,8 @@ def test_osc3_is_its_own_area_and_rests_while_silent(client):
         "osc3_detune",
         "osc3_warp",
         "osc3_warp_amt",
+        "osc3_warp2",
+        "osc3_warp2_amt",
     ]
     assert html.index('class="sync-block') < html.index('id="sub-osc3"')
     for name in ("osc3_level", "osc3_octave", "osc3_semi", "osc3_detune"):
@@ -193,7 +195,7 @@ def test_osc3_is_its_own_area_and_rests_while_silent(client):
         r'id="row-(\w+)" data-kind="\w+"\s+(?:data-hint="[^"]*")?\s*data-idle', area
     )
     assert set(idle) == {"osc3", "osc3_octave", "osc3_semi", "osc3_detune", "osc3_warp",
-                         "osc3_warp_amt"}  # fmt: skip
+                         "osc3_warp_amt", "osc3_warp2", "osc3_warp2_amt"}  # fmt: skip
     assert (
         "#row-wt_pos" in html
         and ':not(:has([name="osc3"][value="wavetable"]:checked))' in html
@@ -206,3 +208,24 @@ def test_a_heard_osc3_is_not_idle(client):
 
     assert "osc3_semi" in idle(Patch())
     assert not {n for n in idle(Patch(osc3_level=0.5)) if n.startswith("osc3")}
+
+
+def test_each_warp_block_holds_its_second_warp(client):
+    """Every oscillator's warp block: the first warp's mode and amount, then
+    the second's, on the phase the first made — four rows of their own,
+    each amount a knob, each second warp's target jack hidden while off."""
+    html = _view(client)
+    for k in (1, 2, 3):
+        block = _block(html, f'aria-label="Oscillator {k} warp"', '<h4 class="subhead"')
+        assert re.findall(r'id="row-(\w+)"', block)[:4] == [
+            f"osc{k}_warp",
+            f"osc{k}_warp_amt",
+            f"osc{k}_warp2",
+            f"osc{k}_warp2_amt",
+        ]
+        assert f'class="param param-knob" id="row-osc{k}_warp2_amt"' in block
+        assert f'<select id="p-osc{k}_warp2" name="osc{k}_warp2">' in block
+        assert (
+            f'#view:has(#p-osc{k}_warp2 option[value="off"]:checked) '
+            f'.pb-jack[data-dst="osc{k}_warp2_amt"]' in html
+        )

@@ -171,9 +171,11 @@ def test_the_catalogue_is_under_half_the_schema_it_replaced():
     # catalogue line, the curve, macro and route enums) took them to 4,462
     # and 13,042; oscillator 3 (three route targets, its level, detune and
     # warp amount in the curve and macro enums — its fields are hand-made,
-    # out of the catalogue as the warps are) to 4,499 and 13,208
-    assert sizes["set_params"] < 4_500
-    assert sum(sizes.values()) < 13_300
+    # out of the catalogue as the warps are) to 4,499 and 13,208; the
+    # second warps (three more route targets, curve and macro entries) to
+    # 4,544 and 13,406
+    assert sizes["set_params"] < 4_600
+    assert sum(sizes.values()) < 13_500
 
 
 def test_the_other_tools_are_generated_from_their_tables():
@@ -198,7 +200,7 @@ def test_the_other_tools_are_generated_from_their_tables():
     )
     # every declaration is plain JSON and every one has an implementation
     blob = json.dumps(atools.declarations())
-    assert len(blob) < 13_800  # the catalogue as it stands (above): 13,732
+    assert len(blob) < 14_000  # the catalogue as it stands (above): 13,939
     assert atools.TOOL_NAMES == tuple(atools.TOOLS)
 
 
