@@ -48,6 +48,7 @@ from synthlab.studio.library import by_family
 from synthlab.studio.server import create_app
 from synthlab.studio.service import PAGE_REGIONS, REGIONS
 from synthlab.synth import Patch
+from tests.sfzkit import small_instrument
 from tests.studio.test_agent import FakeClient
 from tests.studio.test_agent import calls as agent_calls
 from tests.studio.test_loop_coach import seed as coach_seed
@@ -1003,6 +1004,17 @@ CASES: list[Case] = [
     C("/fragment/sampler/zone/add", "editor", {"name": "hit"}, _clip),  # silent
     C("/fragment/sampler/zones/map", "editor", {"names": "tone\nlow"}, _two_tones),
     C("/fragment/sampler/zones/map", "editor", {"names": "gone"}),  # toast
+    # an SFZ instrument (a zip) as the sound: a whole-page load, like auto-map
+    C(
+        "/fragment/sampler/sfz",
+        "editor",
+        files=lambda c: {"file": ("inst.zip", small_instrument(), "application/zip")},
+    ),
+    C(  # not a zip: a toast, nothing moved
+        "/fragment/sampler/sfz",
+        "editor",
+        files=lambda c: {"file": ("inst.sfz", b"<region> sample=x.wav", "text/plain")},
+    ),
     C(
         "/fragment/sampler/zone",
         "editor",

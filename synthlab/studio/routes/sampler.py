@@ -25,14 +25,24 @@ from dataclasses import replace
 
 from fastapi import Request, Response
 
-from ... import params, sampler
+from ... import params, sampler, sfz
 from ...audio import read_pcm16
 from ...sequencer import midi
 from .. import fxrack, limits
 from .. import samplerview as sv
 from ..clips import free_clip_name, load_clip, save_clip
 from ..render import RenderError
-from ..routing import RawForm, StrForm, Svc, TakeUpload, lock_free, studio_router
+from ..routing import (
+    OutsideLock,
+    RawForm,
+    SfzUpload,
+    StrForm,
+    Svc,
+    TakeUpload,
+    lock_free,
+    render_outside_lock,
+    studio_router,
+)
 from ..state import StudioState
 from ..words import plural
 from .macros import param_rows_oob
@@ -423,6 +433,82 @@ def sampler_zones(request: Request, form: StrForm, svc: Svc) -> Response:
         trig["studio-toast"] = {"message": note}
         resp.headers["HX-Trigger"] = json.dumps(trig)
     return resp
+
+
+def sfz_limits() -> sfz.Limits:
+    """`sfz.Limits` from `limits.py`, read per request (a test's
+    monkeypatch of an attribute takes effect, as security.py's do)."""
+    return sfz.Limits(
+        members=limits.MAX_SFZ_MEMBERS,
+        uncompressed=limits.MAX_SFZ_UNCOMPRESSED,
+        member_bytes=limits.MAX_SFZ_MEMBER_BYTES,
+        ratio=limits.MAX_SFZ_RATIO,
+        text_bytes=limits.MAX_SFZ_TEXT_BYTES,
+        lines=limits.MAX_SFZ_LINES,
+        include_depth=limits.MAX_SFZ_INCLUDE_DEPTH,
+        includes=limits.MAX_SFZ_INCLUDES,
+        defines=limits.MAX_SFZ_DEFINES,
+        define_chars=limits.MAX_SFZ_DEFINE_CHARS,
+        line_chars=limits.MAX_SFZ_LINE_CHARS,
+        expanded=limits.MAX_SFZ_EXPANDED,
+        headers=limits.MAX_SFZ_HEADERS,
+        regions=limits.MAX_SFZ_REGIONS,
+        audio_seconds=limits.MAX_SFZ_AUDIO_SECONDS,
+        min_sr=limits.MIN_SR,
+        max_sr=limits.MAX_SR,
+        max_channels=limits.MAX_SOURCE_CHANNELS,
+    )
+
+
+@router.post("/fragment/sampler/sfz")
+@render_outside_lock
+def sampler_sfz(
+    request: Request, upload: SfzUpload, svc: Svc
+) -> Response | OutsideLock:
+    """Import SFZ…: a .zip of an .sfz and its samples (`synthlab/sfz.py`)
+    becomes the edited sound — a sampler with one zone a region, the first
+    region's amplitude envelope on the patch — as one undo step, landing on
+    Synths with a toast that names every opcode it did not import. The zip
+    is untrusted (sfz.py's limits; the body is capped at
+    MAX_SFZ_UPLOAD_BYTES here and in BodySizeLimit). Decoding the samples
+    is seconds of work that touches only the sample store (self-locking),
+    so it runs with the studio lock released; the sound is loaded under it
+    again."""
+    s: StudioState = svc.state
+    if upload.too_large:
+        return svc.toast("That file is too large for an SFZ import.", status=413)
+    if upload.data is None:
+        return svc.toast("Choose a .zip holding an .sfz and its samples.")
+    data, directory, lim = upload.data, s.sample_dir, sfz_limits()
+
+    def run() -> Response:
+        try:
+            inst = sfz.load(
+                data,
+                lambda audio, sr: sampler.save(directory, audio, sr),
+                lim,
+                root_of=sv.detected_root,
+            )
+        except sfz.SfzError as err:
+            return svc.toast(str(err))
+        with s.lock:
+            before = s.patch_snapshot()
+            first = inst.zones[0]
+            patch = sv.sampler_patch(first.sample, inst.name, first.root)
+            patch = sv.with_zones(patch, inst.zones)
+            patch = params.clamp(replace(patch, **inst.envelope))
+            s.load_sound(patch, label=inst.name)
+            s.push_undo_step(before)
+            s.save()
+            say = sfz.summary(inst)
+            if not sampler.live_ok(patch):
+                say += (
+                    " Too much audio for the live keys to stream: they play "
+                    "rendered notes instead, a moment slower."
+                )
+            return svc.land_on(request, "editor", say, kind="done")
+
+    return OutsideLock(run)
 
 
 @router.post("/fragment/sampler/root")
