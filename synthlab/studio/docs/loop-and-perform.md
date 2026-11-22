@@ -125,13 +125,13 @@ drum XY, the performance FX and the beats launcher, **one tab at a time**
 — pads | XY | FX | beats (layout.js's tabs: `[data-tab-of][data-tab-pick]`
 set `data-tab` on the box, per browser `synthlab.tab.perform-play`,
 re-applied after a swap). It left the right column (the inspector has
-it whole) for **the keyboard dock's Tools**: **Pads ▴** (`#play-open`,
+it whole) for **the keyboard dock's Tools**: **Pads** (`#play-open`,
 piano.html, beside Play tools; shown on this page alone — style.css 14:
 `#view:not([data-view="perform"]) ~ .keys-dock`) opens it, a manual
 popover (`popovertarget`) over the page above the dock's right end, as
-Play tools is: a key played leaves it open, its ✕ or Pads ▴ shuts it.
+Play tools is: a key played leaves it open, its ✕ or Pads shuts it.
 perform.js keeps one of the two open at a time (both stand there), lights
-Pads ▴ (`aria-expanded`) and opens it again on the next visit when it was
+Pads (`aria-expanded`) and opens it again on the next visit when it was
 left open (localStorage `synthlab.pads`). It is the same markup, moved —
 not a module of the dock (a popover is no tile): each part is a module
 of its own still (it pops out — a popped-out part shows whatever tab is

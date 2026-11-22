@@ -163,7 +163,7 @@
   document.addEventListener("htmx:after:swap", () => { if ([...held].some((b) => !b.isConnected)) allFxOff(); });
   window.addEventListener("blur", allFxOff);
 
-  // ---- Play (#perform-play): a popover the keyboard dock's Tools open ("Pads ▴") -------
+  // ---- Play (#perform-play): a popover the keyboard dock's Tools open ("Pads") -------
   // One of it and Play tools at a time (both stand above the dock's right end); open again
   // on the next visit when it was left open (localStorage synthlab.pads); its keys play it shut
   const PADS = "synthlab.pads", other = { "perform-play": "play-tools", "play-tools": "perform-play" };
@@ -182,7 +182,7 @@
     if (p && on === "1" && !p.matches(":popover-open")) p.showPopover();
     document.getElementById("play-open")?.setAttribute("aria-expanded", String(!!p?.matches(":popover-open")));
   }
-  // the dock's Pads ▴ (every page's; #perform-play is the Loops page's alone): anchored to it
+  // the dock's Pads (every page's; #perform-play is the Loops page's alone): anchored to it
   document.addEventListener("click", (e) => {
     const b = e.target.closest?.("#play-open"), p = b && document.getElementById("perform-play");
     if (p) p.togglePopover({ source: b });

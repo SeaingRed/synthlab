@@ -5,7 +5,7 @@
     | the launcher over the editor (the note grid, the drum grid) | the
     right column — the lane inspector (its ✦ Coach a tab of it). Play
     (pads, XY, perf FX, beats: tabs) opens over the page from the keyboard
-    dock's Tools ("Pads ▴"). -#}
+    dock's Tools ("Pads"). -#}
 <main class="cockpit perform-view" id="view" hx-history-elt data-view="perform" data-ws-dock="perform">
   {#- past the head, the strip, the launcher and the pattern tools to a
       grid's one Tab stop (shell.js; style.css 16: shown on focus) -#}
@@ -14,7 +14,7 @@
   <header class="view-head">
     <h1>Loops</h1>
     <p class="view-sub">Make and play ideas: the launcher's slots and scenes over the editor, the selected lane beside them.</p>
-    <div id="head-how" class="pop head-how" popover><p class="view-how">The deck at the top is the page's one transport: ▶ (Space) plays its source — Loop (the selected cell's loop alone), Scene (its row) or Song — and ⏺ Rec records, its ▾ saying how long and where the take lands. Drag loops from the Loops panel (Alt+O) onto the launcher's cells; double-click one (or Enter) to edit it, right-click it for the rest. A click on a cell selects it: its loop opens in the editor on its lane (Notes or Drums as the cell is) and plays there from the next bar, and every edit saves to it — an empty cell's lane is a sketch until "Save as loop" (Alt+1…8 launch a scene, Alt+0 stops every lane). The lane inspector at the right holds the selected lane's sound, layers, level and FX, and ✦ Coach (Alt+K). Pads ▴ in the keyboard dock's Tools opens Play: the pads (Q W E R / A S D F with the keyboard dock's typing → pads; Alt+P), the drum XY, the performance FX and the beats. The editors' Tools ▾ hold the pattern tools a click away.</p></div>
+    <div id="head-how" class="pop head-how" popover><p class="view-how">The deck at the top is the page's one transport: ▶ (Space) plays its source — Loop (the selected cell's loop alone), Scene (its row) or Song — and ⏺ Rec records, its ▾ saying how long and where the take lands. Drag loops from the Loops panel (Alt+O) onto the launcher's cells; double-click one (or Enter) to edit it, right-click it for the rest. A click on a cell selects it: its loop opens in the editor on its lane (Notes or Drums as the cell is) and plays there from the next bar, and every edit saves to it — an empty cell's lane is a sketch until "Save as loop" (Alt+1…8 launch a scene, Alt+0 stops every lane). The lane inspector at the right holds the selected lane's sound, layers, level and FX, and ✦ Coach (Alt+K). Pads in the keyboard dock's Tools opens Play: the pads (Q W E R / A S D F with the keyboard dock's typing → pads; Alt+P), the drum XY, the performance FX and the beats. The editors' Tools ▾ hold the pattern tools a click away.</p></div>
     {# (the typing switch, and typing → keys | pads, are the keyboard
        dock's: its QWERTY group, on this page too — fragments/piano.html) #}
     <div class="head-tools">{% include "fragments/head_help.html" %}{% with ws_view = "perform" %}{% include "fragments/ws_menu.html" %}{% endwith %}
@@ -334,7 +334,7 @@
       performance FX and the beats launcher — a tab shown at a time
       (layout.js `data-tabs`, per browser). Not in the right column (the
       lane inspector has it whole): the keyboard dock's Tools open it —
-      "Pads ▴" beside Play tools (piano.html: `popovertarget`, shown on
+      "Pads" beside Play tools (piano.html; opened by perform.js, shown on
       this page alone), a manual popover over the page above the dock's
       right end, as Play tools is; one of the two at a time, and open
       again on the next visit if it was left open (perform.js,

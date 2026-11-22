@@ -142,7 +142,7 @@ def _loop_at_keys_level(studio, server, play):
     studio.wait_silence()
     page.evaluate(READY)
     with page.expect_response("**/loop/edit"):
-        row.locator(".lp-edit").click()
+        row.dblclick()  # a row's Edit (its action buttons are in its menu)
     page.wait_for_selector('#view[data-view="perform"]')
     studio.settle()
     page.click("#play")

@@ -70,7 +70,7 @@
   still a palette command and its shortcut. The key and the feel fit one
   line above it. The right column is the lane inspector alone: → Song
   moved to the launcher's head, and Play (pads, XY, FX, beats) opens from
-  the keyboard dock's Tools ("Pads ▴"), its keys playing it shut too.
+  the keyboard dock's Tools ("Pads"), its keys playing it shut too.
   Saved layouts of the page are reset once.
 - **Import SFZ**: a zip of an `.sfz` and its WAV / FLAC / OGG samples becomes
   a sampler sound with a zone a region (keys, velocities, root, tune, gain,

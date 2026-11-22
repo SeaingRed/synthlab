@@ -420,7 +420,7 @@ def test_the_toolbars_are_one_line_and_tools_holds_the_rest_its_keys_work_shut(
 
 def test_play_opens_from_the_keys_dock_and_its_keys_play_it_shut(studio, server):
     """The right column is the lane inspector alone; Play (pads, XY, FX,
-    beats) opens from the keyboard dock's Tools ("Pads ▴"), over the page
+    beats) opens from the keyboard dock's Tools ("Pads"), over the page
     above the dock's right end, one of it and Play tools at a time, and
     again on the next visit; its pads' keys play them shut and open."""
     page = studio.open("perform")
@@ -438,7 +438,7 @@ def test_play_opens_from_the_keys_dock_and_its_keys_play_it_shut(studio, server)
     page.locator(".view-head h1").click()
     with page.expect_request("**/drum/kick/hit.wav*"):
         page.keyboard.press("KeyQ")
-    # Pads ▴ opens it over the page, above the dock, at its right end
+    # Pads opens it over the page, above the dock, at its right end
     btn.click()
     page.wait_for_selector("#perform-play:popover-open")
     page.wait_for_selector('#play-open[aria-expanded="true"]')
@@ -459,7 +459,7 @@ def test_play_opens_from_the_keys_dock_and_its_keys_play_it_shut(studio, server)
     with page.expect_request("**/drum/snare/hit.wav*"):
         page.keyboard.press("KeyW")
     assert play.is_visible()
-    # elsewhere there is no Pads ▴; back on the page, Play opens as it was left
+    # elsewhere there is no Pads; back on the page, Play opens as it was left
     studio.nav("drums")
     studio.settle()
     assert not btn.is_visible()
