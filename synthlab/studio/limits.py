@@ -281,11 +281,16 @@ MAX_TAKE_NOTES_CHARS = 100_000  # the notes' JSON as posted
 MAX_TAKE_NOTES_BYTES = 128_000
 MAX_TAKE_BARS = 64  # a free take's 60 s (MAX_FREE_TAKE_SECONDS) at 200 bpm is 50 bars
 # the controls moved during one take, kept as its loop's curves (takemoves.py):
-# how many controls, how many points each as posted (thinned to the curve's
-# own MAX_CURVE_POINTS when kept), and the JSON's size
+# how many controls, how many points each and in all as posted (past either,
+# the rest is not read, and the take's toast says so), the JSON's size, and
+# the take clock's resolution for a move — points closer than it are one
+# (the last value wins), so what reaches the thinning is bounded by the
+# take's length, not by what was sent (64 bars: 12,800 at most)
 MAX_TAKE_MOVE_FIELDS = 32
 MAX_TAKE_MOVE_POINTS = 4000
+MAX_TAKE_MOVE_TOTAL = 32_000
 MAX_TAKE_MOVES_CHARS = 400_000
+TAKE_MOVE_GRID = 0.02  # beats
 # --- loops (studio_data/loops/, loops.py: Save as loop) ---------------------------
 MAX_LOOPS = 200  # the store; a save past it is refused
 MAX_LOOP_TAGS = 12  # a loop's tags (the Loops panel)

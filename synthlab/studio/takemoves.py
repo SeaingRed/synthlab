@@ -61,27 +61,37 @@ def _num(x) -> float | None:
 
 def parse(text: str) -> dict:
     """The moves a take posts, held to their shape and bounds; anything
-    unreadable is no moves (the take itself is never refused for them)."""
+    unreadable is no moves (the take itself is never refused for them).
+    Past `limits.MAX_TAKE_MOVE_POINTS` a control, or `MAX_TAKE_MOVE_TOTAL`
+    in all, the rest is not read and the control is named in `capped` (the
+    take's toast says so). Each control's points are then put on the take
+    clock's grid (`limits.TAKE_MOVE_GRID`: closer ones are one, the last
+    value wins), so the work after is bounded by the take's length."""
+    empty = {"from": {}, "moves": {}, "capped": []}
     if not text or len(text) > limits.MAX_TAKE_MOVES_CHARS:
-        return {"from": {}, "moves": {}}
+        return (
+            empty | {"capped": ["all of them (too much was sent)"]} if text else empty
+        )
     try:
         raw = json.loads(text)
     except (ValueError, RecursionError):
-        return {"from": {}, "moves": {}}
+        return empty
     if not isinstance(raw, dict):
-        return {"from": {}, "moves": {}}
+        return empty
     moves: dict = {}
-    for name, pts in (
-        list((raw.get("moves") or {}).items())[: limits.MAX_TAKE_MOVE_FIELDS]
-        if isinstance(raw.get("moves"), dict)
-        else []
-    ):
+    capped: list[str] = []
+    budget = limits.MAX_TAKE_MOVE_TOTAL
+    sent = raw.get("moves") if isinstance(raw.get("moves"), dict) else {}
+    for name, pts in list(sent.items())[: limits.MAX_TAKE_MOVE_FIELDS]:
         if not isinstance(name, str) or not 0 < len(name) <= 64:
             continue
         if not isinstance(pts, list):
             continue
+        room = min(limits.MAX_TAKE_MOVE_POINTS, budget)
+        if len(pts) > room:
+            capped.append(name)
         clean = []
-        for p in pts[: limits.MAX_TAKE_MOVE_POINTS]:
+        for p in pts[:room]:
             if isinstance(p, list) and len(p) == 2:
                 t, v = _num(p[0]), _num(p[1])
                 if (
@@ -90,14 +100,33 @@ def parse(text: str) -> dict:
                     and 0 <= t <= 4 * limits.MAX_TAKE_BARS
                 ):
                     clean.append([t, v])
+        budget -= min(len(pts), room)
         if clean:
-            moves[name] = sorted(clean, key=lambda p: p[0])
+            moves[name] = on_grid(sorted(clean, key=lambda p: p[0]))
+    if len(sent) > limits.MAX_TAKE_MOVE_FIELDS:
+        capped.append(f"{len(sent) - limits.MAX_TAKE_MOVE_FIELDS} more controls")
     start: dict = {}
     if isinstance(raw.get("from"), dict):
         for name, v in list(raw["from"].items())[: 4 * limits.MAX_TAKE_MOVE_FIELDS]:
             if isinstance(name, str) and name in PARAMS and (x := _num(v)) is not None:
                 start[name] = x
-    return {"from": start, "moves": moves}
+    return {"from": start, "moves": moves, "capped": capped}
+
+
+def on_grid(points: list[list]) -> list[list]:
+    """Sorted points as the take clock resolves them: one a
+    `limits.TAKE_MOVE_GRID` of a beat, the last value in each (a knob's
+    latest within it), at its time. One pass."""
+    out: list[list] = []
+    cell = None
+    for t, v in points:
+        k = math.floor(t / limits.TAKE_MOVE_GRID)
+        if out and k == cell:
+            out[-1] = [t, v]
+        else:
+            out.append([t, v])
+            cell = k
+    return out
 
 
 def _y(name: str, value: float) -> float:
@@ -106,36 +135,28 @@ def _y(name: str, value: float) -> float:
 
 
 def thin(points: list[list], cap: int) -> list[list]:
-    """At most `cap` points: Ramer-Douglas-Peucker at a growing tolerance
-    (first and last always kept), so a slow sweep loses nothing it bends."""
+    """At most `cap` points, in one pass: the first and the last kept, the
+    rest bucketed by x into `(cap - 2) // 2` buckets of equal width, each
+    keeping its lowest and its highest point (in x order) — so a sweep's
+    turning points survive, and the thinned curve is nowhere further from
+    the moves than the y-range inside one bucket (a 1/255 of the loop at
+    the curve cap of 512)."""
     if len(points) <= cap:
         return points
-    eps = 1e-4
-    while True:
-        keep = _rdp(points, eps)
-        if len(keep) <= cap:
-            return keep
-        eps *= 2
-
-
-def _rdp(points: list[list], eps: float) -> list[list]:
-    keep = [False] * len(points)
-    keep[0] = keep[-1] = True
-    stack = [(0, len(points) - 1)]
-    while stack:
-        a, b = stack.pop()
-        (x0, y0), (x1, y1) = points[a], points[b]
-        far, at = -1.0, -1
-        for i in range(a + 1, b):
-            x, y = points[i]
-            # the vertical distance from the line a-b (a curve is y over x)
-            line = y0 + (y1 - y0) * ((x - x0) / (x1 - x0) if x1 > x0 else 0.0)
-            if (d := abs(y - line)) > far:
-                far, at = d, i
-        if far > eps:
-            keep[at] = True
-            stack += [(a, at), (at, b)]
-    return [p for p, k in zip(points, keep, strict=True) if k]
+    first, last, inner = points[0], points[-1], points[1:-1]
+    n = max(1, (cap - 2) // 2)
+    x0, x1 = first[0], last[0]
+    width = (x1 - x0) / n or 1.0
+    lo: dict[int, list] = {}
+    hi: dict[int, list] = {}
+    for p in inner:
+        b = min(n - 1, int((p[0] - x0) / width))
+        if b not in lo or p[1] < lo[b][1]:
+            lo[b] = p
+        if b not in hi or p[1] > hi[b][1]:
+            hi[b] = p
+    kept = {id(p): p for b in lo for p in sorted((lo[b], hi[b]), key=lambda q: q[0])}
+    return [first, *sorted(kept.values(), key=lambda q: q[0]), last]
 
 
 def curve(start: float, moves: list[list], name: str, loop_beats: float) -> list:
@@ -230,9 +251,14 @@ def _macro_targets(name: str, pts: list[list], macros) -> list[tuple[str, list]]
     return out
 
 
-def said(kept: list[str], missed: list[str]) -> str:
+def said(kept: list[str], missed: list[str], capped=()) -> str:
     """The take's toast's words for them ("" when nothing moved)."""
     bits = []
+    if capped:
+        bits.append(
+            "too many moves sent — only the first read of "
+            + ", ".join(_label(c) for c in capped)
+        )
     if kept:
         bits.append("kept " + ", ".join(_label(k) for k in kept) + " as automation")
     if missed:

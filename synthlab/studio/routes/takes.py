@@ -148,13 +148,11 @@ def take_keys(
     # the knobs are now
     meter = _take_meter(meta)
     grid = loops.grid_bars(bars, loops.default_steps(meter))
+    sent = takemoves.parse(form.get("moves", ""))
     payload, kept, missed = takemoves.apply(
-        payload,
-        takemoves.parse(form.get("moves", "")),
-        grid * _meter.bar_beats(meter),
-        s.macros,
+        payload, sent, grid * _meter.bar_beats(meter), s.macros
     )
-    moved = takemoves.said(kept, missed)
+    moved = takemoves.said(kept, missed, sent["capped"])
     meta["sound"] = kt.save_sound(s.data_dir, payload)
     if form.get("beat") == "1":
         meta["beat"] = True

@@ -108,7 +108,7 @@ def test_moves_past_the_grid_are_not_kept_and_a_long_sweep_is_thinned():
 )
 def test_hostile_moves_are_bounded_never_an_error(text):
     got = takemoves.parse(text)
-    assert set(got) == {"from", "moves"}
+    assert set(got) == {"from", "moves", "capped"}
     assert len(got["moves"]) <= limits.MAX_TAKE_MOVE_FIELDS
     for pts in got["moves"].values():
         assert all(isinstance(t, float) and isinstance(v, float) for t, v in pts)
@@ -155,3 +155,71 @@ def test_a_take_keeps_its_turns_as_its_loops_curves(tmp_path):
         assert patch.cutoff == 800.0  # the loop starts where the take did
         assert extras["curves"]["cutoff"][0] == [0.0, pytest.approx((800 - 60) / 15940)]
         assert s.patch.cutoff == before  # the session's sound: as the knobs are
+
+
+# --- bounded work (a take post is untrusted input) -----------------------------
+
+
+def test_the_most_a_post_may_carry_is_read_and_thinned_in_bounded_time():
+    import time
+
+    per = limits.MAX_TAKE_MOVE_TOTAL // 8  # 8 controls at the total's limit
+    fields = ["cutoff", "resonance", "pitch_bend", "mod_wheel"] + [
+        f"x{i}" for i in range(4)
+    ]
+    sent = {
+        name: [[round(i * 0.007, 3), i % 10] for i in range(per)] for name in fields
+    }
+    sent["drive"] = [[0, 1]]  # past the total: not read, said
+    text = json.dumps({"moves": sent}, separators=(",", ":"))
+    assert len(text) <= limits.MAX_TAKE_MOVES_CHARS
+    t0 = time.perf_counter()
+    got = takemoves.parse(text)
+    out, kept, _missed = takemoves.apply({"patch": {}}, got, 4 * 64.0)
+    took = time.perf_counter() - t0
+    assert took < 1.0, took
+    # the total is shared: only the first eight controls are read whole
+    assert sum(len(p) for p in got["moves"].values()) <= limits.MAX_TAKE_MOVE_TOTAL
+    assert got["capped"]  # the rest: named for the toast
+    # on the take clock's grid: never two points in one 1/50 of a beat
+    for pts in got["moves"].values():
+        cells = [int(t / limits.TAKE_MOVE_GRID) for t, _v in pts]
+        assert len(cells) == len(set(cells))
+    assert kept and all(len(out["curves"][k]) <= limits.MAX_CURVE_POINTS for k in kept)
+    # the thinning alone, on the longest take's whole grid: one pass
+    dense = [[i * 0.02, float((i * 7919) % 101)] for i in range(12_800)]
+    t0 = time.perf_counter()
+    thinned = takemoves.thin(dense, limits.MAX_CURVE_POINTS)
+    assert time.perf_counter() - t0 < 0.5 and len(thinned) <= limits.MAX_CURVE_POINTS
+
+
+def test_a_post_past_the_raw_limits_is_capped_and_said():
+    over = [[i * 0.05, 100.0 + i] for i in range(limits.MAX_TAKE_MOVE_POINTS + 500)]
+    got = takemoves.parse(json.dumps({"moves": {"cutoff": over}}))
+    assert got["capped"] == ["cutoff"]
+    assert got["moves"]["cutoff"][-1][0] < over[-1][0]  # the rest not read
+    said = takemoves.said(["cutoff"], [], got["capped"])
+    assert "too many moves sent" in said and "Cutoff" in said
+    huge = "x" * (limits.MAX_TAKE_MOVES_CHARS + 1)
+    assert takemoves.parse(huge)["capped"] and not takemoves.parse(huge)["moves"]
+
+
+def test_a_thinned_sweep_keeps_its_ends_and_turning_points():
+    # up and down three times, 3000 points: thinned to the curve's cap
+    pts = []
+    for i in range(3000):
+        x = i / 2999
+        phase = (x * 3) % 1.0
+        pts.append([x, phase * 2 if phase < 0.5 else 2 - phase * 2])
+    out = takemoves.thin(pts, limits.MAX_CURVE_POINTS)
+    assert len(out) <= limits.MAX_CURVE_POINTS
+    assert out[0] == pts[0] and out[-1] == pts[-1]
+    assert max(y for _x, y in out) == max(y for _x, y in pts)  # the peaks
+    assert min(y for _x, y in out[1:-1]) == min(y for _x, y in pts[1:-1])
+    # nowhere further from the sweep than one bucket's y-range
+    xs, ys = [p[0] for p in out], [p[1] for p in out]
+    import numpy as np
+
+    away = np.abs(np.interp([p[0] for p in pts], xs, ys) - [p[1] for p in pts])
+    bucket = 1 / ((limits.MAX_CURVE_POINTS - 2) // 2)
+    assert away.max() <= 6 * bucket + 1e-9  # slope 6 over one bucket's width
