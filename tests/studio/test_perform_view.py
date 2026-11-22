@@ -292,7 +292,9 @@ def test_retired_perform_routes_are_gone(tmp_path):
 def test_perform_island_within_budget(tmp_path):
     r = make_client(tmp_path).get("/static/perform.js")
     assert r.status_code == 200
-    assert len(_code_lines(PERFORM)) <= 150
+    # 150 -> 165: Play's popover (opened from the keyboard dock's Tools,
+    # one of it and Play tools at a time, kept open across visits)
+    assert len(_code_lines(PERFORM)) <= 165
     assert "loop-switched" in PERFORM.read_text(encoding="utf-8")
 
 

@@ -228,7 +228,7 @@ def test_a_section_launch_shows_its_notes_and_ctrl_z_puts_the_loop_back(studio, 
     row = page.locator('#loops-panel .lp-row[data-what="section"]').first
     assert sid in row.locator(".lp-scene").get_attribute("hx-vals")
     with page.expect_response("**/fragment/perform/scene/section"):
-        row.locator(".lp-scene").click()
+        row.dblclick()  # a row's double-click: its Open (a section: a scene)
     page.wait_for_selector('#transport .rowlabel[data-pitch="E4"]')
     studio.settle()
     shown = page.locator("#transport .grid.roll .gridrow:not(.sliderow) .cell:checked")
@@ -344,4 +344,130 @@ def test_the_chance_lane_takes_the_velocity_lanes_place_and_writes_the_chance(
     page.keyboard.press("PageUp")
     assert page.locator(vel).is_visible()
     assert len(note_schedule(server.state.arrangement)[0]) < len(cells)
+    assert studio.unexplained() == []
+
+
+def _one_line(page, sel: str) -> bool:
+    """Every visible child of `sel` on one line: each overlaps every other
+    vertically (a second line starts under the first one's foot)."""
+    return page.evaluate(
+        """(sel) => {
+          const rs = [...document.querySelector(sel).children]
+            .filter((c) => c.checkVisibility() && c.getBoundingClientRect().height > 0)
+            .map((c) => c.getBoundingClientRect());
+          const top = Math.max(...rs.map((r) => r.top));
+          return top < Math.min(...rs.map((r) => r.bottom)); }""",
+        sel,
+    )
+
+
+def test_the_toolbars_are_one_line_and_tools_holds_the_rest_its_keys_work_shut(
+    studio, server
+):
+    """The note grid's toolbar and the controls row over it (the key, the
+    feel) are one line each at 1920 x 1080, dense and comfy; the rest of the
+    tools are Tools ▾'s — shut, a command from the palette and a roll key
+    (Ctrl+D) still reach them, and open, an action leaves it open."""
+    from dataclasses import replace
+
+    server.state.arrangement = replace(server.state.arrangement, cells=[], cuts=[])
+    page = studio.page
+    page.set_viewport_size({"width": 1920, "height": 1080})
+    for density in ("compact", "comfy"):
+        page.context.add_cookies(
+            [{"name": "density", "value": density, "url": server.url}]
+        )
+        studio.open("perform")
+        studio.settle()
+        for sel in (
+            "#transport .transport-controls",
+            "#transport .pattern-tools",
+            "#perform-drums .pattern-tools",
+        ):
+            assert _one_line(page, sel), (density, sel)
+    assert not page.locator("#ptm-notes").is_visible()
+    row = page.locator(NOTE_ROWS).nth(0)
+    pitch = row.locator(".rowlabel").get_attribute("data-pitch")
+    row.locator("input.cell").nth(0).click()
+    _wait(page, lambda: (pitch, 0) in _cells(server), "the note")
+    # shut: the palette runs a tool that lives in it
+    page.locator(".view-head h1").click()
+    page.keyboard.press("Control+k")
+    page.fill("#pal-q", "Shift notes right")
+    with page.expect_response("**/fragment/pattern/notes/shift_right"):
+        page.keyboard.press("Enter")
+    _wait(page, lambda: _cells(server) == {(pitch, 1)}, "the note a step later")
+    # shut: a roll key (Ctrl+D, the selection duplicated: roll.js presses its button)
+    page.click('#transport [data-roll-tool="select"]')
+    row.locator("input.cell").nth(1).click()
+    with page.expect_response("**/fragment/pattern/notes/copy"):
+        page.keyboard.press("Control+d")
+    _wait(page, lambda: _cells(server) == {(pitch, 1), (pitch, 2)}, "the copy")
+    assert not page.locator("#ptm-notes").is_visible()
+    page.click('#transport [data-roll-tool="draw"]')
+    # open: an action from it, and it stays open for the next
+    page.click("#transport .pt-more-btn")
+    page.wait_for_selector("#ptm-notes:popover-open")
+    with page.expect_response("**/fragment/pattern/notes/down"):
+        page.click('#ptm-notes [data-cmd="Transpose down a scale tone"]')
+    studio.settle()
+    page.wait_for_selector("#ptm-notes:popover-open")
+    assert len({c[0] for c in _cells(server)}) == 2  # (the selected copy moved down)
+    page.keyboard.press("Escape")
+    page.wait_for_selector("#ptm-notes:not(:popover-open)", state="attached")
+    assert studio.unexplained() == []
+
+
+def test_play_opens_from_the_keys_dock_and_its_keys_play_it_shut(studio, server):
+    """The right column is the lane inspector alone; Play (pads, XY, FX,
+    beats) opens from the keyboard dock's Tools ("Pads ▴"), over the page
+    above the dock's right end, one of it and Play tools at a time, and
+    again on the next visit; its pads' keys play them shut and open."""
+    page = studio.open("perform")
+    studio.settle()
+    side = page.evaluate(
+        "() => [...document.querySelector('.perform-side').children]"
+        ".filter((c) => c.matches('.module')).map((c) => c.id)"
+    )
+    assert side == ["perform-lane"]
+    assert page.locator("#perform-slots #perform-arrange .to-song").is_visible()
+    play, btn = page.locator("#perform-play"), page.locator("#keys-dock #play-open")
+    assert not play.is_visible() and btn.is_visible()
+    # typing → pads: Q strikes the kick pad, Play shut
+    page.click('#kbd-typeto [data-typeto="pads"]')
+    page.locator(".view-head h1").click()
+    with page.expect_request("**/drum/kick/hit.wav*"):
+        page.keyboard.press("KeyQ")
+    # Pads ▴ opens it over the page, above the dock, at its right end
+    btn.click()
+    page.wait_for_selector("#perform-play:popover-open")
+    page.wait_for_selector('#play-open[aria-expanded="true"]')
+    box, dock = play.bounding_box(), page.locator("#keys-dock").bounding_box()
+    assert box["y"] + box["height"] <= dock["y"] + 1, (box, dock)
+    assert box["x"] + box["width"] > dock["x"] + dock["width"] - 40, (box, dock)
+    # one of it and Play tools at a time
+    page.click("#keys-dock .play-tools-btn")
+    page.wait_for_selector("#play-tools:popover-open")
+    assert not play.is_visible()
+    page.click("#keys-dock .play-tools-btn")
+    page.wait_for_selector("#play-tools:not(:popover-open)", state="attached")
+    btn.click()
+    page.wait_for_selector("#perform-play:popover-open")
+    # another tab shown: W still strikes the snare
+    page.click('#perform-play [data-tab-pick="fx"]')
+    page.locator(".view-head h1").click()
+    with page.expect_request("**/drum/snare/hit.wav*"):
+        page.keyboard.press("KeyW")
+    assert play.is_visible()
+    # elsewhere there is no Pads ▴; back on the page, Play opens as it was left
+    studio.nav("drums")
+    studio.settle()
+    assert not btn.is_visible()
+    studio.nav("perform")
+    studio.settle()
+    page.wait_for_selector("#perform-play:popover-open")
+    page.click("#perform-play .play-x")
+    page.wait_for_selector("#perform-play:not(:popover-open)", state="attached")
+    page.wait_for_selector('#play-open[aria-expanded="false"]')
+    page.evaluate("() => localStorage.setItem('synthlab.typeto', 'keys')")
     assert studio.unexplained() == []

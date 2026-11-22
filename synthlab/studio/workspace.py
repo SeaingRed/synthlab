@@ -138,8 +138,10 @@ PRESETS: dict[str, list[tuple[str, dict]]] = {
     ],
     "perform": [
         # the Loops page as the studio draws it: the Loops panel, the
-        # launcher over the two grids, the right
-        # column — → Song, the lane inspector (✦ Coach its tab), Play
+        # launcher over the two grids, the right column — the lane
+        # inspector (✦ Coach its tab). (Play is no module of the dock: the
+        # keyboard dock's Tools open it over the page; → Song is the
+        # launcher head's)
         (
             "Grids",
             {
@@ -152,14 +154,14 @@ PRESETS: dict[str, list[tuple[str, dict]]] = {
                             "perform.notes",
                             "perform.drums",
                         ),
-                        col("perform.song", "perform.lane", "perform.play"),
+                        "perform.lane",
                         weights=(1, 5, 1.2),
                     )
                 }
             },
         ),
-        # launching: the launcher and Play beside the grids, which share a
-        # tab
+        # launching: the launcher and the inspector beside the grids, which
+        # share a tab
         (
             "Launch",
             {
@@ -171,13 +173,13 @@ PRESETS: dict[str, list[tuple[str, dict]]] = {
                             "perform.slots",
                             group("perform.notes", "perform.drums"),
                         ),
-                        col("perform.song", "perform.play", "perform.lane"),
+                        "perform.lane",
                         weights=(0.6, 4, 1.6),
                     )
                 }
             },
         ),
-        # the most on one screen: the panel, the inspector and Play share a
+        # the most on one screen: the panel and the inspector share a
         # column's tabs, the grids beside it
         (
             "Compact",
@@ -186,8 +188,7 @@ PRESETS: dict[str, list[tuple[str, dict]]] = {
                     "perform": row(
                         col(
                             "perform.transport",
-                            group("perform.lane", "perform.loops", "perform.play"),
-                            "perform.song",
+                            group("perform.lane", "perform.loops"),
                         ),
                         col("perform.slots", group("perform.notes", "perform.drums")),
                         weights=(1, 3),

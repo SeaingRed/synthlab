@@ -68,6 +68,14 @@ def _slot(lane: int, row: int) -> str:
     return f'#slots .sl-cell[data-lane="{lane}"][data-row="{row}"]'
 
 
+def _tools(page, sel: str) -> None:
+    """A tool in the note grid's Tools ▾: opened, pressed, shut again (before
+    the answer, so it does not open again over the grid)."""
+    page.click("#transport .pt-more-btn")
+    page.locator(f"#ptm-notes {sel}").click()
+    page.evaluate("() => document.getElementById('ptm-notes').hidePopover()")
+
+
 def _drop(page, title: str, lane: int, row: int) -> None:
     src = page.locator(f'#loops-panel .lp-row[data-drag-loop][data-title="{title}"]')
     with page.expect_response("**/fragment/perform/slot/place"):
@@ -112,7 +120,7 @@ def test_fill_launch_a_slot_and_a_scene_edit_undo_and_stop(studio, server):
     }
     # an edit of the playing slot's lane saves to its loop
     with page.expect_response("**/fragment/pattern/notes/shift_right"):
-        page.locator('[hx-post="/fragment/pattern/notes/shift_right"]').first.click()
+        _tools(page, '[hx-post="/fragment/pattern/notes/shift_right"]')
     _wait(
         page,
         lambda: (
@@ -229,7 +237,7 @@ def test_select_a_cell_play_it_alone_on_the_deck_and_rec_into_it(studio, server)
     page.wait_for_selector('#perform-transport .deck-meter > i[data-s="now"]')
     # an edit saves to its loop, and the deck asks for it alone again
     with page.expect_response("**/fragment/perform/slot/hear"):
-        page.locator('[hx-post="/fragment/pattern/notes/shift_right"]').first.click()
+        _tools(page, '[hx-post="/fragment/pattern/notes/shift_right"]')
     _wait(
         page,
         lambda: ["A2", 1] in loops.load(server.data_dir, "Acid line")["lane"]["cells"],
@@ -335,7 +343,7 @@ def test_keys_quantise_keep_and_a_section_as_a_scene(studio, server):
     row = page.locator('#loops-panel .lp-row[data-what="section"]')
     assert row.count() == 1 and sid in row.locator(".lp-scene").get_attribute("hx-vals")
     with page.expect_response("**/fragment/perform/scene/section"):
-        row.locator(".lp-scene").click()
+        row.dblclick()  # a row's double-click: its Open (a section: a scene)
     page.locator('#slots .sl-row[data-row="1"] .sl-scene small').wait_for()
     assert s.slot_rows()[1]["name"] == "Verse"
     assert s.slot_rows()[1]["slots"][0] and s.slot_rows()[1]["slots"][4]

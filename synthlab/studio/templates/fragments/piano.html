@@ -384,6 +384,12 @@
         button the toolbar's last, at the right end; they open over the page -#}
     <div class="kbd-grp kbd-tools" role="group" aria-labelledby="kbd-tools-cap" data-menu-section="Tools">
       <span class="caps" id="kbd-tools-cap">Tools</span>
+      {#- on the Loops page, its Play (pads, the drum XY, the performance
+          FX, the beats: views/perform.html #perform-play) opens here, over
+          the page as Play tools does — shown there alone (style.css 14) -#}
+      <button type="button" class="btn btn-s play-pads-btn" id="play-open" popovertarget="perform-play"
+              data-cmd="Play: the pads, the drum XY, the performance FX, the beats" data-cmd-group="Keys"
+              title="Play: the pads (Q W E R / A S D F with typing → pads), the drum XY, the performance FX (C V B N · I O P) and the beats — their keys play them shut too">Pads ▴</button>
       {% include "fragments/chord_bar.html" %}
     </div>
   </div>
