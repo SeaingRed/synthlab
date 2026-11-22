@@ -16,7 +16,8 @@
 //    to jack patches: source -> target takes the first unused slot (and
 //    gives it +50 % if its amount is 0); from a plugged target to another
 //    re-routes that lead; from a plugged target to nowhere unplugs it. The
-//    row's ± and ✕ buttons invert and unplug.
+//    row's ± and ✕ buttons invert and unplug; a bypassed route (its switch,
+//    `modN_on`, off) keeps its lead, faint.
 // 2. `.player` (a shared component, style.css section 15): play / pause, a
 //    seek bar, the time and (`.player-loop`, when it has one) loop on / off
 //    for a control-less <audio> — the Voice take, the
@@ -34,7 +35,17 @@
 // 138 -> 146: the twelve mod routes — "+ route" opens the next of
 // slots 5-12, and a lead's jacks are all marked before any is measured (a
 // target jack shows while plugged).
-// Budget: <= 146 code lines.
+// 4. A section at rest folds to its heading. A panel's run of rows under a
+//    heading (an h4, or the legend down to the first h4) rests when the
+//    engine hears none of it: every row is idle (paramui.idle's mark) or a
+//    dial at 0 — Tremolo at depth 0, the Vowel at amount 0, an LFO nothing
+//    routes. It is drawn as its heading alone; a click (Enter, Space) opens
+//    it, and one opened or touched stays open for the page's life, so
+//    nothing folds under the hand. No state: the patch says what rests.
+// 146 -> 188: the sections at rest.
+// 188 -> 190: a route's switch — a bypassed route's lead is drawn faint,
+// and a lead dropped into a bypassed free slot switches it on.
+// Budget: <= 190 code lines.
 
 (() => {
   "use strict";
@@ -47,14 +58,16 @@
   const field = (slot, k) => document.querySelector(`:is(#patch, .patch-panel) [name="${slot}_${k}"]`);
   const routes = () => [...document.querySelectorAll("#mod-matrix .route")].map((r) => {
     const slot = r.dataset.slot;
-    return { slot, src: field(slot, "src")?.value || "none", dst: field(slot, "dst")?.value, amt: +field(slot, "amt")?.value || 0 };
+    return { slot, src: field(slot, "src")?.value || "none", dst: field(slot, "dst")?.value, amt: +field(slot, "amt")?.value || 0,
+      off: !!document.querySelector(`:is(#patch, .patch-panel) [name="${slot}_on"][value="off"]:checked`) };
   });
+  const switchOn = (slot) => { const on = document.querySelector(`:is(#patch, .patch-panel) [name="${slot}_on"][value="on"]`); if (on && !on.checked) { on.checked = true; fire(on, "input", "change"); } };
   const set = (el, v) => { if (el && el.value !== v) { el.value = v; fire(el, "input", "change"); } };
-  function lead(a, z, { src, amt = 0, slot = "" }, cls = "") {
+  function lead(a, z, { src, amt = 0, slot = "", off = false }, cls = "") {
     const sag = Math.min(24, 6 + Math.abs(z[0] - a[0]) * 0.12), dx = z[0] - a[0];
     const d = `M${a[0]} ${a[1]}C${a[0] + dx * 0.3} ${a[1] + sag} ${a[0] + dx * 0.7} ${z[1] + sag} ${z[0]} ${z[1]}`;
     const text = slot ? `<text x="${a[0] + dx / 2}" y="${(a[1] + z[1]) / 2 + sag * 0.75 - 3}">${amt > 0 ? "+" : ""}${Math.round(amt * 100)}%</text>` : "";
-    return `<g class="cable${amt < 0 ? " neg" : ""}${cls}" data-signal="mod" data-src="${src}" data-slot="${slot}"><path d="${d}"/><circle cx="${a[0]}" cy="${a[1]}" r="2.2"/><circle cx="${z[0]}" cy="${z[1]}" r="2.2"/>${text}</g>`;
+    return `<g class="cable${amt < 0 ? " neg" : ""}${off ? " off" : ""}${cls}" data-signal="mod" data-src="${src}" data-slot="${slot}"><path d="${d}"/><circle cx="${a[0]}" cy="${a[1]}" r="2.2"/><circle cx="${z[0]}" cy="${z[1]}" r="2.2"/>${text}</g>`;
   }
   function draw(drag) {
     const b = bay(), box = b?.getBoundingClientRect();
@@ -86,7 +99,7 @@
     if (!to || !src || !dst || rs.some((r) => r.src === src && r.dst === dst)) return;
     const slot = rs.find((r) => r.src === "none")?.slot;
     if (!slot) return void S.toast?.("All twelve routes are in use — unplug one (✕) first", "error");
-    set(field(slot, "dst"), dst); set(field(slot, "src"), src);
+    set(field(slot, "dst"), dst); set(field(slot, "src"), src); switchOn(slot); // a new lead plays
     if (!+field(slot, "amt").value) S.tweak?.(field(slot, "amt"), 0.5, true);
   }
   let pull = null;
@@ -182,6 +195,56 @@
     d.hidePopover();
     document.querySelector('[popovertarget="agent-drawer"]:not(.ad-close)')?.focus();
   });
+  // ---- 4. a section at rest folds to its heading -----------------------------
+  const HEADS = ":is(#patch, .patch-panel) h4.subhead, fieldset.patch-panel:not(#panel-mod-matrix) > legend";
+  const opened = new Set();
+  const keyOf = (h) => h.id || h.parentElement.id;
+  const runOf = (h) => {
+    const run = [];
+    for (let n = h.nextElementSibling; n && !n.matches("h4.subhead"); n = n.nextElementSibling) run.push(n);
+    return run;
+  };
+  const still = (c) => c.type === "range" && +c.value === 0;
+  // every control on show in the run, in a row or not (an FM4 operator's dial, a wavetable's frame)
+  const atRest = (run) => {
+    const ctls = run.flatMap((n) => [...n.querySelectorAll("input, select")]).filter((c) => c.offsetParent && !c.closest("[popover]"));
+    return ctls.length > 0 && ctls.every((c) => c.closest(".param[data-idle]") || still(c));
+  };
+  function rest() {
+    const heads = [...document.querySelectorAll(HEADS)].map((h) => [h, runOf(h)]);
+    for (const [, run] of heads) run.forEach((n) => n.removeAttribute("data-rested")); // measured as laid out unfolded
+    const rests = heads.map(([h, run]) => !!h.offsetParent && atRest(run)); // every read before any write
+    // a section folds as its page arrives (a head not yet `data-seen`: a load, a morph), and stays as it
+    // was after: an edit's own swaps find the idle marks a beat behind, and never fold what is on show
+    heads.forEach(([h, run], i) => {
+      const may = !h.hasAttribute("data-seen") || h.dataset.rest === "folded";
+      h.setAttribute("data-seen", "");
+      const own = h.matches("h4") ? ["title"] : []; // (a legend's title is its panel's note)
+      if (!rests[i]) { for (const a of ["data-rest", "tabindex", "role", "aria-expanded", ...own]) h.removeAttribute(a); return; }
+      const fold = may && !opened.has(keyOf(h));
+      h.dataset.rest = fold ? "folded" : "open";
+      h.tabIndex = 0; h.setAttribute("role", "button"); h.setAttribute("aria-expanded", String(!fold));
+      if (h.matches("h4")) h.title = "at rest: nothing here is heard now. Click to " + (fold ? "open it" : "fold it");
+      if (fold) run.forEach((n) => n.setAttribute("data-rested", ""));
+    });
+  }
+  const headAt = (e) => (e.target.closest?.("button, select, input, [popover]") ? null : e.target.closest?.("[data-rest]"));
+  function flip(e) {
+    const h = headAt(e);
+    if (!h || (e.type === "keydown" && e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    if (h.dataset.rest === "folded") opened.add(keyOf(h)); else { opened.delete(keyOf(h)); h.removeAttribute("data-seen"); }
+    rest();
+  }
+  document.addEventListener("click", flip);
+  document.addEventListener("keydown", flip);
+  // a control moved: its section stays open, whatever its value comes to
+  document.addEventListener("input", (e) => {
+    const row = e.target.closest?.(":is(#patch, .patch-panel) .param");
+    for (const h of row ? document.querySelectorAll(HEADS) : []) if (runOf(h).some((n) => n.contains(row))) opened.add(keyOf(h));
+  });
+  document.addEventListener("patch-idle", () => queueMicrotask(rest)); // (after audio.js has moved the idle marks)
   document.addEventListener("htmx:after:settle", settle);
   document.addEventListener("DOMContentLoaded", settle);
+  for (const t of ["htmx:after:settle", "DOMContentLoaded"]) document.addEventListener(t, rest);
 })();

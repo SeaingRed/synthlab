@@ -21,16 +21,19 @@ import numpy as np
 
 from .. import sampler
 from ..params import (
+    ENV_SYNC_TIMES,
     FILTER_TYPES_ALL,
+    GENERAL_LFOS,
     GENES,
     MOD_DESTINATIONS,
     MOD_SLOTS,
     PARAMS,
     PITCH_ROUTE,
+    osc3_on,
     slot_active,
     uses_shape,
 )
-from ..synth import Patch
+from ..synth import Patch, warp_of
 
 # Panels in signal-flow order: what makes the sound, what filters it, the
 # vowel tract, the amp, the character stage, then everything that moves it
@@ -147,6 +150,9 @@ MOD_SOURCE_LABELS = {
     "aftertouch": "Aftertouch",
     "key": "Key",
     "random": "Random",
+    "lfo4": "LFO 4",
+    "lfo5": "LFO 5",
+    "lfo6": "LFO 6",
 }
 # the filter types as the menus say them (filter 1's select, filter 2's)
 FILTER_LABELS = {
@@ -174,9 +180,16 @@ LFO_SHAPE_LABELS = {
     "drawn": "drawn",
     "chaos": "chaos",
     "smooth": "smooth random",
+    "lorenz": "Lorenz",
+    "rossler": "Rössler",
 }
-# a route row's three fields, every slot (the mod matrix draws them)
-ROUTE_FIELDS = frozenset(f"{s}_{k}" for s in MOD_SLOTS for k in ("src", "dst", "amt"))
+# each envelope time's sync division, drawn in the time's own row
+ENV_SYNC_FIELDS = frozenset(f"{t}_sync" for t in ENV_SYNC_TIMES)
+# a route row's fields, every slot (the mod matrix draws them): its switch,
+# source, target, amount and source curve
+ROUTE_FIELDS = frozenset(
+    f"{s}_{k}" for s in MOD_SLOTS for k in ("on", "src", "dst", "amt", "curve")
+)
 
 
 EXACT, IGNORED, DEFAULT = "exact", "ignored", "default"
@@ -204,8 +217,13 @@ def _cross_fm_ok(p) -> bool:
 
 
 # sources whose value later in a note the first sample cannot know: an LFO
-# (any of the three), and the wheels a player moves
-_LATE_SOURCES = frozenset({"lfo", "lfo2", "lfo3", "wheel", "aftertouch"})
+# (any of the six), and the wheels a player moves
+_LATE_SOURCES = frozenset(
+    {"lfo", *(f"lfo{k}" for k in GENERAL_LFOS), "wheel", "aftertouch"}
+)
+# route targets the live voice has no part for, and whose silence at the
+# patch's own value a route can break
+_WAV_TARGETS = frozenset({"osc3_level"})
 
 
 def _slot_gate(slot: str) -> Callable[[Any], bool]:
@@ -216,8 +234,10 @@ def _slot_gate(slot: str) -> Callable[[Any], bool]:
     post-filter clip switches on for the WHOLE note if any sample's drive
     exceeds 1, which an LFO that starts on the wrong side of zero only does
     later — the live voice can't know at the first sample whether it ever
-    will. And a route that moves the pitch of a formant-mode sampler
-    (`_FORMANT_UNSEEN`)."""
+    will. A route that moves the pitch of a formant-mode sampler
+    (`_FORMANT_UNSEEN`). And a route onto a field the voice does not play
+    whose value at 0 is silence (`_WAV_TARGETS`: osc 3's level — a route
+    there would lift a silent osc 3 into hearing)."""
 
     def ok(p) -> bool:
         if not slot_active(p, slot):
@@ -229,9 +249,44 @@ def _slot_gate(slot: str) -> Callable[[Any], bool]:
             and p.filter_type not in ("ladder", "diode")
             and p.drive <= 1.0
         )
+        if dst in _WAV_TARGETS:
+            return False
         return not late_clip and not (dst in _FORMANT_UNSEEN and _formant_sampler(p))
 
     return ok
+
+
+# The stepped LFO shape ("noise") reads a seeded stream the live voice
+# holds the first 4096 values of (voicetables.UNIFORM), one a cycle: at
+# the old 30 Hz ceiling it wraps after 136 s of a held note, at 1000 Hz
+# after 4 s. So a stepped LFO a route reads plays live up to 30 Hz; faster
+# keys take the /note WAV. Every other shape is computed, live, at any rate.
+STEPPED_LIVE_HZ = 30.0
+
+
+def _lfo_reads(p, k: int) -> bool:
+    """Does a route that plays read general LFO k (1: "lfo")?"""
+    src = "lfo" if k == 1 else f"lfo{k}"
+    return any(slot_active(p, s) and getattr(p, f"{s}_src") == src for s in MOD_SLOTS)
+
+
+def _stepped_ok(k: int) -> Callable[[Any], bool]:
+    shape, rate = (
+        ("lfo_shape", "mod_lfo_rate") if k == 1 else (f"lfo{k}_shape", f"lfo{k}_rate")
+    )
+
+    def ok(p) -> bool:
+        if getattr(p, shape) != "noise" or not _lfo_reads(p, k):
+            return True
+        return float(getattr(p, rate)) <= STEPPED_LIVE_HZ
+
+    return ok
+
+
+def _env_name(time: str) -> str:
+    """'filter_attack' -> 'Filter', 'env3_decay' -> 'Env 3'."""
+    env = time.split("_")[0]
+    return "Filter" if env == "filter" else f"Env {env[3:]}"
 
 
 def _osc1_ok(p) -> bool:
@@ -270,9 +325,9 @@ _ENTRIES: list[tuple[str, Ui]] = [
     # "sampler" plays live only as _osc1_ok admits it; otherwise a sampler
     # sound's keys take the server-rendered WAV path
     ("osc1", _ui(_S, "Oscillator 1", _osc1_ok, widget="pills",
-        extra=("fm4", "sampler"),
-        hint="The main waveform. FM, FM4, pluck, wavetable and sampler show their "
-             "own settings.")),
+        extra=("fm4", "sampler", "granular", "spectral"),
+        hint="The main waveform. FM, FM4, pluck, wavetable, sampler, granular "
+             "and spectral show their own settings.")),
     ("osc1_level", _ui(_S, "Osc 1 level", EXACT,
         hint="How loud oscillator 1 is in the mix.")),
     ("osc1_octave", _ui(_S, "Osc 1 octave", EXACT,
@@ -290,6 +345,16 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ("osc1_warp_amt", _ui(_S, "Osc 1 warp amount", EXACT, mod_label="Osc 1 warp",
         hint="How far oscillator 1's warp bends. Draw it or route to it to sweep the "
              "timbre.")),
+    # a second warp (core.warp_twice): not in the live voice, so "default"
+    # — while it bends, a sound's keys take the server-rendered WAV; off
+    # (or on a shape it does not bend) it blocks nothing (`_UNHEARD`)
+    ("osc1_warp2", _ui(_S, "Osc 1 warp 2", DEFAULT, widget="select",
+        option_labels=WARP_LABELS,
+        hint="A second warp on oscillator 1's phase, after the first: two bends at "
+             "once (PD then mirror, a bend then quantize...).")),
+    ("osc1_warp2_amt", _ui(_S, "Osc 1 warp 2 amount", DEFAULT,
+        mod_label="Osc 1 warp 2",
+        hint="How far oscillator 1's second warp bends. Draw it or route to it.")),
     ("osc2", _ui(_S, "Oscillator 2", _osc2_ok, widget="pills", subhead="Oscillator 2",
         extra=("fm4",), hint="A second waveform layered on the first.")),
     ("osc2_level", _ui(_S, "Osc 2 level", EXACT,
@@ -305,6 +370,16 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ("osc2_warp_amt", _ui(_S, "Osc 2 warp amount", EXACT, mod_label="Osc 2 warp",
         hint="How far oscillator 2's warp bends. Draw it or route to it to sweep "
              "the timbre.")),
+    # a second warp (core.warp_twice): not in the live voice, so "default"
+    # — while it bends, a sound's keys take the server-rendered WAV; off
+    # (or on a shape it does not bend) it blocks nothing (`_UNHEARD`)
+    ("osc2_warp2", _ui(_S, "Osc 2 warp 2", DEFAULT, widget="select",
+        option_labels=WARP_LABELS,
+        hint="A second warp on oscillator 2's phase, after the first: two bends at "
+             "once (PD then mirror, a bend then quantize...).")),
+    ("osc2_warp2_amt", _ui(_S, "Osc 2 warp 2 amount", DEFAULT,
+        mod_label="Osc 2 warp 2",
+        hint="How far oscillator 2's second warp bends. Draw it or route to it.")),
     # core.sync: band-limited resets, osc2 one sample late (voice-worklet.js
     # holds the same sample)
     ("osc2_sync", _ui(_S, "Hard sync", EXACT, widget="pills",
@@ -313,6 +388,41 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ("sync_pitch", _ui(_S, "Sync pitch", EXACT, 0.1, unit="st", mod_label="Sync pitch",
         hint="Hard sync: semitones oscillator 2 sits above. Sweep it (a route from "
              "the filter envelope, a curve) for the sync lead.")),
+    # oscillator 3 (synth._osc_stack): not in the live voice, so "default"
+    # — while its level is up a sound's keys take the server-rendered WAV;
+    # at 0 nothing else of it is heard, so nothing else of it blocks
+    # (`_UNHEARD`)
+    ("osc3", _ui(_S, "Oscillator 3", DEFAULT, widget="pills",
+        subhead="Oscillator 3",
+        hint="A third waveform layered on the first two. Raise its level to hear "
+             "it.")),
+    ("osc3_level", _ui(_S, "Osc 3 level", DEFAULT, mod_label="Osc 3 level",
+        hint="How loud oscillator 3 is in the mix: 0 is off.")),
+    ("osc3_octave", _ui(_S, "Osc 3 octave", DEFAULT,
+        hint="Shift oscillator 3 by whole octaves.")),
+    ("osc3_semi", _ui(_S, "Osc 3 semitones", DEFAULT, unit="st",
+        hint="Shift oscillator 3 by semitones: 7 a fifth, 12 an octave.")),
+    ("osc3_detune", _ui(_S, "Osc 3 detune", DEFAULT, 0.5, unit="ct",
+        mod_label="Osc 3 detune",
+        hint="Detune oscillator 3 in cents against the other two.")),
+    ("osc3_warp", _ui(_S, "Osc 3 warp", DEFAULT, widget="select",
+        option_labels=WARP_LABELS,
+        hint="Bend oscillator 3's phase before its shape reads it (sine, saw, square, "
+             "triangle, wavetable).")),
+    ("osc3_warp_amt", _ui(_S, "Osc 3 warp amount", DEFAULT,
+        mod_label="Osc 3 warp",
+        hint="How far oscillator 3's warp bends. Draw it or route to it to sweep "
+             "the timbre.")),
+    # a second warp (core.warp_twice): not in the live voice, so "default"
+    # — while it bends, a sound's keys take the server-rendered WAV; off
+    # (or on a shape it does not bend) it blocks nothing (`_UNHEARD`)
+    ("osc3_warp2", _ui(_S, "Osc 3 warp 2", DEFAULT, widget="select",
+        option_labels=WARP_LABELS,
+        hint="A second warp on oscillator 3's phase, after the first: two bends at "
+             "once (PD then mirror, a bend then quantize...).")),
+    ("osc3_warp2_amt", _ui(_S, "Osc 3 warp 2 amount", DEFAULT,
+        mod_label="Osc 3 warp 2",
+        hint="How far oscillator 3's second warp bends. Draw it or route to it.")),
     ("fm_ratio", _ui(_S, "FM ratio", EXACT, 0.5, subhead="FM shape",
         hint="FM shape: modulator pitch as a multiple of the note.")),
     ("fm_index", _ui(_S, "FM index", EXACT, 0.05,
@@ -364,7 +474,7 @@ _ENTRIES: list[tuple[str, Ui]] = [
     # period late — its header and the parity corpus say how close that
     # is). What is refused is the WSOLA stretch ("resample" mode with a
     # stretch off 1: a similarity search per grain) and a drawn stretch
-    ("sampler_root", _ui(_S, "Sample root", EXACT, subhead="Sampler shape",
+    ("sampler_root", _ui(_S, "Sample root", EXACT, subhead="Sample",
         hint="Sampler: the note that plays the sample at its own pitch (a chop's "
              "first slice).")),
     ("sampler_mode", _ui(_S, "Sample pitch mode", EXACT, widget="pills",
@@ -388,7 +498,55 @@ _ENTRIES: list[tuple[str, Ui]] = [
         hint="Sampler: where the loop jumps back.")),
     ("sampler_xfade", _ui(_S, "Loop crossfade", EXACT, 0.001, unit="s",
         hint="Blend across the loop point so it doesn't click.")),
-    ("sub_level", _ui(_S, "Sub oscillator", EXACT,
+    # the granular shape (synthlab/granular.py): the sample above as a
+    # cloud of grains. Not in the live voice: a granular sound's keys take
+    # the server-rendered WAV (osc1 "granular" is no SHAPES entry), and
+    # these are "default" — and unheard, so blocking nothing, while no
+    # oscillator plays the shape
+    ("grain_pos", _ui(_S, "Grain position", DEFAULT, 0.001, subhead="Granular",
+        mod_label="Grain position",
+        hint="Granular: where in the sample (or its loop) the grains are read. "
+             "Draw it or route it to move the cloud.")),
+    ("grain_size", _ui(_S, "Grain size", DEFAULT, 0.001, unit="s",
+        hint="How long each grain lasts: short is a buzz, long a smear.")),
+    ("grain_density", _ui(_S, "Grain density", DEFAULT, 0.5, unit="/s",
+        hint="Grains started a second (at most 256 sounding at once).")),
+    ("grain_spray", _ui(_S, "Position spray", DEFAULT,
+        hint="Scatters each grain's place around the position.")),
+    ("grain_pitch_spray", _ui(_S, "Pitch spray", DEFAULT, 0.1, unit="st",
+        hint="Detunes each grain by up to this many semitones either way.")),
+    ("grain_shape", _ui(_S, "Grain window", DEFAULT,
+        hint="0: soft grains (a Hann window); 1: flat grains with short fades.")),
+    ("grain_dir", _ui(_S, "Grain direction", DEFAULT, widget="pills",
+        hint="Forward, reverse, or each grain either way.")),
+    ("grain_scan", _ui(_S, "Scan", DEFAULT, 0.01, unit="x",
+        hint="The position moving by itself: 1 walks the sample at its own "
+             "speed, negative backwards, 0 holds.")),
+    # the spectral shape (synthlab/spectral.py): the sample above
+    # resynthesised from its spectrum. Not in the live voice either: a
+    # spectral sound's keys take the server-rendered WAV, and these are
+    # "default" — unheard, so blocking nothing, while no oscillator plays it
+    ("spectral_pos", _ui(_S, "Spectral position", DEFAULT, 0.001,
+        subhead="Spectral", mod_label="Spectral position",
+        hint="Spectral: where in the sample (or its loop) the read starts. "
+             "Draw it or route it to move through the sound.")),
+    ("spectral_scan", _ui(_S, "Spectral scan", DEFAULT, 0.01, unit="x",
+        hint="How fast the read moves: 1 plays the sample at its own speed, "
+             "0.5 twice as long at the same pitch, 0 freezes, negative backwards.")),
+    ("spectral_timbre", _ui(_S, "Timbre shift", DEFAULT, 0.1, unit="st",
+        hint="Moves the formants up or down without changing the pitch.")),
+    ("spectral_formants", _ui(_S, "Formants", DEFAULT, widget="pills",
+        hint="Move: the formants ride the pitch, as a transposition. Keep: they "
+             "stay where the recording has them on every key.")),
+    ("spectral_low", _ui(_S, "Partial low cut", DEFAULT, 0.5,
+        hint="Removes the partials under this one (of the root's harmonics); "
+             "0 keeps them all.")),
+    ("spectral_high", _ui(_S, "Partial high cut", DEFAULT, 1.0,
+        hint="Removes the partials above this one; at the top nothing is cut.")),
+    ("spectral_transient", _ui(_S, "Keep transients", DEFAULT,
+        hint="Keeps attacks sharp when the scan is slower than the recording: "
+             "higher catches softer onsets.")),
+    ("sub_level",_ui(_S, "Sub oscillator", EXACT,
         subhead="Mixer", mod_label="Sub level",
         hint="A sine one octave below oscillator 1, for weight.")),
     # statistical, not sample for sample: numpy's generator isn't realtime,
@@ -499,12 +657,14 @@ _ENTRIES: list[tuple[str, Ui]] = [
     # every LFO shape (the stepped "noise" reads core.sample_hold's seeded
     # stream from /wavetables.bin); a sync division reaches the worklet as
     # the rate /patch.json resolves against the bpm (synth.at_bpm)
-    ("mod_lfo_rate", _ui(_M, "LFO 1 rate", EXACT, 0.05, unit="Hz", subhead="LFO 1",
-        hint="Speed of LFO 1, the LFO the routes use.")),
+    ("mod_lfo_rate", _ui(_M, "LFO 1 rate", _stepped_ok(1), 0.05, unit="Hz",
+        subhead="LFO 1", hint="Speed of LFO 1, the LFO the routes use.")),
     ("lfo_shape", _ui(_M, "LFO 1 shape", EXACT, widget="select",
-        option_labels=LFO_SHAPE_LABELS, extra=("drawn", "chaos", "smooth"),
+        option_labels=LFO_SHAPE_LABELS,
+        extra=("drawn", "chaos", "smooth", "lorenz", "rossler"),
         hint="LFO 1's waveform. Stepped is a random step a cycle; drawn is the "
-             "curve drawn for it; chaos a chaotic line; smooth random glides.")),
+             "curve drawn for it; chaos a chaotic line; smooth random glides; "
+             "Lorenz and Rössler wander round a chaotic flow, never repeating.")),
     ("lfo_sync", _ui(_M, "LFO 1 sync", EXACT, widget="select",
         hint="Lock LFO 1 to the tempo. Overrides the rate.")),
     ("filter_lfo_rate", _ui(_M, "Filter LFO rate", EXACT, 0.05,
@@ -558,15 +718,23 @@ _ENTRIES: list[tuple[str, Ui]] = [
         entry
         for i, s in enumerate(MOD_SLOTS, start=1)
         for entry in (
+            # the switch: "off" bypasses the route, which keeps its settings
+            (f"{s}_on", _ui(_M, f"Route {i} on", EXACT, widget="pills",
+                hint=f"Route {i} on, or bypassed: off keeps its source, target, "
+                     "amount and curve but moves nothing.")),
             (f"{s}_src", _ui(_M, f"Route {i} source", _slot_gate(s),
                 widget="select", option_labels=MOD_SOURCE_LABELS)),
             (f"{s}_dst", _ui(_M, f"Route {i} target", EXACT, widget="select")),
             (f"{s}_amt", _ui(_M, f"Route {i} amount", EXACT)),
+            # the curve on the source, before the amount (synth.route_curve)
+            (f"{s}_curve", _ui(_M, f"Route {i} curve", EXACT,
+                hint=f"Bends route {i}'s source before its amount: up, it rises "
+                     "early; down, late; 0 leaves it as it is.")),
         )
     ],
 
     # the general modulators the routes read — envelopes 3 and
-    # 4 (gated as the filter envelope is), LFOs 2 and 3 (the general shapes,
+    # 4 (gated as the filter envelope is), LFOs 2-6 (the general shapes,
     # each its own drawing; a sync division reaches the worklet resolved)
     *[
         entry
@@ -586,10 +754,12 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ],
     *[
         entry
-        for k in (2, 3)
+        for k in GENERAL_LFOS
         for entry in (
-            (f"lfo{k}_rate", _ui(_O, f"LFO {k} rate", EXACT, unit="Hz",
-                subhead=f"LFO {k}", hint=f"Speed of LFO {k}.")),
+            (f"lfo{k}_rate", _ui(_O, f"LFO {k} rate", _stepped_ok(k), unit="Hz",
+                subhead=f"LFO {k}",
+                hint=f"Speed of LFO {k}: slow sweeps to 1000 Hz (audio-rate "
+                     "modulation; a filter target reads it once a 64-sample block).")),
             # the two knobs side by side, then the menus
             (f"lfo{k}_phase", _ui(_O, f"LFO {k} phase", EXACT,
                 hint=f"Where in its cycle LFO {k} starts each note.")),
@@ -602,6 +772,17 @@ _ENTRIES: list[tuple[str, Ui]] = [
                 hint=f"Retrig: LFO {k} starts every note at its phase. Free: each "
                      "note picks the cycle up at a place of its own.")),
         )
+    ],
+
+    # an envelope stage's time as a sync division: drawn inside its time's
+    # row (param_row.html, `ENV_SYNC_FIELDS`), not a row of its own; it
+    # reaches the worklet as the seconds /patch.json resolves (at_bpm)
+    *[
+        (f"{t}_sync", _ui(_F if t.startswith("filter") else _O,
+            f"{_env_name(t)} {t.split('_')[1]} sync", EXACT, widget="select",
+            hint=f"Lock the {t.split('_')[1]} to the tempo: a beat division "
+                 "instead of seconds. Off uses the time set."))
+        for t in ENV_SYNC_TIMES
     ],
 
     # no control
@@ -629,7 +810,10 @@ _ENTRIES: list[tuple[str, Ui]] = [
     *[
         (f"{name}_draw", Ui(None, worklet=EXACT,
             why=f"{label}'s drawn shape: the LFO's drawing sets it"))
-        for name, label in (("lfo", "LFO 1"), ("lfo2", "LFO 2"), ("lfo3", "LFO 3"))
+        for name, label in (
+            ("lfo", "LFO 1"),
+            *((f"lfo{k}", f"LFO {k}") for k in GENERAL_LFOS),
+        )
     ],
 ]
 # fmt: on
@@ -758,26 +942,75 @@ def spec_of(name: str) -> ParamSpec | None:
 # Which Source-panel rows are audible only when an osc pill selects a shape:
 # read from the shape rules in params (the breeder's own liveness), and
 # rendered as :has() dimming selectors in editor.html.
+# A row more than one shape reads (the sampler's sample, span and loop,
+# which the granular shape plays too) is listed under each.
 SHAPE_DEPS: dict[str, tuple[str, ...]] = {}
+# The same rows grouped by the shapes that show them: a row hides only
+# while none of its shapes is picked (editor.html's :has() rules).
+SHAPE_ROWS: dict[tuple[str, ...], tuple[str, ...]] = {}
 for _name, _u in UI.items():
     _rule = PARAMS[_name].live
     if _u.group == "Source" and isinstance(_rule, uses_shape):
-        SHAPE_DEPS.setdefault(_rule.shape, ())
-        SHAPE_DEPS[_rule.shape] += (_name,)
+        for _shape in _rule.shapes:
+            SHAPE_DEPS[_shape] = (*SHAPE_DEPS.get(_shape, ()), _name)
+        SHAPE_ROWS[_rule.shapes] = (*SHAPE_ROWS.get(_rule.shapes, ()), _name)
 
 
 # --- the live voice's gate ---------------------------------------------------
 
 
+def _warp2_unheard(k: int) -> Callable[[Any], bool]:
+    """Is oscillator k's second warp unheard: off, on a shape no warp bends,
+    on a synced osc2 or a silent osc3 (`synth.warp_of` decides, as the
+    engine does)?"""
+
+    def unheard(p) -> bool:
+        if getattr(p, f"osc{k}_warp2") == "off" or (k == 3 and not osc3_on(p)):
+            return True
+        return warp_of(p, k) is None
+
+    return unheard
+
+
+def _osc3_silent(p) -> bool:
+    return not osc3_on(p)
+
+
+# hand-made "default" fields the engine does not read under the patch's
+# other settings (no shape rule says so): oscillator 3's at level 0, a
+# second warp that is off or bends nothing
+_UNHEARD: dict[str, Callable[[Any], bool]] = {
+    **{
+        name: _osc3_silent
+        for name in (
+            "osc3",
+            "osc3_octave",
+            "osc3_semi",
+            "osc3_detune",
+            "osc3_warp",
+            "osc3_warp_amt",
+        )
+    },
+    **{
+        f"osc{k}_{part}": _warp2_unheard(k)
+        for k in (1, 2, 3)
+        for part in ("warp2", "warp2_amt")
+    },
+}
+
+
 def _unheard(name: str, p) -> bool:
-    """A "default" field of a shape no oscillator plays (the sampler's):
-    the engine never reads it, so any value is reproduced."""
+    """A "default" field the engine never reads under `p`'s other settings
+    — a shape no oscillator plays (the granular one's), or a `_UNHEARD`
+    rule's (a silent osc 3's, a second warp that bends nothing): any value
+    is reproduced."""
+    if UI[name].worklet != DEFAULT:
+        return False
     rule = PARAMS[name].live
-    return (
-        UI[name].worklet == DEFAULT
-        and isinstance(rule, uses_shape)
-        and rule.shape not in (p.osc1, p.osc2)
-    )
+    if isinstance(rule, uses_shape) and not rule(p):
+        return True
+    hand = _UNHEARD.get(name)
+    return hand is not None and hand(p)
 
 
 def worklet_blockers(p) -> list[str]:
@@ -843,6 +1076,42 @@ _SHOWN = frozenset(spec.name for _, specs in PARAM_GROUPS for spec in specs)
 _IDLE_ASKED = tuple(
     n for n in GENES if n in _SHOWN and not (n.startswith("mod") and n[4:5] == "_")
 )
+
+
+def _lfo_routed(k: int) -> Callable[[Any], bool]:
+    """Does a route that plays read general LFO k?"""
+    return lambda p: _lfo_reads(p, k)
+
+
+# hand-made fields (no genes, so `params.live` never asks about them) that
+# are idle under a rule of their own: the rule says when they are heard
+_IDLE_HAND: tuple[tuple[tuple[str, ...], Callable[[Any], bool], str], ...] = (
+    (
+        (
+            "osc3",
+            "osc3_octave",
+            "osc3_semi",
+            "osc3_detune",
+            "osc3_warp",
+            "osc3_warp_amt",
+            "osc3_warp2",
+            "osc3_warp2_amt",
+        ),
+        osc3_on,
+        "oscillator 3's level is 0",
+    ),
+    # LFOs 4-6: heard only through a route (their section folds while none
+    # reads them: bench.js)
+    *(
+        (
+            tuple(f"lfo{k}_{t}" for t in ("rate", "phase", "shape", "sync", "mode")),
+            _lfo_routed(k),
+            f"no route uses LFO {k}",
+        )
+        for k in (4, 5, 6)
+    ),
+)
+IDLE_WHY.update({n: why for names, _rule, why in _IDLE_HAND for n in names})
 GLIDE_WHY = "heard on slides — the riff phrase has them (the keys glide note to note)"
 
 
@@ -859,6 +1128,9 @@ def idle(p: Patch, phrase_slides: bool = True) -> dict[str, str]:
         for n in _IDLE_ASKED
         if n not in heard
     }
+    for names, heard_by, why in _IDLE_HAND:
+        if not heard_by(p):
+            out.update({n: why for n in names if n in _SHOWN})
     if not phrase_slides and p.glide > 0 and "glide" in _SHOWN:
         out["glide"] = GLIDE_WHY
     return out

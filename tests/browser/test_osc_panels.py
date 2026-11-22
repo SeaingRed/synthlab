@@ -249,3 +249,32 @@ def test_the_chain_browser_searches_regroups_and_adds(studio, server):
         lambda: page.locator("#fx-chains-master[data-by='pack']").count() == 1,
         "genre again",
     )
+
+
+def test_osc3_rests_folded_until_opened_and_its_level_wakes_it(studio, server):
+    """Oscillator 3 at level 0: its section is at rest, folded to its
+    heading as the page arrives; opened, its level's knob posts, and its
+    other rows stop being idle (the patch-idle marks move)."""
+    page = studio.open("editor")
+    studio.settle()
+    head = page.locator("#sub-osc3")
+    _wait(page, lambda: head.get_attribute("data-rest") == "folded", "osc 3 folded")
+    assert not page.locator("#row-osc3_semi").is_visible()
+    head.click()
+    _wait(page, lambda: page.locator("#row-osc3_level").is_visible(), "osc 3 opened")
+    assert page.locator("#row-osc3_semi[data-idle]").count() == 1
+    page.focus("#p-osc3_level")
+    page.keyboard.press("End")
+    _wait(page, lambda: server.state.patch.osc3_level == 1.0, "the level posted")
+    _wait(
+        page,
+        lambda: page.locator("#row-osc3_semi[data-idle]").count() == 0,
+        "osc 3's rows heard",
+    )
+    assert page.locator("#row-osc3_warp").is_visible()
+    # the keys say why they take the server's WAV now
+    _wait(
+        page,
+        lambda: page.evaluate("() => window.synthlab.piano.patch().osc3_level") == 1.0,
+        "the keys' patch follows",
+    )

@@ -145,6 +145,8 @@ SUBS = (
     "Half-Time Sub",
     "Soft Sub",
     "Triangle Bass",
+    # the dubstep top-up: a sine with a thump at its front
+    "Fall Sub",
 )
 BOOMS = ("Impact", "Cinematic Braam")
 PLUCKS = (
@@ -170,6 +172,8 @@ PLUCKS = (
     "Sitar Pluck",
     "Bell Pluck",
     "Synth Pluck",
+    # the dubstep top-up's drop chord: a quarter second and gone
+    "Drop Chord Stab",
 )
 PADS = (
     "Phaser String Pad",
@@ -259,7 +263,7 @@ def test_each_pack_holds_its_roles_at_its_tempo():
         for role, n in PACKS[genre].items():
             have = [e["name"] for e in sounds if role in e["tags"]]
             assert len(have) >= n, (genre, role, have)
-    assert len(NEW) == 148 and len(set(NEW)) == 148
+    assert len(NEW) == 160 and len(set(NEW)) == 160
 
 
 @pytest.mark.parametrize("name", NEW)

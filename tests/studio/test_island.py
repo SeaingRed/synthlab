@@ -217,8 +217,20 @@ def test_every_island_states_a_budget_and_keeps_it():
     # roll.js and motion.js had no room for them — 80;
     # pagemotion.js is the page transition (the old page
     # leaving in htmx's view transition, the new one's modules arriving on
-    # GSAP): motion.js, whose entrance it replaced, sat at 264 of 265 — 81
-    assert len(islands) == 81, [p.name for p in islands]
+    # GSAP): motion.js, whose entrance it replaced, sat at 264 of 265 — 81;
+    # arppat.js is the arp pattern's walk for the keys arp (arppattern.py's,
+    # line for line: steps, chance on a hash, tones of the key, repeats,
+    # retrigger): arp.js's pure half is held to its own modes, and the walk
+    # is a second engine beside it — 82;
+    # band-worklet.js is a unit's band for the live keys (the band split off,
+    # the unit run on it, the rest summed back; the split and join round a
+    # banded native unit) and the utility unit, a fifth module in the FX
+    # worklet's scope: fx-worklet.js and fx2-worklet.js are full — 83;
+    # loopdeck.js is the Loops page's deck (its source Loop | Scene | Song,
+    # ▶'s choice, the bar meter and the cells' rings, a cell's loop played
+    # alone): it owns no player, and slots.js, audio.js and transport.js
+    # were at their budgets — 84
+    assert len(islands) == 84, [p.name for p in islands]
     stubs = {
         "roll.js": 290,
         "zoom.js": 70,
@@ -318,6 +330,7 @@ def test_no_other_scripts_in_page(tmp_path):
         srcs.append("/static/gsap.min.js")
     assert sorted(srcs) == [
         "/static/arp.js",
+        "/static/arppat.js",
         "/static/audio.js",
         "/static/bench.js",
         "/static/chords.js",
@@ -349,6 +362,7 @@ def test_no_other_scripts_in_page(tmp_path):
         "/static/letters.js",
         "/static/library.js",
         "/static/livefx.js",
+        "/static/loopdeck.js",
         "/static/loopspanel.js",
         "/static/menu.js",
         "/static/midi.js",
@@ -516,7 +530,12 @@ def test_voice_worklet_served_within_budget_and_not_a_script_tag(tmp_path):
     # of its own; the zone pick is sampler-worklet.js's (35 -> 64)
     # 1176 -> 1180: a note due later (the keys arp's `at`)
     # waits for its quantum (`due`)
-    assert len(_code_lines(WORKLET)) <= 1180
+    # 1180 -> 1186: a route's switch and the curve on its source (route())
+    # 1186 -> 1213: the Lorenz and Rössler flows as LFO shapes (lfoX and
+    # the RK4 step it repeats from core.attractor_step)
+    # 1213 -> 1223: LFOs 4-6 (their phases, defaults and sources)
+    # 1223 -> 1224: a synced envelope stage's dead time slider ("mod")
+    assert len(_code_lines(WORKLET)) <= 1224
     sampler_js = WORKLET.with_name("sampler-worklet.js")
     assert client.get("/static/sampler-worklet.js").status_code == 200
     assert len(_code_lines(sampler_js)) <= 64  # + the zone map
@@ -692,9 +711,10 @@ def test_sliders_do_not_swallow_live_keys():
     # playing while a slider is being dragged (both keymaps).
     gate = "range|checkbox|radio|button|submit|color"
     assert gate in PIANO.read_text(encoding="utf-8")
-    # perform.js shares piano.js's gate rather than duplicating it
+    # perform.js shares piano.js's gate rather than duplicating it (keysBlocked,
+    # through lettersBlocked: a button the keyboard did not reach plays)
     perform = Path("synthlab/studio/static/perform.js").read_text(encoding="utf-8")
-    assert "keysBlocked" in perform
+    assert "lettersBlocked" in perform
 
 
 MIDI = Path("synthlab/studio/static/midi.js")
@@ -751,9 +771,11 @@ def test_shared_key_gate_and_keys_toggle(tmp_path):
     piano = PIANO.read_text(encoding="utf-8")
     assert "window.synthlab.keysBlocked = keysBlocked" in piano
     assert "isContentEditable" in piano
-    # (chords.js through piano.js's whole typing gate, which holds keysBlocked)
-    assert "keysOn && (!keysBlocked(e.target)" in piano
-    for island, gate in (("chords.js", "typing("), ("perform.js", "keysBlocked(")):
+    # (chords.js through piano.js's whole typing gate, which holds keysBlocked
+    # through lettersBlocked: a button the keyboard did not reach still plays)
+    assert "keysOn && !lettersBlocked(e)" in piano
+    assert "lettersBlocked = (e) => keysBlocked(e.target)" in piano
+    for island, gate in (("chords.js", "typing("), ("perform.js", "lettersBlocked(")):
         js = Path("synthlab/studio/static", island).read_text(encoding="utf-8")
         assert f"window.synthlab.{gate}" in js, island
         assert "select|textarea" not in js, island

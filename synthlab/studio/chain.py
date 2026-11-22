@@ -33,7 +33,12 @@ def _sec(v: float) -> str:
 
 
 def _fx_line(chain) -> str:
-    names = [FX_UNITS.get(u.get("kind"), {}).get("label", "?") for u in chain or []]
+    # (a bypassed unit, `off`, is not in the path)
+    names = [
+        FX_UNITS.get(u.get("kind"), {}).get("label", "?")
+        for u in chain or []
+        if not u.get("off")
+    ]
     return " → ".join(names) if names else "none"
 
 
@@ -109,12 +114,12 @@ def chain_summary(p, fx_layer, fx_master) -> list[dict]:
             "id": "fx-rack",
             "title": "Layer FX",
             "text": _fx_line(fx_layer),
-            "off": not fx_layer,
+            "off": _fx_line(fx_layer) == "none",
         },
         {
             "id": "fx-rack",
             "title": "Master",
             "text": _fx_line(fx_master),
-            "off": not fx_master,
+            "off": _fx_line(fx_master) == "none",
         },
     ]

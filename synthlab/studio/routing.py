@@ -141,6 +141,8 @@ TakeUpload = Annotated[Upload, Depends(_capped_upload("MAX_TAKE_UPLOAD_BYTES"))]
 # a project.json or a bundle (/project.zip): the route caps a JSON body tighter
 ProjectUpload = Annotated[Upload, Depends(_capped_upload("MAX_PROJECT_ZIP_BYTES"))]
 ClipUpload = Annotated[Upload, Depends(_capped_upload("MAX_UPLOAD_BYTES"))]
+# an SFZ instrument (POST /fragment/sampler/sfz): a zip, its own cap
+SfzUpload = Annotated[Upload, Depends(_capped_upload("MAX_SFZ_UPLOAD_BYTES"))]
 MidiUpload = Annotated[Upload, Depends(_capped_upload("MAX_MIDI_UPLOAD_BYTES"))]
 SourceUpload = Annotated[Upload, Depends(_capped_upload("MAX_SOURCE_UPLOAD_BYTES"))]
 # a phrase said to the loop coach (POST /fragment/coach/talk)

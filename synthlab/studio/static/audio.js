@@ -57,6 +57,9 @@
 // (The Library's filter, chips and arrow keys are
 // library.js's, its own island; a card's audition hands its buffer source on
 // as `audition-start`, so the card can light while it sounds.)
+// 762 (kept): the Loops page's deck — its ▶ keeps its glyph beside its ■, it
+// takes its own ▶ click first, and `deckHold` lets it hold a preview while
+// it plays a cell's loop alone (loopdeck.js).
 // Budget: <= 762 code lines.
 
 (() => {
@@ -66,6 +69,9 @@
   let ctx = null, analyser = null, master = null;
   let liveOutNode = null;
   let current = null;            // {src, gain}
+  // the loop's playback gain: preview-ready's `gain` (dB) — a saved loop of
+  // notes open on Perform plays at the keys' level (keylevel.py) — else 1
+  let level = 1;
   let pendingUrl = null, playing = false, lastUrl = null;
   let restBuffer = null, restBufUrl = null; // the last loop buffer that sounded + its URL (motion.js reuses it)
 
@@ -117,6 +123,7 @@
   function startLoop(buffer, at, passes = 1) {
     const src = ctx.createBufferSource(), gain = ctx.createGain();
     src.buffer = buffer; src.loop = true; src.connect(gain).connect(master);
+    gain.gain.value = level;
     const now = ctx.currentTime, t = at || now, old = current;
     // A tweak always swaps a same-length re-render of the same phrase, so
     // crossfade in at the OLD loop's current phase — restarting at beat 1
@@ -130,11 +137,11 @@
       if (Math.abs(old.duration - buffer.duration) < 1e-6) {
         phase = ((now - old.startedAt) % buffer.duration + buffer.duration) % buffer.duration;
       }
-      old.gain.gain.setValueAtTime(1, now);
+      old.gain.gain.setValueAtTime(old.gain.gain.value, now);
       old.gain.gain.linearRampToValueAtTime(0, now + XFADE);
       setTimeout(() => { try { old.src.stop(); old.src.disconnect(); old.gain.disconnect(); } catch {} }, XFADE * 1000 + 60);
       gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(1, now + XFADE);
+      gain.gain.linearRampToValueAtTime(level, now + XFADE);
     }
     src.start(t, phase);
     current = { src, gain, startedAt: t - phase, duration: buffer.duration, cycle: buffer.duration / passes };
@@ -403,7 +410,7 @@
     // same URL means same audio: keep the running loop's phase instead of
     // restarting it. Queued launches still go through — the launcher waits
     // on loop-switched.
-    if (playing && current && url === lastUrl && !queue) return;
+    if (playing && current && url === lastUrl && !queue) return void current.gain.gain.setTargetAtTime(level, ctx.currentTime, 0.03);
     lastUrl = url;
     if (!playing) { pendingUrl = url; if (queue) switched(); return; }
     const token = ++swapToken;
@@ -464,7 +471,7 @@
   // transport.js, names the loop and stops it on every page)
   function setPlayButton(on) {
     const btn = document.getElementById("play");
-    const glyph = on ? "■" : "▶"; // (only what moved: a new text node restyled #view through a :has() rule)
+    const glyph = on && !btn?.closest(".deck") ? "■" : "▶"; // (only what moved: a new text node restyled #view through a :has() rule; the Loops page's deck keeps ▶, its ■ beside it)
     if (btn) { btn.setAttribute("aria-pressed", String(on)); if (btn.textContent !== glyph) btn.textContent = glyph; }
   }
 
@@ -650,7 +657,7 @@
   // Delegated so preset-load / A/B-swap full-body swaps (hx-target="body")
   // don't orphan listeners bound to the old #play / #volume nodes.
   document.addEventListener("click", (e) => {
-    if (e.target.closest("#play")) playing ? stop() : play();
+    if (e.target.closest("#play") && !e.defaultPrevented) playing ? stop() : play(); // (the Loops page's deck takes its own ▶ first: loopdeck.js)
   });
   // Double-click a slider = back to the Patch default for that one field —
   // the per-param escape hatch the scope-level reset system skips.
@@ -1010,7 +1017,9 @@
     // "/factory/" + "/breed/note/" one-shots survive the flush either way
     if (detail.url && detail.url !== lastUrl) window.synthlab.flushKeys();
     if (!detail.url) return;
+    if (!detail.deck && window.synthlab.deckHold?.(detail)) return; // the Loops page's deck plays a cell's loop alone: it asks for that instead
     plays = detail.plays || ""; // a render that names itself (the booth, the vocoder): Now playing says so
+    level = 10 ** ((Number(detail.gain) || 0) / 20);
     // autoplay (breed "in loop" audition): hearing it is the point of the
     // click, so a stopped transport starts instead of stashing the URL
     if (detail.autoplay && !playing) { pendingUrl = detail.url; play(); }

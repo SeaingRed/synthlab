@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from synthlab.params import GENES, live
 from synthlab.studio.audition import PHRASES, has_slides
-from synthlab.studio.paramui import IDLE_WHY, PARAM_GROUPS, idle
+from synthlab.studio.paramui import _IDLE_HAND, IDLE_WHY, PARAM_GROUPS, idle
 from synthlab.studio.server import create_app
 from synthlab.synth import Patch
 
@@ -30,13 +30,22 @@ def test_idle_is_the_engines_own_rule_with_a_reason():
     ):
         got = idle(p)
         heard = live(p)
-        assert all(n in shown and n in GENES and n not in heard for n in got)
+        # a gene the engine's rule leaves out, or a hand-made field idle by
+        # a rule of its own (oscillator 3 at level 0: `_IDLE_HAND`)
+        hand = {n for names, _rule, _why in _IDLE_HAND for n in names}
+        assert all(
+            n in shown and (n in GENES and n not in heard or n in hand) for n in got
+        )
         # every idle control says why — never the bare fallback for these
         assert all(got[n] == IDLE_WHY[n] for n in got if n in IDLE_WHY)
     one, five = idle(Patch(unison=1)), idle(Patch(unison=5))
     assert one["unison_detune"] == "needs 2 or more unison voices"
     assert "unison_detune" not in five and "unison_spread" not in five
     assert "pwm_depth" not in idle(Patch(osc1="square"))
+    # oscillator 3: idle while its level is 0, heard once it rises
+    assert idle(Patch())["osc3_semi"] == "oscillator 3's level is 0"
+    assert "osc3_level" not in idle(Patch())  # the on-ramp: a dial at 0
+    assert "osc3_semi" not in idle(Patch(osc3_level=0.3))
 
 
 def test_glide_is_idle_only_on_a_phrase_without_slides():

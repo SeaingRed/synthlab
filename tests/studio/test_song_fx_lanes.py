@@ -449,6 +449,50 @@ def test_a_drive_amount_lane_adds_harmonics_as_it_rises():
     assert _centroid(swept[-q:]) > 1.2 * _centroid(swept[:q])  # measured 1.35
 
 
+MBDRIVE = {"low": 4.0, "mid": 2.5, "high": 6.0, "mix": 0.6}
+
+
+@pytest.mark.parametrize("mode", [0.0, 1.0, 2.0, 3.0])
+@pytest.mark.parametrize("param", FX_LANES["mbdrive"])
+def test_a_multiband_drive_lane_that_stands_still_is_the_driven_unit(param, mode):
+    """The whitelist test above runs the unit at its defaults, where every
+    band is at 1 and it is its input: here every band is driven, in every
+    mode, and a lane standing still on any of its four is still the scalar
+    unit bit for bit (the mix the unit's own: `fxauto.OWN_MIX`)."""
+    n = SR
+    x = _dry(n)
+    lo, hi = lane_range(fx_target(UID, "mbdrive", param))
+    base = {**MBDRIVE, "mode": mode}
+    for v in (0.0, 0.37, 1.0):
+        lanes = [_lane("mbdrive", param, [[0.0, v], [1.0, v]])]
+        got, _out = fxauto.render(x, [_unit("mbdrive", **base)], ARR, lanes, n, 2.0)
+        static = [_unit("mbdrive", **{**base, param: lo + v * (hi - lo)})]
+        assert np.array_equal(got, fx.chain(x, build_chain(static, ARR))), (param, v)
+
+
+def test_a_multiband_drive_lane_moving_is_the_unit_sample_by_sample():
+    """A rising mix is the bands' sum (the dry) blended with the fully wet
+    unit per sample; a rising low band is, at each sample, the scalar unit
+    at that sample's amount (memoryless past the crossovers, which do not
+    read the amount)."""
+    n = SR
+    x = _dry(n)
+    unit = _unit("mbdrive", **MBDRIVE)
+    got, _out = fxauto.render(x, [unit], ARR, [_lane("mbdrive", "mix")], n, 2.0)
+    m = fxauto.values(RISE, 0.0, 1.0, n, len(x))[:, None]
+    dry = sum(fx.ott_bands(x))
+    wet = fx.mbdrive(**{**MBDRIVE, "mix": 1.0})(x)
+    np.testing.assert_allclose(got, dry * (1 - m) + wet * m, atol=1e-15)
+    got, _out = fxauto.render(x, [unit], ARR, [_lane("mbdrive", "low")], n, 2.0)
+    amount = fxauto.values(RISE, 1.0, 12.0, n, len(x))
+    for k in (0, n // 3, n - 1):
+        at = fx.mbdrive(**{**MBDRIVE, "low": float(amount[k])})(x)
+        np.testing.assert_allclose(got[k], at[k], atol=1e-15)
+    # the lane's first sample is 1: the low band itself, unshaped
+    one = fx.mbdrive(**{**MBDRIVE, "low": 1.0})(x)
+    np.testing.assert_array_equal(got[0], one[0])
+
+
 # --- a section: cycles, chunks, repeats --------------------------------------------
 
 

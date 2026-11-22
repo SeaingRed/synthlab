@@ -54,17 +54,20 @@ itself:
 
 - **the Loops panel** (`loops`, the left column: pinned from 2200 px, a
   tab sliding over the page below; "The Loops panel" below);
-- **the centre**: the live strip (`bar`: ▶, tempo, the meter, the loop's
-  position, ⏺ resample, the master knob and **Notes | Drums | Both**), the
+- **the centre**: **the deck** (`bar`, "The deck" below: ■ ▶, the source
+  Loop | Scene | Song, ⏺ Rec and its ▾, the bar meter, tempo, meter, key,
+  the master knob, the part mutes and **Notes | Drums | Both**), the
   **launcher** (`slots`: its scenes, then it scrolls, at most a third of
   the window) and the **editor** under it — the note grid (`seq`) over the
   drum grid (`rack`), sharing the rest 1.5 : 1 in Both, one of them the
   whole of it in Notes or Drums;
-- **the right column** (`side`, `.perform-side`: a flex column of
-  modules, no id, so each is a workspace member of its own): **→ Song**,
-  **the lane inspector** (it takes the height) and **Play** (its own
-  height, at most 62 % of the column). Its width is `--lane-w` (300 px
-  dense, 320 comfy; the splitter on its left seam, 240-560 px).
+- **the right column** (`side`, `.perform-side`: no id, so its module is
+  a workspace member of its own): **the lane inspector alone**, the
+  column's whole height. Its width is `--lane-w` (300 px dense, 320
+  comfy; the splitter on its left seam, 240-560 px). **→ Song** stands in
+  the launcher's head ("Loop → Song", beside Scene → Song, and Arrange ▸),
+  and **Play** opens over the page from the keyboard dock's Tools
+  (below).
 
 A grid takes the height its pane has: a step is `clamp(17px, its share,
 30px)` dense (`clamp(20px, …, 34px)` comfy), from `--rows` on `.grid` and a
@@ -105,9 +108,8 @@ edit:
   panels edit the edited lane); the browser's Back (Alt+←) comes back —
   a one-click round trip.
 
-The transport's controls row says which lane the grid edits ("editing
-1 Acid bass", `.ed-lane`, in the `transport` region's watch:
-`active_layer`, the patch's name).
+The editor's head says what the grid is and which lane it edits ("One
+selection" below: `.ed-head`, in the `transport` region's watch).
 
 **✦ Coach is the inspector's other tab** (Lane | ✦ Coach in its head,
 `data-coach-toggle="close" | "open"`, `data-coach-tab`; coach.js sets
@@ -118,46 +120,176 @@ toggle it (an inspector folded to its head opens with it); the coach's
 own head hides there (the tabs are its head). It is a module still: it
 pops out and focuses, and moves with the inspector.
 
-**Play** (`#perform-play`, `data-module="perform.play"`): the eight pads,
-the drum XY, the performance FX and the beats
-launcher, **one tab at a time** — pads | XY | FX | beats (layout.js's
-tabs: `[data-tab-of][data-tab-pick]` set `data-tab` on the box, per
-browser `synthlab.tab.perform-play`, re-applied after a swap) — and its
-fold (its head's "Play", `data-fold`). Each part is a module of its own
-(it pops out — a popped-out part shows whatever tab is up — and focuses)
-inside Play; only Play moves in the dock. The pads' keys (Q W E R / A S D
-F) and the FX's (C V B N · I O P) play them whichever tab shows, Play
-folded too (perform.js clicks the buttons it finds).
+**Play** (`#perform-play`, `views/perform.html`): the eight pads, the
+drum XY, the performance FX and the beats launcher, **one tab at a time**
+— pads | XY | FX | beats (layout.js's tabs: `[data-tab-of][data-tab-pick]`
+set `data-tab` on the box, per browser `synthlab.tab.perform-play`,
+re-applied after a swap). It left the right column (the inspector has
+it whole) for **the keyboard dock's Tools**: **Pads** (`#play-open`,
+piano.html, beside Play tools; shown on this page alone — style.css 14:
+`#view:not([data-view="perform"]) ~ .keys-dock`) opens it, a manual
+popover (`popovertarget`) over the page above the dock's right end, as
+Play tools is: a key played leaves it open, its ✕ or Pads shuts it.
+perform.js keeps one of the two open at a time (both stand there), lights
+Pads (`aria-expanded`) and opens it again on the next visit when it was
+left open (localStorage `synthlab.pads`). It is the same markup, moved —
+not a module of the dock (a popover is no tile): each part is a module
+of its own still (it pops out — a popped-out part shows whatever tab is
+up — and focuses). **The keys never needed it shown**: the pads' (Q W E
+R / A S D F) and the FX's (C V B N · I O P) play them with Play shut, as
+they did folded (perform.js clicks the buttons it finds; piano.js shows
+typing → pads where `#perform-pads` is, and it still is). Why there and
+not a module to add back: the least moved — the markup stays in the
+page, so its keys, its region (the beats) and its tabs work unchanged,
+and the dock already had the place a player reaches for while playing.
+`tests/browser/test_perform.py`
+(`test_play_opens_from_the_keys_dock_and_its_keys_play_it_shut`).
 
 **The workspace**: every block is a module — `perform.loops`,
-`.transport`, `.slots`, `.notes`, `.drums`, `.song`, `.lane`, `.play`
-(and inside them `.coach`, `.pads`, `.xy`, `.fx`, `.launch`). The
-presets (`workspace.PRESETS`, Grids / Launch / Compact) are redrawn on
-them, Reset returns to the page above, and **older saved layouts of
-Perform are dropped**: `synthlab.ws` keys this page `perform@2`
-(workspace.js `REV`), and a record under an older key is deleted on load.
+`.transport`, `.slots`, `.notes`, `.drums`, `.lane` (and inside them
+`.coach`; in Play, `.pads`, `.xy`, `.fx`, `.launch`). `.song` and `.play`
+are gone from the dock (→ Song is the launcher head's, Play the keyboard
+dock's). The presets (`workspace.PRESETS`, Grids / Launch / Compact) are
+redrawn on them, Reset returns to the page above, and **older saved
+layouts of Perform are dropped**: `synthlab.ws` keys this page `perform@3`
+(workspace.js `REV`; 3 since the right column is the inspector alone),
+and a record under an older key is deleted on load.
 
 The pattern tools are `.btn`s with a command each (`data-cmd`, group
 "Pattern": the palette and a Stream Deck find "Shift notes left"); the
-velocity tools are a `.menu`; the bars are a `.seg`; the how-to line is
-the tooltip of the (?) at the end of the toolbar. The momentary FX are
+note grid's and the drum rack's toolbars are one line each, the rest of
+their tools behind **Tools ▾** ("Pattern tools" below); the bars are a
+`.seg`; the how-to line is the tooltip of the (?) in Tools ▾'s view row. The momentary FX are
 `.btn`s named for the shortcut sheet with `data-keys` + `data-key-label`
 (they are held, so they are not commands). Launch cards are commands
 ("Launch beat …", "Launch section …"); a lane head's ▾ is "Pick the
 sound of lane N".
 
+### The deck: one transport for the page
+
+The page had about ten controls that started or stopped sound, each
+meaning something else, and four ways to record in three places. **The
+deck** (`#perform-transport`, `data-module="perform.transport"` — the id
+the live strip had, so saved layouts stand; `views/perform.html`,
+`static/loopdeck.js`, style.css "The deck") is the page's one transport,
+at the top of the centre:
+
+- **■ and ▶.** ▶ (`#play`, `data-keys="Space"`: transport.js's Space
+  presses it) starts what the **source** says; while the deck plays it is
+  its own stop (Space too), its lamp lit, its glyph staying ▶ (audio.js
+  `setPlayButton` keeps it on a `.deck`). ■ (`#deck-stop`) stops
+  everything, as the top bar's ■ does (`transport.stopAll`: a take
+  recording, a listen). The players stay audio.js's (the loop) and
+  song.js's (the song) and report to `S.transport`: the status strip's
+  read-out, ▶ / ⏸ / ■ mirror the deck here and stay valid on every page.
+  A deck start stops a **▷ listen**.
+- **The source: Loop | Scene | Song** (`[data-deck-src]`, per browser:
+  localStorage `synthlab.deck`; Loop first). **Loop** plays the selected
+  cell's loop **alone** — `POST /fragment/perform/slot/hear` renders it as
+  a Loops row's ▷ renders a loop at another tempo (`takes._render_loop`,
+  its own sound; a beat through the session's kit) at the page's tempo
+  and answers `X-Preview-Url`, which the deck hands audio.js as a
+  `preview-ready` of its own (`deck: true`, named "“Acid line” alone ·
+  lane 1": Now playing says so); with no filled cell selected, the working
+  loop. While a cell plays alone, every preview the server answers (an
+  edit, a launch) is held — audio.js asks `S.deckHold` — and the cell
+  asked for again: an edit saves to its loop (the open loop's mirror), so
+  what is heard is what the grid holds; another cell selected takes over
+  at the quantise point; no filled cell selected, or another source, hands
+  back the working loop. **Scene** plays the selected cell's row — its
+  ▸, launched at the quantise point, unless all of it plays already —
+  or, with none selected, what the lanes play now. **Song** plays the song
+  (song.js's `songClock().play()`, from its marker); an empty song is made
+  from the loop first by **make it a song** (`#deck-arrange`, shown on
+  the Song source: the old "▶ Whole song", `POST /song/arrange
+  source=loop`, asking first when the song has sections). Switching the
+  source while the deck plays starts the new one (a cell alone or a row
+  at the quantise point); a scene's ▸ (or Alt+1…8) makes Scene the
+  source.
+- **⏺ Rec** (`#deck-rec`) is **the keyboard dock's ⏺ Rec, the same
+  control**: keyrec.js owns the take and paints every `[data-key-rec]`
+  together ("count-in 3", "■ 0:04 · bar 1/2"). Its **▾** (`#deck-rec-menu`,
+  a `.menu` popover) holds what a take is set by: the **length** (1 / 2 /
+  4 / 8 / 16 bars, until ■, **free**: `[data-key-len]`, the dock's select
+  `#key-bars` the same preference), **count-in** and **+ beat**, **where
+  it lands** — **a new loop** (the selected cell when it is empty, else
+  the lane's next empty one, never over a loop: slots.js's `free`; no cell
+  selected, the Loops panel) | **the selected cell: overdub | replace** —
+  (above it, **arp: its notes | the keys I held**, `[data-key-arp]`:
+  keys-and-midi.md, "⏺ Rec") —
+  shown always, never a hidden mode, with a line saying where this take
+  will go ("overdub “Acid line” · lane 1, scene 1"), then **⟲ Keep what I
+  just played** (Alt+T: keys capture) and **⏺ resample** (`#jam-rec`:
+  the mix as audio, to a clip). The Loops panel's "⏺ free" is gone: free
+  is a length.
+- **The meter** (`.deck-meter`, a well of lamps; `.deck-pos`): a lamp a
+  bar of what plays (16 at most; a song's 16-bar page), those before lit,
+  the current one pulsing on its beat (`--pulse` written on the meter
+  alone; 1 under calm motion); at rest, the bars ▶ would play. While ⏺ Rec
+  is armed the meter counts in: the beats left in the record red (the
+  `keyrec` claim's `at`). The same frame turns the playing cells' rings.
+  Nothing runs at rest.
+- **Tempo, meter, key, level**: the tempo field (the form's one named
+  field, posted on `change`), the `meter-pick` region, the key (a read-out
+  of the note grid's root and scale, loopdeck.js after every settle), the
+  master knob, the part mutes and Notes | Drums | Both.
+
+Every **other** play control on the page is a **▷ listen** (`.lp-play`,
+hollow, in the signal's colour: every Loops list's row — the panel, the
+drawer, the dock's strip): a quiet preview in time, a layer over what
+plays (at half its level while the deck plays), stopped when the deck
+starts — never a transport. The launcher's scene ▸ and lane ■ launch and
+stop lanes; they are not transport keys.
+
+`tests/browser/test_slots.py`
+(`test_select_a_cell_play_it_alone_on_the_deck_and_rec_into_it`),
+`tests/studio/test_slots.py` (`/fragment/perform/slot/hear`).
+
+### One selection
+
+What the editor shows was said three times (a banner, the editing
+lane's name, the launcher) while another cell could be what played. Now
+**the selected cell is what the editor shows** — what the lane inspector
+describes, what Loop ▶ plays and where ⏺ Rec lands:
+
+- **A filled cell's click** (or Space / Enter on it) selects it and posts
+  its launch with `select` (`/fragment/perform/slot/launch`, the
+  `data-launch` on the cell): its loop goes on its lane, **open for
+  edit** (`StudioState.loop_edit`, as `/loop/edit` opens one: every edit
+  saves to it), its lane the edited one, Notes | Drums turned to its kind,
+  and it plays there from the quantise point (queued, pulsing, until the
+  switch; one pattern undo step, as every launch). The cell already
+  playing is only selected: nothing renders. It never starts the
+  transport: the deck's ▶ does.
+- **An empty cell's click** selects it (`/fragment/perform/slot/select`):
+  its lane edited when it has a sound, and its lane a **sketch** — the
+  loop open on that lane stops being edited (it keeps every edit, as
+  Done), so what is drawn there next saves to no loop. Again: let it go.
+- **The editor's head** (`.ed-head`, `fragments/transport.html`; the
+  drum rack's own in `perform_drums.html`, from `StudioService.
+  drum_editing`): the loop's name, its lane and **saved** (a lit lamp;
+  Done — its Q is the toolbar's, beside snap) — or **sketch — not saved** with **Save as loop**
+  (`[data-save-sketch]`, slots.js: into the selected empty cell of its
+  lane — `/fragment/perform/slot/keep`, which then plays it — else
+  `/loop/save`, a loop in the Loops panel the grid then edits). The
+  banner ("✎ editing the loop …") and the controls row's lane name are
+  gone.
+
+The model did not change: the routes are the launcher's own (select,
+launch, keep), the loop-edit mirroring is `mirror_loop_edit`'s.
+
 ### The rack's focus: Notes | Drums | Both
 
 Perform is where a quickly made loop is perfected in the grid, drums or
 synths, so the editor switches between them. **Notes | Drums | Both**
-(`.rack-focus`, at the live strip's far end, `views/perform.html`)
+(`.rack-focus`, at the deck's far end, `views/perform.html`)
 shows one grid large and folds the other to its bar, or both. Client-only: grid.js writes `<html data-rack>` (per browser,
 `localStorage` `synthlab.rack`) and presses the button in force after
 every settle (the server draws all three unpressed); CSS reads it —
 `style.css` section 35 hides the folded grid (the drums keep their tools
 row; the note grid goes whole, its controls row too — lane, length,
 pattern and feel read as acting on the drums, and the switch is in the
-live strip), style.css 42 gives the focused one the editor's whole height
+deck), style.css 42 gives the focused one the editor's whole height
 (`html[data-rack] #view.perform-view`'s rows), and in drums focus the
 steps grow past 30 px to fill it (dense.css D35). **The editor follows
 the selection**: a slot selected in the launcher turns Notes |
@@ -165,7 +297,7 @@ Drums to its kind (slots.js, grid.js's `synthlab.rack`), from Both too
 (one editor, as the slot is: Both is a press away, Alt+G). **Alt+G** steps notes → drums → both (`data-keys` on the cluster;
 no bare letter is free).
 
-The part buttons (`synth`, `drums`; in the live strip, so what the loop
+The part buttons (`synth`, `drums`; in the deck, so what the loop
 carries stays in sight) **mute** a part of what ▶ plays (lit = it plays),
 and say so:
 a "mute" label, their `title`s, "Mute / unmute the … part of the loop".
@@ -194,16 +326,16 @@ at 1920 — it overflows its area and takes the first fallback that fits,
 `@position-try --to-song-above` (above, from the same left edge), then
 leftwards.
 
-**▶ Whole song** (`#perform-arrange`, beside → Song; palette "Make this
-loop a song") is the Song page's "From my loop": `POST
-/song/arrange source=loop` lays the loop down as intro / verse / build /
-drop / break / drop / outro, REPLACING the song in one song undo step,
-and plays it on Song (`songcraft.md`, "`POST /song/arrange`"). It asks
-first (`hx-confirm`) when the song had sections as the page was drawn
-(`song_filled`, `service/page.py`). It is this page's one click from
-the loop to a song;
-`tests/browser/test_songcraft.py::test_a_loop_becomes_a_song` presses
-it.
+**Make it a song** (`#deck-arrange`, the deck's on its Song source —
+it was "▶ Whole song" beside → Song; palette "Make this loop a song") is
+the Song page's "From my loop": `POST /song/arrange source=loop` lays the
+loop down as intro / verse / build / drop / break / drop / outro,
+REPLACING the song in one song undo step, and plays it on Song
+(`songcraft.md`, "`POST /song/arrange`"). It asks first (`hx-confirm`)
+when the song had sections as the page was drawn (`song_filled`,
+`service/page.py`). The deck's ▶ on the Song source presses it while the
+song is empty; `tests/browser/test_songcraft.py::test_a_loop_becomes_a_song`
+does so.
 
 ## Perform view: launches queue at the loop wrap
 
@@ -220,13 +352,13 @@ current loop's wrap (`startLoop(buffer, at)`) and fires `loop-switched`.
 bar / slots / seq / rack | side` ("The Loops page, laid out" above),
 named in **both** breakpoints (`test_perform_names_every_grid_area_at_both_breakpoints`;
 under 900 px one column: head, bar, slots, seq, rack, side, loops). The
-pads, the XY, the FX and the beats are the Play module's tabs in `side`,
-no areas of their own. `.launcher` is `auto-fill minmax(150px,
+pads, the XY, the FX and the beats are Play's tabs (a popover the
+keyboard dock's Tools open), no areas of their own. `.launcher` is `auto-fill minmax(150px,
 1fr)` so the 8 pattern slots land in one row, and
 `.launcher > :not(.launch)` spans the row — an empty state or the clip
 placer is prose, not a card, and would be crammed into one 150px column.
 **`.ghost` is `width: 100%`** (right in the dock and the launchers, wrong
-in a flex row): in the live strip it stretches a button across the whole
+in a flex row): in the deck it stretches a button across the whole
 strip and wraps the meter and volume onto two more rows, a 40px strip
 146px tall. Scope a `width: auto` wherever a ghost sits inline.
 
@@ -286,6 +418,45 @@ fill every 1/2/4/8 and a row shift. **Every tool acts on the window**
 `_carry_over` rule. Growing the note grid's bars repeats them
 (`routes/patch._grow`, as the drum transport's bars do) unless the new
 bars already hold hidden notes (then they reappear instead).
+
+**The toolbars, one line each** (Perform; `fragments/transport.html`,
+`perform_drums.html`, style.css 8b's "Perform's toolbars"). The note
+grid's shows what a hand reaches for while drawing — the tool (draw |
+select | stamp | erase), **snap**, **Q** (the loop open for edit: its
+rates and strengths, ✦, ↶ — a menu popover, `quantise_menu`; it was in
+the editor's head), **the length** (bars 1-16 and the steps a bar: they
+left the controls row, which with the key and the feel is one line at
+1920 dense and comfy now), the rows (6 | key | all) and the octave
+window (▲ ±0 ▼), ghosts, **↶** undo (Ctrl+Z) — and **Tools ▾** at its
+right end: a `.menu` popover (`#ptm-notes`, `.pt-more`) of rows, a group
+a row, its caption first —
+
+| row | holds |
+|---|---|
+| move | shift ◀ ▶, reverse ⇆, move (the selection to the cursor) |
+| notes | ▲ ▼ a key tone, +8va −8va, the stamp's chord and length and ♫ at the cursor, ⌦ the selected, ✕ clear |
+| length | ×2, legato ½× 2×, ⇤ ⇥ the selected |
+| velocity | humanise, ramp, accent, reset ("Note velocity: …" commands) |
+| ⚄ write | bass · rolling bass · chords · pad · arp · lead, ⚄ again, busier, sparser |
+| clipboard | dup, copy, paste |
+| view | − fit + (the zoom), ? (the how-to) |
+
+The drum rack's row shows the bars, the beat's variations A-D, ↶ and its
+Tools ▾ (`drumgrid.html` `drum_menu`, `#ptm-drums`: move, length,
+velocity, generate — ⚄ new, sparser, busier, ⚄ build —, fill and its
+lengths, copy to a variation, clear), then ✚ Keep and kit & bank ▸
+(`beat_vars` / `drum_menu` repeat `beat_bar` / `drum_tools`' buttons:
+Drums draws those, its golden pins their bytes). **Shut, every control
+is still in the page**: its `data-cmd` is the palette's and the Stream
+Deck's, the roll's keys (Ctrl+C / V / D, Ctrl+← →, Delete, the stamp's
+Enter: roll.js clicks the button by its op in its box) and a right
+click's rows (the piano roll's menu: its `data-menu`s; Q is "Quantise ▸")
+reach it. **Tools ▾ stays open while you work in it**: an action redraws
+the note grid's region (`outerHTML`), which draws it shut, and grid.js
+opens the new one again; Esc or a click away shuts it.
+`tests/browser/test_perform.py`
+(`test_the_toolbars_are_one_line_and_tools_holds_the_rest_its_keys_work_shut`),
+`test_frontend_contracts.py` (the popover: Esc, a click away, ↓ walks it).
 
 ### Pattern undo
 
@@ -410,7 +581,9 @@ pattern undo and the pool need nothing of their own for the roll. (One
 more lane sits the same way: **timing
 inside a step**, `note_nudge`, which only free record's loops write —
 "Free record and the shaper" below. No gesture writes it; every tool
-carries it with its note's start step, as a velocity.) What each
+carries it with its note's start step, as a velocity. And one lane is
+per NOTE: **a note's own feel**, `note_feel`, which a take's loop writes —
+"A note's own feel" below; the tools carry it with its note.) What each
 gesture becomes:
 
 | Gesture | Becomes | Through |
@@ -426,6 +599,7 @@ gesture becomes:
 | ½× / 2× | each note's length halved (at least a step) or doubled (to the next note on its row, or the grid's end); starts never move | `…/notes/half`, `double` |
 | a stamp | the in-key chord on the clicked row (`STAMPS`: triad, 7th, 9th, sus2, sus4, power — scale steps up `key_ladder`) as simultaneous notes of the chosen length; in the drawer also "chord track": the tones `chordtrack.resolve` holds under that step, root position from the nearest root at or below the row. A tone the window has no row for is left out, and the toast says how many | `…/notes/stamp` (`row`, `step`, `q`, `len`) |
 | ◀ ▶ ▲ ▼ ±8va with a selection | the same `move` (an octave = however many rows of the window an octave is); without one they are the pattern tools (the whole window; shift wraps) | `…/notes/shift_left` … with `sel` |
+| snap | each note (each selected note) loses its own feel (`note_feel`) and plays as a grid note again: its step's timing and velocity, gated | `…/notes/snap` |
 
 `…` is `/fragment/pattern` on Perform (`@pattern_edit`: one pattern-undo
 step) and `/song/pattern/{id}/tool/` in the drawer (one song-undo step;
@@ -484,6 +658,87 @@ form that does not carry the field leaves the value alone
 beside it: not a pattern undo step. The stamp still writes simultaneous
 notes; the lane's strum spreads them.
 
+### A note's own feel (a take as played)
+
+The owner's ask: a take recorded on the keys plays back exactly as it was
+played — the same presses at the same times, as long and as hard — and
+every press can then be adjusted on the grid. The grid stays a step grid;
+beside its cells a note lane holds, **per note**, what the steps cannot
+(`Arrangement.note_feel`, `studio/notefeel.py`,
+`tests/studio/test_note_feel.py`):
+
+    "<pitch>.<step>": [start, end, share]
+
+keyed by the note's row and its start step: `start` where it starts from
+its step's line (-0.5..0.5 of a step), `end` where it ends from its run's
+END line (the line after its last cell, -1.5..0.5, no gate), `share` its
+velocity as a share of its start step's (the step holds the loudest note
+starting there, so the velocity lane and its tools still move a chord as
+one and keep its balance). **Absent when unset** (`schema.ARR_OPTIONAL`, a
+pattern's and a loop file's optional key, a slot's `seq`): no saved state,
+loop, song, key or render moved, and `RENDER_REV` did not. A key that
+names no note's start is dropped wherever a lane is written down
+(`schema.clean_feel`: a note erased, drawn over, merged into the cell
+before it); a hostile one is conformed (`limits.MAX_FEEL_NOTES`, a real
+pitch, a grid step, three finite numbers clamped).
+
+- **One schedule.** `arrange._lane_timeline` plays a felt note where it
+  was played — its start `(step + start)` steps in, held `run + end -
+  start` steps (never under 1/64), at `share` of its step's velocity — and
+  **no swing, no step nudge and no NOTE_GATE**: the timeline's `dur` is its
+  held length over `NOTE_GATE`, so every reader of the timeline (the gate,
+  a mono / legato line, the MIDI file's note-off) gets that length back.
+  Start and length are rounded to a billionth of a beat, so a take's own
+  decimals come back as the very floats it posted. A lane with feel takes
+  the timeline path (`_uses_timeline`). An arp ignores it (as the nudge,
+  `notefeel.of`); a strum still spreads notes that start together (felt
+  ones rarely do); the chance lane rests a felt note whole; a slide on its
+  start step still glides; a following layer plays the main lane's feel at
+  its octave (`follow_layer`, `notefeel.shifted`); a layer slot keeps its
+  own (`seq`, `song_bridge.lane_render` on its notes' starts).
+- **Sections and patterns** carry it as cells (`song.md`, "Patterns carry
+  timing and chance"): tiled, cropped, regridded onto a finer grid
+  (dropped onto a coarser one), in `songops`' windows, the launcher's
+  windows and regrids, pattern undo. A note felt early onto a chunk's
+  first line plays in the chunk before (`song_model._window_notes`).
+- **Every tool carries it with its note**: shift, reverse (onto the
+  mirror image's start, early for late: `notefeel.reverse`), ×2, transpose,
+  move, copy / paste / dup (the copy keeps it), a hand resize, legato, ½× /
+  2× (the start and velocity kept, the end SNAPS to its new line — a length
+  set by hand is on the steps, with no gate), remove (gone with its note), a
+  stamp over it (fresh notes have none), the velocity tools (untouched: the
+  share rides the step), clear and tidy (cleaned), **snap** (the roll's
+  button: back on the grid), Q (100 % clears it; below, placed again from
+  `played`). A cell painted after a felt note lengthens it, and its release
+  keeps its place against the new end line.
+- **The roll draws it** on the cells it already has (`notefeel.marks`,
+  grids.html `feel_marks`): the start cell `felt-s`, off its step line by
+  `--fs` of a cell (`translate`), its edge lit; the last cell `felt-e`, the
+  share `--fe` of it past where the note was let go painted as the roll (a
+  background layer: no clip, no opacity, so no cell gains a layer of its
+  own); let go past the line, its end handle in the signal colour
+  (`felt-past`); a title in words (how late or early, how far before or
+  past the line, the share of the step's velocity). Measured
+  (`tests/browser/test_take_feel.py`): a 16-bar chromatic grid, 6,400 cells
+  and 177 felt notes, restyles and lays out in 552-558 ms against 546-582
+  ms on the steps (noise); the Perform page is 1.097 MB against 1.054 MB
+  and renders in 158 against 148 ms on the server.
+- **The proof** (`tests/studio/test_take_exact.py`): a take — a chord of
+  mixed velocities struck apart, releases between the steps, a note over a
+  bar line, a staccato note, a downbeat played early onto a chunk's line,
+  a bend and a cutoff sweep — renders in its loop (▶), its Edit and its
+  chunked → Song section as `Song.notes` renders the raw events (each held
+  its own length, at its own velocity): ▶ and Edit one render, within one
+  16-bit step of it (measured 0 but float rounding); the section within
+  one 16-bit step without a curve, within 2e-3 (measured 1.4e-3) where its
+  chunks read the cropped curves; the knob as turned against the curve
+  kept, within 3e-3 (2.2e-3: the curve's samples sit at i / (n - 1) of the
+  loop). One difference is left, not built (the strict xfail there): the
+  early downbeat, sounding in the chunk before past its last line, reads a
+  drawn curve frozen at that line (0.106 under the moving cutoff) — as any
+  note held over a seam already does; reading cycle-long curves per chunk
+  moves every chunked section with a curve, a `RENDER_REV` call.
+
 ### Tools
 
 `<html data-roll="draw|select|stamp|erase">`, per browser
@@ -503,8 +758,25 @@ tool (grid.js).
 ### Rows, the octave window, ghosts, chord tones
 
 - **Rows**: six tones (`span` 1), the key over two octaves (2: every row
-  in key — this is scale lock) or chromatic (3: 24 semitones, the rows
-  outside the key `.off-key`, dimmed). Root rows are bold.
+  in key — this is scale lock), chromatic (3: 24 semitones, the rows
+  outside the key `.off-key`, dimmed) or **every row the notes use** (4,
+  "notes": `state.model.note_rows`) — no window: the key's rows from the
+  root at or below the lowest note to the root at or above the highest (at
+  least an octave), and the row of any note out of the key among them (not
+  the chromatic run between), the pane scrolling down them. Root rows are
+  bold. The octave buttons stay put on span 4 (`oct_range` is the window
+  it is at); `grid_span` 4 is saved as the others are (`schema` 1-4).
+  **Measured** (`tests/browser/test_arp_take.py`, a 16-bar 1/16 grid over
+  A3-F7, every note felt, the roll's style and layout redone whole):
+  span 3, 24 rows, 6,400 cells (the slide row's counted): 415 ms, the page
+  1,037 KB; span 4, 30 rows (29 of the key's and one held out of it),
+  7,936 cells: 561 ms, 1,194 KB; the full chromatic run, 49 rows, 12,800
+  cells: 887 ms, 1,590 KB. The key's rows and the held ones, not the
+  chromatic run: the cost follows the cells (+35 % for every note shown,
+  against +114 %), and five octaves chromatic, 61 rows, would be ~2.5x
+  span 3. `limits.MAX_GRID_PITCHES` (24) stays what it was — the distinct
+  pitches a lane may hold: a take over five octaves of one key holds far
+  fewer (the owner's: 14) — and is no longer the most rows a roll shows.
 - **The octave window** moves the rows' bottom whole octaves from the
   root (`state.model.grid_rows(arr, span, octave)`; `pitch_rows` is the
   window at 0). On Perform it is `state.grid_oct` (-1..+3): **runtime
@@ -520,6 +792,9 @@ tool (grid.js).
   launch. The notes are never moved: the window finds the nearest octave
   that shows them all, widening to two octaves of the key or to the
   chromatic rows when a note is out of the key (`model.notes_window`).
+  When no window shows them all (a take over three octaves and more),
+  the roll shows every row they use (span 4), and a roll on span 4 stays
+  there.
   An empty grid keeps the window where it was. PageUp on
   the top row / PageDown on the bottom row pages it and keeps the
   cursor on the pitch asked for. Notes outside the window are hidden
@@ -696,6 +971,120 @@ layer slot keeps its own in its `seq`; `state.LAYER_SEQ_OPTIONAL`).
 `tests/studio/test_note_chance.py`, `test_song_chance.py`;
 `tests/browser/test_song_chance.py`.
 
+### The arp pattern
+
+**One step pattern, both arps** (`arppattern.py`): up to 16 steps, each
+**on** (off is a rest: it takes no note of the run), **vel** (a scale on
+the note's own velocity — the grid's velocity lane at the step the note
+falls on, the key's strike), **tr** (transpose in **tones of the loop's
+key**, `scale_shift`: +2 in A minor takes A to C; a note off the scale
+keeps its distance above the tone under it), **gate** (of its step),
+**chance** and **rep** (repeats: the step's time split into that many
+hits); and the arp's own settings — **rate** ("grid", the note grid's
+step, or 1/4 … 1/32 with the triplets), **dir** (up, down, up-down, as
+played, random), **oct** (1-4) and **retrig** (note, bar, free).
+
+- **Where it lives**: `Arrangement.arp_pattern`, the edited lane's — a
+  slot keeps its own in its `seq` (`LAYER_SEQ_OPTIONAL`), a follower plays
+  its main lane's (`follow_layer`), a song pattern carries it
+  (`song_bridge._NOTE_OPTIONAL`, `schema` pattern node), a section opened
+  as the loop brings it back. **Absent while unset** (`schema.
+  ARR_OPTIONAL`): no session file, loop file or key gains it, and every
+  arp renders as it did (`RENDER_REV` did not move). No form carries it
+  (`_merge_arrangement` keeps it): its own route sets it. Not a pattern
+  undo step, as the grid arp's mode is not. A saved loop does not keep it
+  (`LOOP_FIELDS` keeps no arp setting).
+- **The grid arp plays it in its "▦ pattern" mode** (`arp_mode`
+  "pattern", appended to the choices; FEEL on the Loops page, the Song
+  drawer's arp select), through `arrange._pattern_timeline` — THE
+  schedule, so the loop, a section's chunks and the MIDI file agree. Its
+  chord is the grid arp's: **every row with a note, held the whole
+  loop** (in the order the rows first play, for "as played"). A step
+  every `rate` beats, **counted from each bar line** (the meter's bar,
+  `bar_beats`; a step running past it, as 1/4 in 7/8, starts the next
+  bar's count on the bar line — as the keys arp re-anchors), the odd steps
+  of a bar late by the loop's swing. A hit sounds `gate` of its step
+  (`dur` is that over `NOTE_GATE`). The grid's chance lane still rolls at
+  the step a note falls on, after the step's own. **The default pattern**
+  (eight steps, each on, vel 1, gate 0.9, up, a grid step, retrig note)
+  **is the "up" arp note for note.**
+- **The walk** (`arppattern.Run`, `step`): each step that is on takes the
+  next note of the run (the held notes over `oct` octaves in `dir`'s
+  order — arp.js's own `cycle` / `pick`: "random" a seeded shuffle a
+  cycle); a rest takes none, a step its chance rests still takes one.
+  **retrig** starts the walk again: "note" when the chord is struck (on
+  the grid: every pass of the loop's pattern, from a trimmed block's
+  start), "bar" at every bar line, "free" never. **Chance is a hash**
+  (`roll`: `core.hash_u` of the step and the pattern's pass — the pass
+  count never restarts, so a 50 % step varies pass to pass and a
+  re-render rolls the same). A working loop whose grid arp plays a step
+  under 100 % renders four passes (`song_model.loop_chance`), as the chance
+  lane does.
+- **The keys arp plays the same pattern** in its ▦ mode
+  (`keys-and-midi.md`, "The keys arp"): static/arppat.js is the walk line
+  for line, reading the pattern, the key and the grid's step off the
+  editor. `tests/studio/test_arp_pattern.py` runs arppat.js under node
+  against arppattern.py over every direction, octaves, rests, transposes,
+  repeats, chance and restarts — the same hits — and holds the grid's
+  timeline to that walk laid on its steps.
+- **The editor** (`fragments/arp_pattern.html`, region `arp-pattern`, a
+  popover base.html draws on every page, morphed so it stays open): the
+  grid arp's ▦ beside its select and the keys arp's "▦ pattern…" in its
+  ⚙ open it. A column a step (on, vel %, tr, gate %, chance %, rep — a
+  value's share fills its field), the settings above, and the **12
+  slots** (`arp_slots`, the session's, absent while none holds one): a
+  filled slot recalls onto the lane, an empty one saves into it, "to N ·
+  save" overwrites, ✕ empties. Routes: `POST /fragment/arp/pattern`
+  (`action=clear`: back to none), `POST /fragment/arp/slot` (`save`,
+  `recall`, `clear`); both `routes/arp.py`, the loop re-rendered only
+  while the grid arp plays the pattern.
+- **Limits**: a section renders one cycle (the lcm of its lanes' bars)
+  and repeats it, so "free" starts again there and the rolls repeat with
+  it. The chord is the grid's every row, never the notes held at a step
+  (a chunk of a long section does not see the notes before it) — but for
+  a HELD pattern, below.
+- **The keys I held** (a take's, `arp_pattern["held"]`: keys-and-midi.md,
+  "⏺ Rec"; `arrange._held_timeline`, `arppattern.from_keys`,
+  `tests/studio/test_arp_take.py`): a ⏺ Rec take made with "Arp: the keys
+  I held" keeps the keys pressed and its loop plays them through the grid
+  arp set as the keys arp was — `arp_mode` "pattern", the pattern the keys
+  arp's ▦ (its "grid" rate named, the loop may sit on another step; `held`
+  "pattern") or, in its up / down / up-down / random / as-played modes, one
+  step at its gate on its rate in its mode and octaves (`held` "plain"),
+  with the keys arp's `swing` (the pattern's own, not the loop's). A held
+  pattern is NOT the grid's chord: at each step the chord is the notes the
+  keys arp read then — held `HELD_READ_S` (50 ms) before the step (its pump
+  reads 40-60 ms ahead), a run's first step the first at or after its first
+  press less `HELD_LATE_S` (30 ms) — and a run (a stretch with a key down)
+  starts the walk afresh ("plain" never again within it; a ▦ pattern's
+  "note" at the first step read after a strike, "bar" at every bar line,
+  "free" goes on from the last run). A hit's velocity is the newest held
+  note's times the step's. Held to a model of arp.js's clock (its 20 ms
+  pump, `stepAt`, the take's bar lines; arppat.js's `hits`) in every mode
+  and retrig: the same pitches at the same times within a render quantum,
+  and in Chromium against the notes the keys arp sent the voice
+  (`tests/browser/test_arp_take.py`). **Where it differs from the take**,
+  said exactly: a run's first note struck up to 30 ms after its step
+  sounded live when struck, and plays on the step; a key pressed or let go
+  in the 40-60 ms before a step joins / leaves at that step or the next as
+  the pump's 20 ms phase fell (the model takes 50 ms); a chunked → Song
+  section (past 10 s of loop) starts the walk again at each chunk; the
+  chance lane rests a held NOTE (not an arp step); a held loop's arp is
+  its own — Edit, a launch or ▶ of a loop with none turns it off
+  (`_loop_lane`, `slots._arp_fields`), and the grid arp turned or the
+  pattern edited while it is open is not saved to the loop (the editor
+  keeps `held` and `swing`). The keys arp's chord mode (stabs) has no grid
+  arp: such a take keeps its notes.
+- **The live arp counts each bar from its line** (arp.js): its next step
+  counts from the bar line at or before that step's own line (it took the
+  one before half a step back, so a step on a bar line was step 12 of the
+  bar before, never 0) — "bar" retrig now starts the walk at every bar line
+  live, as the grid does, and the swing's odd steps restart with each bar
+  (in 3/4 at 1/8T, 9 a bar, they had drifted).
+
+`tests/studio/test_arp_pattern.py`; `tests/browser/test_arp_pattern.py`.
+**Nobody has listened**: whether a pattern grooves.
+
 ### The lane heads (Perform)
 
 **The lane heads** (pick up the synths you made and switch layers
@@ -786,7 +1175,7 @@ clip (`studio/loops.py`, `studio_data/loops/<name>.json`,
 
 | key | what |
 |---|---|
-| `arr` | the note lane (bars, steps a bar, cells, cuts, velocities, slides), the tempo, the key and the meter — `state.model.LOOP_FIELDS` |
+| `arr` | the note lane (bars, steps a bar, cells, cuts, velocities, slides; each note's own feel, `note_feel`, when it has one), the tempo, the key and the meter — `state.model.LOOP_FIELDS`; its grid arp (`arp_mode`, `arp_pattern`: `loops.ARP_FIELDS`) only when it plays one — a take of "the keys I held" |
 | `sound` | the whole sound that played it, with its layers (a format-2 preset's body) |
 | `take` | the clip of its audio (absent on an older loop file, or one saved from the lane until it is rendered) |
 | `played` | the notes **exactly as played**, `[start, length, midi, velocity]` in beats from the take's first downbeat — never rewritten; the arp's notes as they sounded |
@@ -798,25 +1187,127 @@ nothing played (they are all optional: absent, a file conforms to the defaults;
 `test_a_loop_from_before_these_keys_reads_as_one_with_no_audio`).
 
 **The placement** (`loops.place`): the notes as played on a grid of the
-take's bars, rounded up (`loops.grid_bars`: at most the Arrangement's 4,
-and `MAX_GRID_STEPS`; a longer take keeps the rest in `played`), at the
-**rate** — the meter's own steps (`meter.step_choices`: 1/4, 1/8, 1/16,
-1/32 in 4/4; 3, 6, 12, 24 a bar in 3/4; no quarter-note step in an x/8
-meter; **no triplets**, which the note grid has no steps for in a duple
-meter) — the meter's sixteenths first. A note starts on **its step by the
-strength**: within `strength`% of half a step of a grid line it goes onto
-that line, else it stays in the step it began in (`loops._step_of`: 100
-= every note on its nearest step, the default; 0 = **as played**, each
-note in the step it began in). It is held for its length in whole steps
-(at least one); one starting where its row still sounds is a cut; a
-step's velocity is the loudest note starting there — the MIDI import's
-write (`midi_bridge.to_grid`) on every pitch the notes play. **The step
-grid holds no timing inside a step**: "as played" timing is kept in the
-loop (`played`) and heard in its audio; the grid, the pattern a song
-plays and a bounce are on the steps. (A **free loop** —
-free record's shaper, "Free record and the shaper" below — does keep its
-timing on the grid: `note_nudge`, the drum hits' `nudge` for notes, and
-its Q keeps it below 100%. A take's loop is placed as here.)
+take's bars, rounded up to the note grid's next choice (`loops.grid_bars`,
+`limits.LOOP_BAR_CHOICES`: 1-4, **8 and 16** while bars x steps fits
+`MAX_GRID_STEPS`, 256 — 16 bars at 1/16, 8 at 1/32 — so a 6-bar take is
+an 8-bar grid with two empty bars at its end, a 12.5-bar one a 16-bar
+grid: past 4, powers of two, so a beat of 1, 2 or 4 bars divides the
+grid and the loop is as long as its notes; a take longer than the longest
+grid keeps the rest in `played` —
+`loops.rest_bars` — and says so: the take's toast, "+n bars played" on its
+row, Edit's toast; → Song lays every bar out, below), at the
+**rate** — the meter's own steps (`meter.step_choices`: 1/4, 1/8, 1/8T,
+1/16, 1/16T, 1/32 in 4/4 — 4, 8, 12, 16, 24, 32 a bar; "The loop's meter"
+below says each meter's) — **the one its notes sit on best**. The
+**strength** says how much of
+its timing a note keeps (`loops._spans`, `tests/studio/test_loops.py`):
+
+- **as played, 0** (the default for a take's loop — ⏺ Rec, ⟲ Capture, a
+  take's first action): every note on its nearest step **with its own
+  feel** (`note_feel`, "A note's own feel" above): where it started off
+  that line, where it ended (its cells running to the line nearest that,
+  at least one step) and its share of the step's velocity — the step
+  holding the loudest note starting there exactly, not rounded through
+  MIDI. A note cut short of where it was let go (by the grid's end, or the
+  next note on its row) ends on its cut line.
+- **25, 50, 75**: the start and the end each pulled that share of the
+  way to their nearest lines, the rest kept as the note's feel; velocities
+  as played.
+- **100**: every note on its nearest step, held for its length in whole
+  steps (at least one) — on the steps, no feel (a loop placed at 100 is
+  the grid it always was). Free record's loops (`place_free`) still keep
+  their timing as the step's `note_nudge` ("Free record and the shaper"),
+  held to the step. When nothing was played past the grid the
+  loop is a circle: a note played early onto the grid's end line is its
+  first step, early, which the render wraps to the end (as a free loop's).
+  So **Q "as played" plays back like the take**: the grid, the render, ▶
+  in time at another tempo, → Song (the pattern carries `note_nudge`; its
+  sections' chunks keep it) and a bounce all play the timing.
+
+**Placement picks the rate** (`loops.pick_steps`,
+`tests/studio/test_arp_take.py`): a take placed as played (⏺ Rec, ⟲
+Capture, a take's first action) lands on the rate whose lines its note
+STARTS sit on best — the least total |offset| in milliseconds at its tempo
+(`loops.offsets_ms`) — of `loops.pick_order`: the meter's sixteenths first
+(every grid before; they hold every 1/8 and 1/4 line, so nothing coarser is
+offered), then its triplets coarsest first, then 1/32. A rate within
+`PICK_TIE_MS` (6 ms) a note of the best is a tie, and the first in that
+order takes it — and a rate other than the sixteenths only when the notes
+sit ON its lines (`PICK_ON_LINES`: their mean |offset| at most 0.1 of its
+step; notes on no grid sit a quarter of a step off any rate's lines, so a
+finer rate always "fits" them better in milliseconds and would take every
+loosely played take). A 1/8T arp lands on 12 steps a bar with its notes on
+the lines (but for its swing, up to 20 %: the odd steps late, as the arp
+played them), a 1/16T roll on 24, a riff of sixteenths played loosely on
+16, quarter-note chords on 16, a take on no grid on 16. The rate is said in the take's toast ("on 1/8T (12 a bar)":
+`X-Loop-Rate`, keyrec.js; the rest-of-the-take toast says it too). A loop
+keeps its rate from then on: Q, the length question and Edit place at the
+loop's own (`/loop/length` at `lane.steps_per_bar`), and nothing saved
+moved (no loop file, key or `RENDER_REV`). **The owner's take**
+(2026-11-22, 1/8T over three octaves, 100 bpm, nothing playing) re-placed:
+the arp had counted from each press, not from the take's bars (0.25 beat
+off the take's triplet lines, a different phase each press), so no grid
+holds it on its lines: it stays on 1/16, mean 37.1 ms, worst 70.8 ms off
+them (1/32: mean 17.0, worst 31.2 — a quarter of its step, as notes on no
+grid are; 1/8T: mean 58.4, worst 79.2). A take from silence now counts the
+arp from its own bars (keys-and-midi.md, "The keys arp"), which lands such
+a take on 12 a bar, every note on a line.
+
+One starting where its row still sounds is a cut; a step's velocity is the
+loudest note starting there — the MIDI import's write
+(`midi_bridge.to_grid`) on every pitch the notes play. A loop placed
+below 100 before this (each note in the step it began in, no timing kept)
+keeps its file until Q places it again.
+
+**The take's length: keep, trim or fit** (`routes/takes.py`
+`_length_ask`, `POST /loop/length`, `tests/studio/test_take_length_level.py`,
+`tests/browser/test_take_level.py`): a take that is not whole bars —
+recorded with nothing playing, or "to ■" off the grid (1.5 bars, a
+2.24-bar riff at 100 bpm) — is placed as any take (its bars rounded up:
+the riff a 3-bar grid, 0.76 bar of silence before it repeats), and its
+answer asks, in the `song-ask` popover tosong.py's questions use
+(songdrag.js draws it on every page, beside the take's toast):
+- **Keep N bars** — as it is: the gap before it repeats;
+- **Trim to M bars** — the longest grid inside the take (its whole bars,
+  1-4, 8, 16), the notes past its end line cut at it (a note held over it
+  ends there; one starting past it goes) — offered from one bar up;
+- **Fit the tempo** — the tempo at which the take is exactly whole bars:
+  the nearest of the bars either side that is a grid (else the nearest
+  grid), inside `limits.BPM_RANGE` (the riff: 2 bars at 89.286 bpm); every
+  note keeps its place in time, its beats scaled with the tempo.
+
+Each places the loop **from its take** (`_take_basis`: the take's bars,
+tempo and notes as played — never from the loop, so Keep after Fit is the
+take again) at the loop's rate and strength, and writes the placed notes
+as the loop's `played` (Fit's in the new tempo's beats; Q starts from
+them). The loop open on the grid by Edit follows: **one pattern undo
+step**, which also carries the tempo and the loop's notes as played back
+(`pop_pattern_undo` restores a step's `arr` fields, `bpm` among them, and
+its `played`) — the transport hears it at once (a `preview-ready`).
+Refused in words: a loop with no take of its own (a capture, a lane saved,
+a beat, a free loop), one edited on the grid since ("Q places it again"),
+one playing in a launcher slot, a trim of a take under a bar. A take that
+landed in a slot, or that runs past the longest grid (→ Song lays out the
+rest), is not asked. A take's turned controls (its curves) stay drawn
+over the grid as it was placed: a length action re-places the notes only.
+
+**A long grid** (8 or 16 bars; `tests/studio/test_loops.py`,
+`test_limits.py`): the working loop's `bars` is any of
+`limits.LOOP_BAR_CHOICES` that fits its steps (`limits.loop_bar_choices`;
+`schema`'s `arr_post` and `arrange.arrangement_from_form` keep the longest
+that fits when the steps change — 16 bars at 1/16 are 8 at 1/32, the step
+numbers kept, as any change of steps keeps them); the drum grid keeps its
+1-4 (`BAR_CHOICES`) and the loop is the lcm of the two, as ever. The
+transport's bar chips offer 8 and 16 while they fit; ×2 doubles up to 16,
+refused in words past the loop cap (`render.LOOP_CAP_SECONDS`: 16 bars of
+4/4 play from 54 bpm up), as Edit is. The roll **scrolls, never squeezes**:
+"fit" still floors a step at `--step-min` (16 px dense, 20 comfy), so a
+256-step grid is wider than the pane and pans (zoom.js), the ruler
+numbering every bar. Raising `MAX_GRID_STEPS` from 128 moved nothing
+saved: every state conformed under 128 holds no step past 127 and
+conforms to itself under 256; no render key reads the cap. A loop file
+placed before (a 6-bar take as 4 bars + 2 played) keeps its file until Q
+places it again, which takes the longer grid.
 
 **The Loops list** (`studio/looplib.py`, `fragments/loop_rows.html`): every
 loop and every keys take no loop names yet (an older take, or one
@@ -832,13 +1323,32 @@ its own watch, re-sent by whatever moves it — so a ⏺ Rec on Perform
 lists its loop in the panel at once: keyrec.js's `fetch` carries the page's
 `HX-Current-URL` (events.js `pageHeaders`, as every island's fetch post
 does; without it the server would read the post as Synths' and never
-re-send the Perform-only list). A row: ▶ in time, its
-notes as a mini piano roll (`loops.roll_of`: one SVG path of runs,
-cached with the file) or a beat's hits as a mini step grid
-(`loops.beat_roll`), its name (`title`) · bars · rate · bpm · key · sound,
-☆ / ★, its tags, and
-**Edit** (a beat: **Open**), **→ Song** ▸ pattern | audio, **Q** ▸
-(Quantise), **#** (tags), **✎**, **✕**.
+re-send the Perform-only list). **A row is quiet**: it shows ▷ listen
+in time, its name (`title`), its facts on one line (bars · rate · bpm ·
+key, a take's length, "+n bars played", the sound when the name does not
+say it) and ☆ / ★ — **nothing else**, in all three lists. Every other
+action is **its right-click menu** (menu.js; the Menu key or Shift+F10
+on a focused row): **Edit on the Loops page** (a beat: **Open on the
+drum grid**; an idea or a section: **Open as a scene**), **✂ Shape**,
+**→ Song ▸** pattern | audio, **Quantise ▸** (its rates, its strengths,
+✦ clean up, ↶), **# Tags…**, **✎ Rename…**, **✕ Delete** — the same
+controls as ever, in the row (`.lp-acts`) but never drawn, so their
+routes, confirms, prompts (anchored to the row: tweaktype.js) and the
+newest row's palette commands work as a hand on them would
+(`data-menu-group` makes → Song and Quantise submenus: `frontend.md`,
+"One context menu"). **A double-click on a row, or Enter on it** (a row
+is one tab stop), is its Edit (Open) — loopspanel.js — and **on the
+Loops page an Edit of a loop a launcher cell holds selects that cell**
+instead (the one selected that holds it, else the one playing, else the
+first: its click, "One selection" — the editor shows it, it plays there
+from the quantise point, every edit saves to it); a loop in no cell is
+`/loop/edit` as below, on the edited lane. The same rule holds for the
+menu's Edit, a row dropped on a grid and the palette's "Edit the newest
+loop" (`tests/browser/test_loops_panel.py`,
+`test_a_row_dragged_onto_a_cell_fills_it_and_a_double_click_selects_that_cell`).
+The mini piano roll a row once drew (`loops.roll_of`, still
+cached with the file) is no longer drawn, nor its tags (the panel's tag
+bar and `#tag` in the search find them).
 A take's row posts `take=` and its first action makes its loop
 (`routes/takes.py` `_loop_named`: from its notes as played and the sound
 that played it) — nothing recorded before is lost. The drawer's search
@@ -852,7 +1362,11 @@ edits it.
   on the edited lane **as the loop** — its notes, its sound with its
   layers (`load_sound`: one sound undo step), its tempo and key and meter
   (another meter: the loop's other grids fitted first, `set_meter`; refused
-  past the loop cap), the octave window where its notes are; **one pattern
+  past the loop cap), the octave window where its notes are; **while the
+  edited lane follows the main one it opens on the main lane** (the edited
+  lane moves there, `_to_main_lane`, and the toast says so — `/loop/load`
+  too; it was a refusal, "draw its own first", which read as Edit being
+  broken); **one pattern
   undo step, which is the edit's mark**. From then on the grid **is the
   loop**: `StudioState.loop_edit` (runtime, **one entry a lane** —
   `{lane: {name, layer, mark, base, row, bars}}`: the launcher's
@@ -888,7 +1402,14 @@ edits it.
   the loop's bars, its notes a pool pattern on a synth track that plays
   its sound (its other sounding lanes too; a track already playing that
   sound is reused: `song_bridge.add_lanes_section`, no beat, no drums
-  track); **audio** — a new last section with its audio as a take from
+  track) — **a take played past its grid is every bar it played**: the
+  loop's grid as the first section, then a section for each grid's worth
+  of bars after it (`loops.rest_lanes`: the notes as played — or as ✦
+  cleaned — at the loop's rate and strength, "name 1", "name 2", …, the
+  last one as short as what is left), all in the one undo step; a note
+  held over a section's line goes on from the next one's first step (it
+  starts again there), and "place it again?" is not asked of one;
+  **audio** — a new last section with its audio as a take from
   its first bar on an audio track (`add_audio_section`); a loop with no
   audio is rendered first (the bounce below) and that clip is its audio
   from then on. A beat → Song is a section holding it on the drums track. Asked, not refused (`tosong.py`, a
@@ -928,6 +1449,72 @@ over the take's length — `keytakes.to_grid`), **→ sample**
 patch=, chain=, mix=True, arrangement=, parts=("synth",))` — into the
 clip store, the session untouched), ★ Keep and "clear takes" (an older
 take). The list does not offer them: Edit and → Song are the flow.
+
+**Like for like** (`tests/studio/test_loops.py`,
+`test_like_for_like_play_edit_and_song_render_the_same_loop`): a loop's
+▶ (the render it plays without audio of its own, or at another tempo —
+`takes._render_loop`, which → Song as audio bounces too), its Edit on the
+grid (Perform's render of the edited lane's synths) and its → Song
+section render the same notes, with the timing as played (Q below 100),
+in the same sound: the patch, a following layer, a layer with notes of
+its own, the main lane's FX and a curve. ▶ and Edit are one render (one
+key); the section is the same samples up to the 16-bit WAVs once it is
+normalized as a loop is (a section is raw: the song normalizes once,
+song-wide, `render._normalize`). Not verified: ▶ at the loop's own tempo
+plays the take's recorded audio — the live voice, which nobody has
+compared by ear to the render. **One difference is left, not built**
+(the strict xfail beside it): a lane's FX ring past its last note + 4
+beats + 1 s is cut in a loop render (`render.stem_fx` runs over the dry
+render, `Song.render`'s length) and rings on in a section rendered in
+chunks (`render._cycle_stems`: past `MAX_LOOP_SECONDS`, 10 s — every
+8 or 16-bar loop under 192 bpm — to its last chunk's start + 4 beats +
+1 s). A layer
+whose notes are all early in a long loop, under a delay or a reverb,
+loses its tail in ▶ and Edit and keeps it in the song (measured: a
+delay's ring at -45 dB stopping 3 s after the layer's last note). Either
+fix moves the renders of existing keys, so it waits for a `RENDER_REV`
+bump.
+
+**At the keys' level** (`studio/keylevel.py`,
+`tests/studio/test_take_length_level.py`, `tests/browser/test_take_level.py`):
+a take's loop plays at the level its take was heard at while it was
+played. A loop render is normalised (`render._normalize`: the body of the
+mix to 0.89); the keys are not — keys.js's key bus plays a voice at the
+engine's level x `KEY_HEADROOM` 0.45 over the keys held ^ 0.25, into a
+-4 dB limiter whose makeup gain (the DynamicsCompressorNode's own: the
+full-range gain's inverse to the 0.6, 2.28 dB) lifts it all — so the
+owner's riff played 8.9 dB over its take. **No render moved** (every key,
+`RENDER_REV` too): the render reports the gain its normalisation applied
+(`RenderResult.norm_gain_db`), and the players apply `keylevel.playback_db`
+— the key bus's gain for the notes its synth lanes play less that — as a
+playback gain:
+- **Perform's transport while a saved loop of notes is open** (Edit, a
+  launcher slot playing it: `loop_edit` names a note lane) —
+  `preview-ready`'s `gain` (dB, `svc.ready`, from `preview_trigger` and
+  `do_render`); audio.js plays the loop's buffer at it (`level`: its
+  crossfade ramps there, a same-URL answer with a new gain glides there
+  in 30 ms) and at 1 without one. The whole mix moves: a beat under the
+  open loop keeps its balance against the notes (the render's), and is
+  that much quieter than the working loop plays it. **Done** hands the
+  notes back to the working loop, which plays at the mix's level again.
+- **A Loops row's ▶ at another tempo** (`/loop/preview`'s render):
+  `X-Preview-Gain`, which loopspanel.js applies. At the loop's own tempo
+  ▶ plays the take, recorded at that level.
+- **A loop with no audio bounced** (`_bounce`: its ▶'s first time,
+  ⤓ audio, → Song as audio) is kept at that level, as a take is.
+
+The gain for one loop is the bus's power-averaged over its notes
+(`keys_gain`: each instant weighted by the voices sounding, at the gain of
+the keys held then — a release tail, the keys up, at one voice's: a third
+of the patch's release at the note's level): a line of single notes 0.585,
+a held three-note chord 0.585 / 3 ^ 0.25, the rest between; a following
+layer is its main lane's presses (one key, one count). Measured in
+Chromium, through the master's analyser (the take's ▶ against the open
+loop on Perform's ▶): a riff of single notes 0.1-0.2 dB apart (it was
+8.2), a held three-note chord 0.4 (it was 5.1). **Not changed**: the keys
+and every other render — Synths, Drums, the working loop, a song section,
+the song's export (its own loudness targets), a beat loop (no keys played
+it), → Song as a pattern (the section is normalised song-wide).
 
 `tests/studio/test_loops.py`, `test_key_takes.py`,
 `tests/browser/test_key_takes.py` (the journey: record 2 bars ->
@@ -1038,9 +1625,11 @@ tweak it and build on it.
   as another. → Song is notes only
   (as audio a beat bounces; as a pattern the route says to Open it and use
   Perform's → Song).
-- **▶ in time** (every Loops list; loopspanel.js): on
-  the next bar line of what plays (`S.nextBar`), else at once; one
-  audition at a time. The take's audio when the row has one and nothing
+- **▷ listen in time** (every Loops list; loopspanel.js): a quiet
+  preview — never the transport: a layer over what plays (at half its
+  level while the loop plays), stopped when the Loops page's deck starts
+  ("The deck") — on the next bar line of what plays (`S.nextBar`), else
+  at once; one at a time. The take's audio when the row has one and nothing
   plays or what plays is at its tempo; otherwise `POST /loop/preview`
   (`bpm` = the page's tempo while it plays) answers `X-Preview-Url`: at the
   loop's own tempo its audio — the take, or a render made now and **kept
@@ -1049,11 +1638,16 @@ tweak it and build on it.
   notes (or its beat) at that tempo from the render cache
   (`/preview/{key}.wav`, `_render_loop`) — in time and in tune, where the
   take's audio would drift (or, sped up, change key): **as played** feel
-  is then the grid's, not the take's. A bank slot renders through the
-  session's kit (nothing kept).
-- **Drag** a panel row onto the note grid (`#transport`) or the drum grid
-  (`#perform-drums`): its Edit (notes) or Open (a beat) is pressed, as a
-  click; the grid it opens on is outlined while it drags
+  is then the grid's, not the take's — played at `X-Preview-Gain`, the
+  keys' level ("At the keys' level" above). A bank slot renders through
+  the session's kit (nothing kept).
+- **Drag** a panel row **onto a launcher cell** of its kind to put it
+  there (slots.js: `/fragment/perform/slot/place`; a beat only onto the
+  drums' column, a loop of notes onto a layer lane; the cell under the
+  pointer outlined, `data-drop`) — or onto the note grid (`#transport`)
+  or the drum grid (`#perform-drums`): its Edit (notes) or Open (a beat)
+  is pressed, as a click (the rule above: a loop a cell holds selects
+  that cell); the grid it opens on is outlined while it drags
   (`html[data-lp-drag]`). Onto the Song is the drawer's drag (the Loops
   panel is the Loops page's; the drawer is on every page): a loop onto a
   lane of its kind or a section's head, its audio onto an audio lane
@@ -1155,9 +1749,10 @@ one working loop.
 
 - **Where.** `#perform-slots` (`views/perform.html`, `data-module=
   "perform.slots"`, grid area **`slots`**: the top of the
-  centre column at every size, under the live strip, the editor under it
+  centre column at every size, under the deck, the editor under it
   — style.css 41 / 42, dense.css D41). Its head — the quantise, ■
-  all — is the page's and never redrawn; the grid is the region
+  all (kept here, not on the deck: it stops lanes, an undo step, where the
+  deck's ■ stops the sound) — is the page's and never redrawn; the grid is the region
   **`slots`** (`fragments/slots.html`, `StudioService.slots_context`,
   `_w_slots`: exactly what it draws).
 - **The model** (`state/slots.py`, the `Slots` mixin; pure helpers
@@ -1195,10 +1790,12 @@ one working loop.
   grid's (an edit past its first bars makes the loop that long). Another
   meter is refused (the toast names it); so is a grid past
   `MAX_GRID_STEPS` or a loop past the length cap (`loop_refusal`).
-- **A scene** (a row's ▶, Alt+1…8) launches every lane's slot at once —
+- **A scene** (a row's ▸, Alt+1…8; the deck's Scene ▶ for the selected
+  cell's row) launches every lane's slot at once —
   **one render, one undo step**; a lane whose slot there is empty stops
   (as an empty slot of a scene does in every launcher; a slot with no
-  sound has nothing to stop). **■** a lane (the foot; Delete on a slot;
+  sound has nothing to stop). **■** a lane (its head, beside its lamp —
+  the STOP row is gone; Delete on a slot;
   "■ all", Alt+0) stops it at the quantise point: a layer slot muted, the
   drums out of `perform_parts` — its notes stay, a slot plays it again.
   Every launch and stop is ONE pattern undo step holding the whole loop
@@ -1217,52 +1814,55 @@ one working loop.
   a scene of all new lanes 131 ms, one sharing lanes and the beat (stems
   cached) 100 ms, a scene already rendered 39 ms (median 42 ms warm) —
   well inside a bar.
-- **Selection, not launch, moves the editor**. A slot's own click (or
-  Space on it, or Enter while it is not selected) **selects** it — and
-  ONLY selects it: slots.js posts
-  `/fragment/perform/slot/select` and its lane becomes the edited one — the
-  note grid, the keys and Synths edit it, the lane inspector shows it, as
-  its lane head's name would (`select_layer`, before the launch, so the
-  launch's undo step is tagged with that lane) — and Notes | Drums turns
-  to the slot's kind — from Both too: one editor, as the slot is; a beat's
-  slot selects no layer.
-  **A filled slot launches by its own ▶** (`.sl-go`, a small button at
-  the cell's right, lit on the selected slot; its post carries `select`,
-  `_select`), **a double-click**, or **Enter on the selected slot**; ▶ on
-  the slot that **already plays** only selects it (nothing renders, no
-  undo step, nothing waits; from silence it starts ▶). A refused launch
-  (another meter) selects nothing. **A scene's ▶,
-  Alt+1…8, the deck's scene keys, ■, an idea or a section opened never
-  move the editor** — they launch; what you edit is what you picked. An
-  empty slot's ＋ selects its lane once it holds the kept loop.
-- **The selected slot**: the selection is also
-  drawn — `aria-selected` on the cell, the accent's ring; an empty one
-  reads "⏺ rec here" — and kept in the page per tab (slots.js,
-  sessionStorage `synthlab.slotSel`, drawn again after every swap). **An
-  empty slot's click selects it** (not ＋: `POST
-  /fragment/perform/slot/select` makes its lane the edited one when that
-  lane has a sound, so the keys play what the slot will hold — a lane with
-  none keeps the edited one, and the take carries that sound there;
-  nothing renders, no undo step); a click on the selected empty slot lets
-  it go. Its ＋ is a small `.sl-plus` in the cell. The selection is where
-  ⏺ Rec, ⟲ keys capture and the keys arp's print land ("Rec into a
+- **The one selection** ("One selection" above). A cell's click (or Space
+  or Enter on it) **selects** it: a filled one posts its launch with
+  `select` (`_select`: its lane the edited one — the note grid, the keys
+  and Synths edit it, the lane inspector shows it, as its lane head's
+  name would — before the launch, so the launch's undo step is tagged with
+  that lane; a beat's selects no layer) and its loop is open on its lane,
+  playing there from the quantise point; the cell that **already plays**
+  is only selected (nothing renders, no undo step, nothing waits). Notes |
+  Drums turns to its kind, from Both too. A refused launch (another meter)
+  opens nothing. **A scene's ▸, Alt+1…8, the Stream Deck's scene keys, ■,
+  an idea or a section opened never move the editor** — they launch;
+  what you edit is what you picked. An empty slot's ＋ selects its lane
+  once it holds the kept loop. Nothing a cell does starts the transport:
+  the deck's ▶ does.
+- **The selected cell**: drawn — `aria-selected` on the cell, the
+  accent's edge and a tick at its foot; an empty one reads "⏺ rec here" —
+  and kept in the page per tab (slots.js, sessionStorage
+  `synthlab.slotSel`, drawn again after every swap). **An empty cell's
+  click selects it** (not ＋: `POST /fragment/perform/slot/select` makes
+  its lane the edited one when that lane has a sound, so the keys play
+  what the slot will hold — a lane with none keeps the edited one, and the
+  take carries that sound there — and its lane a sketch: the loop open on
+  it stops being edited; nothing renders, no undo step); a click on the
+  selected empty cell lets it go. Its ＋ is a small `.sl-plus` in the
+  cell. The selection is what the editor shows, what Loop ▶ plays, and
+  where ⏺ Rec, ⟲ keys capture and the keys arp's print land ("Rec into a
   slot", below).
-- **The hand** (slots.js, island 76): a click on a slot selects it (an
-  empty one too), its **▶** / a double-click / Enter on it selected
-  launches it, an empty slot's **＋** keeps what its lane plays as a new loop there (open
-  at once: it is what plays), **✕** empties a slot, a row's **⤓** keeps
-  the scene as an idea; a Loops panel row drags onto a slot of its kind
-  (place), a slot onto another (move; Ctrl or Alt copies). A launched
-  slot is drawn waiting (`data-q`, the accent's dashed edge, the
+- **What the cells say**: a lane's head lights its **lamp** while it
+  sounds (`data-sounding` from the server — not stopped, a sound — lit
+  while the output carries signal, `html[data-alive]`); **the cell that
+  plays** has the signal's edge and a **ring of its loop's position**
+  (`--ring` on the cell, loopdeck.js's frame: the time since the loop
+  began over the cell's own bars; a cell alone on the deck alone turns);
+  **a queued cell** has the accent's dashed edge and pulses until its
+  launch; **the selected cell** the accent's edge.
+- **The hand** (slots.js, island 76): a click on a cell selects it (as
+  above), an empty slot's **＋** keeps what its lane plays as a new loop
+  there (open at once: it is what plays), **✕** empties a slot, a row's
+  **⤓** keeps the scene as an idea; a Loops panel row drags onto a slot of
+  its kind (place), a slot onto another (move; Ctrl or Alt copies). A
+  launched slot is drawn waiting (`data-q`, the accent's dashed edge, the
   transport's ring) until audio.js's `loop-switched`, over the server's
   `data-state="playing"` (the region comes back with the answer; slots.js
   re-applies the wait after every swap; a 422's refusal drops it). The
-  grid is one tab stop with a roving focus: arrows move, Space selects,
-  Enter selects or (on the selected slot) launches, Shift+Enter launches
-  the row's scene, Delete / Backspace stop
+  grid is one tab stop with a roving focus: arrows move, Space and Enter
+  select, Shift+Enter launches the row's scene, Delete / Backspace stop
   the lane; **Alt+1…8** a scene and **Alt+0** stop all from anywhere on
   Perform but a field (in the drum pane Alt+1…4 stay the beat's
-  variations, steps.js). A launch from silence starts ▶.
+  variations, steps.js). A scene launched from silence starts the loop.
 - **Ideas** (`loops.save_idea`): a scene kept is a loop of kind `idea`
   (schema `LOOP.idea`: the five slots' names; `arr` its tempo, key and
   meter; absent when unset), listed in the Loops panel's "ideas" (not the
@@ -1319,7 +1919,7 @@ one working loop.
   Past 8 synth tracks Capture refuses — → Song a scene first to choose.
 
 Routes (`routes/slots.py`): `/fragment/perform/slot/place | keep | clear
-| move | launch | stop`, `/fragment/perform/scene/launch | keep | idea |
+| move | launch | stop | select | hear`, `/fragment/perform/scene/launch | keep | idea |
 section | song | capture`. `tests/studio/test_slots.py`,
 `tests/studio/test_to_song.py`, `tests/browser/test_slots.py`,
 `tests/browser/test_to_song.py`.
@@ -1329,10 +1929,14 @@ section | song | capture`. `tests/studio/test_slots.py`,
 Something good just played is never lost, and a take lands where it is
 wanted.
 
-- **⏺ Rec records into the selected slot** of a lane of notes: an empty
-  slot gets the take's loop (**new**), a filled one by the dock's choice
-  beside ⏺ Rec — **overdub | replace** (`#key-how`, shown only while a
-  slot is selected; per browser). The take is still its audio and its own
+- **⏺ Rec records into the selected slot** of a lane of notes (the deck's
+  ⏺ Rec or the dock's: one control), by **where it lands** — the deck's ▾
+  shows it always, the dock's `#key-how` while a cell of notes is
+  selected; per browser: **a new loop** (the selected cell when it is
+  empty, else the lane's next empty one: keyrec.js posts that row with
+  `how=new`, so it never overwrites; none empty, a plain take), or the
+  filled cell **overdub | replace**. An empty cell selected is always a
+  new loop there. The take is still its audio and its own
   loop in the Loops panel (`keytakes.py`, `loops.place`); then
   `slotrec.land` (`routes/takes.py` `_landed`): *new / replace* sets the
   slot inside a launch of the take's loop there (`StudioState.launch`'s
@@ -1363,7 +1967,7 @@ wanted.
   slot … nothing was replaced"). The dock's overdub | replace is ⏺ Rec's
   alone; the keys arp's print is a capture and follows the same rule.
   Not the launcher head's "Scene → Song" (the scenes as sections).
-- **⏺ resample** is the live strip's master-bus recording into a clip
+- **⏺ resample** is the deck's ⏺ Rec ▾'s master-bus recording into a clip
   (label, palette "Resample: record what you hear to a clip", the deck's
   key, the empty states), named so it reads apart from ⏺ Rec.
 
@@ -1378,12 +1982,13 @@ One button live-records every key and its timing until it is stopped —
 no bars, no 4/4, just playing — and the take is then shaped, cut and
 sized into a loop.
 
-- **⏺ free** (`#lp-free-rec`, the Loops panel's head; the dock's length
-  select has **free** too — `keys-and-midi.md`, "⏺ Rec"): no count-in, no
+- **free** (a length of ⏺ Rec: the deck's ▾ and the dock's length
+  select — `keys-and-midi.md`, "⏺ Rec"; the Loops panel's "⏺ free" is
+  gone): no count-in, no
   bar line, no length. The take starts on its **first note** (keys, pads,
   MIDI; the keys arp's notes flagged) and ends where ■ is pressed — never
-  past `limits.MAX_FREE_TAKE_SECONDS`, 60 s (every other take stops at
-  the clip cap, 30 s) —, its audio cut to that. A page change
+  past `limits.MAX_FREE_TAKE_SECONDS`, 60 s (as every take of ⏺ Rec,
+  `limits.MAX_KEY_TAKE_SECONDS`) —, its audio cut to that. A page change
   ends it as ⏺ Rec's (before a note: nothing taken). `POST
   /take/keys/free` keeps it as a keys take (meta `free: true`, the arp's
   notes' indices in its sidecar's `arp`) and makes **no loop**: its answer's
@@ -1438,7 +2043,8 @@ sized into a loop.
   there, as a velocity does (the roll's rule) — so the shaper's
   notes that start on one step take the mean of their offsets. It is read
   in `arrange._lane_timeline` (the ONE note schedule: the render, a
-  section's chunks — none carry it yet — and the MIDI file):
+  section's chunks — `song_model._crop_nudge`: a note nudged early on a
+  chunk's first step plays on that step — and the MIDI file):
   the start moves by it after swing, the END stays where it was (as a
   strum's), never under an eighth of a step; a note moved before the
   loop's first beat wraps to its end (the loop is a circle, as a drum hit's
@@ -1454,9 +2060,11 @@ sized into a loop.
   grid's own post too); pattern undo holds it; the launcher's windows and
   regrids carry it (`loop_window`, `regrid_lane`). No gesture writes one:
   the shaper and Q do.
-- **A song's patterns keep no timing inside a step** (not built): → Song
-  as a pattern plays a free loop on its steps; → Song as audio keeps the
-  feel. The drawer's roll tools leave it out.
+- **A song's pattern keeps it**: → Song as a pattern writes the loop's
+  `note_nudge` into the pool pattern (`song_bridge.note_data`), and the
+  section renders it (a take's loop or a free one: "Like for like" under
+  "Loops: one Rec, one loop"). The drawer's roll tools leave it out (no
+  gesture writes it there).
 
 Routes (`routes/freerec.py`): `POST /take/keys/free`, `GET
 /fragment/free/shaper`, `POST /take/keys/free/hear`, `POST
@@ -1480,8 +2088,31 @@ a `role=slider`, not a value control the deck's focus mode pages).
 
 ### The loop's meter
 
+**Triplets** (`meter.triplet_choices`, `tests/studio/test_meter.py`): a /4
+meter's note grid also has the triplets of its quarter-note beat — three to
+a beat (1/8T) and six (1/16T): 4/4's 12 and 24 a bar, 2/4's 6 and 12, 3/4's
+9 and 18, 5/4's 15 and 30. **An x/8 meter has none**: its beat (6/8's and
+12/8's dotted quarter, 7/8's groups) already divides in three — its eighths
+are that beat's triplets — and a quarter-note triplet there (4.5 to a 6/8
+bar) falls across its groups. The drum grid keeps the straight steps
+(`meter.straight_choices`: its notation, its generators and its kits are
+written in sixteenths). A triplet grid's lines group in threes: every third
+step a beat at 1/8T, every sixth at 1/16T (`meter.grid_accents`; a straight
+4/4 grid still marks every fourth step, byte for byte); the steps select
+says "12 · 1/8T". **The bar cap**: bars x steps still fits
+`limits.MAX_GRID_STEPS` (256), so 1/16T holds 8 bars at most, as 1/32 does
+(16 x 24 = 384), and 1/8T all six (16 x 12 = 192); a take longer than its
+grid keeps the rest as played (→ Song lays it out). Two grids meet on their
+least common multiple when the meter has it (`meter.common_steps`: 12 and 8
+on 24), else on the finer (12 and 16 on 16: a triplet lane launched beside
+a straight one goes onto the straight grid, its starts on the nearest lines
+there; launched alone it keeps its 12). A start moved between grids is
+`meter.regrid_start` (whole multiples as they always were). Swing on a
+triplet grid delays its odd steps, as the keys arp's swing at 1/8T does.
+MIDI out is exact (480 ticks a quarter: a 1/8T step is 160).
+
 The "bar" picker by Perform's bpm (`fragments/meter_pick.html`, region
-`meter-pick`; `consume`s its change, so the live strip's form does not
+`meter-pick`; `consume`s its change, so the deck's form does not
 post the tempo again) posts `/fragment/meter`: every grid the loop holds
 fitted bar by bar (`meterops`: the note grid, the beat, the other
 layers, the beat's variations), one pattern undo step, refused past the

@@ -17,6 +17,8 @@
 //                               row is named by the control's aria-label.
 //                               A pressed toggle (`aria-pressed`, a ticked
 //                               box) is drawn ticked.
+//   data-menu-group="→ Song"    on a box of such controls: one "→ Song ▸"
+//                               row, a submenu of them (← comes back).
 // A row runs by activating its control (`click()`), so it goes through the
 // same htmx attributes, route, confirm and OOB refresh as a hand, is
 // disabled while the control is, and cannot outlive it.
@@ -67,10 +69,11 @@
 // A menu popover opened by its own button (`popovertarget`: the panel
 // presets, the pattern tools' menus) takes the same arrows, ↓ / ↑ from its
 // button too; Esc on one gives the focus back to that button.
-// Budget: <= 145 code lines (90 -> 140: a section's own menu,
+// Budget: <= 150 code lines (90 -> 140: a section's own menu,
 // its dials onto the deck, the submenus of the sections round it; 140 ->
 // 143: a module's workspace rows; -> 145: a menu
-// popover's button walks into it).
+// popover's button walks into it; -> 150: a thing's `data-menu-group`
+// boxes as submenus — a Loops row's → Song and Quantise).
 
 (() => {
   "use strict";
@@ -95,11 +98,17 @@
     if (c.getAttribute("aria-pressed") === "true" || c.checked) b.setAttribute("aria-checked", "true");
     return b;
   }
-  // a thing's rows: its own declared controls
+  // a thing's rows: its own declared controls — those under a `data-menu-group="→ Song"` box
+  // are one "→ Song ▸" row, a submenu of them (a Loops row's Q: its rates and strengths)
+  const boxOf = (c) => c.parentElement.closest("[data-menu-group], [data-ctx]");
+  function rowsIn(box, thing) {
+    return [...box.querySelectorAll("[data-menu], [data-menu-group]")].filter((c) => boxOf(c) === box && c.closest("[data-ctx]") === thing)
+      .map((c) => (c.dataset.menuGroup ? row(c.dataset.menuGroup, () => show([backTo(thing.dataset.ctx), cap(c.dataset.menuGroup), ...rowsIn(c, thing)]), false, "", true)
+        : rowOf(c, c.dataset.menu || c.getAttribute("aria-label") || c.textContent.trim())));
+  }
   function ofThing(thing) {
-    const items = [...thing.querySelectorAll("[data-menu]")].filter((c) => c.closest("[data-ctx]") === thing);
-    if (!items.length) return [];
-    return [cap(thing.dataset.ctx), ...items.map((c) => rowOf(c, c.dataset.menu || c.getAttribute("aria-label") || c.textContent.trim()))];
+    const rows = rowsIn(thing, thing);
+    return rows.length ? [cap(thing.dataset.ctx), ...rows] : [];
   }
 
   // ---- a section's rows ---------------------------------------------------
@@ -121,7 +130,7 @@
   // one with none of those lists the sections in it (Perform's Launchers: each launcher)
   function ofSection(s, skip, deep = true, place = false) {
     const name = secName(s), D = S.deck, L = S.midiLearn, out = [];
-    const dials = D ? [...new Set([...s.querySelectorAll(CTL)].filter((c) => !c.disabled && c.offsetParent && !c.closest("#deck-panel, #colours-pop")
+    const dials = D ? [...new Set([...s.querySelectorAll(CTL)].filter((c) => !c.disabled && c.offsetParent && !c.closest("#deck-panel, #colours-pop") && !c.hasAttribute("data-no-dial")
       && D.find(D.toOf(c)) === c).map((c) => D.toOf(c)))] : [];
     if (dials.length) {
       out.push(row(dials.length > 4 ? `Put these on the deck (${dials.length}, in fours)` : "Put these on the deck", () => D.hold(dials, name)),
@@ -225,7 +234,7 @@
     if (open(e.target, keyed ? 0 : e.clientX, keyed ? 0 : e.clientY)) e.preventDefault();
   });
   document.addEventListener("keydown", (e) => {
-    // ↓ / ↑ on the button that opened a menu popover walk into it (a pattern tool's vel, ⚄ write)
+    // ↓ / ↑ on the button that opened a menu popover walk into it (Tools ▾: its rows' buttons, in order)
     const of = (e.key === "ArrowDown" || e.key === "ArrowUp") && e.target.getAttribute?.("popovertarget");
     const m = e.target.closest?.(".menu:popover-open") || (of && document.querySelector(`#${CSS.escape(of)}.menu:popover-open`));
     if (!m) return;
@@ -235,7 +244,7 @@
     // → opens a section's submenu, ← comes back from one
     const sub = e.key === "ArrowRight" ? e.target.closest?.("[aria-haspopup]") : e.key === "ArrowLeft" ? m.querySelector(".menu-back") : null;
     if (sub && m === menu) { e.preventDefault(); return void sub.click(); }
-    const rows = [...m.querySelectorAll(".menu-item:not(:disabled, [hidden])")].filter((b) => b.offsetParent), i = rows.indexOf(e.target), n = rows.length;
+    const rows = [...m.querySelectorAll(".menu-item:not(:disabled, [hidden]), .ptm-row .btn:not(:disabled)")].filter((b) => b.offsetParent), i = rows.indexOf(e.target), n = rows.length;
     const to = i < 0 && e.key === "ArrowUp" ? n - 1 : { ArrowDown: (i + 1) % n, ArrowUp: (i - 1 + n) % n, Home: 0, End: n - 1 }[e.key];
     if (to === undefined || !n || e.target.matches("input, select, textarea")) return;
     e.preventDefault();

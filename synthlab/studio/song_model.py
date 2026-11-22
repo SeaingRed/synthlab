@@ -37,7 +37,7 @@ from typing import Any
 
 from ..core import SR, n_samples
 from ..sequencer import SCALES, midi, name_of
-from . import limits, schema
+from . import limits, notefeel, schema
 from . import meter as _meter
 from .curves import (
     FX_LANES,
@@ -630,13 +630,19 @@ def _ladder(song: dict) -> list[int]:
     return [m for m in range(128) if m % 12 in pcs]
 
 
-def window_rows(song: dict, span: int = 1, octave: int = 0) -> list[str]:
+def window_rows(song: dict, span: int = 1, octave: int = 0, cells=None) -> list[str]:
     """The Song drawer's note-grid rows, highest first: the song key's
     rows (`state.pitch_rows`: six tones, or two octaves at `span` 2)
     from the root moved `octave` whole octaves (-2..+4) — the window a
     pattern is shown and edited at. Octave 0 is every drawer grid from
-    before there was a window."""
+    before there was a window. Span 4: every row the pattern's `cells`
+    use (`state.model.note_rows`), no window."""
     from .state import Arrangement, pitch_rows
+    from .state.model import SPAN_NOTES, note_rows
+
+    if span == SPAN_NOTES:
+        key = Arrangement(root=song["root"], scale_name=song["scale_name"])
+        return note_rows(key, cells or [])
 
     try:
         root = midi(song["root"])
@@ -1145,7 +1151,8 @@ def pattern_bars(pattern: dict) -> int:
 
 def bar_choices(steps_per_bar: int) -> tuple[int, ...]:
     """The bars a pool pattern may have at this resolution: the loop's
-    own choices, and 8 while bars x steps fits the grid
+    own choices (`limits.LOOP_BAR_CHOICES`), 8 and 16 while bars x steps
+    fits the grid
     (`limits.PATTERN_BAR_CHOICES`, `limits.MAX_GRID_STEPS`)."""
     return tuple(
         b
@@ -1575,15 +1582,33 @@ class SectionParts:
         at = clock.bar_sample(b0)
         whole = (b0, b1) == (0, f.cycle_bars)
         drums, hits = _window_drums(a, b0 * ds, b1 * ds, f.cycle_bars * ds)
+        cells, vels, feel = _window_notes(
+            a.cells,
+            a.cuts,
+            a.velocities,
+            a.note_feel,
+            f.breaks,
+            lo,
+            hi,
+            whole,
+            f.cycle_bars * s,
+        )
+        nxt = hi % (f.cycle_bars * s)
+        if (
+            not whole
+            and str(nxt) in a.velocities
+            and any(lay.get("note_feel") for lay in f.layers)
+        ):  # a layer playing the main lane's velocities moves its own too
+            vels[str(hi - lo)] = a.velocities[str(nxt)]
         arr = replace(
             a,
             # a ramp, seen from the window's first bar
             ramp=list(clock.window(b0).ramp),
             bars=b1 - b0,
             drum_bars=b1 - b0,
-            cells=_crop_runs(a.cells, lo, hi, f.breaks, a.cuts),
+            cells=cells,
             cuts=[[c[0], int(c[1]) - lo] for c in a.cuts if lo <= int(c[1]) < hi],
-            velocities=_crop_keys(a.velocities, b0 * s, b1 * s),
+            velocities=vels,
             slides=[x - b0 * s for x in a.slides if b0 * s <= x < b1 * s],
             drums=drums,
             drum_vel=_crop_keys(a.drum_vel, b0 * ds, b1 * ds),
@@ -1591,13 +1616,17 @@ class SectionParts:
             clips=[],
             note_nudge=_crop_nudge(a.note_nudge, lo, hi, whole),
             note_chance=_crop_keys(a.note_chance, lo, hi),
+            note_feel=feel,
         )
         c = f.cycle_bars
         return replace(
             f,
             arr=arr,
             curves={k: _crop_curve(v, b0 / c, b1 / c) for k, v in f.curves.items()},
-            layers=tuple(_crop_layer(lay, lo, hi, at, whole) for lay in f.layers),
+            layers=tuple(
+                _crop_layer(lay, lo, hi, at, whole, f.cycle_bars * s)
+                for lay in f.layers
+            ),
             auto=_auto_from(f.auto, at),
             cycle_bars=b1 - b0,
             breaks=tuple(b - lo for b in f.breaks if b > lo),
@@ -1971,6 +2000,8 @@ def _flat(
         # for a lane without them, so no key gains them
         note_nudge=_tile_keys(a.note_nudge, main_p, cycle * s, lo, hi),
         note_chance=chance_tile(a.note_chance, main_p, cycle * s, lo, hi),
+        # each note's own feel follows it (empty for a lane without)
+        note_feel=notefeel.tile(a.note_feel, main_p, cycle * s, lo, hi),
     )
     gate = (lo, hi) if where.get("main") else ()
     return replace(
@@ -1991,7 +2022,8 @@ def _flat(
         breaks=tuple(range(lo + main_p, hi, main_p)),
         arp=(
             (tuple(pitches), 0, main_p, *gate)
-            if a.arp_mode != "off" and (pitches := _arp_pitches(a.cells, main_p))
+            if a.arp_mode != "off"
+            and (pitches := _arp_pitches(a.cells, main_p, a.arp_mode == "pattern"))
             else ()
         ),
     )
@@ -2006,11 +2038,24 @@ LOOP_CHANCE_PASSES = 4
 def loop_chance(inp) -> bool:
     """Does a loop's `RenderInputs` rest any note by chance — its main
     lane's `note_chance` or a layer's (a following layer rolls its main
-    lane's) — in a render that plays the synth?"""
+    lane's), or a step of the arp pattern a grid arp plays — in a render
+    that plays the synth?"""
     if "synth" not in inp.parts:
         return False
-    return bool(inp.arr.note_chance) or any(
-        isinstance(lay, dict) and lay.get("note_chance") for lay in inp.layers
+    from .arppattern import rests_by_chance  # lazy: as the others here
+
+    a = inp.arr
+    return (
+        bool(a.note_chance)
+        or rests_by_chance(a.arp_mode, a.arp_pattern)
+        or any(
+            isinstance(lay, dict)
+            and (
+                lay.get("note_chance")
+                or rests_by_chance(lay.get("arp_mode"), lay.get("arp_pattern"))
+            )
+            for lay in inp.layers
+        )
     )
 
 
@@ -2077,12 +2122,22 @@ def _block_steps(block, cycle: int, steps: int) -> tuple[int, int]:
     return lo * steps, hi * steps
 
 
-def _arp_pitches(cells, period: int) -> list[str]:
+def _arp_pitches(cells, period: int, played: bool = False) -> list[str]:
     """The pitches a pattern's arp cycles through: the rows with a note
     inside its own grid — what a loop arpeggiates (`arrange._playing_steps`:
     a run must start inside the grid, so a row plays exactly when it has a
     cell there). A note kept, hidden, past a shrunk grid used to join a
-    section's arp and not the loop's."""
+    section's arp and not the loop's. `played` (the arp pattern's lanes:
+    arp_mode "pattern"): in the order they first play, as the loop's
+    (`arrange.played_order`) — only those lanes, so no other key moves."""
+    if played:
+        from .arrange import played_order  # lazy: arrange imports state
+
+        first: dict[str, list[int]] = {}
+        for c in cells:
+            if 0 <= int(c[1]) < period:
+                first.setdefault(c[0], []).append(int(c[1]))
+        return played_order(first)
     return sorted({c[0] for c in cells if 0 <= int(c[1]) < period})
 
 
@@ -2106,22 +2161,43 @@ def _tile_layer(lay: dict, period: int, total: int, block=None) -> dict:
         out["slides"] = [t for _x, t in _tile(slides, period, total, lo, hi)]
     if lay.get("note_nudge"):
         out["note_nudge"] = _tile_keys(lay["note_nudge"], period, total, lo, hi)
+    if lay.get("note_feel"):
+        out["note_feel"] = notefeel.tile(lay["note_feel"], period, total, lo, hi)
     if lay.get("note_chance"):  # every pass rolls afresh (`chance_tile`)
         out["note_chance"] = chance_tile(lay["note_chance"], period, total, lo, hi)
-    if lay.get("arp_mode", "off") != "off" and (
-        pitches := _arp_pitches(lay.get("cells") or [], period)
+    mode = lay.get("arp_mode", "off")
+    if mode != "off" and (
+        pitches := _arp_pitches(lay.get("cells") or [], period, mode == "pattern")
     ):
         out["arp"] = [pitches, 0, period, *(block or ())]
     return out
 
 
-def _crop_layer(lay: dict, lo: int, hi: int, at: int = 0, whole: bool = True) -> dict:
+def _crop_layer(
+    lay: dict, lo: int, hi: int, at: int = 0, whole: bool = True, cycle: int = 0
+) -> dict:
     """Steps [lo, hi) of a tiled layer, shifted to start at 0, as
     `SectionParts.window` crops the main lane (`at`: the window's first
     sample, where its automation lanes are read from; `whole`: the window
-    is the whole cycle — `_crop_nudge`)."""
+    is the whole cycle — `_crop_nudge`; `cycle`: its steps, for a note felt
+    early onto the next window's first step — `_window_notes`)."""
     brk = lay.get("breaks", ())
     out = {**lay, "cells": _crop_runs(lay["cells"], lo, hi, brk, lay.get("cuts"))}
+    if lay.get("note_feel"):
+        vel = lay.get("velocities")
+        out["cells"], moved_vel, out["note_feel"] = _window_notes(
+            lay["cells"],
+            lay.get("cuts") or (),
+            vel or {},
+            lay["note_feel"],
+            brk,
+            lo,
+            hi,
+            whole,
+            cycle or hi,
+        )
+        if vel is not None:
+            out["velocities"] = moved_vel
     if lay.get("auto"):
         out["auto"] = _auto_from(lay["auto"], at)
     if "cuts" in lay:
@@ -2131,7 +2207,7 @@ def _crop_layer(lay: dict, lo: int, hi: int, at: int = 0, whole: bool = True) ->
     out.pop("breaks", None)
     if moved := [b - lo for b in brk if b > lo]:
         out["breaks"] = moved
-    if "velocities" in lay:
+    if "velocities" in lay and not lay.get("note_feel"):
         out["velocities"] = _crop_keys(lay["velocities"], lo, hi)
     if "slides" in lay:
         out["slides"] = [x - lo for x in lay["slides"] if lo <= x < hi]
@@ -2326,6 +2402,56 @@ def _crop_nudge(nudge: dict, lo: int, hi: int, whole: bool) -> dict:
     return out
 
 
+def _run_steps(cells, start: int, pitch: str, breaks, cuts) -> list[int]:
+    """The steps of `pitch`'s note that starts on `start` (its run, split at
+    `breaks` and its row's cuts, as `arrange._merge_runs` joins it)."""
+    on = {int(c[1]) for c in cells if c[0] == pitch}
+    stop = set(breaks) | {int(c[1]) for c in cuts or () if c[0] == pitch}
+    out = [start]
+    while out[-1] + 1 in on and out[-1] + 1 not in stop:
+        out.append(out[-1] + 1)
+    return out
+
+
+def _window_notes(
+    cells, cuts, vel: dict, feel: dict, breaks, lo: int, hi: int, whole: bool, cycle
+) -> tuple[list[list], dict, dict]:
+    """Steps [lo, hi) of a tiled lane as a window's cells, velocities and
+    per-note feel (`notefeel`): every note that STARTS there (`_crop_runs`),
+    shifted to start at 0. A note FELT EARLY on a window's first step
+    sounds before that window starts: it belongs to the window before —
+    the cycle's first step to the cycle's last window, where the loop
+    wraps it (`arrange._lane_timeline`) — and rides there on the step one
+    past its grid, which `arrange._playing_steps` plays for a note felt
+    early (the drum hit's rule, `_window_drums`). The whole cycle as one
+    window moves nothing."""
+    out = _crop_runs(cells, lo, hi, breaks, cuts)
+    vels = _crop_keys(vel, lo, hi)
+    felt = notefeel.crop(feel, lo, hi)
+    if whole or not feel:
+        return out, vels, felt
+
+    def early(step: int) -> list[str]:
+        return [
+            at[0]
+            for k, v in feel.items()
+            if (at := notefeel.split(k)) and at[1] == step and float(v[0]) < 0
+        ]
+
+    for p in early(lo):  # sounds in the window before: not here
+        gone = {s - lo for s in _run_steps(cells, lo, p, breaks, cuts)}
+        out = [c for c in out if not (c[0] == p and int(c[1]) in gone)]
+        felt.pop(notefeel.key(p, 0), None)
+    nxt = hi % cycle if cycle else hi
+    for p in early(nxt):  # the next window's, felt early: here
+        steps = _run_steps(cells, nxt, p, breaks, cuts)
+        out += [[p, hi - lo + s - nxt] for s in steps]
+        felt[notefeel.key(p, hi - lo)] = feel[notefeel.key(p, nxt)]
+        if str(nxt) in vel:
+            vels[str(hi - lo)] = vel[str(nxt)]
+    return out, vels, felt
+
+
 def _crop(cells, lo: int, hi: int) -> list[list]:
     return [[c[0], int(c[1]) - lo] for c in cells if lo <= int(c[1]) < hi]
 
@@ -2336,16 +2462,27 @@ def _crop_keys(values: dict, lo: int, hi: int) -> dict:
 
 def _regrid(cells, bars: int, spb: int, to: int) -> list[list]:
     """A layer's cells on its own `spb` grid, moved onto a `to`-step grid:
-    a coarser step fills every finer step it covers (so its length is
-    kept), a finer one lands on the step it starts in."""
+    a coarser step fills every finer step whose start lies in it (so its
+    length is kept), a finer one lands on the step it starts in. A whole
+    multiple is the rule it always was; a triplet grid onto a straight one
+    (12 -> 16) or back takes the same rule step by step
+    (`meter.regrid_start`)."""
     own = [c for c in cells if 0 <= int(c[1]) < max(1, bars) * spb]
     if spb == to:
         return [list(c) for c in own]
     if spb < to:
-        k = max(1, round(to / spb))
-        return [[c[0], int(c[1]) * k + i] for c in own for i in range(k)]
-    k = max(1, round(spb / to))
-    seen = dict.fromkeys((c[0], int(c[1]) // k) for c in own)
+        if to % spb == 0:
+            k = to // spb
+            return [[c[0], int(c[1]) * k + i] for c in own for i in range(k)]
+        return [
+            [c[0], j]
+            for c in own
+            for j in range(
+                _meter.regrid_start(int(c[1]), spb, to),
+                _meter.regrid_start(int(c[1]) + 1, spb, to),
+            )
+        ]
+    seen = dict.fromkeys((c[0], _meter.regrid_start(int(c[1]), spb, to)) for c in own)
     return [list(c) for c in seen]
 
 

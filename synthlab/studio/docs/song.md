@@ -163,14 +163,24 @@ sets them are the song's without them
 matters (`strum`: a pattern's own, `loop-and-perform.md`, "The rule" — a section's key moves
 with it and stays put without it).
 
-**A pool pattern may be 8 bars** while bars x steps a bar fits
-`MAX_GRID_STEPS` (`limits.PATTERN_BAR_CHOICES`, `sm.bar_choices`: 8
-bars at 4, 8 or 16 steps). The loop keeps `BAR_CHOICES`: the
-Arrangement's own node would call 8 bars invalid, so
-`section_arrangement` carries them round it, and "Open in Perform"
-opens a longer pattern as its first four bars (the rest stays, hidden
-past the loop's grid). The drawer offers 8 only where it fits, and
-finer steps shorten an 8-bar pattern to 4.
+**A pool pattern may be 8 or 16 bars** while bars x steps a bar fits
+`MAX_GRID_STEPS` (`limits.PATTERN_BAR_CHOICES` = the note grid's
+`LOOP_BAR_CHOICES`, `sm.bar_choices`: 16 bars at 4, 8, 12 or 16 steps, 8
+at 24 and 32 — 1/16T's 16 x 24 = 384 is past the 256) — a recorded loop of
+16 bars goes to the song as one pattern. A notes pattern's steps are its
+meter's, a /4 meter's triplets too (the drawer's chips:
+`meter.step_choices`; `loop-and-perform.md`, "The loop's meter"); a
+pattern on another grid than its section's is regridded by
+`meter.regrid_start` (a triplet beside a straight lane: onto the finer
+straight grid, its starts on the nearest lines). The
+drum grid keeps `BAR_CHOICES`: its node would call 8 bars invalid, so
+`section_arrangement` carries a long drum pattern round it. "Open in
+Perform" opens a notes pattern of 8 or 16 bars whole (`song_bridge.to_loop`:
+the note grid holds it) and a longer drum pattern as its first four bars
+(the rest stays, hidden past the drum grid); lanes of other lengths are
+cut at the main lane's bars, at least 4, as they always were at 4. The
+drawer offers 8 and 16 only where they fit, and finer steps shorten a
+pattern to the longest that does.
 
 ### Bridges
 
@@ -261,7 +271,20 @@ it plays — the section's onsets are the loop's (`test_song_chance.py`,
 render, its chunks, the mixdown, the stems and the MIDI export read them
 through `SectionParts` (`song-render-export.md`, "Chance: every pass
 afresh"). The drawer's roll draws a nudged pattern on its step lines and
-has no chance lane (Perform's has).
+has no chance lane (Perform's has). **Each note's own feel** (`note_feel`,
+a take as played: `loop-and-perform.md`, "A note's own feel") rides the
+same way — a pattern's optional key, cleaned to its notes' starts
+(`pool_post`), tiled, cropped and regridded with its cells
+(`notefeel.tile` / `crop` / `regrid`: onto a coarser grid it is dropped
+and the note plays as a grid note), carried by `songops`' windows and the
+drawer's tools and drawn by the drawer's roll. **A note felt early onto a
+chunk's first line** (a section past `MAX_LOOP_SECONDS` renders in chunks)
+plays in the chunk before, one step past its grid
+(`song_model._window_notes`, the drum hit's rule), so the chunks are the
+cycle rendered whole — except that it reads a drawn curve frozen at that
+chunk's last line, as any note held over a seam does (the strict xfail in
+`tests/studio/test_take_exact.py`; a fix moves every chunked section with a
+curve: `RENDER_REV`).
 
 **What "Add loop to song" carries** (the Song page's button, Perform's
 and Synths' **→ Song**, `loop-and-perform.md`): the main lane and every
@@ -751,6 +774,9 @@ were drawn on, so they play the values they did.
   | beat_repeat `mix`, stop `mix` | the unit's own blend inside its regions, `dry * (1 - ramp * mix) + wet * mix`, with the mix read at each output sample (`fxauto.OWN_MIX`); which steps repeat and where the tape stops are the pattern's, the rolls' and the period's — never the mix's | exact: bit for bit when still; each output sample is the scalar unit's at that sample's mix (0 at 24 instants) |
   | ott `depth`, limiter `gain`, transient `attack` / `sustain` (the FX2 units' lanes are in `live-voice.md`, "The FX2 units") | the OTT's blend band by band, `1 - depth[i] + depth[i] * g[i]` against each band's own gain; the limiter's dB in per sample (the held gain follows it, so a build pushed louder is held at the ceiling as the slider would be); the shaper's detector dB times the value per sample | exact, memoryless in the parameter: a still lane is the unit bit for bit (`test_song_fx_lanes.py`) |
 
+  | convolve `mix` | the unit's own blend (`fxauto.OWN_MIX`): `dry * (1 - mix) + wet * mix` per sample, and no impulse here passes the input at any mix | exact: a still lane is the unit bit for bit |
+  | utility `gain`, `width` | dB per sample, the side's share per sample (`effects._utility` takes arrays: one code path) | exact, memoryless: a still lane is the unit bit for bit |
+
   The gate, sidechain / pump and beat_repeat / stop rows
   (`tests/studio/test_song_fx_lanes_clock.py` holds their table) are the
   clocked units. A stutter or a tape stop is *placed* this way: the rack
@@ -810,6 +836,12 @@ were drawn on, so they play the values they did.
   untouched). The drawer's menu names an id-less unit by its place
   (`fx:@<index>:<kind>:<param>`), a form that only travels from the menu
   to the route and is never stored.
+- **A banded unit** (`"band"` on the unit, `docs/engine.md`, "A unit's
+  band"): its lanes are the same unit with its slider moving, on its band
+  — `fxauto._unit` runs the unit, arrays and all, inside
+  `effects.band_apply`, so a still lane is the banded unit bit for bit
+  and a moving mix is `dry * (1 - mix) + wet * mix` inside the band
+  (`tests/studio/test_fx_band.py`).
 - **Missing units.** A lane whose unit is no longer in the chain (or
   whose id now sits on a unit of another kind) is kept in the song and
   read by nothing: `sm.section_lanes` leaves it out, so the section's
@@ -837,6 +869,52 @@ were drawn on, so they play the values they did.
   a per-sample form and its test: none is built); FX lanes on the master
   and on long audio; a lane is not carried when "Open in Perform"
   copies the track's chain (the unit keeps its id there).
+
+### Automation moves
+
+**Automation moves** (`studio/moves.py`, `POST /song/section/{id}/move` with
+`track` and `move`, `tests/studio/test_moves.py`): four ready-made lanes a
+section's menu ("move": a track picker and four buttons) puts on one track
+in one click. They write nothing the lane machinery above does not already
+take (a `gain` lane, or an `fx:<unit id>:<kind>:<param>` lane), so a section
+with one is the section with that lane drawn by hand.
+
+| Move | Lane |
+|---|---|
+| `open_filter` | a `lowpass` `cutoff`: 0.04 of its range at the start, 0.15 at mid-section, the slider's top (12 kHz) at the end: slow at first |
+| `wash_out` | a `reverb` `mix`: held at the unit's value over the first half, rising to 0.8 by the end |
+| `pump_harder` | a `pump` `depth`: from the unit's value to 0.9 at the end |
+| `drop_cut` | the level (`gain`): unity, a fall over an eighth of a beat to 0 at the last beat's downbeat, held to the end |
+
+- **Positions are bars, not beats.** A lane runs 0..1 across one pass and is
+  laid out in bars (`meter.warp`), so the last beat is `1 / (bars x the
+  meter's quarter notes a bar)`: 7/8 has 3.5, 6/8 and 3/4 have 3. Under a
+  tempo ramp it stays in bars, as every lane does. A section too short to
+  hold a unity run before the last beat (under about a beat and a half) is
+  cut whole. The lane's end is held, and every repeat replays the lane, so
+  the level is back at the next pass's start.
+- **A missing unit is added at rest**: a lowpass at cutoff 12 kHz (the top
+  of its slider, where the lane ends), a reverb at mix 0, a pump at depth 0.
+  Reverb and pump at rest are exact bypasses (`test_moves.py` renders the
+  section before and after, 1e-6); the lowpass at the slider's top is the
+  filter wide open, not a bypass. A unit the track already holds (the first
+  one that sounds; a bypassed one, `"off"`, is kept as it is and a sounding
+  one is added beside it) is reused untouched, and the lane starts at its
+  value. A full rack (`fxrack.MAX_UNITS`) refuses the three FX moves in
+  words and changes nothing; `drop_cut` needs no unit.
+- **Racks**: the lane code addresses the TRACK's `fx` on every kind, so the
+  moves do too: a synth's and a drums track's chain (the sound's, mirrored
+  into the track), an audio track's rack. A cell must hold a pattern (an
+  audio track: a take) in the section (`lanes_live`), else the move is
+  refused. While the sound dock is editing a synth track, its working FX are
+  mirrored over the track's after each Synths request
+  (`mirror_patch_to_track`), as for any lane's unit id; the song's move
+  reloads the dock (`follow_track_edit`), which is not checked here.
+- **Twice is once**: the same move replaces its own lane (one per target)
+  and reuses its unit. The unit and the lane are one `_commit`: one undo
+  step, "automation move". The toast says the edit in words.
+- The section's own "move left / right" posts the same path with `delta`;
+  a `move` field is what selects an automation move.
 
 ### An audio track's rack and lanes
 
@@ -951,7 +1029,11 @@ edit is a `_commit` (one undo step, saved, `song-changed`).
   `{id, name, fx, gain}`. The defaults are `mixer.DEFAULT_RETURNS`: "A
   Reverb" (decay 2.4 s) and "B Delay" (a dotted eighth on the tempo,
   ping-pong, feedback 0.4). The return's strip has its fader and its first
-  unit's parameters — never its `mix`: a return renders fully wet.
+  unit's parameters — never its `mix`: a return renders fully wet. A
+  return unit with a `band` (stored by hand or a project: the strip draws
+  no band select) sends its band's output alone (`render._wet`,
+  `build_chain(wet=True)`) — the rest of the send is not passed into the
+  return, and a banded delay's undelayed term is its band's, taken out.
   Removing one drops every send to it: its ✕ asks first, and the toast
   names the return and the sends that went (one undo step).
 - **The keyboard**: every control is a Tab stop, in the strip's order,

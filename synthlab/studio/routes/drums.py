@@ -159,7 +159,7 @@ def fragment_drums_transport(request: Request, form: StrForm, svc: Svc) -> Respo
             changes["drum_humanize"] = min(1.0, max(0.0, float(form["humanize"])))
         if "bars" in form and int(form["bars"]) in limits.BAR_CHOICES:
             changes["drum_bars"] = int(form["bars"])
-        if "steps" in form and int(form["steps"]) in meter.step_choices(
+        if "steps" in form and int(form["steps"]) in meter.straight_choices(
             s.arrangement.meter
         ):
             changes["drum_steps"] = int(form["steps"])
@@ -658,7 +658,7 @@ def fragment_drums_notation(request: Request, form: StrForm, svc: Svc) -> Respon
     # A pattern finer than the grid bumps the grid (4 -> 8 -> 16 -> 32)
     # rather than failing — same thing the editor's steps select does.
     err: notation.NotationError | None = None
-    for spb in (g for g in meter.step_choices(arr.meter) if g >= arr.drum_steps):
+    for spb in (g for g in meter.straight_choices(arr.meter) if g >= arr.drum_steps):
         try:
             steps = notation.parse(text, spb, arr.drum_bars)
         except notation.NotationError as e:

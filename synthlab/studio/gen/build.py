@@ -759,21 +759,31 @@ _KIND_ROLE = {
     "bass_offbeat": "bass",
     "bass_walk": "bass",
     "bass_2step": "bass",
+    "bass_switch": "bass",
     "chords": "chords",
     "pad": "pad",
     "arp": "arp",
     "lead": "lead",
     "chops": "vocal",
     "hit": "fx",
+    "chop_stutter": "vocal",
 }
+
+
+FILL_BARS = 8  # a beat with a fill: eight bars, its fill in bar 8
 
 
 def _tilefill(p: dict, seed: int, table: str = "roll") -> dict:
     """A beat tiled to eight bars (or as far as its grid goes) with a fill
     in its last bar: bars 1-7 are the beat as it was."""
     lane = dr.lane_of(p)
+    # eight at most: a pattern may be 16 bars now (the long note grids), and
+    # a fill tiled to 16 no longer divides an 8-bar section — "Add a fill
+    # every 8 bars" refused with "Every beat already ends in a fill"
     bars = max(
-        b for b in sm.bar_choices(p["steps"]) if b % p["bars"] == 0 or b == p["bars"]
+        b
+        for b in sm.bar_choices(p["steps"])
+        if b <= FILL_BARS and (b % p["bars"] == 0 or b == p["bars"])
     )
     return dr.fill(dr.tile(lane, bars), seed, 1.0, table)
 

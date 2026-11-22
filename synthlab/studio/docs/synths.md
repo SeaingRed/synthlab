@@ -96,7 +96,7 @@ layer strip; style.css 7a2) is three parts, each wrapping **whole**:
   of 4 ▶ the phrase · hold · 1 bar" (`.sb-title`: `#sound-id` drawn as
   contents, so its `.sid-meta` and ▶'s `.play-cue` share the line) · the
   actions in four `.sb-group`s — edit (Undo) · compare (A/B, ⇄, Morph) ·
-  take it further (Bounce, Resample loop, → Song) · the outcome (✦ Agent,
+  take it further (Bounce, Resample loop, Resample ↻, → Song) · the outcome (✦ Agent,
   Save sound…) — in two `.sb-half`s: one line, right-aligned, or, when the
   line is short, the halves one over the other beside the name, never
   three and one. The empty morph slot is drawn unlit ("Morph" over an
@@ -163,14 +163,18 @@ wider margins:
   (Measured: unison detune and spread change nothing with one voice and
   glide nothing on hold / arp / stab.)
 - **The mod matrix is its own module** (`#panel-mod-matrix`: Motion's
-  `modN_*` fields — 36 for its twelve slots, `paramui.ROUTE_FIELDS`,
+  `modN_*` fields — 60 for its twelve slots, `paramui.ROUTE_FIELDS`,
   the Jinja global `route_fields` — same form). Its `#patchbay` is a *view* of the
   `.route` rows — source jacks, target jacks, one lead a route drawn
   by `static/bench.js` into `.pb-cables` (redrawn on a field's `input` /
   `change`, after a swap and on resize; never per frame). A drag from
-  jack to jack sets the same fields (the first free slot of twelve); each
-  row has ± (invert) and ✕ (source off). `aria-hidden`: the rows are the
-  controls. **Twelve slots, dense**: routes 1-4 always stand
+  jack to jack sets the same fields (the first free slot of twelve, its
+  switch put on); each row is lamp, **switch** (`modN_on`: on / off pills
+  — off bypasses the route and keeps it: its lamp goes out, its controls
+  stand back and its lead is drawn faint), source, target, amount, the
+  **curve** on its source (`modN_curve`, a knob -1..1: up rises early,
+  down late, `synth.route_curve`), ± (invert) and ✕ (source off).
+  `aria-hidden`: the rows are the controls. **Twelve slots, dense**: routes 1-4 always stand
   (the ones the breeder and the mixes write); 5-12 (`data-extra`) stand
   only while they route, or once **+ route** opens the next (bench.js:
   `data-open`, kept until the next swap). Twelve source jacks; a target
@@ -196,8 +200,16 @@ wider margins:
 - **The Modulators panel** (`paramui` group "Modulators", the
   last column under Motion): envelopes 3 and 4 (five knobs each: attack,
   decay, sustain, release — log knobs, 1 ms to 8 s — curve) and LFOs 2
-  and 3 (rate and phase knobs, shape and sync selects, retrig / free
-  pills). **A drawn LFO** (LFO 1 in Motion, 2 and 3 here):
+  to 6 (rate and phase knobs, shape and sync selects, retrig / free
+  pills). **A synced envelope stage**: the filter envelope's and
+  envelopes 3 / 4's attack, decay and release rows each end in a small
+  select (`<time>_sync`, `paramui.ENV_SYNC_FIELDS`, drawn by
+  param_row.html in the time's own row — no row of its own, so a macro's
+  OOB row carries it): "♩ off" plays the time; a division plays that many
+  beats at the tempo and the time stands back. LFOs 4-6 rest folded to their headings while no route that
+  plays reads them (their rows idle: `paramui._IDLE_HAND`), so the panel
+  is as long as it was until one is used; fifteen source jacks in the
+  bay. **A drawn LFO** (LFO 1 in Motion, 2 and 3 here):
   `fragments/lfo_draw.html` under the shape row, shown while the shape is
   "drawn" — a well with the cycle drawn (`oscfaces.draw_face`: the
   polyline the engine reads and a handle a point) over a hidden
@@ -252,8 +264,16 @@ wider margins:
   / remove, the popovers' id part, the commands' title and group, the
   out jack's label, and whether ‹ › are disabled at the ends (not here:
   the button pressed at an end keeps its `autofocus`). So fxcables.js
-  wires all three. No rack has a per-unit bypass (it would be a new
-  persisted field of a unit, in every render key and the live FX).
+  wires all three. **A unit's power key** (the lamp before its name;
+  `fx_units.html` `.fx-power`): off, the signal passes the unit by — it
+  keeps its place, its settings and its lane. One set post (`name=on`,
+  `value` 0 | 1, `fxrack._set_unit`; a press, so its own undo step) on
+  every rack. Stored as `"off": true` on the unit and **only while it is
+  off** (`clean_chain`), so a chain with every unit on is saved and keyed
+  as it always was; the keys hash the clean chain, so a press is a new
+  key. What runs is `fxrack.active(units)`: `build_chain`, `fxauto`, a
+  return's `_wet`, the live keys' `fxlive.live_chain` (a bypassed offline
+  unit no longer blocks the worklet) and the chain bar's line.
 - **Undo of a rack edit**: every add / chain / move /
   remove / set on a session rack (`routes/fx.py`: the layer, master and
   drum-bus chains) is a step of the patch ring (`state.push_fx_undo`: the
@@ -261,7 +281,7 @@ wider margins:
   tweak" (Ctrl+Z here, the reset menu's ↩ on every page that has one)
   takes it back as it takes back a knob of the sound. A knob's drag is
   one step (posts with one key inside `UNDO_COALESCE_S`); a press (a
-  preset, a step, the length, a rhythm: `fxrack.RACK_PRESSES`) is a step
+  preset, a step, the length, a rhythm, the power key, a band: `fxrack.RACK_PRESSES`) is a step
   of its own, and a patch tweak never joins an FX step. The ring is the
   edited slot's, so a master or drum-bus step pushed on layer 1 is undone
   from layer 1; a step is skipped outside the track edit it was taken in
@@ -272,6 +292,34 @@ wider margins:
   (the reset menu's ↩ takes a drum-bus edit back); the vocal booth's rack
   has no undo (`voice_lab.json`, outside every ring). A Song audio
   track's rack is undoable too, one song edit each (`song.md`).
+- **The modules' frame, measured** (style.css 17.3; comfy, 2560): every
+  module's head is one strip — `--h-s` high, the caps lettering at
+  `--track-caps`, `--s1` under it — at the same offset from its module's
+  top: a seam is the **foot** of the module over it (`border-bottom`, as
+  a panel's), never the top of the one under. The XY pad's name and ⊕
+  are its head's strip; its well is the wells' radius (the pad stays
+  a 320 px square, centred: as wide as a 400 px column it pushed the sub
+  spectrum under the keys).
+- **The pedalboard's spacing**: one gap (`--fx-gap`, 22 px) between two
+  units, beside or below. The in jack stands in the rack's left gutter
+  (`--fx-gutter`), so every row starts on one left edge; the out jack and
+  its lead are one gap wide and end the last unit's row. In the six-
+  column layout the units stand two a row, each half the rack (a unit's
+  ‹ › show under the hand there; its right click lists them always), and
+  an empty rack is one line: its head and "＋ Reverb ▶".
+- **Unassigned macros are one line**: while no macro has a target the
+  rack is four "Macro n ＋" keys (each opens its assign form), not four
+  dead dials; the first target brings the dials back (CSS, `:has`).
+- **A section at rest folds to its heading** (bench.js 4): a run of rows
+  under an `h4.subhead` — or a panel's rows down to its first one, so the
+  whole Vowel panel — rests when every visible row is idle
+  (`data-idle`) or a dial at 0: Tremolo at depth 0, an LFO nothing
+  routes, the Mixer with nothing mixed in. It is drawn as its heading (▸;
+  a button: click, Enter, Space) and its rows are `[data-rested]`. One
+  opened, or one whose control was moved, stays open for the page's
+  life: nothing folds under the hand. No state — the patch says what
+  rests; the controls stay in the DOM (the deck, MIDI learn and the form
+  post them as before).
 - **No per-layer meter**: the loop is one mixed buffer and the live
   voice's `load` reports are CPU, not level — a meter per lane needs an
   analyser per lane. Not built.
@@ -306,7 +354,9 @@ loop says what it replaced**: it stays a replace of the edited layer's
 sound (a sampler of the Perform loop layered under the sound it was
 taken from plays the loop at every note of the phrase), and its done
 toast names the layer, what it took and its length, Source's chop and
-the way back ("Ctrl+Z gives “Acid Alley” back"). **"edited" follows
+the way back ("Ctrl+Z gives “Acid Alley” back"). **Resample ↻ bakes
+the layer's rack and empties it**, one undo step giving back both
+(`sampler-and-clips.md`, "Sampler instrument"). **"edited" follows
 undo across a load**: a patch undo step keeps the "sound" baseline of
 its moment (`state/history.py` `_SOUND_BASE`), and Ctrl+Z that lands on
 exactly that baseline's patch restores it — save, Resample, Ctrl+Z is

@@ -16,7 +16,13 @@
    too, remembered per browser and set again after every redraw. With a
    zone map (a multi-sample instrument) the map and its rows
    (fragments/sampler_zones.html) stand in for the waveform, the pitch
-   and the chops; "＋ zone" opens the clip library, whose rows add one. #}
+   and the chops; "＋ zone" opens the clip library, whose rows add one.
+   The granular shape plays the same sample, so the block stands for it
+   too: the waveform then also draws where the grains read (the position's
+   line, the spray's reach, one grain's read: `samplerview.cloud`), and
+   the chops and zones — the sampler shape's alone — are left out. So does
+   the spectral shape: the waveform then draws the position's line and what
+   the scan crosses in a second (`samplerview.scan`). #}
 <div id="sampler-panel" class="sampler-panel"{% if not sampler %} hidden{% endif %}
      {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
   {% if sampler %}
@@ -62,6 +68,8 @@
             hx-vals='{"source": "phrase"}' hx-target="body" hx-swap="innerMorph"
             data-cmd="Sampler: resample the phrase"
             title="what ▶ plays here becomes the sample">Resample phrase</button>
+    <label class="btn btn-s" for="sfz-file"
+           title="a .zip of an .sfz and its samples (WAV, FLAC or OGG) becomes this sound: a sampler with a zone a region; what it does not read is listed in the toast (Ctrl+Z undoes it)">Import SFZ…</label>
   </div>
   <div class="sampler-tools" role="group" aria-label="record a sample from the microphone">
     <button type="button" id="smp-rec" class="btn btn-s btn-rec" aria-pressed="false"
@@ -77,7 +85,7 @@
             title="a click on every beat while it records (the count-in always clicks)">click</button>
     <output id="smp-rec-status" class="smp-rec-status" aria-live="polite"></output>
   </div>
-  {% if sampler.id and not sampler.zones %}
+  {% if sampler.id and not sampler.zones and sampler.chops %}
   <div class="sampler-tools" role="group" aria-label="more samples: a multi-sample instrument">
     <span class="sampler-label caps">Zones</span>
     <button type="button" class="btn btn-s" popovertarget="clip-drawer" data-cmd="Sampler: add a zone from the clip library"

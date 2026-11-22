@@ -28,8 +28,10 @@ from ..effects import chain as fx_chain
 from ..effects import limit as fx_limit
 from ..effects import pan as fx_pan
 from ..effects import to_stereo
+from ..params import ENV_SYNC_TIMES, MOD_SLOTS
 from ..sequencer import Song
 from ..synth import Patch, Synth
+from . import notefeel
 from .arrange import (
     NoteMemo,
     bar_beats,
@@ -203,6 +205,11 @@ class RenderInputs:
         if "synth" not in parts:
             arr_d["cells"], arr_d["velocities"], arr_d["slides"] = [], {}, []
             arr_d.pop("note_chance", None)  # the note grid's, as its velocities
+            arr_d.pop("note_feel", None)
+        if "synth" not in parts or self.arr.arp_mode != "pattern":
+            # the arp pattern is heard only from the grid arp's "pattern"
+            # mode: one kept for the keys arp alone re-keys nothing
+            arr_d.pop("arp_pattern", None)
         # absent unless a lane has one: every key from before cuts holds
         if not arr_d.get("cuts"):
             arr_d.pop("cuts", None)
@@ -386,6 +393,51 @@ KEY_ADDED_FIELDS = {
     # a multi-sample instrument: no zone map plays the one
     # sample, as before. A map names every sample by its content hash
     "sampler_zones": "",
+    # the granular shape: read only while an oscillator is "granular", so
+    # at these every older key stays the key it was
+    **{
+        name: getattr(Patch(), name)
+        for name in (
+            "grain_pos grain_size grain_density grain_spray grain_pitch_spray "
+            "grain_shape grain_dir grain_scan"
+        ).split()
+    },
+    # oscillator 3: silent (and unread) at level 0, so at these every older
+    # key stays the key it was
+    **{
+        name: getattr(Patch(), name)
+        for name in (
+            "osc3 osc3_level osc3_octave osc3_semi osc3_detune osc3_warp osc3_warp_amt"
+        ).split()
+    },
+    # each oscillator's second warp: "off" is the bypass
+    **{
+        f"osc{k}_{part}": getattr(Patch(), f"osc{k}_{part}")
+        for k in (1, 2, 3)
+        for part in ("warp2", "warp2_amt")
+    },
+    # each route's switch and source curve: "on" and 0 are the route as it
+    # always was
+    **{f"{s}_on": "on" for s in MOD_SLOTS},
+    **{f"{s}_curve": 0.0 for s in MOD_SLOTS},
+    # LFOs 4-6: read only by a route from them, so at these every older
+    # key stays the key it was
+    **{
+        f"lfo{k}_{t}": getattr(Patch(), f"lfo{k}_{t}")
+        for k in (4, 5, 6)
+        for t in ("rate", "shape", "sync", "phase", "mode", "draw")
+    },
+    # an envelope stage as a sync division: "off" is its seconds, as always
+    **{f"{t}_sync": "off" for t in ENV_SYNC_TIMES},
+    # the spectral shape: read only while an oscillator is "spectral", so
+    # at these every older key stays the key it was
+    **{
+        name: getattr(Patch(), name)
+        for name in (
+            "spectral_pos spectral_scan spectral_timbre spectral_formants "
+            "spectral_low spectral_high spectral_transient"
+        ).split()
+    },
 }
 
 
@@ -530,6 +582,18 @@ def _bar_clock(arr: Arrangement) -> dict:
     return out
 
 
+def _arp_keyed(mode, pattern: dict, arr: Arrangement) -> dict:
+    """A stem payload's arp pattern entries: the pattern (when there is one
+    of its own) and the key a step's `tr` counts in — only for a lane whose
+    grid arp plays a pattern (arppattern.py), so no other key moves."""
+    if mode != "pattern":
+        return {}
+    return {
+        **({"arp_pattern": pattern} if pattern else {}),
+        "arp_key": [arr.root, arr.scale_name],
+    }
+
+
 def _timing(arr: Arrangement) -> dict:
     return {
         "bpm": arr.bpm,
@@ -654,10 +718,15 @@ def _stem_jobs(inp: RenderInputs) -> list[_StemJob]:
                 **({"cuts": arr.cuts} if arr.cuts else {}),
                 "arp_mode": arr.arp_mode,
                 "arp_octaves": arr.arp_octaves,
+                # the pattern it plays, and the key its steps transpose in:
+                # absent unless it plays one
+                **_arp_keyed(arr.arp_mode, arr.arp_pattern, arr),
                 # absent at 0: every stem key from before the strum holds
                 **({"strum": arr.strum} if strum_beats(arr) else {}),
                 # timing inside a step: absent when unset (or under an arp)
                 **({"note_nudge": nudge} if (nudge := nudge_of(arr)) else {}),
+                # each note's own feel: absent when unset (or under an arp)
+                **({"note_feel": feel} if (feel := notefeel.of(arr)) else {}),
                 # absent when no step has a chance: every stem
                 # key from before the chance lane holds
                 **({"note_chance": arr.note_chance} if arr.note_chance else {}),
@@ -697,7 +766,13 @@ def _stem_jobs(inp: RenderInputs) -> list[_StemJob]:
             # a layer reads the main velocity lane when it carries none of its
             # own (`arrange.layer_arrangement`); its own velocities, slides and
             # arp ride in `lay` itself
-            {"layer": lay, "velocities": arr.velocities, **_timing(arr)},
+            {
+                "layer": lay,
+                "velocities": arr.velocities,
+                **_timing(arr),
+                # (its pattern rides in `lay`; the key it transposes in here)
+                **_arp_keyed(lay.get("arp_mode"), {}, arr),
+            },
             lambda lay=lay: build_song(
                 inp.patch, empty_main, None, layers=[lay], memo=NOTE_MEMO
             ),
@@ -1447,17 +1522,29 @@ def _wet(x: np.ndarray, units: list, arr, span: float) -> np.ndarray:
     wet path also carries its input undelayed (`effects._delay`: the line
     is y = x + feedback * y[-d]), so that direct term — the same unit with
     no feedback, fed only what it passes straight through — is taken out:
-    a send to a delay return adds echoes, never level to the dry track."""
+    a send to a delay return adds echoes, never level to the dry track. A
+    banded unit sends its band's output alone (`build_chain(wet=True)`):
+    the rest of the send is not passed into the return."""
     from .. import effects
 
     for u in units:
-        y = to_stereo(np.asarray(fx_chain(x, build_chain([u], arr, span=span))))
+        if u.get("off"):  # bypassed
+            continue
+        chain = build_chain([u], arr, span=span, wet=True)
+        y = to_stereo(np.asarray(fx_chain(x, chain)))
         if u["kind"] == "delay":
             _name, kw = unit_args(u, arr, span)
-            direct = to_stereo(x).copy()
-            if kw["ping_pong"]:
-                direct[:, 1] = 0.0  # the right line starts one echo late
-            y = y - effects._delay(direct, **{**kw, "feedback": 0.0, "mix": 1.0})
+
+            def direct(part, kw=kw):
+                part = to_stereo(part).copy()
+                if kw["ping_pong"]:
+                    part[:, 1] = 0.0  # the right line starts one echo late
+                return effects._delay(part, **{**kw, "feedback": 0.0, "mix": 1.0})
+
+            band = u.get("band")  # a banded delay: the direct term of its band
+            y = y - to_stereo(
+                effects.band_apply(x, band, direct, wet=True) if band else direct(x)
+            )
         x = y
     return x
 

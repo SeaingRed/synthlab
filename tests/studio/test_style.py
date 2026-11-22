@@ -343,8 +343,25 @@ def test_dead_shape_controls_are_dimmed(tmp_path):
     assert "#row-fm_ratio" in html and "#row-pluck_damping" in html
     from synthlab.studio.paramui import SHAPE_DEPS
 
-    assert set(SHAPE_DEPS) == {"fm", "fm4", "pluck", "wavetable", "sampler"}
-    assert "#row-sampler_root" in html
+    assert set(SHAPE_DEPS) == {
+        "fm",
+        "fm4",
+        "pluck",
+        "wavetable",
+        "sampler",
+        "granular",
+        "spectral",
+    }
+    assert "#row-sampler_root" in html and "#row-grain_pos" in html
+    assert "#row-spectral_pos" in html
+    # the sample's rows show for any shape that plays it: hidden only
+    # while none is picked (one rule, every shape's :not(:has()))
+    both = [line for line in html.splitlines() if "#row-sampler_start" in line]
+    assert len(both) == 1
+    rule = html[: html.index(both[0])].rsplit("#view", 1)[1]
+    assert '[value="sampler"]' in rule and '[value="granular"]' in rule
+    assert '[value="spectral"]' in rule
+    assert "#row-sampler_stretch" not in both[0]  # the sampler's alone
 
 
 def test_perform_section_headings_do_not_sit_on_their_controls(tmp_path):

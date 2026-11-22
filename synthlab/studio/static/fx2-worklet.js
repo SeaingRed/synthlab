@@ -12,6 +12,8 @@
 // Linkwitz-Riley bands built at this context's rate, each pulled toward
 // the middle), the limiter (a sliding minimum, a release, a ramp, its
 // lookahead a delay) and the transient shaper (peak followers): 150 -> 205.
+// 205 -> 218: the multiband drive (the OTT's crossover, now shared, and
+// fx-worklet.js's drive shapes, one a band).
 // Loaded into the AudioWorklet scope beside fx-worklet.js (livefx.js adds
 // it; fx-worklet.js and vox-worklet.js are full): its SynthlabFx calls
 // `synthlabFx2.init` / `.run` / `.quiet` for a unit of one of `kinds`, and
@@ -22,12 +24,13 @@
 // modulation on the processor's own sample count, as the engine's on a
 // buffer's. tests/studio/test_live_fx.py runs this under node against
 // effects.py.
-// Budget: <= 205 code lines.
+// Budget: <= 218 code lines.
 
 (() => {
   const TAU = 2 * Math.PI;
   const kinds = new Set(["autofilter", "tremolo", "tape", "pingpong", "formant_shift", "freqshift", "exciter", "vocoder_fx",
-    "ott", "limiter", "transient"]); // the last three: the dynamics
+    "ott", "limiter", "transient", // the dynamics
+    "mbdrive"]); // the multiband drive: the OTT's bands, the drive's shapes
   const F = () => globalThis.synthlabFx; // fx-worklet.js's Hist, rbj, biq, wander
   const pole = (t, sr) => Math.exp(-1 / (t * sr));
   // effects._envelope_follower, one sample: the larger of a fast and a slow one-pole on |x|
@@ -43,6 +46,15 @@
     return { b0: (1 - al) / a0, b1: -2 * cw / a0, b2: (1 + al) / a0, a1: -2 * cw / a0, a2: (1 - al) / a0, z1: 0, z2: 0 };
   }
   const keep = (f, old) => Object.assign(f, old ? { z1: old.z1, z2: old.z2 } : {});
+  // effects.ott_bands' filters per channel (the OTT's and the multiband drive's): the low split's LP, LP, HP, HP,
+  // the high split's the same, the low band's all-pass — their state kept from `o`
+  function crossover(u, o, sr) {
+    const [f1, f2] = u.split, kinds4 = ["lowpass", "lowpass", "highpass", "highpass"];
+    return [0, 1].map((c) => [...kinds4.map((kd, j) => keep(F().rbj(kd, f1, u.q, sr), o.x?.[c][j])),
+      ...kinds4.map((kd, j) => keep(F().rbj(kd, f2, u.q, sr), o.x?.[c][4 + j])), keep(allpass(f2, u.q, sr), o.x?.[c][8])]);
+  }
+  // one sample of one channel in its three bands (low, mid, high); b: fx-worklet.js's biquad step
+  const split = (X, v, b) => { const r = b(X[3], b(X[2], v)); return [b(X[8], b(X[1], b(X[0], v))), b(X[5], b(X[4], r)), b(X[7], b(X[6], r))]; };
   // effects.lfo_wave: 0..1, at 0 on the bar
   function wave(ph, shape, sm) {
     if (shape === "triangle") return 1 - Math.abs(1 - 2 * ph);
@@ -101,10 +113,10 @@
       const same = o.u?.centres.length === u.centres.length && o.u?.ratio === u.ratio;
       s.b = u.centres.map((f, j) => (same ? o.b[j] : { m: [bp(f, u.q, sr), bp(f, u.q, sr)], c: [bp(f * u.ratio, u.q, sr), bp(f * u.ratio, u.q, sr)], f: follower(...u.follow, sr) }));
       s.tail = sr;
-    } else if (k === "ott") { // per channel: the low split's LP, LP, HP, HP, the high split's the same, the low band's all-pass
-      const [f1, f2] = u.split, kinds4 = ["lowpass", "lowpass", "highpass", "highpass"];
-      s.x = [0, 1].map((c) => [...kinds4.map((kd, j) => keep(F().rbj(kd, f1, u.q, sr), o.x?.[c][j])),
-        ...kinds4.map((kd, j) => keep(F().rbj(kd, f2, u.q, sr), o.x?.[c][4 + j])), keep(allpass(f2, u.q, sr), o.x?.[c][8])]);
+    } else if (k === "mbdrive") { // the crossover; the bands' shapes are fx-worklet.js's (built in `run`: `sh`)
+      Object.assign(s, { x: crossover(u, o, sr), sh: null, by: [u.low, u.mid, u.high].every((a) => a === 1), tail: 16384 });
+    } else if (k === "ott") {
+      s.x = crossover(u, o, sr);
       s.f = u.times.map(([at, rl], j) => Object.assign(follower(at * u.time, rl * u.time, sr), o.f ? { up: o.f[j].up, dn: o.f[j].dn } : {}));
       s.tail = 16384 + Math.ceil(14 * u.times[0][1] * u.time * sr);
     } else if (k === "limiter") { // the deque of the last w + 1 gains, the release, the ramp's ring, the delay
@@ -179,8 +191,7 @@
         b = y + u.amount * biq(s.f[3], (Math.tanh(biq(s.f[2], y) * g + u.bias) - off) / sl);
         L[i] = a; R[i] = b; continue;
       } else if (k === "ott") { // effects._ott: three bands, each pulled toward the middle, blended with itself at depth
-        const split = (X, v) => { const r = biq(X[3], biq(X[2], v)); return [biq(X[8], biq(X[1], biq(X[0], v))), biq(X[5], biq(X[4], r)), biq(X[7], biq(X[6], r))]; };
-        const bl = split(s.x[0], x), br = split(s.x[1], y), gains = [u.low, u.mid, u.high], d = u.depth, out = 10 ** (u.output / 20);
+        const bl = split(s.x[0], x, biq), br = split(s.x[1], y, biq), gains = [u.low, u.mid, u.high], d = u.depth, out = 10 ** (u.output / 20);
         a = 0; b = 0;
         for (let j = 0; j < 3; j++) { // effects.ott_gain, then the blend
           const lev = db(follow(s.f[j], Math.max(Math.abs(bl[j]), Math.abs(br[j]))));
@@ -189,6 +200,14 @@
           a += bl[j] * m; b += br[j] * m;
         }
         L[i] = a * out; R[i] = b * out; continue;
+      } else if (k === "mbdrive") { // effects._mbdrive: each band through the drive's shape at its amount (at 1 passed); the dry the bands' sum
+        if (s.by) continue; // every band at 1: the input itself, nothing split
+        s.sh ||= [u.low, u.mid, u.high].map((amount) => (amount === 1 ? null : fx.shape({ ...u, amount })));
+        const bl = split(s.x[0], x, biq), br = split(s.x[1], y, biq);
+        let dl = 0, dr = 0;
+        a = 0; b = 0;
+        for (let j = 0; j < 3; j++) { const f = s.sh[j]; dl += bl[j]; dr += br[j]; a += f ? f(bl[j]) : bl[j]; b += f ? f(br[j]) : br[j]; }
+        L[i] = dl * (1 - u.mix) + a * u.mix; R[i] = dr * (1 - u.mix) + b * u.mix; continue;
       } else if (k === "limiter") { // effects._limiter / limiter_gain: the gain each peak needs, held, let go, ramped; the signal delayed
         const g = 10 ** (u.gain / 20), yl = x * g, yr = y * g, w = s.w, q = s.q, cap = w + 1;
         const want = Math.min(1, s.c / Math.max(Math.max(Math.abs(yl), Math.abs(yr)), 1e-9));
@@ -239,5 +258,5 @@
     if (s.u.kind === "limiter") { s.q.len = 0; s.sm = 1; s.box.fill(1); s.sum = s.w + 1; s.d.forEach((v) => v.fill(0)); }
   }
 
-  globalThis.synthlabFx2 = { kinds, init, run, quiet };
+  globalThis.synthlabFx2 = { kinds, init, run, quiet, crossover, split, allpass }; // the last three: band-worklet.js's too
 })();

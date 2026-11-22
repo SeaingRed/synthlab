@@ -152,7 +152,21 @@ on a formant-mode sampler only, a route to `pitch` / `osc1_detune` /
 reads the pitch one root period ahead, which the voice can foresee for
 its own motion (`grain-worklet.js` `ahead`: the pitch terms of `ctl()`
 in closed form — **change one, change the other**) and not for those
-(`sampler-and-clips.md`, "Formant mode on the live keys"). `loopDuration()` (used to decide the
+(`sampler-and-clips.md`, "Formant mode on the live keys"); and the
+granular oscillator, whole (osc1 "granular" is no `SHAPES` entry, its
+`grain_*` fields "default": `sampler-and-clips.md`, "The granular
+shape"); and the spectral oscillator, whole (osc1 "spectral" is no
+`SHAPES` entry, its `spectral_*` fields "default": a phase vocoder per
+256-sample frame is not in the worklet — `sampler-and-clips.md`, "The
+spectral shape"); and oscillator 3 while it sounds (its fields "default", the
+others than `osc3_level` unheard while the level is 0 — `paramui._UNHEARD`,
+which `_unheard` reads beside the shape rules — and a route onto
+`osc3_level` refused by `_slot_gate`, since it would lift a silent osc 3
+into hearing: `docs/engine.md`, "Oscillator 3"); and a second warp that
+bends (`osc*_warp2` / `_amt` "default", unheard while off or bending
+nothing: the voice's `warpBlock` reads one warp — `docs/engine.md`, "Two
+warps at once").
+`loopDuration()` (used to decide the
 fallback loop length for the shortcut sheet and elsewhere) lives on
 `static/audio.js`, not piano.js — piano.js reads it off
 `window.synthlab.loopDuration()`. Any new Patch field that the
@@ -431,6 +445,89 @@ maximum in the log domain: no Python loop). Live: the OTT is 18 biquads
 and three followers a sample, the limiter a deque push and a few
 multiplies; not measured in a browser.
 
+### The multiband drive
+
+**The multiband drive** (`mbdrive`: low, mid, high 1-12, mode, mix;
+`fxrack.MULTIBAND_UNITS`, kept from the sound agent for the schema's
+budget; `tests/test_effects_mbdrive.py`) is the OTT's three bands, each
+through the drive's shape at its own amount (`docs/engine.md`,
+"Multiband drive"). "js" in `FX_LIVE`; its twin is in `fx2-worklet.js`
+on the OTT's crossover (`crossover` / `split`, now shared by the two)
+and fx-worklet.js's own `shape` for each band not at 1, built once per
+parameter set. A band at 1 is passed unshaped; every band at 1 skips the
+split and passes the input (`mbdrive_flat`: the input exactly, live and
+in the loop). The dry under its mix is the bands summed, as the engine's.
+**Measured <= 3.8e-8 of peak** on the synth note, one case per mode with
+a band left at 1, and a stack (tube drive, the multiband drive, OTT,
+limiter) at 6.8e-7 — all of it the worklet's float32 between units
+amplified by the drives: the engine with its input rounded to float32
+between units is the live output exactly. **Lanes** on the three amounts
+and the mix (the unit's own blend, `fxauto.OWN_MIX`), standing still
+bit for bit in every mode. **Cost**: 0.003 CPU s per s of stereo noise
+in NumPy (nine biquads a channel and three shapes); live, 18 biquads and
+up to six shapes a sample; not measured in a browser.
+
+### A unit's band
+
+**A unit's band** (`"band"` on any rack unit but the limiter:
+`docs/engine.md`, "A unit's band"; `tests/studio/test_fx_band.py`,
+`test_live_fx.py`'s `band_*` cases) is live wherever its unit is. Its
+twin is `static/band-worklet.js`, a fifth module in the FX worklet's
+scope (`synthlabBand`; fx-worklet.js and fx2-worklet.js are full), on
+the OTT's crossover (fx2-worklet.js's `crossover` / `split`, now handed
+out): `fxlive.live_chain` sends the band with the crossover
+(`band_split`, `band_q`).
+
+- **A unit fx-worklet.js runs** (the "js" and "clock" ones): the
+  processor's `run` splits each sample into the band and the rest (two
+  buffers of their own), runs the unit's own code on the band in place,
+  and sums the two back — `effects.band_apply`'s arithmetic, the rest the
+  other two bands summed (or the other channel). Its crossover's state
+  is the unit's (`s.bs`), kept through a slider drag, at rest when the
+  node is culled, and its ring counts in the unit's tail.
+- **A native unit** (reverb, plate, spring, lowpass, highpass — a Web
+  Audio node): livefx.js builds it between two `synthlab-band` nodes, the
+  first splitting (output 0 the band, into the node; output 1 the rest),
+  the second joining (input 0 the node's output, input 1 the rest: on mid
+  or side the node's two channels averaged, as the engine averages the
+  unit's). The chain's `shape` names a native unit's band, so a band
+  changed rebuilds it; both nodes are disposed with it.
+
+**Measured**: nine banded cases on the synth note (each band; a drive, a
+delay, an EQ, a chorus and an OTT on the side of a doubled note, a
+doubler on the mid, a pump on the lows, a drive at mix 0 on the highs, a
+stack of four with bands and none) **<= 2.0e-7 of peak** (the OTT on the
+side; the rest <= 7.5e-8), 1/3-octave bands 0.000 dB; the split and
+join round a stand-in for a native node (each channel its own gain),
+every band, <= 7.7e-8 (float32 between the nodes). A banded unit is
+"offline" exactly when its unit is: granular, shimmer, compress, vinyl,
+beat repeat and the tape stop stay offline on any band.
+
+### The utility
+
+**The utility** (`utility`: gain, pan, width, bass mono, the two
+polarity flips; `docs/engine.md`, "Utility") is "js" in `FX_LIVE`; its
+twin is in `band-worklet.js` beside the band (`synthlabBand.kinds` /
+`make` / `unit`: bass mono is the same crossover's all-pass and
+high-pass, Q `xover_q`). At its defaults it is skipped, as the engine
+returns its input. **Measured <= 1.3e-7 of peak** on the synth note
+(gain and pan, width, bass mono on a doubled note, every tool at once
+with a second utility on the highs), the defaults exactly the input.
+
+### The convolution
+
+**The convolution** (`convolve`: an impulse, mix, predelay, lowcut,
+highcut; `docs/engine.md`, "Convolution") is "native" in `FX_LIVE`: the
+reverb's stage in livefx.js (dry and wet gains round a ConvolverNode,
+`disableNormalization`), loaded from `GET /fx/ir.wav?kind=clip&id=...`
+— `effects.convolve_ir` at the context's rate, the gain in it, so the
+node plays the loop's IR (`tests/studio/test_fx_convolve.py`: the served
+IR is `convolve_ir` to float32; the unit is dry + that convolution to
+1e-6). `fxlive.live_chain` reads the IR from the render's cache; an id
+this studio lacks comes as no URL and mix 0 — the dry pass the loop
+renders. A live key rings the whole IR; the loop keeps one loop length
+of it (`_wrap_tile`).
+
 ## Hard sync, FM4, wavetables and drift
 
 Hard sync, the 4-operator FM shape, eight more wavetables and analog drift
@@ -558,21 +655,28 @@ voice's to the last f32 bit on every one.
 - **The modulation** lives in the JS control pass, as every route always
   has (a voice with routes runs it; the module's `control()` is
   route-free): `route(x, sv, bs)` reads each source from `this.SV` by its
-  `SOURCES` number — LFO 1 (`lfoX` for its new shapes), LFO 2 / 3
-  (`lfoG`: their phases `v.p2` / `v.p3` start at `lfoN_phase` plus, when
-  free, `driftU(seed, 0x40000 + k)`), the filter / amp envelopes,
+  `SOURCES` number — LFO 1 (`lfoX` for its new shapes), LFOs 2-6
+  (`lfoG`, sources 5, 6, 13-15: their phases `v.p2` .. `v.p6` start at
+  `lfoN_phase` plus, when free, `driftU(seed, 0x40000 + k)`; their shapes,
+  rates and drawings read in `wire()`), the filter / amp envelopes,
   velocity, envelopes 3 / 4 (`envK`, their release levels taken at
   note-off, revived like the filter envelope's), the wheels (the patch's
   `mod_wheel` / `aftertouch` smoothed, plus the live `wheel_cc` / `at_cc`
   from the "modwheel" / "aftertouch" messages, clipped to 0..1), the key
   and the note's random value (`driftInit`). `lfoX`: the drawing parsed in
   `wire()` and read as `np.interp` does; chaos the logistic map advanced
-  as the phase crosses each cycle (`v.lx[k]`); smooth the hashed pair of
+  as the phase crosses each cycle (`v.lx[k]`); the Lorenz and Rössler
+  flows (`attrF` / `attrStep`, core.attractor_step's RK4 in the same
+  order) advanced a point as the phase crosses each eighth of a cycle,
+  their seeded start and warm-up run when the shape is first read; smooth the hashed pair of
   the cycle, smoothstepped; LFO 2 / 3's stepped from the table's streams 1
   / 2. The new targets reach what the module reads: `WP` (wt_pos), `FA`
   (cross FM — a route switches the cross path on), `IX` (fm index), `E1..E4`
   (the fm4 levels); filter 2's cutoff / resonance and the vowel at the
-  block start (`BLOCK_RATE`).
+  block start (`BLOCK_RATE`). A bypassed slot (`modN_on` "off") is not
+  wired, as `params.slot_active` refuses it; a slot's curve (`modN_curve`)
+  bends the source in `route()` before its amount, by `synth.route_curve`'s
+  arithmetic (`ROUTE_K` = `ROUTE_CURVE_K`).
 
 Cost, 16 voices at 48 kHz (an x86-64 desktop, the bench's harness over hand-made
 variants), JS / WebAssembly: the default ladder 5.2 / 3.8 %, low 12 4.4 /

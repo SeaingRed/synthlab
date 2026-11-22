@@ -167,7 +167,7 @@
   "project_payload": "(self) -> 'dict'",
   "push_history": "(self, after: 'Patch | None' = None) -> 'None'",
   "push_pattern_undo": "(self, before: 'dict | None' = None) -> 'None'",
-  "push_undo_step": "(self, before: 'dict') -> 'None'",
+  "push_undo_step": "(self, before: 'dict', also_fx: 'tuple[str, list] | None' = None) -> 'None'",
   "remap_clip_refs": "(self, fn) -> 'None'",
   "rename_clip_refs": "(self, old: 'str', new: 'str') -> 'None'",
   "rename_preset": "(self, old: 'str', new: 'str') -> 'bool'",

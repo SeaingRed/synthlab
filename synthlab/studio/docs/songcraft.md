@@ -97,12 +97,14 @@ the part's register and its stream.
 |---|---|
 | `bass_rolling` | steps 1, 2, 3 of every beat and never the kick's step, one step long each with a **cut** between (two cells of one pitch side by side are otherwise one held note), on the chord's root. `figure`: `roll`, `octave` (the third an octave up), `gallop` (2, 3), `offbeat` (2). The seed moves which beats' last note pops to the chord's fifth or the octave. `bass_pair` is the two tracks from one seed: the mid with its pops, the sub an octave under on the roots |
 | `bass_root`, `bass_offbeat`, `bass_walk`, `bass_2step` | long roots · an offbeat eighth · a syncopated funk line with a slide · a two-step sub with gaps |
+| `bass_switch` | call and response between bass sounds: `bass_switch(ctx, voices=2, every=2.0)` is one lane a voice, `generate("bass_switch", ctx, voice=k, voices=n, every=b)` lane k. Time is cut into windows of `every` beats (split at every bar line); voice k sounds only where `window % voices == k`, one short figure from a table of five (it always opens on the window's first step) on the root of the chord under the window's start, silence elsewhere. The seed draws the figures from one stream for every voice, so no step is held in two lanes. `leave_kick` moves a note that would start on a kick's step one step on: for a voice whose chain has no duck. Written in 4/4 like the rest and put on another meter's beats by `meterops.beat_fit` (each bar's first note carries a cut so a fitted bar cannot run into the one before) |
 | `chords` | the progression voiced (`close`: voice-led; `wide`; `anthem`; `power`), `rhythm` `held` / `stabs` (offbeats) / `pump` / `push` |
 | `pad` | held, wide |
 | `arp` | the chord's tones as explicit notes: `up`, `down`, `updown`, `random`, `pedal`; `rate` 1 or 2 sixteenths, `gate`, `octaves` |
 | `lead` | a two-bar motif answered in bars 3-4, varied in 5-8, home on the root |
 | `chops` | short pitched hits, call and answer, a stutter at each phrase end |
 | `hit` | one note, the key's root at the bottom of the window, on the pattern's first step, held `bars`: a drop FX's single hit — the sound (an impact, a sub drop) does the rest |
+| `chop_stutter` | a chopped sampler's **slice keys** walked: `chop_stutter(ctx, slices=16, repeat=0.25, order="forward")` plays only `CHOP_ROOT` (60, C4: the sampler's default root, what the clip hub's → Chop keys sets) .. `CHOP_ROOT + slices - 1`, whatever the song's key — the pitches name slices (slice i on root + i), so the key's ladder and the part's register do not bind it (`notes.SLICE_KINDS`; in the drawer, the keys off the song's key are rows outside the key). The walk goes `forward`, `reverse` or `shuffle` (one seeded permutation, its own stream) on a steady grid — 16 / slices sixteenths rounded down to 1, 2, 4, 8 or 16, so a bar walks 16 slices or all of them — carried on bar to bar, restarted every 4-bar phrase. At each step, with chance `repeat` (0..1, seeded), the previous slice re-triggers instead as a stutter of two or three sixteenths and the walk waits; **a bar's first step always advances** (so at `repeat` 1 each bar still moves on one slice) and a stutter stops at the bar line. The last half beat of every phrase (every 4 bars, or the lane's end) always stutters: the slice played last, twice. Its role is `vocal`; it is on the "write…" menu as "chop stutter (slice keys)". The sound it is written for is a chopped sampler — on any other sound it plays a chromatic run up from C4 |
 | drums: `beat`, `fill`, `fill_every`, `build`, `thin`, `busier`, `sparser`, `variation`, `tile` | `beatgen`'s beat (with `density`) and its style's FEEL (`beatgen.dress`: ghosts with a velocity of their own, a chance a hit, the rows' own swing) · the last ½ / 1 / 2 bars of any bar replaced by a seeded figure from the style's own table (`STYLE_FILL`), velocity rising, a roll's last eighth doubled · that at the end of every N-th bar · **a roll in quarters, eighths, sixteenths, then 32nds by ratchet — each snare hit with its own velocity (0.4 to 1) and tune (0 to +7) — while the kick thins** · voices taken out · ghosts and offbeats added (never a kick) / the weakest removed, ghosts first (never a kick on a beat or the backbeat) · a few light hits traded |
 
 - **In key, in register, on the grid**: a pitch is a scale tone inside the
@@ -146,7 +148,11 @@ breakdown, the jungle-ish beat in the second drop, an Impact track),
 eighth; the second drop the riddim beat under a growl for the first half
 of every pass and the same wobble at the eighth triplet — a track's
 `patch` override — for the second; a cut and an Impact into each drop;
-seven synth tracks, the eighth free), `synthwave` (*Synthwave*, 100: the
+seven synth tracks, the eighth free; **the first drop is call and
+response**: the wobble and the growl are voices 0 and 1 of `bass_switch`
+(part "B" of each track, every 2 beats, the growl with `leave_kick`
+because its chain is full) — the second drop keeps its alternation by
+halves, the growl's span then the triplet's entry), `synthwave` (*Synthwave*, 100: the
 drum bus through the Gated Verb chain's room and gate, a sixteenth arp
 bass on `arp` "pedal" in the bass register, tucked; brass pushes, then
 stabs in the choruses; a bridge with no drums swelling into the last
@@ -320,13 +326,16 @@ industrial, 8 / 10 for psych and sixties; among them trance's "a
 sub drop under the climax's first beat" and "the drums punched", melodic
 techno's "a sub drop under a drop's first beat", filter house's
 envelope filter on the bass, garage's OTT pad, electro's punched drums;
-9 / 9 / 9 / 8 / 10 for hip-hop, drum & bass, dubstep,
+9 / 9 / 10 / 8 / 10 for hip-hop, drum & bass, dubstep,
 synthwave and future bass — `_half_time` (a snare or clap on step 8 of
 the drop's first bar, none on 4 or 12), `_rolled` (a hat or snare hit
 with a ratchet of 2 or more), `_ghosts`, a gliding sine 808 landing
 with the kick, a Reese read as two saws 10 cents apart or more, the
 wobble as a bass whose filter LFO is synced (two clock rates or more
-across the basses), a gated room as a `reverb` followed by a `vgate` on
+across the basses), the switch as two bass tracks that alternate in a
+drop (`_alternates`: both sound, no step is held by both, the sound
+changes hands twice or more along the pass; read from the notes with
+`held_steps`, never a track's name), a gated room as a `reverb` followed by a `vgate` on
 the drum bus, a sequenced bass as eight note-ons a bar or more in every
 chorus bar, a pitch-bent pluck as a pitch envelope or a route to
 `pitch`; 10 each for lo-fi, ambient, chiptune, hardstyle and
@@ -383,8 +392,9 @@ checklist and the shapes read it. Tracks are named for what they are for.
 An empty state offers a next step that makes sound: the empty Song page
 IS the starter sheet; an empty pool (and a song with sections but no
 pattern) writes a beat or a riff and places it (`/song/gen add=`);
-the loop becomes a song through the Loops page's **▶ Whole song**, never
-empty (`loop-and-perform.md`, "→ Song");
+the loop becomes a song through the Loops page's deck — its Song
+source's ▶ on an empty song, **make it a song** — never empty
+(`loop-and-perform.md`, "→ Song" and "The deck");
 Perform's Sounds, the
 Drums library and the Library's empty detail start a song in
 the style used last (the Library's filter that hides every row offers

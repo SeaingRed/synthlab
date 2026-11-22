@@ -1809,7 +1809,10 @@ STYLES: dict[str, dict] = {
                 "Wobble Bass",
                 "bass",
                 0.75,
-                {"A": ("bass_root", {})},
+                {
+                    "A": ("bass_root", {}),
+                    "B": ("bass_switch", {"voice": 0, "voices": 2, "every": 2.0}),
+                },
                 fx=(_TUCK,),
             ),
             _track(
@@ -1832,7 +1835,13 @@ STYLES: dict[str, dict] = {
                 "Growl Bass",
                 "bass",
                 0.75,
-                {"A": ("bass_walk", {})},
+                {
+                    "A": ("bass_walk", {}),
+                    "B": (
+                        "bass_switch",
+                        {"voice": 1, "voices": 2, "every": 2.0, "leave_kick": True},
+                    ),
+                },
             ),
             _track(
                 "lead",
@@ -1872,7 +1881,7 @@ STYLES: dict[str, dict] = {
                 4,
                 1.0,
                 "main",
-                {"sub": "A", "wobble": "A", "impact": "A"},
+                {"sub": "A", "wobble": "B", "growl": "B", "impact": "A"},
             ),
             _row(
                 "Breakdown",

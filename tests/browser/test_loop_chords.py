@@ -60,11 +60,12 @@ def test_a_chord_lane_edit_changes_what_write_writes(studio, server):
     assert server.state.arrangement.chords["slots"]
     assert page.locator(".roll .cell.ct").count() > 0  # the roll's chord tones
     # write chords over them
-    # (⚄ write opens a popover)
-    page.click('.roll-gen .pt[popovertarget="ptm-write"]')
-    page.wait_for_selector("#ptm-write:popover-open")
+    # (⚄ write is a row of the note grid's Tools ▾, a popover)
+    page.click("#transport .pt-more-btn")
+    page.wait_for_selector("#ptm-notes:popover-open")
     with page.expect_response("**/fragment/gen"):
-        page.click('#ptm-write [hx-vals*=\'"kind": "chords"\']')
+        page.click('#ptm-notes .roll-gen [hx-vals*=\'"kind": "chords"\']')
+        page.evaluate("() => document.getElementById('ptm-notes').hidePopover()")
     assert _first_bar_fits(server)
     first = server.state.arrangement.cells
     # the first tile another chord, from its menu
@@ -86,8 +87,10 @@ def test_a_chord_lane_edit_changes_what_write_writes(studio, server):
         arg=to,
     )
     # ⚄ again: the part rolled over the new chords
+    page.click("#transport .pt-more-btn")
     with page.expect_response("**/fragment/gen"):
-        page.click('[data-cmd="Roll the part again"]')
+        page.click('#ptm-notes [data-cmd="Roll the part again"]')
+        page.evaluate("() => document.getElementById('ptm-notes').hidePopover()")
     assert server.state.arrangement.cells != first
     assert _first_bar_fits(server)
     # a focused tile's 1-7 sets its degree (songline.js, posting the tile's own route)

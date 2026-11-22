@@ -277,11 +277,12 @@ def test_default_is_four_steps(tmp_path):
 def test_bar_chips_render_and_extend(tmp_path):
     client = make_client(tmp_path)
     html = client.get("/view/perform").text
-    # the note grid's chips (Perform's drum rack below it has its own four)
+    # the note grid's chips: 1-4, 8 and 16 (`limits.loop_bar_choices`;
+    # Perform's drum rack below it has its own four)
     notes = html.split('id="perform-drums"')[0]
     assert notes.count(
         '<button type="button" class="barchip'
-    ) == 4 and 'name="bars" value="1"' in notes.replace("'", '"')
+    ) == 6 and 'name="bars" value="1"' in notes.replace("'", '"')
     r = client.post(
         "/fragment/arrangement",
         data={
@@ -405,6 +406,9 @@ EXPECTED_ROUTES = [
     (["POST"], "/fragment/agent/budget"),
     (["POST"], "/fragment/agent/turn"),
     (["POST"], "/fragment/agent/undo"),
+    # the arp pattern's editor (routes/arp.py): the lane's pattern, the slots
+    (["POST"], "/fragment/arp/pattern"),
+    (["POST"], "/fragment/arp/slot"),
     (["POST"], "/fragment/arrangement"),
     (["POST"], "/fragment/bass/key"),
     (["POST"], "/fragment/bass/phone-audition"),
@@ -498,6 +502,7 @@ EXPECTED_ROUTES = [
     (["POST"], "/fragment/perform/scene/section"),
     (["POST"], "/fragment/perform/scene/song"),  # a scene → a section
     (["POST"], "/fragment/perform/slot/clear"),
+    (["POST"], "/fragment/perform/slot/hear"),
     (["POST"], "/fragment/perform/slot/keep"),
     (["POST"], "/fragment/perform/slot/launch"),
     (["POST"], "/fragment/perform/slot/move"),
@@ -517,10 +522,14 @@ EXPECTED_ROUTES = [
     # the sampler instrument: a clip / a resample becomes a sound, chops
     (["POST"], "/fragment/sampler/chop"),
     (["POST"], "/fragment/sampler/clip"),
+    # Resample ↻: the layer's phrase through its rack, the rack emptied
+    (["POST"], "/fragment/sampler/rebake"),
     # ● Record sample: a timed mic take into the clip store and the sampler
     (["POST"], "/fragment/sampler/record"),
     (["POST"], "/fragment/sampler/resample"),
     (["POST"], "/fragment/sampler/root"),  # "use" the detected pitch
+    # an SFZ instrument (a zip) as the sound: zones a region (synthlab/sfz.py)
+    (["POST"], "/fragment/sampler/sfz"),
     (["POST"], "/fragment/sampler/slice"),
     # a multi-sample instrument: one zone's edit, a clip as a zone, the map's
     # tools, auto-map (several clips as one sound)
@@ -539,6 +548,7 @@ EXPECTED_ROUTES = [
     # the clip hub: make (a preview), Apply, its Undo; a sample kept as a
     # clip, a clip opened in the Lab; the tuned audio kept new or written over
     (["POST"], "/hub/apply"),
+    (["POST"], "/hub/chop"),
     (["POST"], "/hub/keep"),
     (["POST"], "/hub/lab"),
     (["POST"], "/hub/make"),
@@ -570,6 +580,7 @@ EXPECTED_ROUTES = [
     (["POST"], "/loop/delete"),
     (["POST"], "/loop/edit"),
     (["POST"], "/loop/edit/done"),
+    (["POST"], "/loop/length"),
     (["POST"], "/loop/load"),
     (["POST"], "/loop/preview"),
     (["POST"], "/loop/quantise"),
@@ -723,6 +734,9 @@ RENDER_OUTSIDE_LOCK = {
     # ... and on a pool pattern: a section of its own, through a lane
     "/song/pattern/{pattern_id}/play.wav",
     "/fragment/breed/generation",
+    # Import SFZ…: the samples are decoded with the lock released (they touch
+    # only the self-locking sample store), the sound loaded under it again
+    "/fragment/sampler/sfz",
     # the first visit to an empty Breed board generates its litter
     "/view/{name}",
     # a live key: a press used to hold the lock for its render
@@ -762,6 +776,9 @@ RENDER_OUTSIDE_LOCK = {
     "/hub/make",
     "/hub/apply",
     "/hub/lab",
+    # → Chop keys: a make's preview of one plan (the clip's onsets heard,
+    # the chopped sound rendered from a snapshot)
+    "/hub/chop",
 }
 
 

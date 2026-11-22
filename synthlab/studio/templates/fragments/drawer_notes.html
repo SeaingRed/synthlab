@@ -18,6 +18,7 @@
       <div class="drawer-arp" role="group" aria-label="Arpeggiator">
         <label>arp <select class="field field-s" name="arp_mode" title="Arpeggiate the checked notes at step rate">
           {% for m in ["off", "up", "down", "updown"] %}<option {% if p.arp_mode == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+          <option value="pattern" {% if p.arp_mode == "pattern" %}selected{% endif %} title="the arp pattern the pattern carries (from its loop), else the default">▦ pattern</option>
         </select></label>
         <label>oct <select class="field field-s" name="arp_octaves">
           {% for o in [1, 2, 3] %}<option {% if p.arp_octaves == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
@@ -28,6 +29,6 @@
                             title="Strum: a chord's notes start this many ms apart, low to high (negative: high to low). 0 = together. An arp plays one note a step, so it has nothing to strum"></label>
         <output for="drawer-strum" data-unit="ms">{{ p.get('strum', 0) | round | int }} ms</output>
       </div>
-      {{ note_grid(d.rows, p.bars * p.steps_per_bar, p.cells, p.slides, p.velocities, root_rows=d.roll.roots, steps_per_bar=p.steps_per_bar, cuts=p.cuts or [], roll=d.roll, zoom="drawer", span=d.span, oct=d.oct, bar_meter=p.get("meter") or "4/4") }}
+      {{ note_grid(d.rows, p.bars * p.steps_per_bar, p.cells, p.slides, p.velocities, root_rows=d.roll.roots, steps_per_bar=p.steps_per_bar, cuts=p.cuts or [], roll=d.roll, zoom="drawer", span=d.span, oct=d.oct, bar_meter=p.get("meter") or "4/4", feel=p.get("note_feel")) }}
     </form>
     </div>

@@ -26,6 +26,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from .. import (
+    arppattern,
     beatgen,
     beatpick,
     chords,
@@ -48,7 +49,7 @@ from ..drumfactory import DRUM_KITS
 from ..factory import FACTORY
 from ..fxrack import CHAIN_PRESETS, FX_UNITS, clean_chain
 from ..library import tags as library_tags
-from ..paramui import PARAM_GROUPS, SHAPE_DEPS, idle
+from ..paramui import PARAM_GROUPS, SHAPE_DEPS, SHAPE_ROWS, idle
 from ..recipes import cards as recipe_cards
 from ..recipes import core_cards
 from ..recipes import tags as recipe_tags
@@ -212,6 +213,7 @@ class Page:
             "view_title": view_title(view),
             "groups": PARAM_GROUPS,
             "shape_deps": SHAPE_DEPS,
+            "shape_rows": SHAPE_ROWS,
             "filter_response": filter_response_svg(s.patch),
             "env_amp": self.env_amp_svg(s.patch),
             "env_filter": self.env_filter_svg(s.patch),
@@ -287,10 +289,14 @@ class Page:
             **self.sound_context(),
             **self.layer_context(),
             "lane_follow": self.lane_follow(),
-            # the saved loop the note grid is editing (its banner)
+            # the saved loop the note grid is editing (the editor's head)
             "loop_edit": self.loop_editing(),
+            # the beat loop the drum grid is editing (the drum rack's head)
+            "drum_edit": self.drum_editing(),
             # the Sound agent drawer (runtime session: log, budget)
             "agent": self.agent.view(),
+            # the arp pattern's editor (every page: region arp-pattern)
+            "arp_pat": arppattern.context(s.arrangement, s.arp_slots),
         }
         if view == "perform":
             # the launcher's lanes x scenes (loops.py's listing: cached)
@@ -535,6 +541,20 @@ class Page:
             "lane": lane,
             "here": here,
             "row": row,
+        }
+
+    def drum_editing(self) -> dict | None:
+        """The beat loop open on the drum lane (`loop_edit[DRUM_LANE]`: a
+        drum slot that plays, or a beat a Loops row opened), as the drum
+        rack's head says it — its name and its title as the Loops lists name
+        it — or None: the drum grid is a sketch, saved to no loop."""
+        s = self.state
+        e = s.loop_edit_of(s.DRUM_LANE)
+        if e is None:
+            return None
+        return {
+            "name": e["name"],
+            "title": looplib.titles(s.data_dir).get(e["name"], e["name"]),
         }
 
     def slots_context(self) -> dict:

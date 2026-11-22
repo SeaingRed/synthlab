@@ -707,6 +707,47 @@ on every input inside it), hidden unless an osc is "sampler" (the
 `hidden` attribute + an editor.html `:has()` rule on the osc1 pills, like
 the shape rows).
 
+**A clip chopped onto the keys in one move** is the clip hub's **→ Chop
+keys** (`POST /hub/chop`, `clipmake.make_keys`; `clip-hub.md`, "→ Chop
+keys"): 8, 16 or 32 slices, at equal parts or at the clip's onsets
+(`drumhits.find_hits`), slice i on C4 + i — `sampler_root` set to 60
+(`samplerview.DEFAULT_ROOT`, `notes.CHOP_ROOT`) rather than the detected
+pitch, because the keys name slices here, and a slice plays at its own
+pitch on its own key whatever the root (`sampler.render`: `k = round(12
+log2(key / root))`). Only the existing fields: `osc1` "sampler",
+`sampler_sample`, `sampler_slices`, `sampler_root`. Applied through
+`adopt_audio` like any sampler sound (one patch undo step, landing on
+Synths), so the panel's chop edits work on it as on any other. The
+Song's **chop stutter** generator (`songcraft.md`) writes a walk over
+exactly those keys.
+
+**Resample ↻** (the sound bar, beside ⤷ Resample loop; `POST
+/fragment/sampler/rebake`, `sampler_rebake`): resample, mangle, resample
+again, one generation a press. The edited layer's phrase — the Synths
+phrase (or a song track's notes while one is edited), the layer's patch
+and curves, through **the layer's own rack as it sounds**
+(`fxrack.active`: bypassed units skipped), and nothing else: no master
+rack, no other layer, no beat, the slot's gain at 1 (`svc.render("editor",
+patch=, chain=, mix=False)`, a card's "on its own" audition with the
+layer's rack as its chain) — becomes that layer's sampler sound
+(`sampler_patch` through `load_sound`, as every resample: osc1 the
+sample, filter off; not looped, as ⤷ Resample loop is not), its root the
+phrase's root key (`RenderInputs.arr.root`), so the phrase's root plays
+the take at its own pitch. **The layer rack empties in the same step**:
+the FX are in the sample, so they are not applied a second time, and a
+second press resamples the first press's result through whatever was put
+on the rack since. The name counts the generations ("Acid ↻", "Acid ↻2").
+One undo step gives back the patch *and* the rack: a patch step that
+carries the chain as well (`push_undo_step(also_fx=("layer", chain))`,
+`state/history.py` `_FX_ALSO`), never two steps. Refused in words,
+nothing changed and nothing stored: a phrase longer than a sample holds
+(`sampler.MAX_SAMPLE_SECONDS`, 30 s — ⤷ Resample loop truncates instead),
+a render error, silence. Drawn curves are baked into the take *and* stay
+on the layer (the curves are the session's, not the rack's): a level or
+pan curve applies again to the sampler. Renders under the lock, as ⤷
+Resample loop and ⏺ Bounce do (one phrase, usually cached by ▶).
+`tests/studio/test_sampler_studio.py` (`test_resample_chain_*`).
+
 ### Record a sample
 
 **● Record sample** (`static/samplerec.js`, `POST
@@ -869,6 +910,78 @@ is 57% of a render quantum), 0.18 ms by FFT (4096-point; 1.6% per voice,
 quantum: 107% of it). It would need the FFT in the WebAssembly module and
 the searches spread over the hop before each grain; not built.
 
+### The granular shape: the same sample as a cloud
+
+**Granular** (osc1's "granular" pill; the engine is the root
+`docs/engine.md`, "Granular oscillator"; `samplerview.cloud`,
+`tests/studio/test_sampler_studio.py`
+`test_the_granular_shape_plays_the_sample_on_the_wav_path`,
+`tests/browser/test_sampler.py`
+`test_the_granular_pill_keeps_the_sample_and_draws_the_cloud`): a pill
+away from the sampler on a sound that already holds a sample. It plays
+`sampler_sample` — its span, or the loop inside it while the loop is on —
+at `sampler_root` with `sampler_keytrack`, so those rows show for either
+shape (one `:has()` rule names both: `paramui.SHAPE_ROWS`), while the
+sampler's alone (pitch mode, stretch, crossfade) hide. Under the
+**Granular** subhead: position, size, density, position spray, pitch
+spray, window, direction (pills) and scan — plain sliders from the
+design system, the position drawable and a route target (its patch-bay
+jack shows while an oscillator is granular). The sampler block stays
+(`samplerview.has_sample`: Record, Resample, the pitch and its "use",
+which `POST /fragment/sampler/root` allows for either shape) and its
+waveform also draws where the grains read: the spray's reach
+(`.sw-spray`, one or two spans: the region is circular), one grain's read
+at the root from the position (`.sw-grain`) and the position's line
+(`.sw-pos`), from the fields' first values; `samplerview.watch` carries
+the position, spray and size, so a slider's post redraws it out of band
+as the start and end do. The chops and the zones are the sampler shape's
+and are not drawn (`context`'s `chops`); a granular sound plays neither,
+and the chop / zone routes still refuse a sound with no sampler
+oscillator. **The keys take the server WAV**: the voice worklet has no
+granular twin, so `/patch.json` names `osc1` (and every `grain_*` field
+off its default: "default") and carries no `sampler_live`; the grain
+fields left on a synth block nothing. A twin would be possible — every
+draw is `core.hash_u` of the grain's index and a crc32 seed, the
+schedule a function of the output clock — but it would have to read the
+key's pitch at each grain's first sample exactly as `Synth.note` builds
+it, and a route's or a curve's position likewise; not built, so not
+claimed.
+
+### The spectral shape: the same sample, time and pitch apart
+
+**Spectral** (osc1's "spectral" pill; the engine is the root
+`docs/engine.md`, "Spectral oscillator"; `samplerview.scan`,
+`tests/studio/test_sampler_studio.py`
+`test_the_spectral_shape_plays_the_sample_on_the_wav_path` and
+`test_the_scan_is_drawn_where_the_read_goes`, `tests/browser/test_sampler.py`
+`test_the_spectral_pill_keeps_the_sample_and_draws_the_scan`): a third
+pill on a sound that holds a sample. It plays `sampler_sample` — its
+span, or the loop inside it while the loop is on — at `sampler_root` with
+`sampler_keytrack`, so those rows show for it as for the sampler and the
+granular shape (one `:has()` rule names all three: `paramui.SHAPE_ROWS`),
+while the sampler's own (pitch mode, stretch, crossfade) and the grain
+rows hide. Under the **Spectral** subhead: position (drawable, a route
+target — its patch-bay jack shows while an oscillator is spectral), scan,
+timbre shift, formants (move / keep, pills), the partial low and high
+cuts and keep transients — plain sliders from the design system. The
+sampler block stays (`samplerview.has_sample`; Record, Resample, the
+pitch and its "use") and its waveform draws the read: the position's line
+(`.sw-pos`) and what the scan crosses in the note's first second
+(`.sw-scan`: one or two spans — wrapped round the loop, held at the
+span's end; outlined dashed when it runs backwards), from the fields'
+first values; `samplerview.watch` carries the position and the scan, so a
+slider's post redraws it out of band. The partial cuts count the root's
+harmonics, so set the root to the sample's pitch ("use"). The chops and
+the zones are the sampler shape's and are not drawn. **The keys take the
+server WAV**: the voice worklet has no phase vocoder, so `/patch.json`
+names `osc1` (and every `spectral_*` field off its default: "default")
+and carries no `sampler_live`; the spectral fields left on a synth block
+nothing. A twin would need the FFT and the peak picking per 256-sample
+frame in the worklet (and the analysis shipped or recomputed in the
+page); not built, so not claimed. The analysis is computed in the render
+the first time a sample plays the shape (151 ms for a 30 s stereo
+sample) and kept in memory after (`spectral.STORE`, 160 MB at most).
+
 ### Pitch detection and slice markers
 
 **Pitch detection** (`sampler.detect_pitch`: YIN over a dozen frames of
@@ -935,6 +1048,52 @@ Building one:
   there). The Lab's vocal instrument is a one-sample formant sampler:
   ＋ zone adds to it.
 
+- **Import SFZ…** (`POST /fragment/sampler/sfz`, `synthlab/sfz.py`,
+  `tests/test_sfz.py`, `tests/studio/test_sfz_import.py`; a button in the
+  sound dock, the sampler panel and the zone map's toolbar, each a label
+  for the one file input beside `#patch`): a **.zip** of an `.sfz` and its
+  samples becomes the edited sound, a sampler with a zone a region, one
+  undo step, landing on Synths. A bare `.sfz` is refused in words: a clip
+  has a free name and a sample none, so matching its file names to the
+  stores would be a guess. Samples are read by libsndfile (WAV, FLAC, OGG,
+  by content, not extension; any rate 8-192 kHz, mono or stereo, more
+  channels keep the first two), into the sample store, each cut at
+  `sampler.MAX_SAMPLE_SECONDS`. The decode runs with the lock released
+  (`render_outside_lock`: it only touches the self-locking sample store),
+  the sound is loaded under it. Mapped: headers `<control>` (`default_path`,
+  `octave_offset`, `note_offset`), `<global>`, `<master>`, `<group>`,
+  `<region>` with inheritance; `#define` / `$VAR`, `#include` inside the zip;
+  `sample`, `lokey` / `hikey` / `key` / `pitch_keycenter` (numbers or
+  names, c4 = 60; `=sample` is the detected pitch), `lovel` / `hivel`,
+  `tune` (past ±100 cents the root moves), `transpose` (the root), `volume`
+  and `amplitude` (the zone's gain, clamped to -36..+12), `offset` / `end`,
+  `loop_mode` (`loop_continuous` / `loop_sustain`) with `loop_start` /
+  `loop_end` or the WAV's own `smpl` loop or the whole sample, `seq_position`
+  (the take), `trigger=attack`, and the **first region's** `ampeg_attack` /
+  `decay` / `sustain` / `release` on the Patch's amplitude envelope (a
+  differing later region is said). **Nothing is dropped silently**: every
+  other opcode is counted by the regions it is on ("Not imported: cutoff
+  ×12, pan ×4 …"), regions left out are counted with the reason (release /
+  first / legato triggers, a sample not in the zip or undecodable,
+  generated waveforms, `end=-1`), approximations are listed ("Approximated:
+  one_shot plays as a held note …"). Past `MAX_ZONES` regions the first 64
+  that import are kept and the count of the rest is said. **The zip is
+  hostile**: nothing is ever extracted, members are read by name; refused
+  are `..`, absolute, drive-letter, backslash or control-character names,
+  duplicates by case, encryption, more than `MAX_SFZ_MEMBERS` entries (the
+  central directory is walked before `zipfile` builds its table, ZIP64
+  included), over `MAX_SFZ_UNCOMPRESSED` / `MAX_SFZ_MEMBER_BYTES`, a ratio
+  over `MAX_SFZ_RATIO`; the text is bounded in bytes, lines, `#include`
+  depth / count / cycles and `#define` count and expansion (the cap is held
+  while a define is substituted, never after); numbers are finite and sane
+  or the opcode is listed; anything unexpected is one `SfzError`, a toast.
+  The limits are `limits.MAX_SFZ_*`; the upload is capped by
+  `security._PATH_UPLOAD_LIMITS`. The live keys play it from the worklet
+  while `live_zone_samples` fits `LIVE_MAX_SAMPLES`; past it the toast says
+  the keys play the rendered notes. Not read: `lorand` / `hirand`,
+  filters, LFOs, effects, `<curve>`, velocity curves and tracking, `pan`,
+  `group` / `off_by`, CC and keyswitch regions.
+
 The editor (`fragments/sampler_zones.html`, in the sampler block while
 the sound has zones, where the waveform, pitch and chops would be: they
 do not play): a **plane of keys (x, 0..127, over a keyboard strip with
@@ -969,6 +1128,28 @@ past the cap, an offline field) render at velocity 1 and strike 0.
 **Undo order**: `push_undo_step(before)` goes AFTER the edit — it keeps a
 step only once the patch has moved off `before` (called first, it
 would keep nothing, and Ctrl+Z would skip past the edit).
+
+## A clip as an impulse (the convolution unit)
+
+**A clip as an impulse** (`studio/irs.py`, `tests/studio/test_fx_convolve.py`):
+the convolution unit (`docs/engine.md`, "Convolution") draws an
+"impulse" select on its module: "no impulse", then every clip of the
+store no longer than `limits.MAX_IR_SECONDS` (8 s) and no larger than
+`MAX_IR_BYTES` (6 MB) (`irs.choices`, a template global). A choice posts
+`name=ir`, `value=clip:<name>` to the rack's own route; every rack route
+(the session's, a Song audio track's, the booth's, the vocal chain's)
+hands its form to `irs.resolve`, which loads the clip, checks its length
+again on the decoded audio, and `sampler.save`s it into the session's
+sample store — **content-addressed as samples are**, so the unit stores
+the sample's id and the same clip picked twice is one file. A clip over a
+cap, gone, or unreadable is refused in words (a toast); `fxrack.edit_chain`
+itself takes only an id (anything else is refused), and `clean_chain`
+keeps only a well-formed one (`""` otherwise). A press: one undo step
+(`RACK_PRESSES`). Which clip an impulse came from is remembered by the
+clip's content hash for as long as the server runs; after a restart the
+select names it "impulse <id>" (and "(missing)" when this studio lacks
+it) until a clip is picked again. A project bundle carries the sample
+(`projectzip.sample_refs` reads a convolution unit's `ir`).
 
 ## The audio travels in the bundle, not in project.json
 

@@ -246,6 +246,7 @@ GEN_KINDS = (
     ("arp", "arp"),
     ("lead", "lead"),
     ("chops", "chops"),
+    ("chop_stutter", "chop stutter (slice keys)"),
 )
 
 
@@ -594,7 +595,7 @@ class SongPage:
         roll = None
         if p is not None and p["kind"] == "notes":
             octave = self.drawer_octave(p, span)
-            shown = sm.window_rows(song, span, octave)
+            shown = sm.window_rows(song, span, octave, p["cells"])
             rows = set(shown)
             hidden = sum(c[0] not in rows for c in p["cells"])
             roll = self._drawer_roll(p, sec, track, shown)
@@ -648,7 +649,9 @@ class SongPage:
             "trimmed": bool(sec and p and track["id"] in (sec.get("spans") or {})),
             # the note grid's rows: the song key's at Perform's range
             # (`state.grid_span`, one switch for both grids)
-            "rows": sm.window_rows(song, span, octave),
+            "rows": sm.window_rows(
+                song, span, octave, p["cells"] if p and p["kind"] == "notes" else None
+            ),
             "span": span,
             "oct": octave,
             # what the piano roll draws behind the notes (`rollview`)

@@ -80,7 +80,7 @@ def step_of(
     if q >= steps_per_bar:
         step = _round(t * steps_per_bar / bar)
     else:
-        step = _round(t * q / bar) * (steps_per_bar // q)
+        step = _round(_round(t * q / bar) * steps_per_bar / q)
     if cycle_bars:
         # a note snapping onto the cycle's end is the next cycle's first;
         # inside a cycle the pattern loops from its start (song_model._tile)

@@ -5,11 +5,23 @@
    as Drums; its tools answer with hx-swap none and this region comes back
    by its watch (service.REGIONS "perform-drums"). The kit's sounds, the
    bank and the beat library stay on Drums. #}
-{% from "drumgrid.html" import beat_bar, drum_grid, drum_tools %}
+{% from "drumgrid.html" import beat_vars, drum_grid, drum_menu, swap_to %}
 <section id="perform-drums" class="transport perform-drums module" data-module="perform.drums" aria-label="Drum pattern"
          {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
   <div class="pattern-tools" role="toolbar" aria-label="Drum pattern tools">
     <button type="button" class="caps pt-title fold" data-fold="perform-drums" aria-expanded="true" title="fold the drum grid">drums</button>
+    {#- the drum grid's head (loop-and-perform.md, "One selection"): the
+        beat loop open on the drum lane — every hit saves to it — or a
+        sketch (✚ Keep keeps it as a beat) -#}
+    <span class="ed-head ed-drums{% if drum_edit %} is-saved{% endif %}">
+      {%- if drum_edit -%}
+      <span class="ed-name" title="the beat “{{ drum_edit.title }}” is open on the drums: every hit you change saves to it">“{{ drum_edit.title }}”</span>
+      <span class="ed-state lp-on"><i class="led" data-on aria-hidden="true"></i>saved</span>
+      {%- else -%}
+      <span class="ed-name ed-sketch" title="the drum grid: what you draw plays, but saves to no beat until ✚ Keep">sketch</span>
+      <span class="ed-state"><i class="led" aria-hidden="true"></i>not saved</span>
+      {%- endif -%}
+    </span>
     <div class="seg barchips" role="group" aria-label="drum bars">
       {% for b in limits.BAR_CHOICES %}
       <button type="button" class="barchip {% if b <= arrangement.drum_bars %}on{% endif %}"
@@ -18,8 +30,15 @@
               title="{{ b }} bar{{ 's' if b > 1 else '' }} of drums">{{ b }}</button>
       {% endfor %}
     </div>
-    {{ drum_tools(can_double_drums, beat_style, target=none, extras=true) }}
-    {{ beat_bar(beat_variants, beat_style, target=none) }}
+    {#- the variations in sight, undo, then Tools ▾ (drumgrid.html
+        `drum_menu`: move, length, velocity, generate, fills, copy to,
+        clear) — as the note grid's toolbar -#}
+    {{ beat_vars(beat_variants, target=none) }}
+    <div class="pt-group pt-end" role="group" aria-label="undo and the other drum tools">
+      <button type="button" class="btn btn-s btn-icon pt" hx-post="/fragment/pattern/undo" {{ swap_to(none) }}
+              title="Undo the last pattern edit (Ctrl+Z)" aria-label="undo the last pattern edit" data-cmd="Undo the last pattern edit" data-cmd-group="Pattern">↶</button>
+      {{ drum_menu(can_double_drums, beat_style, beat_variants, target=none) }}
+    </div>
     {#- the grid's beat into the Loops panel, a beat loop named from what it
         is (POST /loop/beat/keep) -#}
     <button type="button" class="btn btn-s lp-keep-beat" hx-post="/loop/beat/keep" hx-swap="none"

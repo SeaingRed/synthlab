@@ -3,8 +3,9 @@
     and the code call it "Perform"). Laid out as loop-and-perform.md,
     "Loops, laid out", says: the Loops panel
     | the launcher over the editor (the note grid, the drum grid) | the
-    right column — → Song, the lane inspector (its ✦ Coach a tab of it) and
-    the Play module (pads, XY, perf FX, beats: tabs, foldable). -#}
+    right column — the lane inspector (its ✦ Coach a tab of it). Play
+    (pads, XY, perf FX, beats: tabs) opens over the page from the keyboard
+    dock's Tools ("Pads"). -#}
 <main class="cockpit perform-view" id="view" hx-history-elt data-view="perform" data-ws-dock="perform">
   {#- past the head, the strip, the launcher and the pattern tools to a
       grid's one Tab stop (shell.js; style.css 16: shown on focus) -#}
@@ -13,7 +14,7 @@
   <header class="view-head">
     <h1>Loops</h1>
     <p class="view-sub">Make and play ideas: the launcher's slots and scenes over the editor, the selected lane beside them.</p>
-    <div id="head-how" class="pop head-how" popover><p class="view-how">Drag loops from the Loops panel (Alt+O) onto the launcher's slots. A click on a slot selects it — the editor opens its lane, Notes or Drums as the slot is — and launches it on the next bar (Alt+1…8 a scene, Alt+0 stops all); the slot that plays saves your edits to its loop. The lane inspector at the right holds the selected lane's sound, layers, level and FX, and ✦ Coach (Alt+K). Play holds the pads (Q W E R / A S D F with the keyboard dock's typing → pads; Alt+P), the drum XY, the performance FX and the beats.</p></div>
+    <div id="head-how" class="pop head-how" popover><p class="view-how">The deck at the top is the page's one transport: ▶ (Space) plays its source — Loop (the selected cell's loop alone), Scene (its row) or Song — and ⏺ Rec records, its ▾ saying how long and where the take lands. Drag loops from the Loops panel (Alt+O) onto the launcher's cells; double-click one (or Enter) to edit it, right-click it for the rest. A click on a cell selects it: its loop opens in the editor on its lane (Notes or Drums as the cell is) and plays there from the next bar, and every edit saves to it — an empty cell's lane is a sketch until "Save as loop" (Alt+1…8 launch a scene, Alt+0 stops every lane). The lane inspector at the right holds the selected lane's sound, layers, level and FX, and ✦ Coach (Alt+K). Pads in the keyboard dock's Tools opens Play: the pads (Q W E R / A S D F with the keyboard dock's typing → pads; Alt+P), the drum XY, the performance FX and the beats. The editors' Tools ▾ hold the pattern tools a click away.</p></div>
     {# (the typing switch, and typing → keys | pads, are the keyboard
        dock's: its QWERTY group, on this page too — fragments/piano.html) #}
     <div class="head-tools">{% include "fragments/head_help.html" %}{% with ws_view = "perform" %}{% include "fragments/ws_menu.html" %}{% endwith %}
@@ -37,23 +38,99 @@
     </div>
   </header>
 
-  {# Compact live strip: tempo, loop position and meter — and which grid the
-     editor shows. The top of the centre column, over the launcher. #}
-  <form id="perform-transport" class="perform-transport module" data-module="perform.transport"
+  {#- The deck: the page's one transport (loop-and-perform.md, "The deck").
+      ■ and ▶ (Space is ▶), what ▶ plays — Loop (the selected cell's loop
+      alone, else the working loop) | Scene (the selected cell's row) |
+      Song — ⏺ Rec and its ▾ (length, count-in, + beat, where the take
+      lands, ⟲ Keep what I just played, ⏺ the mix as audio), the bar meter
+      (a lamp a bar, the one playing pulsing with the beat; a count-in while
+      Rec is armed), tempo, meter, key, level, the part mutes and which grid
+      the editor shows. loopdeck.js owns the source switch, the meter and
+      ▶'s choice; the players are audio.js's and song.js's, the take
+      keyrec.js's (the dock's ⏺ Rec is the same control). The top of the
+      centre column, over the launcher. No named field but the tempo: the
+      form posts its own on `change`. -#}
+  <form id="perform-transport" class="perform-transport deck module" data-module="perform.transport"
+        data-src="loop" data-song-filled="{{ '1' if song_filled else '' }}"
         hx-post="/fragment/drums/transport" hx-trigger="change, submit" hx-sync="this:queue last" hx-swap="none">
-    <button data-cmd="Play / stop the loop" data-cmd-group="Transport" type="button" id="play" class="btn btn-primary btn-play btn-toggle btn-icon play" data-keys="Space" aria-pressed="false"
-            data-player="loop" data-plays="the loop" aria-label="play or stop the loop">▶</button>
+    <div class="deck-keys" role="group" aria-label="transport">
+      <button type="button" id="deck-stop" class="btn btn-stop btn-icon" data-cmd="Stop everything that plays" data-cmd-group="Transport"
+              aria-label="stop" title="■ stop: whatever the deck plays, a take recording, a listen — as the top bar's ■ (Shift+Space)">■</button>
+      <button data-cmd="Play / stop the deck: what its source says" data-cmd-group="Transport" type="button" id="play" class="btn btn-primary btn-play btn-icon play" data-keys="Space" aria-pressed="false"
+              data-player="loop" data-plays="the loop" aria-label="play what the deck's source says">▶</button>
+    </div>
+    {#- what ▶ plays: Loop | Scene | Song (per browser; loopdeck.js) -#}
+    <div class="seg deck-src" role="group" aria-label="what ▶ plays">
+      <button type="button" data-deck-src="loop" aria-pressed="true" data-cmd="Deck plays: the loop" data-cmd-group="Transport"
+              title="Loop: the selected cell's loop alone, in its own sound — or, with no filled cell selected, the working loop (every lane, as the editor holds it)">Loop</button>
+      <button type="button" data-deck-src="scene" aria-pressed="false" data-cmd="Deck plays: the scene" data-cmd-group="Transport"
+              title="Scene: the selected cell's row — every lane's slot of that scene, launched at the quantise point — or, with none selected, what the lanes play now">Scene</button>
+      <button type="button" data-deck-src="song" aria-pressed="false" data-cmd="Deck plays: the song" data-cmd-group="Transport"
+              title="Song: the song from its start (an empty song: this loop made into one first — “make it a song”)">Song</button>
+    </div>
     <output class="play-cue" data-cue-for="play">the loop</output>
+    <span class="deck-says" data-plays-now="" hidden></span>
+    {#- the old "▶ Whole song": the Song source's way to a song when there is
+        none (▶ on Song presses it), and the palette's "Make this loop a song" -#}
+    <button type="button" id="deck-arrange" class="btn btn-s btn-ghost loop-arrange" hx-post="/song/arrange" hx-vals='{"source": "loop"}' hx-swap="none"
+            data-cmd="Make this loop a song" data-cmd-group="Song"
+            {% if song_filled %}hx-confirm="Replace the song with the loop, arranged? Ctrl+Z on Song brings it back."{% endif %}
+            title="Lay this loop down as a whole song — intro, verse, build, drop, break, drop, outro, by muting, thinning and filtering its lanes — and play it on the Song page{% if song_filled %} (it replaces the song: Ctrl+Z on Song brings it back){% endif %}">make it a song</button>
+    {#- ⏺ Rec: the keyboard dock's ⏺ Rec, the same control (keyrec.js: the
+        same take, lit together); its ▾ holds everything a take is set by -#}
+    <div class="deck-rec" role="group" aria-label="record">
+      <button type="button" id="deck-rec" class="btn btn-s btn-rec key-rec" data-key-rec aria-pressed="false"
+              data-cmd="Rec: record what you play, from the deck" data-cmd-group="Transport"
+              title="⏺ Rec (Alt+R): what you play over the loop, from its next bar line — its audio and a loop. Where it lands, how long, the count-in: ▾. The keyboard dock's ⏺ Rec is this same button">⏺ Rec</button>
+      <button type="button" class="btn btn-s btn-icon deck-rec-more" popovertarget="deck-rec-menu" aria-label="Rec: length, count-in, where it lands"
+              data-cmd="Rec options…" data-cmd-group="Transport" title="Rec: length, count-in, + beat, where the take lands — and keep what you just played, or record the mix as audio">▾</button>
+      <div popover id="deck-rec-menu" class="pop menu deck-rec-menu" role="group" aria-label="Rec options">
+        <span class="caps menu-cap">length</span>
+        <span class="seg deck-len" role="group" aria-label="how long a take is">
+          {% for n in [1, 2, 4, 8, 16] %}<button type="button" data-key-len="{{ n }}" aria-pressed="false" title="{{ n }} bar{{ 's' if n > 1 }}, then it stops by itself">{{ n }}</button>{% endfor %}
+          <button type="button" data-key-len="0" aria-pressed="false" title="until ■: until you press ⏺ again, rounded up to the bar">until ■</button>
+          <button type="button" data-key-len="free" aria-pressed="false" title="free: no count-in, no bar line — from your first note to ■ (up to {{ limits.MAX_FREE_TAKE_SECONDS | int }} s), then shape it into a loop">free</button>
+        </span>
+        <span class="deck-opts">
+          <button type="button" class="btn btn-s" data-key-count aria-pressed="true" title="count one bar in before it records (lit): the loop's bar when it plays, else four blips"><i class="led" aria-hidden="true"></i>count-in</button>
+          <button type="button" class="btn btn-s" data-key-beat aria-pressed="false" title="record the beat with the keys (lit): the whole mix as you hear it. Unlit, a take is the keys alone"><i class="led" aria-hidden="true"></i>+ beat</button>
+        </span>
+        <span class="caps menu-cap">arp</span>
+        <span class="seg deck-arp" role="group" aria-label="with the keys arp on, a take keeps">
+          <button type="button" data-key-arp="notes" aria-pressed="true" data-cmd="Rec with the keys arp: its notes" data-cmd-group="Transport" title="its notes: the take keeps what the keys arp played, note for note, placed on the rate its notes sit on (a 1/8T arp on 12 steps a bar)">its notes</button>
+          <button type="button" data-key-arp="held" aria-pressed="false" data-cmd="Rec with the keys arp: the keys I held" data-cmd-group="Transport" title="the keys I held: the take keeps the keys you pressed — when, how long, how hard — and its loop plays them through the grid arp set as the keys arp was (its pattern, rate, direction, octaves, swing), so you edit the chord, not every note. The keys arp's chord mode keeps its notes">the keys I held</button>
+        </span>
+        <span class="caps menu-cap">lands in</span>
+        <span class="seg deck-how" role="group" aria-label="where the take lands">
+          <button type="button" data-key-how="new" aria-pressed="true" title="a new loop: in the selected cell when it is empty, else the lane's next empty one (never over a loop) — with no cell selected, the Loops panel">a new loop</button>
+          <button type="button" data-key-how="overdub" aria-pressed="false" title="the selected cell, overdubbed: the take's notes merged into its loop from the bar it began on (one undo step; the take is kept too)">overdub</button>
+          <button type="button" data-key-how="replace" aria-pressed="false" title="the selected cell, replaced: the take's loop takes it and plays from it (the old loop stays in the Loops)">replace</button>
+        </span>
+        <output class="deck-lands dim" aria-live="polite"></output>
+        <hr class="menu-sep">
+        <button type="button" class="menu-item" data-key-capture popovertarget="deck-rec-menu" popovertargetaction="hide"
+                data-cmd="Keep what I just played" data-cmd-group="Transport"
+                title="⟲ what you just played on the keys or MIDI — without ⏺ Rec — as a loop: the last bars the length says, or (until ■) the latest phrase. Into the selected cell when it is empty, else the lane's next empty one: it never overwrites a loop">⟲ Keep what I just played <kbd>Alt+T</kbd></button>
+        <button type="button" id="jam-rec" class="btn btn-s btn-rec" aria-pressed="false"
+                data-cmd="Resample: record what you hear to a clip" data-cmd-group="Transport"
+                data-max-clip-seconds="{{ limits.MAX_CLIP_SECONDS|int }}"
+                title="⏺ record the mix as audio: everything you hear — the loop, the keys, the performance FX — to a clip, until you press it again"
+                aria-label="record the mix as audio to the clip library">⏺ resample</button>
+      </div>
+    </div>
+    {#- where it is: a lamp a bar (16 at most: a longer song shows its
+        16-bar page), the one playing pulsing with the beat; while ⏺ Rec
+        is armed, the count-in's beats (loopdeck.js) -#}
+    <div class="deck-meter module-well" role="img" aria-label="the bar playing">
+      {% for _ in range(16) %}<i></i>{% endfor %}
+    </div>
+    <output class="deck-pos" aria-live="off">—</output>
     <label class="ptempo">bpm
       <input class="field field-s" type="number" name="bpm" min="40" max="200" step="1"
              value="{{ arrangement.bpm | round | int }}" inputmode="numeric">
     </label>
     {% include "fragments/meter_pick.html" %}
-    <div class="loopbar" aria-hidden="true"><i class="playhead"></i></div>
-    <button data-cmd="Resample: record what you hear to a clip" data-cmd-group="Transport" type="button" id="jam-rec" class="btn btn-s btn-rec" aria-pressed="false"
-            data-max-clip-seconds="{{ limits.MAX_CLIP_SECONDS|int }}"
-            title="⏺ resample: record everything you hear — loop, keys, performance FX — to a clip (it was “⏺ jam”; ⏺ Rec in the keyboard dock takes the keys alone, with their notes)"
-            aria-label="resample what you hear to the clip library">⏺ resample</button>
+    <output class="deck-key" title="the loop's key (the note grid's root and scale)">{{ arrangement.root.rstrip("-0123456789") }} {{ arrangement.scale_name | replace("pentatonic", "pent.") | replace("_", " ") }}</output>
     <label class="pvol">vol
       {#- the master level, as the keyboard dock's Monitor Volume (#volume):
           every [data-volume] moves with it (audio.js) -#}
@@ -102,13 +179,8 @@
     <button type="button" class="lp-tab" data-lp-toggle aria-controls="loops-dock" aria-expanded="false"
             title="Open the Loops panel (Alt+O)"><span>Loops</span></button>
     <header class="lp-head">
-      <h2 class="caps" title="Every loop: what ⏺ Rec made (its audio and its notes), the beats you kept, the bank's slots and the old beat library, loops you saved or made from a clip — find one, hear it in time, Edit or Open it (or drag its row onto a grid), keep the good ones">Loops <small class="lp-n" aria-live="polite"></small></h2>
-      {#- free record (keyrec.js; routes/freerec.py): play freely — from the
-          first note to ■, no count-in, no bars — then shape it into a loop
-          (shaper.js) -#}
-      <button type="button" id="lp-free-rec" class="btn btn-s btn-rec key-rec lp-free-rec" aria-pressed="false"
-              data-cmd="Free rec: play freely, then shape it into a loop" data-cmd-group="Loops"
-              title="⏺ free: record every key and its timing from your first note until you press it again (■) — no count-in, no bars, any length up to {{ limits.MAX_FREE_TAKE_SECONDS | int }} s. Then shape it: trim, split, fit or crop it to bars, quantise as much as you like, and make it a loop">⏺ free</button>
+      <h2 class="caps" title="Every loop: what ⏺ Rec made (its audio and its notes), the beats you kept, the bank's slots and the old beat library, loops you saved or made from a clip — find one, ▷ listen to it in time, Edit or Open it (or drag its row onto a grid or a cell), keep the good ones">Loops <small class="lp-n" aria-live="polite"></small></h2>
+      {#- (free record is a length of the deck's ⏺ Rec: its ▾ "free") -#}
       <button type="button" class="btn btn-ghost btn-icon btn-s lp-pin" data-lp-pin aria-pressed="false"
               data-cmd="Loops panel: pin beside the page / slide over it" data-cmd-group="View"
               aria-label="pin the Loops panel beside the page"
@@ -141,18 +213,18 @@
 
   {#- The launcher (loop-and-perform.md, "Slots and
       scenes"): the loop's lanes — its four layer slots, then the drums —
-      as columns, scenes as rows, each slot a loop. A click on a slot
-      SELECTS it — the editor under it opens its lane — and
-      launches it at the next quantise point (one render, one undo step); a
-      scene's ▶ launches without moving the editor. The slot that plays is
-      the loop open on its lane: an edit on the grid saves to it. Its head
-      (the quantise, ■ all) is the page's and never redrawn — no named
-      field: slots.js reads it, per browser — and the grid under it is the
-      region `slots` (fragments/slots.html). The top of the centre column
-      (grid area `slots`), the editor under it. -#}
+      as columns, each with its lamp and ■ at its head, scenes as rows,
+      each slot a loop. A click on a cell SELECTS it — the one selection:
+      its loop opens on its lane in the editor and plays there from the
+      quantise point (one undo step), what Loop ▶ plays; an empty cell's
+      lane is a sketch — and a scene's ▸ launches its row without moving
+      the editor. Its head (the quantise, ■ all) is the page's and never
+      redrawn — no named field: slots.js reads it, per browser — and the
+      grid under it is the region `slots` (fragments/slots.html). Under
+      the deck (grid area `slots`), the editor under it. -#}
   <section id="perform-slots" class="slots-module module" data-module="perform.slots" aria-label="Launcher">
     <header class="sl-head" data-ws-head>
-      <h2 class="caps" title="Lanes (the loop's layer slots, then the drums) × scenes. Drag a loop from the Loops panel onto a slot, or ＋ keeps what a lane plays as one. A click on a slot selects it — the editor opens its lane; its ▶, a double-click or Enter launches it on the next bar (or 4 bars, or the loop's end); a scene's ▶ launches its row and leaves the editor where it is; ■ stops a lane. The playing slot is open: edit it on the grid and it saves. Alt+1…8 a scene, Alt+0 stops all; Ctrl+Z takes a launch back">Launcher</h2>
+      <h2 class="caps" title="Lanes (the loop's layer slots, then the drums) × scenes. Drag a loop from the Loops panel onto a cell, or ＋ keeps what a lane plays as one. A click on a cell selects it: the editor shows its loop, it plays on its lane from the next bar (or 4 bars, or the loop's end) and every edit saves to it; the deck's Loop ▶ plays it alone. A scene's ▸ launches its row and leaves the editor where it is; a lane's ■ (its head) stops it. Alt+1…8 a scene, Alt+0 stops all; Ctrl+Z takes a launch back">Launcher</h2>
       <div class="seg sl-quant" role="group" aria-label="launch on">
         <span class="caps sl-say" aria-hidden="true">on</span>
         <button type="button" data-sl-q="1" aria-pressed="true" title="launch on the next bar line">bar</button>
@@ -168,6 +240,19 @@
       <button type="button" class="btn btn-s sl-capture" disabled
               data-cmd="Scene → Song: the scenes you launched, as sections" data-cmd-group="Launch"
               title="Scene → Song: the scenes you launched, as they played — each left to loop as its section repeated — into the song as sections in order (Ctrl+Z on Song undoes it). Launch a scene first">Scene → Song</button>
+      {#- → Song (POST /song/from-loop): the loop as the song's new last
+          section, in one move; the note beside it says where it went and
+          links to Song (fragments/to_song_note.html). Here, beside Scene →
+          Song, since the right column is the lane inspector alone (the
+          whole song from the loop — POST /song/arrange — is the deck's:
+          its Song source, "make it a song") -#}
+      <nav id="perform-arrange" class="perform-arrange" aria-label="Song">
+        <button type="button" class="btn btn-s to-song" hx-post="/song/from-loop" hx-target="next .to-song-note" hx-swap="innerHTML"
+                data-cmd="Add this loop to the song" data-cmd-group="Song"
+                title="Add this loop to the song as its new last section: the notes, the beat (its other variations go to the song's pool) and the sounds">Loop → Song</button>
+        <span class="to-song-note pop" popover></span>
+        <a class="btn btn-s btn-ghost arrange-link" {{ view_link("/view/song") }} data-cmd="Arrange the loops on the Song page" data-cmd-group="Go to">Arrange ▸</a>
+      </nav>
     </header>
     {% include "fragments/slots.html" %}
   </section>
@@ -178,30 +263,13 @@
   {% include "fragments/perform_drums.html" %}
 
   {#- The right column (grid area `side`, a flex column; no id, so its
-      modules are the page's dock members still: the workspace moves each
-      on its own): → Song, the lane inspector, the Play module. -#}
+      module is the page's dock member still): the lane inspector alone,
+      its whole height (→ Song is the launcher head's; Play the keyboard
+      dock's Tools). -#}
   <div class="perform-side">
     {#- its width (--lane-w; it was the pads' --pads-w): the handle on its
         left seam, the column growing as it is dragged left -#}
     <div class="splitter" data-var="--lane-w" data-scope=".perform-view" data-edge="left" data-min="240" data-max="560" role="separator" aria-orientation="vertical" aria-label="resize the lane inspector's column" title="drag to resize · double-click resets" tabindex="0"></div>
-    {# The song strip and clip placer are on the Song page. #}
-    <nav id="perform-arrange" class="perform-arrange module" data-module="perform.song" aria-label="Song">
-      {#- → Song (POST /song/from-loop): the loop as the song's new last
-          section, in one move; the note beside it says where it went and
-          links to Song (fragments/to_song_note.html) -#}
-      <button type="button" class="btn btn-s to-song" hx-post="/song/from-loop" hx-target="next .to-song-note" hx-swap="innerHTML"
-              data-cmd="Add this loop to the song" data-cmd-group="Song"
-              title="Add this loop to the song as its new last section: the notes, the beat (its other variations go to the song's pool) and the sounds">→ Song</button>
-      <span class="to-song-note pop" popover></span>
-      {#- the whole song from the loop (POST /song/arrange, one click
-          on this page): replaces the song in one undo step and plays it on Song. The
-          Song page's starter sheet has it too ("From my loop") -#}
-      <button type="button" class="btn btn-s loop-arrange" hx-post="/song/arrange" hx-vals='{"source": "loop"}' hx-swap="none"
-              data-cmd="Make this loop a song" data-cmd-group="Song"
-              {% if song_filled %}hx-confirm="Replace the song with the loop, arranged? Ctrl+Z on Song brings it back."{% endif %}
-              title="Lay this loop down as a whole song — intro, verse, build, drop, break, drop, outro, by muting, thinning and filtering its lanes — and play it on the Song page{% if song_filled %} (it replaces the song: Ctrl+Z on Song brings it back){% endif %}">▶ Whole song</button>
-      <a class="btn btn-s btn-ghost arrange-link" {{ view_link("/view/song") }} data-cmd="Arrange the loops on the Song page" data-cmd-group="Go to">Arrange ▸</a>
-    </nav>
 
     {#- The lane inspector: the selected lane —
         the lane the grid, the keys and Synths edit — its sound ▾ and the
@@ -212,12 +280,12 @@
         other tab: the coach's dock stands in the inspector's body, so the
         two never fight for the column — Lane | ✦ Coach in its head, the
         page head's ✦ Coach and Alt+K open the coach (coach.js), Lane goes
-        back. Its head's "Inspector" folds it to that head (Play takes the room). -#}
+        back. Its head's "Inspector" folds it to that head. -#}
     <section id="perform-lane" class="inspector module" data-module="perform.lane" aria-label="Lane inspector">
       <header class="insp-head" data-ws-head>
         <button type="button" class="fold insp-fold" data-fold="perform-lane" aria-expanded="true"
                 data-cmd="Lane inspector: fold / open" data-cmd-group="View"
-                title="fold the lane inspector to its head (Play below takes the room) — press again to open it"><span class="insp-word">Inspector</span></button>
+                title="fold the lane inspector to its head — press again to open it"><span class="insp-word">Inspector</span></button>
         <div class="seg insp-tabs fold-body" role="tablist" aria-label="the inspector shows">
           <button type="button" role="tab" data-coach-toggle="close" data-coach-tab="lane" aria-controls="lane-inspector" aria-selected="true"
                   title="the selected lane: its sound, layers, level and FX">Lane</button>
@@ -260,88 +328,93 @@
         </section>
       </div>
     </section>
-
-    {#- Play: what you hit while it plays — the pads, the drum XY,
-        the performance FX and the beats launcher — one module, a tab shown
-        at a time (layout.js `data-tabs`, per browser) and folded to its
-        head where the window is under 1200 px tall until it is first
-        opened (`data-fold-auto`). Each part is its own module still (it
-        pops out and focuses). The pads' and the FX's keys play them
-        whichever tab shows, folded too. -#}
-    <section id="perform-play" class="play-module module" data-module="perform.play" aria-label="Play" data-tab="pads">
-      <header class="play-head" data-ws-head>
-        <button type="button" class="fold play-fold" data-fold="perform-play" aria-expanded="true"
-                data-cmd="Play: fold / open" data-cmd-group="View"
-                title="Play: the pads, the drum XY, the performance FX and the beats — fold it to its head">Play</button>
-        <div class="seg play-tabs fold-body" role="tablist" aria-label="Play shows">
-          <button type="button" role="tab" data-tab-of="perform-play" data-tab-pick="pads" aria-selected="true" aria-controls="perform-pads"
-                  data-cmd="Play: the pads" data-cmd-group="View" title="the eight drum pads (Q W E R / A S D F with typing → pads)">pads</button>
-          <button type="button" role="tab" data-tab-of="perform-play" data-tab-pick="xy" aria-selected="false" aria-controls="drumxy-panel"
-                  data-cmd="Play: the drum XY" data-cmd-group="View" title="the drum XY pad: hat decay × kick punch">XY</button>
-          <button type="button" role="tab" data-tab-of="perform-play" data-tab-pick="fx" aria-selected="false" aria-controls="perf-fx"
-                  data-cmd="Play: the performance FX" data-cmd-group="View" title="the performance FX, held: C V B N · I O P with typing → pads">FX</button>
-          <button type="button" role="tab" data-tab-of="perform-play" data-tab-pick="beats" aria-selected="false" aria-controls="perform-launch"
-                  data-cmd="Play: the beats" data-cmd-group="View" title="the song's pool beats (or the bank's), launched at the wrap">beats</button>
-        </div>
-      </header>
-      <div class="play-body fold-body">
-        <section id="perform-pads" class="perform-pads module" data-module="perform.pads" aria-label="Beat pads">
-          {% for voice in pad_voices %}
-          <button type="button" class="hit-pad pad" data-voice="{{ voice }}"
-                  data-hit-url="/drum/{{ voice }}/hit.wav?k={{ pad_hash[voice] }}">
-            <kbd class="pad-key" aria-hidden="true">{{ "QWERASDF"[loop.index0] }}</kbd><span class="pad-name">{{ voice }}</span>
-          </button>
-          {% endfor %}
-        </section>
-
-        <section class="panel perform-xy module" id="drumxy-panel" data-module="perform.xy" aria-label="Drum XY pad">
-            <div class="xy-head" data-ws-head>
-              <span class="caps xy-legend">Drum XY</span>
-              <span id="dxy-readout" aria-live="polite">X {{ dxy.label_x }} = {{ (dxy.nx * 100) | round | int }}% · Y {{ dxy.label_y }} = {{ (dxy.ny * 100) | round | int }}%</span>
-              {#- (its part mutes are the live strip's) -#}
-            </div>
-            <div id="drumxy" tabindex="0" role="application" class="module-well"
-                 aria-label="Drum XY pad — arrow keys move 2%, shift for 10%" data-label-x="{{ dxy.label_x }}" data-label-y="{{ dxy.label_y }}">
-              <span class="dxy-cross" style="left: {{ (dxy.nx * 100) | round(2) }}%; top: {{ ((1 - dxy.ny) * 100) | round(2) }}%;"></span>
-            </div>
-            <div class="xy-labels">
-              <span class="xy-label-x">{{ dxy.label_x }} →</span>
-              <span class="xy-label-y">↑ {{ dxy.label_y }}</span>
-            </div>
-        </section>
-
-        {# Performance FX: momentary, held-to-apply, released back to the loop.
-           These act on the *playing buffer* in audio.js (loopFx), not on a server
-           render — a tape stop that arrives after a round trip is not a tape stop.
-           They are a performance and so are not baked into an export. #}
-        <section class="perf-fx module" id="perf-fx" data-module="perform.fx" aria-label="Performance effects">
-          {# Their keys are the pads' typing (the keyboard dock's typing → pads,
-             Alt+P; typing plays the dock's keys by default, here as on
-             every page): perform.js owns qwer/asdf for the pads, and these avoid
-             the classic split's letters — b c i k l m n o p v are left — so: time
-             on the left hand (C V B N), stutter on the right (I O P). #}
-          <h2 class="caps launch-title" title="Performance FX: hold to apply · C V B N · I O P while typing plays the pads (the keyboard dock's typing → pads, Alt+P)">FX</h2>
-          <div class="perf-fx-row" role="group">
-            <button type="button" class="btn pfx" data-fx="tape" data-key="c" data-keys="C" data-key-label="Tape stop (hold)">tape stop<kbd>C</kbd></button>
-            <button type="button" class="btn pfx" data-fx="half" data-key="v" data-keys="V" data-key-label="Half speed (hold)">&frac12;&times;<kbd>V</kbd></button>
-            <button type="button" class="btn pfx" data-fx="double" data-key="b" data-keys="B" data-key-label="Double speed (hold)">2&times;<kbd>B</kbd></button>
-            <button type="button" class="btn pfx" data-fx="reverse" data-key="n" data-keys="N" data-key-label="Reverse (hold)">reverse<kbd>N</kbd></button>
-            <button type="button" class="btn pfx" data-fx="stutter" data-beats="1" data-key="i" data-keys="I" data-key-label="Stutter 1/4 (hold)">stutter &frac14;<kbd>I</kbd></button>
-            <button type="button" class="btn pfx" data-fx="stutter" data-beats="0.5" data-key="o" data-keys="O" data-key-label="Stutter 1/8 (hold)">&frac18;<kbd>O</kbd></button>
-            <button type="button" class="btn pfx" data-fx="stutter" data-beats="0.25" data-key="p" data-keys="P" data-key-label="Stutter 1/16 (hold)">1/16<kbd>P</kbd></button>
-          </div>
-        </section>
-
-        <section class="perform-launch module" id="perform-launch" data-module="perform.launch" aria-label="Beats">
-          {% include "fragments/beat_launcher.html" %}
-
-          {#- (no Sounds launcher: a lane's sound ▾ in the lane inspector
-              holds every sound there is — lane_inspector.html; no Sections
-              launcher: the Loops panel's "sections" open one as a scene
-              of the launcher) -#}
-        </section>
-      </div>
-    </section>
   </div>
+
+  {#- Play: what you hit while it plays — the pads, the drum XY, the
+      performance FX and the beats launcher — a tab shown at a time
+      (layout.js `data-tabs`, per browser). Not in the right column (the
+      lane inspector has it whole): the keyboard dock's Tools open it —
+      "Pads" beside Play tools (piano.html; opened by perform.js, shown on
+      this page alone), a manual popover over the page above the dock's
+      right end, as Play tools is; one of the two at a time, and open
+      again on the next visit if it was left open (perform.js,
+      localStorage `synthlab.pads`). Each part is its own module still (it
+      pops out and focuses). The pads' and the FX's keys play them
+      whichever tab shows, shut too (perform.js clicks the buttons it
+      finds). -#}
+  <section id="perform-play" class="play-module pop" popover="manual" aria-label="Play" data-tab="pads">
+    <header class="play-head">
+      <span class="caps play-cap">Play</span>
+      <div class="seg play-tabs" role="tablist" aria-label="Play shows">
+        <button type="button" role="tab" data-tab-of="perform-play" data-tab-pick="pads" aria-selected="true" aria-controls="perform-pads"
+                data-cmd="Play: the pads" data-cmd-group="View" title="the eight drum pads (Q W E R / A S D F with typing → pads)">pads</button>
+        <button type="button" role="tab" data-tab-of="perform-play" data-tab-pick="xy" aria-selected="false" aria-controls="drumxy-panel"
+                data-cmd="Play: the drum XY" data-cmd-group="View" title="the drum XY pad: hat decay × kick punch">XY</button>
+        <button type="button" role="tab" data-tab-of="perform-play" data-tab-pick="fx" aria-selected="false" aria-controls="perf-fx"
+                data-cmd="Play: the performance FX" data-cmd-group="View" title="the performance FX, held: C V B N · I O P with typing → pads">FX</button>
+        <button type="button" role="tab" data-tab-of="perform-play" data-tab-pick="beats" aria-selected="false" aria-controls="perform-launch"
+                data-cmd="Play: the beats" data-cmd-group="View" title="the song's pool beats (or the bank's), launched at the wrap">beats</button>
+      </div>
+      <button type="button" class="btn btn-ghost btn-icon btn-s play-x" popovertarget="perform-play" popovertargetaction="hide"
+              aria-label="shut Play" title="shut Play (the pads' and the FX's keys still play them)">✕</button>
+    </header>
+    <div class="play-body">
+      <section id="perform-pads" class="perform-pads module" data-module="perform.pads" aria-label="Beat pads">
+        {% for voice in pad_voices %}
+        <button type="button" class="hit-pad pad" data-voice="{{ voice }}"
+                data-hit-url="/drum/{{ voice }}/hit.wav?k={{ pad_hash[voice] }}">
+          <kbd class="pad-key" aria-hidden="true">{{ "QWERASDF"[loop.index0] }}</kbd><span class="pad-name">{{ voice }}</span>
+        </button>
+        {% endfor %}
+      </section>
+
+      <section class="panel perform-xy module" id="drumxy-panel" data-module="perform.xy" aria-label="Drum XY pad">
+          <div class="xy-head" data-ws-head>
+            <span class="caps xy-legend">Drum XY</span>
+            <span id="dxy-readout" aria-live="polite">X {{ dxy.label_x }} = {{ (dxy.nx * 100) | round | int }}% · Y {{ dxy.label_y }} = {{ (dxy.ny * 100) | round | int }}%</span>
+            {#- (its part mutes are the live strip's) -#}
+          </div>
+          <div id="drumxy" tabindex="0" role="application" class="module-well"
+               aria-label="Drum XY pad — arrow keys move 2%, shift for 10%" data-label-x="{{ dxy.label_x }}" data-label-y="{{ dxy.label_y }}">
+            <span class="dxy-cross" style="left: {{ (dxy.nx * 100) | round(2) }}%; top: {{ ((1 - dxy.ny) * 100) | round(2) }}%;"></span>
+          </div>
+          <div class="xy-labels">
+            <span class="xy-label-x">{{ dxy.label_x }} →</span>
+            <span class="xy-label-y">↑ {{ dxy.label_y }}</span>
+          </div>
+      </section>
+
+      {# Performance FX: momentary, held-to-apply, released back to the loop.
+         These act on the *playing buffer* in audio.js (loopFx), not on a server
+         render — a tape stop that arrives after a round trip is not a tape stop.
+         They are a performance and so are not baked into an export. #}
+      <section class="perf-fx module" id="perf-fx" data-module="perform.fx" aria-label="Performance effects">
+        {# Their keys are the pads' typing (the keyboard dock's typing → pads,
+           Alt+P; typing plays the dock's keys by default, here as on
+           every page): perform.js owns qwer/asdf for the pads, and these avoid
+           the classic split's letters — b c i k l m n o p v are left — so: time
+           on the left hand (C V B N), stutter on the right (I O P). #}
+        <h2 class="caps launch-title" title="Performance FX: hold to apply · C V B N · I O P while typing plays the pads (the keyboard dock's typing → pads, Alt+P)">FX</h2>
+        <div class="perf-fx-row" role="group">
+          <button type="button" class="btn pfx" data-fx="tape" data-key="c" data-keys="C" data-key-label="Tape stop (hold)">tape stop<kbd>C</kbd></button>
+          <button type="button" class="btn pfx" data-fx="half" data-key="v" data-keys="V" data-key-label="Half speed (hold)">&frac12;&times;<kbd>V</kbd></button>
+          <button type="button" class="btn pfx" data-fx="double" data-key="b" data-keys="B" data-key-label="Double speed (hold)">2&times;<kbd>B</kbd></button>
+          <button type="button" class="btn pfx" data-fx="reverse" data-key="n" data-keys="N" data-key-label="Reverse (hold)">reverse<kbd>N</kbd></button>
+          <button type="button" class="btn pfx" data-fx="stutter" data-beats="1" data-key="i" data-keys="I" data-key-label="Stutter 1/4 (hold)">stutter &frac14;<kbd>I</kbd></button>
+          <button type="button" class="btn pfx" data-fx="stutter" data-beats="0.5" data-key="o" data-keys="O" data-key-label="Stutter 1/8 (hold)">&frac18;<kbd>O</kbd></button>
+          <button type="button" class="btn pfx" data-fx="stutter" data-beats="0.25" data-key="p" data-keys="P" data-key-label="Stutter 1/16 (hold)">1/16<kbd>P</kbd></button>
+        </div>
+      </section>
+
+      <section class="perform-launch module" id="perform-launch" data-module="perform.launch" aria-label="Beats">
+        {% include "fragments/beat_launcher.html" %}
+
+        {#- (no Sounds launcher: a lane's sound ▾ in the lane inspector
+            holds every sound there is — lane_inspector.html; no Sections
+            launcher: the Loops panel's "sections" open one as a scene
+            of the launcher) -#}
+      </section>
+    </div>
+  </section>
   <div id="analysis" class="readouts" hidden></div>
 </main>

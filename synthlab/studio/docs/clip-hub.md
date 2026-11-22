@@ -158,7 +158,7 @@ the pickers', Gemini's, and the one Apply posts back):
 
 | field | values |
 |---|---|
-| `target` | beat, notes, sound |
+| `target` | beat, notes, sound, keys (→ Chop keys, below) |
 | `kit` | own (the clip's own hits), keep (the kit on Drums), a `drumfactory.DRUM_KITS` name |
 | `style` | clip (the beat as heard), a `beatgen.STYLES` name (blended: below) |
 | `feel` | as is, half-time, double-time |
@@ -172,6 +172,7 @@ the pickers', Gemini's, and the one Apply posts back):
 | `snap` | loop (the loop's key), clip (the clip's measured key: the loop moves to it), none (as sung) |
 | `transpose` | -24..24 semitones |
 | `fx` | keep, none, a `fxrack.CHAIN_PRESETS` name (the drum bus for a beat, the lane for notes) |
+| `slices`, `cut` | → Chop keys: 8, 16 or 32; equal, onsets |
 | `summary`, `why` | Gemini's words, cut to 200 characters, at most four lines |
 
 A name the studio does not have falls back to its default **and a line
@@ -253,7 +254,55 @@ under the lock as a hand edit writes it:
   (`open_loop_edit`: an edit on Perform saves to it). The hub's ↶ Undo
   deletes it again (`Made.loop`). A beat is not kept as a loop (a loop
   is a note lane: a loop that carries a beat is not built), nor a sound;
-- a sound: `routes.sampler.adopt_audio` itself (it lands on Synths).
+- a sound (and → Chop keys): `routes.sampler.adopt_audio` itself (it
+  lands on Synths). Synths' whole page goes into the body
+  (`HX-Retarget: body`, `HX-Reswap: innerMorph`): Apply's form targets
+  `#hub-result`, and without them the page was morphed in there, nested.
+
+### → Chop keys
+
+The clip as a sampler sound cut into slices across the keys — vocal
+chops, micro-chops — in one move: a row of its own under ▶ Preview
+(`hub-opts hub-chop`, shown whatever the target): **slices** 8 / 16 / 32,
+**cut at** equal parts / its onsets, and **→ Chop keys** (`data-cmd`
+"Clip: chop onto the keys"), which posts `POST /hub/chop`
+(`@render_outside_lock`) with the make form. It is the make's own shape,
+one plan fixed: `clean_plan({"target": "keys", "slices", "cut"})` (a
+fourth target, `keys`; `slices` must be 8, 16 or 32, `cut` equal or
+onsets, else the default and a line), `clipmake.make_keys`, the preview
+rendered as → Sound's is (the sound on Synths' phrase, its audio
+registered in memory only), the result with **Apply** posting the plan
+back to `/hub/apply` and the hub's **↶ Undo**. Gemini may answer a `keys`
+plan too (the schema has the target, `slices` and `cut`).
+
+- **Equal**: the clip (its first 30 s: `sampler.MAX_SAMPLE_SECONDS`, what
+  the store keeps) in `slices` equal parts, end to end — no gap, no
+  overlap, the last ending on the clip's end.
+- **Onsets**: a slice from each onset `drumhits.find_hits` hears (the
+  `slices` loudest when there are more; two closer than 10 ms are one),
+  the first slice starting at the first onset — **the lead-in before it
+  is left out**, and said — the last running to the clip's end. **Fewer
+  onsets than slices: the longest slice is halved until there are
+  `slices`** (every onset still starts a slice, and the result says how
+  many were heard); none heard, or halves that would fall under 10 ms,
+  is equal parts, said.
+- Slice i plays on **C4 + i**: `sampler_root` is set to 60
+  (`notes.CHOP_ROOT` = `samplerview.DEFAULT_ROOT`), not the detected
+  pitch — the keys name slices. No new Patch field: `osc1` "sampler",
+  `sampler_sample`, `sampler_slices`, `sampler_root`.
+- **Refused, in words, nothing changed** (a toast, for the preview and
+  for an Apply posted by hand): a silent clip; a clip too short for its
+  slices to be 10 ms each (`MIN_CHOP_SECONDS`: "That clip is 50 ms: too
+  short for 16 slices of 10 ms each"); a clip the store no longer holds
+  ("That clip is gone."). A mono clip is read as stereo (`cliphub.read`)
+  and stored stereo, as any sample.
+- **Apply** is `adopt_audio` with the slices and the root (the path →
+  Sound takes): the sample saved by content, ONE patch undo step (Ctrl+Z
+  on Synths), landing on Synths; the hub's ↶ Undo puts the session's
+  patch back exactly (the `Made` snapshot).
+
+The Song's **chop stutter** generator (`songcraft.md`, "Generators")
+writes a walk over those keys.
 
 **Undo is one step, two ways**: the grid's change is ONE pattern undo
 step (Ctrl+Z on Drums or Perform takes the grid back; a sound is one

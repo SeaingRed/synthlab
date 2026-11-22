@@ -18,8 +18,10 @@ exactly as played — to adjust and then move into the Song page. A loop is
     played  the notes exactly as played, [start, length, midi, velocity],
             beats from the take's first downbeat: never rewritten. The grid
             is their placement (`place`) at a rate and a quantise strength
-            (`quantise`, 0-100: 0 = each note in the step it began in, 100 =
-            the nearest step); placing again starts from them
+            (`quantise`, 0-100: 100 = each note on its nearest step; below,
+            each keeps the rest of its timing inside the step, the step's
+            `note_nudge` — 0 = exactly as played); placing again starts
+            from them
     edited  the grid was changed by hand since it was placed
     name, at
     kind    "beat" for a beat (the Loops panel): its drum lane is
@@ -54,12 +56,11 @@ import math
 import re
 import time
 from dataclasses import asdict
-from fractions import Fraction
 from pathlib import Path
 
 from .. import midifile as mf
 from ..sequencer import NOTE_NAMES, SCALES, midi, name_of
-from . import limits, midi_bridge, schema
+from . import limits, midi_bridge, notefeel, schema
 from . import meter as _meter
 from .files import dir_sig, rename_file, safe_name
 from .files import free_name as free_name_in
@@ -73,17 +74,32 @@ from .state.model import (
 )
 
 DIR = "loops"
+# a loop's grid arp (a take of "the keys I held": keyrec.js), kept beside its
+# note lane only while it plays one — no other loop file or lane moved
+ARP_FIELDS = ("arp_mode", "arp_octaves", "arp_pattern")
+
+
+def arp_of(arr: dict) -> dict:
+    """A loop file's grid arp as lane fields, or {} when it plays none."""
+    if arr.get("arp_mode", "off") == "off":
+        return {}
+    return {k: arr[k] for k in ARP_FIELDS if arr.get(k)}
+
+
 BAR_CHOICES = (1, 2, 4)  # what Save as loop offers
 KEY = ("bpm", "root", "scale_name")
 SAVED = LOOP_FIELDS  # an Arrangement's fields a loop keeps
-GRID_BARS = (1, 2, 3, 4)  # a placed take's grid: the Arrangement's own
-# a step's length in sixteenths, as a note value
-_RATE_WORDS = {
-    Fraction(4): "1/4",
-    Fraction(2): "1/8",
-    Fraction(1): "1/16",
-    Fraction(1, 2): "1/32",
-}
+GRID_BARS = limits.LOOP_BAR_CHOICES  # a placed take's grid: the note grid's own
+# a take placed as played picks its rate (`pick_steps`): two rates whose
+# lines its note starts sit on within this much a note (ms, on average)
+# are a tie, and the first in the order of preference takes it
+PICK_TIE_MS = 6.0
+# ... and a rate other than the sixteenths must hold the notes ON its lines:
+# their mean |offset| at most this share of its step (notes on no grid sit
+# a quarter of a step off any rate's lines on average — a finer rate always
+# "fits" them better in milliseconds, and would win every loosely played
+# take). 0.1 keeps an arp's swing up to 20 % (its odd notes that far late)
+PICK_ON_LINES = 0.1
 
 
 def loop_dir(data_dir: Path) -> Path:
@@ -227,32 +243,81 @@ def free_name(data_dir: Path, name: str) -> str:
 
 
 def rate_word(meter: str, steps: int) -> str:
-    """A step as a note value: "1/16" (a 4/4 bar of 16), "1/8"; a step no
-    note value names reads as the steps a bar ("12 a bar")."""
-    return _RATE_WORDS.get(_meter.step_length(meter, steps), f"{steps} a bar")
+    """A step as a note value (`meter.rate_word`): "1/16", "1/8T"."""
+    return _meter.rate_word(meter, steps)
 
 
 def rates(meter: str) -> list[tuple[int, str]]:
     """The rates a loop in `meter` may be placed at, coarsest first: the
-    meter's own step choices (`meter.step_choices`) — 1/4 to 1/32 in 4/4,
-    no quarter-note step in an x/8 meter, no triplets (the note grid has no
-    triplet steps in a duple meter)."""
+    meter's own step choices (`meter.step_choices`) — 1/4 to 1/32 in 4/4
+    with the triplets 1/8T and 1/16T (12 and 24 a bar; 9 and 18 in 3/4),
+    no quarter-note step and no triplets in an x/8 meter."""
     return [(n, rate_word(meter, n)) for n in _meter.step_choices(meter)]
 
 
 def default_steps(meter: str) -> int:
-    """The rate a take is placed at first: the meter's sixteenths."""
+    """The rate a take is placed at when nothing says otherwise: the
+    meter's sixteenths."""
     return _meter.sixteenths_choice(meter)
+
+
+def pick_order(meter: str) -> list[int]:
+    """The rates a take placed as played may land on, in the order a tie
+    goes: the meter's sixteenths (every grid before triplets: a take of
+    eighths or quarters keeps them, and it holds their lines), then the
+    triplets coarsest first, then the finer straight rates. Never coarser
+    than the sixteenths' straight rates (1/8, 1/4 hold no line the
+    sixteenths lack)."""
+    six = default_steps(meter)
+    straight = [n for n in _meter.straight_choices(meter) if n > six]
+    return [six, *_meter.triplet_choices(meter), *straight]
+
+
+def offsets_ms(notes, meter: str, steps: int, bpm: float) -> list[float]:
+    """How far each note as played starts from its nearest line of a grid
+    of `steps` a bar, in milliseconds at `bpm` (signed: + late)."""
+    step = _meter.bar_beats(meter) / max(1, int(steps))
+    ms = 60000.0 / max(1e-9, float(bpm))
+    out = []
+    for n in notes:
+        t = float(n[0]) / step
+        out.append((t - round(t)) * step * ms)
+    return out
+
+
+def pick_steps(notes, meter: str, bpm: float) -> int:
+    """The rate a take placed as played lands on: of `pick_order`'s rates,
+    the one whose lines its note starts sit on best — the least total
+    |offset| in milliseconds (`offsets_ms`) — where a rate within
+    `PICK_TIE_MS` a note of the best is a tie the first in the order
+    takes; a rate other than the sixteenths only when the notes sit on its
+    lines (`PICK_ON_LINES`). A 1/8T arp lands on 12 a bar (its notes on the
+    lines but for its swing), a riff of sixteenths on 16, a 1/16T roll on
+    24; a take on no grid, or no notes, the sixteenths."""
+    order = pick_order(meter)
+    starts = [n for n in notes if float(n[0]) >= 0]
+    if not starts:
+        return order[0]
+    cost = {n: sum(abs(x) for x in offsets_ms(starts, meter, n, bpm)) for n in order}
+    step_ms = {n: _meter.bar_beats(meter) / n * 60000.0 / float(bpm) for n in order}
+    order = [order[0]] + [
+        n for n in order[1:] if cost[n] / len(starts) <= PICK_ON_LINES * step_ms[n]
+    ]
+    best = min(cost[n] for n in order)
+    tie = best + PICK_TIE_MS * len(starts)
+    return next(n for n in order if cost[n] <= tie + 1e-9)
 
 
 def grid_bars(take_bars: float, steps: int) -> int:
     """The bars a take of `take_bars` is placed on: the take rounded up to
-    whole bars, at most the grid's longest that holds the rate
-    (`GRID_BARS`, `limits.MAX_GRID_STEPS`); a longer take keeps the rest in
-    its notes as played."""
+    whole bars and then to the grid's next choice that holds the rate
+    (`GRID_BARS`: 1-4, 8, 16, while bars x steps fits
+    `limits.MAX_GRID_STEPS`) — a 6-bar take is an 8-bar grid with its last
+    two bars empty, a 12.5-bar one a 16-bar grid. A take longer than the
+    longest grid keeps the rest in its notes as played (`rest_bars`)."""
     want = max(1, math.ceil(take_bars - 1e-6)) if take_bars else 1
-    fits = [b for b in GRID_BARS if b * steps <= limits.MAX_GRID_STEPS]
-    return min(want, max(fits)) if fits else 1
+    fits = [b for b in GRID_BARS if b * steps <= limits.MAX_GRID_STEPS] or [1]
+    return min((b for b in fits if b >= want), default=max(fits))
 
 
 def _step_of(t: float, strength: int) -> int:
@@ -263,14 +328,44 @@ def _step_of(t: float, strength: int) -> int:
     return near if abs(t - near) <= strength / 200.0 + 1e-9 else math.floor(t)
 
 
-def place(notes, meter: str, bars: int, steps: int, strength: int = 100) -> dict:
-    """The notes as played on a note grid of `bars` x `steps` in `meter`:
-    the note lane's fields (`NOTE_LANE`). Each note starts on its step
-    (`_step_of`) and is held for its length in whole steps (at least one);
-    one that starts where its row still sounds is a cut; a step's velocity
-    is the loudest note starting there (the MIDI import's write,
-    `midi_bridge.to_grid`, on every pitch the notes play). Notes past the
-    grid's last bar stay in the notes, off the grid."""
+def _spans(notes, step: float, strength: int) -> list[tuple]:
+    """Each note as played as it is placed, in steps: `(start, end, midi,
+    velocity, offset, heard_end)`. At 100 it starts on its nearest step
+    (`_step_of`) and is held for its length in whole steps (at least one),
+    on the steps (`offset` 0, `heard_end` its end line). Below 100 it KEEPS
+    ITS FEEL: heard where `shaped_start` puts it — `strength`% of the way to
+    its nearest line, 0 exactly as played — on the step nearest that,
+    `offset` the rest (-0.5..0.5); its end pulled the same share of the way
+    to its nearest line (`heard_end`), its cells running to the line
+    nearest that (at least one step). `_lane_of` writes both as the note's
+    own feel (`notefeel`), so it starts, ends and is struck as played."""
+    out = []
+    for s, ln, m, v in notes:
+        t = float(s) / step
+        if strength >= 100:
+            k = _step_of(t, 100)
+            end = k + max(1, round(float(ln) / step))
+            out.append((k, end, int(m), v, 0.0, float(end)))
+            continue
+        at = shaped_start(t, strength)
+        k = round(at)
+        raw_end = t + float(ln) / step
+        heard_end = raw_end + (round(raw_end) - raw_end) * strength / 100.0
+        end = max(k + 1, round(heard_end))
+        out.append((k, end, int(m), v, at - k, heard_end))
+    return out
+
+
+def _lane_of(spans, meter: str, bars: int, steps: int, timed: bool) -> dict:
+    """Placed notes (`_spans`' shape, steps from the grid's start) as the
+    note lane's fields on a grid of `bars` x `steps`: one that starts where
+    its row still sounds is a cut; a step's velocity is the loudest note
+    starting there (the MIDI import's write, `midi_bridge.to_grid`, on
+    every pitch the notes play); `timed`, each note keeps its own feel
+    (`note_feel`: its offset, its end against its run's end line and its
+    share of its step's velocity — a step's velocity then the loudest
+    note's exactly, not rounded through MIDI), else none. Notes past the
+    grid stay off it."""
     step = _meter.bar_beats(meter) / steps
     lane = {
         "bars": bars,
@@ -284,22 +379,132 @@ def place(notes, meter: str, bars: int, steps: int, strength: int = 100) -> dict
     track = mf.Track(
         name="",
         notes=[
-            mf.Note(
-                _step_of(s / step, strength) * step,
-                max(1, round(ln / step)) * step,
-                int(m),
-                max(1, min(127, round(v * 127))),
-            )
-            for s, ln, m, v in notes
+            mf.Note(k * step, (end - k) * step, m, max(1, min(127, round(v * 127))))
+            for k, end, m, v, *_feel in spans
         ],
     )
-    rows = sorted({name_of(int(n[2])) for n in notes})
+    rows = sorted({name_of(n[2]) for n in spans})
     try:
         out, _said = midi_bridge.to_grid(track, lane, rows)
     except midi_bridge.ImportRefused:
         out = {k: lane[k] for k in ("cells", "cuts", "velocities", "slides")}
-    # (on the steps: no timing inside one — a place again clears a free one)
-    return {"bars": bars, "steps_per_bar": steps, **out, "note_nudge": {}}
+    feel = _feel_of(spans, out) if timed else {}
+    return {
+        "bars": bars,
+        "steps_per_bar": steps,
+        **out,
+        "note_nudge": {},
+        "note_feel": feel,
+    }
+
+
+def _feel_of(spans, out: dict) -> dict:
+    """Placed notes' own feel (`notefeel`) on the grid `out` holds them on
+    (its cells and cuts as `midi_bridge.to_grid` wrote them), and the
+    velocity lane set to each start step's loudest note exactly (in place).
+    A note the grid did not keep (past it, or the same note twice) has
+    none."""
+    starts = notefeel.starts(out["cells"], out["cuts"])
+    loudest: dict[int, float] = {}
+    for k, _end, _m, v, *_rest in spans:
+        loudest[k] = max(loudest.get(k, 0.0), float(v))
+    feel: dict = {}
+    for k, _end, m, v, off, heard_end in sorted(spans, key=lambda x: (x[0], x[2])):
+        p = name_of(m)
+        if (p, k) not in starts or notefeel.key(p, k) in feel or loudest[k] <= 0:
+            continue
+        line = notefeel.end_line(out["cells"], out["cuts"], p, k)
+        # cut short of where it was let go (by the grid's end, or the next
+        # note on its row): it ends on its cut line, never past it
+        end = heard_end - line if heard_end - line <= 0.5 else 0.0
+        clean = notefeel.value([off, end, float(v) / loudest[k]])
+        if clean is not None:
+            feel[notefeel.key(p, k)] = clean
+    on = {k for _p, k in starts}
+    for k, v in loudest.items():
+        if k in on and v > 0:
+            out["velocities"][str(k)] = float(v)
+    return feel
+
+
+def place(notes, meter: str, bars: int, steps: int, strength: int = 100) -> dict:
+    """The notes as played on a note grid of `bars` x `steps` in `meter`:
+    the note lane's fields (`NOTE_LANE`). At 100 each note is on its
+    nearest step, held for its length in whole steps — on the steps, no
+    timing inside one (a place again clears what a lower strength kept).
+    Below 100 each keeps its timing inside its step (`_spans`: the step's
+    `note_nudge`), so "as played" (0) plays back as the take was played.
+    Notes past the grid's last bar stay in the notes, off the grid
+    (`rest_lanes`) — but when nothing was played past it the grid is a
+    circle, as a free loop's: a note played early onto its first line
+    from the end is its first step, early (the render wraps it to the
+    end, where it was played)."""
+    step = _meter.bar_beats(meter) / steps
+    spans = _spans(notes, step, strength)
+    if strength < 100 and played_bars(notes, meter) <= bars:
+        spans = [_wrapped(x, bars * steps) for x in spans]
+    return _lane_of(spans, meter, bars, steps, strength < 100)
+
+
+def _wrapped(span: tuple, total: int) -> tuple:
+    """A placed note whose start rounded onto the grid's end line (`total`,
+    played up to half a step early) as its first step, early — the render
+    wraps a start before the first beat to the end. Any other: as it is."""
+    k, end, m, v, off, heard_end = span
+    if k != total:
+        return span
+    return (0, min(end - k, total), m, v, off, min(heard_end - k, float(total)))
+
+
+def played_bars(notes, meter: str) -> int:
+    """The whole bars the notes as played reach (0 with none)."""
+    end = max((n[0] + n[1] for n in notes), default=0.0)
+    return math.ceil(end / _meter.bar_beats(meter) - 1e-6) if end > 0 else 0
+
+
+def rest_bars(loop: dict) -> int:
+    """The bars a recorded loop was played past its grid: a take longer
+    than its grid (the longest is 16 bars at 1/16; a loop placed before
+    grids held more than 4 kept its first 4) keeps them in its notes as
+    played, and → Song lays them out (`rest_lanes`). 0 for a beat, an
+    idea, a free loop (the shaper chose its bars) or a loop that fits."""
+    if loop["kind"] != "notes" or loop.get("free") or not loop["played"]:
+        return 0
+    return max(0, played_bars(loop["played"], loop["meter"]) - loop["lane"]["bars"])
+
+
+def rest_lanes(notes, meter: str, bars: int, steps: int, strength: int) -> list[dict]:
+    """What was played past a loop's grid of `bars`, as note lanes of up
+    to `bars` bars each, in order (`place`'s shape): each note placed by
+    `strength` as on the loop's own grid (`_spans`: below 100 its timing
+    inside its step kept) — one held over a lane's last bar line goes on
+    in the next lane from its first step, on the line (a section is where
+    a note starts again). A section plays once from its first beat, so a
+    note played early onto a lane's first line starts on it (up to half a
+    step late: early, the render would wrap it to the section's end) —
+    but onto the take's last line it is the last lane's first step, early,
+    which the render wraps to that lane's end: where it was played.
+    [] when everything fits."""
+    step = _meter.bar_beats(meter) / steps
+    span = bars * steps  # a lane, in steps
+    total = played_bars(notes, meter) * steps
+    placed = _spans(notes, step, strength)
+    lanes = []
+    for lo in range(span, total, span):
+        hi = min(lo + span, total)
+        held = []
+        for a, b, m, v, off, end in placed:
+            if a < hi and b > lo:  # held over the line: on again, on it
+                o = 0.0 if a < lo else max(off, 0.0) if a == lo else off
+                # one held over the lane's last line ends on it
+                e = min(end, float(hi)) if b > hi else end
+                held.append((max(a, lo) - lo, min(b, hi) - lo, m, v, o, e - lo))
+            elif a == hi == total and strength < 100:
+                held.append(_wrapped((a - lo, b - lo, m, v, off, end - lo), hi - lo))
+        lanes.append(
+            _lane_of(held, meter, math.ceil((hi - lo) / steps), steps, strength < 100)
+        )
+    return lanes
 
 
 MAX_SWING = 0.5  # a free loop's swing: a share of a step on the odd ones
@@ -426,7 +631,9 @@ def save(
         "at": round(time.time(), 3),
         # the chance lane only when a step has one (`schema.ARR_OPTIONAL`)
         "arr": {k: full[k] for k in SAVED}
-        | ({"note_chance": full["note_chance"]} if full["note_chance"] else {}),
+        | ({"note_chance": full["note_chance"]} if full["note_chance"] else {})
+        # its grid arp only when it plays one (a take of "the keys I held")
+        | {k: full[k] for k in ARP_FIELDS if arr.arp_mode != "off" and full[k]},
         "sound": {k: v for k, v in (sound or {}).items() if k != "format"} or None,
         "take": take,
         "played": [list(n) for n in played],
@@ -504,7 +711,9 @@ def load(data_dir: Path, name: str) -> dict | None:
         "at": clean["at"],
         # (and its chance lane, {} when it has none: absent from the file)
         "lane": {k: arr.get(k, {}) for k in NOTE_LANE}  # (note_nudge: absent unset)
-        | {"note_chance": dict(arr.get("note_chance") or {})},
+        | {"note_chance": dict(arr.get("note_chance") or {})}
+        # its grid arp, when it plays one (absent otherwise: the lane's own stays)
+        | arp_of(arr),
         "key": {k: arr[k] for k in KEY},
         "meter": arr.get("meter", _meter.DEFAULT),
         "sound": preset_from_json({"format": 2, **sound}) if sound else None,
@@ -577,6 +786,8 @@ def _summary(loop: dict) -> dict:
         # a free loop: the free take it was shaped from (✂ Shape again)
         "free_take": (loop["free"] or {}).get("take") if loop["free"] else None,
         "free": bool(loop["free"]),
+        # bars played past the grid: → Song lays them out as sections
+        "rest": rest_bars(loop),
     }
 
 

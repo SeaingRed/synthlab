@@ -106,7 +106,15 @@
 // noteOn / noteOff with `at`, the context's time — waits in `due` for the
 // block nearest it (half a quantum either side), so an arpeggio lands on
 // the loop's grid whatever the main thread's timers do; allOff drops it.
-// Budget: <= 1180 code lines.
+// 1180 -> 1186: a route's switch (a bypassed slot is not wired) and the
+// curve on its source (synth.route_curve, in route()).
+// 1186 -> 1213: two chaotic flows as LFO shapes, Lorenz and Rössler (core's
+// RK4 a point, ATTR_P points a cycle, in lfoX: attrF / attrStep / attrVal).
+// 1213 -> 1223: LFOs 4, 5 and 6 (sources 13-15: phases p4-p6, their
+// shapes / rates / drawings read in wire(), lfoG for any of 2-6).
+// 1223 -> 1224: an envelope stage given as a division arrives as seconds
+// (at_bpm), so a drag on its time is dead while it is synced ("mod").
+// Budget: <= 1224 code lines.
 
 const D = { // Patch defaults for anything a message left out
   osc1: "saw", osc1_level: 0.8, osc1_octave: 0, osc1_detune: 0, osc2: null, osc2_level: 0.5,
@@ -131,6 +139,9 @@ const D = { // Patch defaults for anything a message left out
   env4_release: 0.5, env4_curve: 2, lfo2_rate: 2, lfo2_shape: "sine", lfo2_phase: 0, lfo2_mode: "retrig",
   lfo3_rate: 0.5, lfo3_shape: "sine", lfo3_phase: 0, lfo3_mode: "retrig", lfo_draw: "", lfo2_draw: "",
   lfo3_draw: "", mod_wheel: 0, aftertouch: 0, wheel_cc: 0, at_cc: 0,
+  lfo4_rate: 1, lfo4_shape: "sine", lfo4_phase: 0, lfo4_mode: "retrig", lfo4_draw: "",
+  lfo5_rate: 4, lfo5_shape: "sine", lfo5_phase: 0, lfo5_mode: "retrig", lfo5_draw: "",
+  lfo6_rate: 0.25, lfo6_shape: "sine", lfo6_phase: 0, lfo6_mode: "retrig", lfo6_draw: "",
 };
 // smoothed params (1 = log domain); a route's amount joins when it is wired
 const SMOOTH = { osc1_level: 0, osc2_level: 0, sub_level: 0, noise_level: 0, cutoff: 1,
@@ -145,7 +156,9 @@ const SMOOTH = { osc1_level: 0, osc2_level: 0, sub_level: 0, noise_level: 0, cut
 const BLOCK_RATE = { cutoff: 1, resonance: 1, filter_env: 1, filter_lfo_depth: 1, filter2_cutoff: 1,
   filter2_resonance: 1, formant_vowel: 1 };
 const SOURCES = { lfo: 1, fenv: 2, aenv: 3, velocity: 4, lfo2: 5, lfo3: 6, env3: 7, env4: 8, wheel: 9,
-  aftertouch: 10, key: 11, random: 12 };
+  aftertouch: 10, key: 11, random: 12, lfo4: 13, lfo5: 14, lfo6: 15 };
+// the general LFOs 2-6 (params.GENERAL_LFOS)
+const LFOS = [2, 3, 4, 5, 6];
 // the filters (core.filt): every type's code in xpost (voice.ts the
 // same), its SVF q's, the comb's ring and limits, the diode's bias, the bell
 const XT = { ladder: 0, lowpass: 1, highpass: 2, bandpass: 3, notch: 4, none: 5, lowpass24: 6,
@@ -154,6 +167,27 @@ const RING = 2048, COMB_MAX = 2000, COMB_FB = 0.97, DIODE_B = 0.25, TB = Math.ta
 // core.lfo_ext: the logistic map, the per-note keys (synth._RANDOM_KEY,
 // _LFO_FREE_KEY), an empty drawing's triangle
 const CHAOS_R = 3.99, RANDOM_KEY = 0x30000, FREE_KEY = 0x40000, DRAW_DEFAULT = [[0, -1], [0.5, 1]];
+const ROUTE_K = 15; // synth.ROUTE_CURVE_K: a route curve's bend at +-1
+// core.ATTRACTORS: the two chaotic flows an LFO may read — h, RK4 steps a
+// point, centre, scale — ATTRACTOR_POINTS a cycle, ATTRACTOR_WARM, LORENZ_B
+const ATTR = { lorenz: [0.046875, 2, 0, 20], rossler: [0.1875, 4, 1, 10.5] }, ATTR_P = 8, ATTR_WARM = 64;
+const LORENZ_B = 8 / 3, AK = [0, 1, 2, 3].map(() => new Float64Array(3));
+// core._attr_f / attractor_step: the same doubles in the same order
+const attrF = (m, x, y, z, d) => {
+  if (m === "lorenz") { d[0] = 10 * (y - x); d[1] = x * (28 - z) - y; d[2] = x * y - LORENZ_B * z; } else {
+    d[0] = -y - z; d[1] = x + 0.2 * y; d[2] = 0.2 + z * (x - 5.7);
+  }
+};
+const attrStep = (m, s) => {
+  const h = ATTR[m][0], hh = 0.5 * h, h6 = h / 6, [a, b, c, d] = AK;
+  for (let i = 0; i < ATTR[m][1]; i++) {
+    const x = s[0], y = s[1], z = s[2];
+    attrF(m, x, y, z, a); attrF(m, x + hh * a[0], y + hh * a[1], z + hh * a[2], b);
+    attrF(m, x + hh * b[0], y + hh * b[1], z + hh * b[2], c); attrF(m, x + h * c[0], y + h * c[1], z + h * c[2], d);
+    for (let q = 0; q < 3; q++) s[q] = s[q] + h6 * (a[q] + 2 * b[q] + 2 * c[q] + d[q]);
+  }
+};
+const attrVal = (m, x) => Math.min(1, Math.max(-1, (x - ATTR[m][2]) / ATTR[m][3]));
 const BLOCK = 64; // core.biquad's coefficient block: cutoff sampled at its start
 const MAXU = 8;
 const MAXV = 16; // voices per layer node; past it one is stolen (steal())
@@ -278,7 +312,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
     this.wasm = null; // the WebAssembly engine, once a module arrives and instantiates
     this.dirty = true; this.routes = []; this.idx = {}; this.routed = new Set();
     this.keys = []; this.lastFreq = 0; // one voice: the keys held, newest last; the last note
-    this.acc = new Float64Array(1); this.names = Object.keys(SMOOTH); this.SV = new Float64Array(13);
+    this.acc = new Float64Array(1); this.names = Object.keys(SMOOTH); this.SV = new Float64Array(16);
     for (const k of SCRATCH) this[k] = new Float64Array(BLOCK);
     this.OR = new Float64Array(BLOCK); // a stereo sampler's right channel (never the module's)
     this.port.onmessage = (e) => this.onMessage(e.data);
@@ -297,8 +331,10 @@ class SynthlabVoice extends AudioWorkletProcessor {
     if (m.type === "params") { Object.assign(this.T, m.p); this.dirty = true; return; }
     if (m.type === "mod") {
       // a synced LFO's rate arrives resolved in /patch.json: its Hz slider is dead
-      const sync = { mod_lfo_rate: "lfo_sync", filter_lfo_rate: "filter_lfo_sync", lfo2_rate: "lfo2_sync",
-        lfo3_rate: "lfo3_sync" }[m.param];
+      // (and a synced envelope stage's seconds: params.ENV_SYNC_TIMES, its `_sync`)
+      const sync = { mod_lfo_rate: "lfo_sync", filter_lfo_rate: "filter_lfo_sync",
+        ...Object.fromEntries(LFOS.map((k) => [`lfo${k}_rate`, `lfo${k}_sync`])) }[m.param]
+        ?? (/^(filter|env3|env4)_(attack|decay|release)$/.test(m.param) ? `${m.param}_sync` : null);
       if (sync && (this.T[sync] ?? "off") !== "off") return;
       this.T[m.param === "level" ? "osc1_level" : m.param] = m.value; this.dirty = true;
       return;
@@ -378,7 +414,8 @@ class SynthlabVoice extends AudioWorkletProcessor {
       freq: from, target: m.freq, glideN: 0, glideR: 1, vel: m.vel, n: 0, a0: 0, f0: 0,
       rel: false, relN: 0, relLevel: 0, fRelLevel: 0, fe: 0, pd: false, fade: 0, fadeN: 0, lvl: 1, q: 0,
       pv: 0, pp: 0, pt: 0, pf: 0, pm: 0, // LFO phases: vibrato, pwm, tremolo, filter, mod
-      p2: 0, p3: 0, e30: 0, e40: 0, e3R: 0, e4R: 0, lx: [null, {}, {}, {}], // LFO 2/3, env 3/4, lfoX's steps
+      p2: 0, p3: 0, p4: 0, p5: 0, p6: 0, e30: 0, e40: 0, e3R: 0, e4R: 0, // LFOs 2-6, env 3/4
+      lx: [null, {}, {}, {}, {}, {}, {}], // lfoX's steps, LFOs 1-6
       dcInit: false, c: null, fc: null, // filter, vowel tract coefficients
       ks: [], mip: new Int32Array(2 * MAXU), sp: [], // pluck strings, wavetable mips, sampler reads
       rr: m.rr ?? this.strike(m.freq), zp: null, acc: {}, // a zone map's strike of this key, its pick
@@ -498,10 +535,10 @@ class SynthlabVoice extends AudioWorkletProcessor {
     v.uc = 2 * driftU(v.dseed, CUT_KEY) - 1;
     v.dk = 0; v.dw0 = 2 * driftU(v.dseed, 0) - 1; v.dw1 = 0.8 * v.dw0 + 0.6 * (2 * driftU(v.dseed, 1) - 1);
     // the per-note sources from the same seed: the key's place
-    // (synth.KEY_SOURCE_SPAN), a random value, where LFO 2 / 3 start
+    // (synth.KEY_SOURCE_SPAN), a random value, where LFOs 2-6 start
     v.key = Math.min(1, Math.max(-1, (69 + 12 * Math.log2(Math.max(v.target, 1e-6) / 440) - 60) / 60));
     v.rnd = 2 * driftU(v.dseed, RANDOM_KEY) - 1;
-    if (fresh) for (const k of [2, 3]) v[`p${k}`] = (+T[`lfo${k}_phase`] || 0) + (T[`lfo${k}_mode`] === "free" ? driftU(v.dseed, FREE_KEY + k) : 0);
+    if (fresh) for (const k of LFOS) v[`p${k}`] = (+T[`lfo${k}_phase`] || 0) + (T[`lfo${k}_mode`] === "free" ? driftU(v.dseed, FREE_KEY + k) : 0);
     if (!fresh || !(T.drift > 0)) return;
     for (let s = 0; s < 2; s++) {
       const shape = s ? T.osc2 : T.osc1, sync = s && T.osc2_sync === "on" && SYNCS[shape];
@@ -594,6 +631,17 @@ class SynthlabVoice extends AudioWorkletProcessor {
       return row < 0 ? 0 : tb.uniform[row * tb.un + K % tb.un];
     }
     const st = v.lx[k], seed = this.seeds[k];
+    if (ATTR[shape]) { // core.attractor_points: ATTR_P points a cycle, joined by lines
+      const pos = acc * ATTR_P, J = Math.floor(pos), f = pos - J;
+      if (st.am !== shape) { // core.attractor_start: a seeded start, then the warm-up
+        const u = [1, 2, 3].map((q) => driftU(seed, q));
+        st.as = Float64Array.of(2 * u[0] - 1, 2 * u[1] - 1, shape === "lorenz" ? 19 + 2 * u[2] : u[2]);
+        for (let w = 0; w < ATTR_WARM; w++) attrStep(shape, st.as);
+        st.am = shape; st.aJ = 0; st.a = attrVal(shape, st.as[0]); attrStep(shape, st.as); st.b = attrVal(shape, st.as[0]);
+      }
+      while (st.aJ < J) { st.a = st.b; attrStep(shape, st.as); st.b = attrVal(shape, st.as[0]); st.aJ++; }
+      return st.a + (st.b - st.a) * f;
+    }
     if (shape === "chaos") {
       if (st.K === undefined) { st.K = 0; st.a = 0.1 + 0.8 * driftU(seed, 0); st.b = CHAOS_R * st.a * (1 - st.a); }
       while (st.K < K) { st.a = st.b; st.b = CHAOS_R * st.b * (1 - st.b); st.K++; }
@@ -610,12 +658,12 @@ class SynthlabVoice extends AudioWorkletProcessor {
       : this.env(t, T.env4_attack, T.env4_decay, T.env4_sustain, T.env4_curve, from);
   }
 
-  // LFO 2 or 3 at its unwrapped phase acc: an oscillator shape (core.osc
-  // from its phase), else lfoX
+  // LFO k (2-6) at its unwrapped phase acc: an oscillator shape (core.osc
+  // from its phase), else lfoX. Its shape and rate as wire() read them
   lfoG(v, k, acc) {
-    const T = this.T, shape = k === 2 ? T.lfo2_shape : T.lfo3_shape;
+    const shape = this.lsh[k];
     if (shape === "sine" || shape === "triangle" || shape === "saw" || shape === "square") {
-      return this.osc(shape, acc - Math.floor(acc), (k === 2 ? T.lfo2_rate : T.lfo3_rate) / sampleRate, 0.5);
+      return this.osc(shape, acc - Math.floor(acc), this.lrt[k] / sampleRate, 0.5);
     }
     return this.lfoX(v, k, shape, acc);
   }
@@ -900,21 +948,23 @@ class SynthlabVoice extends AudioWorkletProcessor {
     for (const s of T.mod_slots || []) {
       const src = T[`${s}_src`], dst = T[`${s}_dst`], amt = Number(T[`${s}_amt`]), span = T.mod_ranges?.[dst];
       if (src === "none" || !(T.mod_sources || []).includes(src) || !span || !(Math.abs(amt) >= 1e-3)) continue;
+      if (T[`${s}_on`] === "off") continue; // bypassed (params.slot_active)
       // "pitch" is no param: its routes sum amt x half its span x the source
-      const pitch = dst === "pitch";
+      const pitch = dst === "pitch", c = Number(T[`${s}_curve`]) || 0; // its source's curve
       SMOOTH[`${s}_amt`] ??= 0; if (!pitch) SMOOTH[dst] ??= 0;
       const first = !(dst in idx);
       if (first) idx[dst] = Object.keys(idx).length;
       R.push({ src: SOURCES[src], dst, amt: `${s}_amt`, lo: span[0], hi: span[1], pitch,
         span: (span[1] - span[0]) / (pitch ? 2 : 1), block: !!BLOCK_RATE[dst], i: idx[dst], first,
-        log: !!SMOOTH[dst], sd: null, sa: null });
+        log: !!SMOOTH[dst], sd: null, sa: null, c, k: 1 + ROUTE_K * Math.abs(c) });
     }
     this.routes = R; this.idx = idx; this.routed = new Set(Object.keys(idx));
     this.acc = new Float64Array(Math.max(1, R.length)); this.names = Object.keys(SMOOTH);
     this.needLfo = R.some((r) => r.src === 1); this.needFe = R.some((r) => r.src === 2);
     this.need = new Set(R.map((r) => r.src)); // which sources to compute
     // the drawn shapes (core.draw_points: the drawing as one periodic line)
-    this.draws = ["", T.lfo_draw, T.lfo2_draw, T.lfo3_draw].map((s) => {
+    this.lsh = [0, 0, ...LFOS.map((k) => T[`lfo${k}_shape`])]; this.lrt = [0, 0, ...LFOS.map((k) => +T[`lfo${k}_rate`])];
+    this.draws = ["", T.lfo_draw, ...LFOS.map((k) => T[`lfo${k}_draw`])].map((s) => {
       const pts = new Map();
       for (const part of String(s || "").split(",")) {
         const [x, y] = part.split(":").map(Number);
@@ -923,21 +973,25 @@ class SynthlabVoice extends AudioWorkletProcessor {
       const p = pts.size ? [...pts].sort((a, b) => a[0] - b[0]).slice(0, 32) : DRAW_DEFAULT, m = p.length;
       return [[p[m - 1][0] - 1, ...p.map((q) => q[0]), p[0][0] + 1], [p[m - 1][1], ...p.map((q) => q[1]), p[0][1]]];
     });
-    this.seeds ??= [0, 1, 2, 3].map((k) => crc32("lfo" + k));
+    this.seeds ??= [0, 1, 2, 3, 4, 5, 6].map((k) => crc32("lfo" + k));
     this.dirty = false;
   }
 
   // Route every wired slot at this sample into this.acc (one value per
   // target, this.idx): each adds amt * span * source to the value so far,
   // clipped to the span widened to the patch's own value
-  // (synth._mod_routes). Filter targets only at a block start. "pitch"
+  // (synth._mod_routes); a route with a curve bends its source first. Filter targets only at a block start. "pitch"
   // starts from 0 semitones and is never clipped. `sv`: each source's
   // value at this sample, by its SOURCES number.
   route(x, sv, bs) {
     const acc = this.acc;
     for (const r of this.routes) {
       if (r.block && !bs) continue;
-      const src = sv[r.src];
+      let src = sv[r.src];
+      if (r.c) { // synth.route_curve: |src| (to 1) bent, its sign kept
+        const a = Math.min(Math.abs(src), 1), y = r.c > 0 ? r.k * a / (1 + (r.k - 1) * a) : a / (r.k - (r.k - 1) * a);
+        src = src < 0 ? -y : y;
+      }
       const b0 = r.pitch ? 0 : r.log ? this.at(r.dst, x) : r.sd[0] + r.sd[1] * x;
       const y = (r.first ? b0 : acc[r.i]) + (r.sa[0] + r.sa[1] * x) * r.span * src;
       acc[r.i] = r.pitch ? y : Math.min(Math.max(r.hi, b0), Math.max(Math.min(r.lo, b0), y));
@@ -1291,8 +1345,9 @@ class SynthlabVoice extends AudioWorkletProcessor {
     // the routes' per-sample targets, and their sources (this.need: the ones a route reads)
     const iWP = ix("wt_pos"), iFA = ix("fm_amount"), iIX = ix("fm_index"), iE4 = [1, 2, 3, 4].map((k) => ix(`fm4_level${k}`));
     const need = this.need, SV = this.SV, dl2 = T.lfo2_rate / sr, dl3 = T.lfo3_rate / sr, sh1 = T.lfo_shape;
+    const dl4 = T.lfo4_rate / sr, dl5 = T.lfo5_rate / sr, dl6 = T.lfo6_rate / sr;
     const old1 = sh1 === "sine" || sh1 === "triangle" || sh1 === "saw" || sh1 === "square" || sh1 === "noise";
-    let p2 = v.p2, p3 = v.p3;
+    let p2 = v.p2, p3 = v.p3, p4 = v.p4, p5 = v.p5, p6 = v.p6;
     const iX1 = ix("osc1_warp_amt"), iX2 = ix("osc2_warp_amt");
     // hard sync: osc2's pitch also carries sync_pitch semitones (synth._osc_stack)
     const sync = T.osc2_sync === "on" && !!SYNCS[T.osc2], iSP = sync ? ix("sync_pitch") : -1, ssp = S.sync_pitch;
@@ -1358,7 +1413,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
         if (bs || needFe) fe = this.env(t, fa, fd, fs, curve, v.f0);
       }
       // LFO phases advance before they are read: core._phase is a cumsum
-      pv += dv; pp += dp; pt += dtr; pf += dfl; pm += dm; p2 += dl2; p3 += dl3;
+      pv += dv; pp += dp; pt += dtr; pf += dfl; pm += dm; p2 += dl2; p3 += dl3; p4 += dl4; p5 += dl5; p6 += dl6;
       let l1 = sl1[0] + sl1[1] * x, l2 = sl2[0] + sl2[1] * x, ls = sls[0] + sls[1] * x;
       let ln = sln[0] + sln[1] * x, vd = svd[0] + svd[1] * x, pw = spw[0] + spw[1] * x;
       let td = std[0] + std[1] * x, dr = sdr[0] + sdr[1] * x, d1 = sd1[0] + sd1[1] * x, d2 = sd2[0] + sd2[1] * x;
@@ -1368,6 +1423,9 @@ class SynthlabVoice extends AudioWorkletProcessor {
         SV[2] = fe; SV[3] = amp; SV[4] = vel; SV[11] = v.key; SV[12] = v.rnd;
         if (need.has(5)) SV[5] = this.lfoG(v, 2, p2);
         if (need.has(6)) SV[6] = this.lfoG(v, 3, p3);
+        if (need.has(13)) SV[13] = this.lfoG(v, 4, p4);
+        if (need.has(14)) SV[14] = this.lfoG(v, 5, p5);
+        if (need.has(15)) SV[15] = this.lfoG(v, 6, p6);
         if (need.has(7)) SV[7] = ru >= 0 ? v.e3R * this.fall(ru, T.env3_release, T.env3_curve) : this.envK(3, t, v.e30);
         if (need.has(8)) SV[8] = ru >= 0 ? v.e4R * this.fall(ru, T.env4_release, T.env4_curve) : this.envK(4, t, v.e40);
         if (need.has(9)) SV[9] = clamp01(this.at("mod_wheel", x) + this.at("wheel_cc", x));
@@ -1422,7 +1480,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
       v.n++;
       if (v.glideN > 0) { v.freq *= v.glideR; if (--v.glideN === 0) v.freq = v.target; }
     }
-    v.pv = pv; v.pp = pp; v.pt = pt; v.pf = pf; v.pm = pm; v.fe = fe; v.p2 = p2; v.p3 = p3;
+    v.pv = pv; v.pp = pp; v.pt = pt; v.pf = pf; v.pm = pm; v.fe = fe; v.p2 = p2; v.p3 = p3; v.p4 = p4; v.p5 = p5; v.p6 = p6;
     if (n) v.lvl = G[n - 1];
     return n;
   }

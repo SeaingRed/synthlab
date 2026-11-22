@@ -130,3 +130,37 @@ def test_a_refused_generator_is_no_step(client):
     )
     assert post(client, "/song/start", {"style": "polka"}).status_code == 422
     assert _undo(client)["depth"] == 0
+
+
+def test_rolling_a_bass_switch_is_one_step_and_the_voices_still_answer(client):
+    use_song(client)
+    post(client, "/song/start", {"style": "dubstep", "seed": "2"})
+    started = copy.deepcopy(song(client))
+    ids = {t["name"]: t["id"] for t in started["tracks"]}
+    drop = next(s for s in started["sections"] if s["name"] == "Drop")
+    for name in ("Wobble", "Growl"):
+        gen = started["patterns"][drop["cells"][ids[name]]]["gen"]
+        assert gen["kind"] == "bass_switch"
+    # a voice rolled three times is one step (the take rule, a step a part:
+    # the other voice is another part, so it opens its own)
+    for name in ("Wobble", "Growl"):
+        for seed in ("11", "12", "13"):
+            r = post(
+                client,
+                "/song/gen",
+                {"track_id": ids[name], "kind": "again", "seed": seed},
+            )
+            assert r.status_code == 200
+        assert _undo(client)["undo"] == "generate: again"
+    now = song(client)
+    cells = {
+        name: now["patterns"][drop["cells"][ids[name]]]["cells"]
+        for name in ("Wobble", "Growl")
+    }
+    assert now != started
+    held = {n: {s for _p, s in c} for n, c in cells.items()}
+    assert held["Wobble"] and held["Growl"] and not held["Wobble"] & held["Growl"]
+    assert _undo(client)["depth"] == 3  # the starter, then a step a voice
+    post(client, "/song/undo")  # the growl's three rolls in one Ctrl+Z
+    post(client, "/song/undo")  # and the wobble's
+    assert song(client) == started

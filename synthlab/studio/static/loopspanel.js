@@ -13,15 +13,23 @@
 //   filter is a style rule (`#lp-filter`), outside the list, so a morph of
 //   the region shows the rows already filtered; the sort moves the rows
 //   after every swap. Search words are never kept (a reload shows all).
-// - ▶ (.lp-play): on the next bar line of what plays (S.nextBar), else at
-//   once — the take's audio when it is at the tempo playing (or nothing
-//   plays), else POST /loop/preview, whose X-Preview-Url is a render at
-//   that tempo (or the loop's own audio, made the first time). One
-//   audition at a time (transport.js's oneShot).
+// - ▷ listen (.lp-play): a quiet preview, never the transport — on the
+//   next bar line of what plays (S.nextBar), at half its level under it,
+//   else at once — the take's audio when it is at the tempo playing (or
+//   nothing plays), else POST /loop/preview, whose X-Preview-Url is a
+//   render at that tempo (or the loop's own audio, made the first time),
+//   played at X-Preview-Gain, the keys' level (keylevel.py). One at a
+//   time, a layer (transport.js's oneShot): the Loops page's deck stops
+//   it when it starts (loopdeck.js).
 // - A panel row drags onto Perform's grids: its Edit (notes) or Open
-//   (a beat) is pressed, as if clicked.
-// Budget: <= 150 code lines (the panel's state ~35, the filter
-// and sort ~50, ▶ in time ~30, the drag ~20).
+//   (a beat) is pressed, as if clicked (onto a launcher cell: slots.js).
+// - A row's double-click, or Enter on it (every Loops list), is its Edit
+//   (Open): its other actions are its right-click menu (menu.js). On the
+//   Loops page an Edit of a loop a launcher cell holds selects that cell
+//   instead (slots.js: the editor shows it, every edit saves to it).
+// Budget: <= 155 code lines (the panel's state ~35, the filter
+// and sort ~50, ▶ in time ~30, the drag ~20; 150 -> 155: Edit by a
+// double-click or Enter, and into the cell that holds the loop).
 
 (() => {
   "use strict";
@@ -98,7 +106,7 @@
     S.ensureCtx();
     const c = S.getCtx(), playing = S.isPlaying(), now = S.tempo();
     c.resume?.();
-    let url = btn.dataset.takeUrl;
+    let url = btn.dataset.takeUrl, db = 0; // a render at another tempo: X-Preview-Gain puts it at the keys' level, as its take
     const own = Number(btn.dataset.loopBpm) || 0;
     try {
       if (!url || (playing && own && now && Math.abs(own - now) > 0.01)) {
@@ -109,9 +117,12 @@
         const res = await S.send("/loop/preview", form, { refused: "That did not play." });
         if (!res) return;
         url = res.headers.get("X-Preview-Url");
+        db = Number(res.headers.get("X-Preview-Gain")) || 0;
       }
-      const buf = await S.fetchBuffer(url), src = c.createBufferSource();
-      src.buffer = buf; src.connect(S.getMaster());
+      const buf = await S.fetchBuffer(url), src = c.createBufferSource(), quiet = c.createGain();
+      // the keys' level (X-Preview-Gain), and half of it under what plays: a listen never fights the deck
+      quiet.gain.value = 10 ** (db / 20) * (S.isPlaying() ? 0.5 : 1);
+      src.buffer = buf; src.connect(quiet).connect(S.getMaster());
       const at = (S.isPlaying() && S.nextBar(c.currentTime, 0.05)) || c.currentTime;
       src.start(at);
       S.transport?.oneShot(url, src, buf.duration + (at - c.currentTime));
@@ -147,6 +158,27 @@
     if (root.dataset.loops !== "over" || !dock() || e.target.closest?.("#loops-dock, [popover], dialog, #ctx-menu")) return;
     toggle(false);
   }, true);
+  // ---- Edit: a row's double-click or Enter (its Open for a beat, an idea, a section) --------
+  // On the Loops page a loop a launcher cell holds is edited by SELECTING that cell (the one
+  // selection: the cell selected, else the one playing, else the first) — its menu's Edit, a
+  // drop on a grid and the palette's "Edit the newest loop" too; a loop no cell holds: /loop/edit
+  const edit = (row) => row?.querySelector(":scope > .lp-acts .lp-edit")?.click();
+  function cellOf(row) {
+    const name = row?.dataset.loopName, cells = name ? [...document.querySelectorAll(`#slots .sl-cell[data-loop="${CSS.escape(name)}"]`)] : [];
+    return cells.find((c) => c.getAttribute("aria-selected") === "true") || cells.find((c) => c.dataset.state === "playing") || cells[0];
+  }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest?.(".lp-row .lp-edit:not(.lp-scene)"), c = b && cellOf(b.closest(".lp-row"));
+    if (!c) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    c.querySelector(".sl-slot")?.click();
+  }, true); // (before htmx hears the button)
+  document.addEventListener("dblclick", (e) => {
+    if (!e.target.closest?.("button, a, input, summary")) edit(e.target.closest?.(".lp-row"));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey && e.target.matches?.(".lp-row")) { e.preventDefault(); edit(e.target); }
+  });
   let dragged = null;
   document.addEventListener("dragstart", (e) => {
     dragged = e.target.closest?.("#loops-panel .lp-row[data-drag-loop]") || null;

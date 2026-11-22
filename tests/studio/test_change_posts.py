@@ -56,6 +56,7 @@ ACTIONS = {
     "/project/import": "a file chosen",
     "/lab/upload": "a file chosen",
     "/fragment/pattern/import": "a file chosen",
+    "/fragment/sampler/sfz": "a file chosen",
 }
 
 

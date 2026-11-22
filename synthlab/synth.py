@@ -36,8 +36,11 @@ from .core import (
     osc,
     soft_clip,
 )
+from .granular import Settings as GrainSettings
 from .params import (
+    ENV_SYNC_TIMES,
     FILTER_TYPES,
+    GENERAL_LFOS,
     LFO_SHAPES,
     MOD_DESTINATIONS,
     MOD_RANGES,
@@ -47,9 +50,12 @@ from .params import (
     PITCH_ROUTE_ST,
     SYNC_CHOICES,
     SYNC_DIVISIONS,
+    osc3_on,
+    shapes_of,
     slot_active,
 )
 from .sampler import Settings as SamplerSettings
+from .spectral import Settings as SpectralSettings
 
 log = logging.getLogger(__name__)
 
@@ -156,8 +162,8 @@ def drift_cutoff(seed: int, amount: float) -> float:
 
 
 def drift_phase(seed: int, slot: int, copy: int) -> float:
-    """Oscillator `slot`'s (0 osc1, 1 osc2) start phase for unison copy
-    `copy`."""
+    """Oscillator `slot`'s (0 osc1, 1 osc2, 2 osc3) start phase for unison
+    copy `copy`."""
     return drift_u(seed, _DRIFT_PHASE_KEY + 16 * slot + copy)
 
 
@@ -186,13 +192,20 @@ _DRIVEN = ("ladder", "diode")
 
 
 def warp_of(p, slot: int):
-    """Oscillator `slot`'s (1, 2) warp as `core.osc` takes it, or None:
-    off, a shape it doesn't bend, or a synced osc2 (sync restarts it)."""
-    mode = getattr(p, f"osc{slot}_warp")
+    """Oscillator `slot`'s (1, 2, 3) warp as `core.osc` takes it, or None:
+    off, a shape it doesn't bend, or a synced osc2 (sync restarts it). Its
+    warps that are on, in order — (mode, amount), or with the second warp
+    on as well (mode, amount, mode2, amount2); the second alone is one
+    warp, the same samples as the first set to it."""
     shape = getattr(p, f"osc{slot}")
-    if mode == "off" or shape not in core.WARP_SHAPES or (slot == 2 and _synced(p)):
+    if shape not in core.WARP_SHAPES or (slot == 2 and _synced(p)):
         return None
-    return mode, getattr(p, f"osc{slot}_warp_amt")
+    out: tuple = ()
+    for part in ("warp", "warp2"):
+        mode = getattr(p, f"osc{slot}_{part}")
+        if mode != "off":
+            out += (mode, getattr(p, f"osc{slot}_{part}_amt"))
+    return out or None
 
 
 def _wt_table(p):
@@ -480,6 +493,110 @@ class Patch:
     # Set, it plays instead of sampler_sample / sampler_slices: a zone by
     # the note's key, velocity and round-robin strike. "" = one sample
     sampler_zones: str = ""
+    # --- the "granular" shape (synthlab/granular.py): the sampler's sample
+    # (its span and loop, root and key track) as a cloud of grains on the
+    # output clock. Read only while an oscillator is "granular", so every
+    # default is "no cloud" (render.KEY_ADDED_FIELDS keeps them out of its
+    # cache keys) ---
+    grain_pos: float = 0.0  # 0..1 across the region (a curve, a route target)
+    grain_size: float = 0.08  # seconds a grain lasts
+    grain_density: float = 20.0  # grains a second (at most 256 sounding)
+    grain_spray: float = 0.0  # 0..1 of the region: each grain's place, scattered
+    grain_pitch_spray: float = 0.0  # semitones either way, each grain its own
+    grain_shape: float = 0.0  # 0 a Hann window .. 1 flat with short fades
+    grain_dir: str = "forward"  # | "reverse" | "both" (each grain its own)
+    grain_scan: float = 0.0  # the position moving by itself: 1 = real time
+    # --- oscillator 3: a third waveform summed beside the first two, in
+    # every unison copy. Silent at level 0 (the default), which is the gate:
+    # nothing below is read until the level rises (a value, a curve or a
+    # route), so every older patch renders and keys as before. No sync and
+    # no cross FM: those stay osc2's ---
+    osc3: str = "saw"  # params.OSC3_SHAPES
+    osc3_level: float = 0.0
+    osc3_octave: int = 0
+    osc3_semi: int = 0  # semitones
+    osc3_detune: float = 0.0  # cents
+    osc3_warp: str = "off"
+    osc3_warp_amt: float = 0.0
+    # a second warp per oscillator (core.warp_twice): the phase the first
+    # warp made, bent again by its own mode and amount. "off" is the bypass
+    osc1_warp2: str = "off"
+    osc1_warp2_amt: float = 0.0
+    osc2_warp2: str = "off"
+    osc2_warp2_amt: float = 0.0
+    osc3_warp2: str = "off"
+    osc3_warp2_amt: float = 0.0
+    # each route slot's switch ("off" bypasses it: the slot keeps its
+    # source, target and amount but routes nothing) and the curve on its
+    # source (-1..1, `route_curve`; 0 = the source as it is)
+    mod1_on: str = "on"
+    mod2_on: str = "on"
+    mod3_on: str = "on"
+    mod4_on: str = "on"
+    mod5_on: str = "on"
+    mod6_on: str = "on"
+    mod7_on: str = "on"
+    mod8_on: str = "on"
+    mod9_on: str = "on"
+    mod10_on: str = "on"
+    mod11_on: str = "on"
+    mod12_on: str = "on"
+    mod1_curve: float = 0.0
+    mod2_curve: float = 0.0
+    mod3_curve: float = 0.0
+    mod4_curve: float = 0.0
+    mod5_curve: float = 0.0
+    mod6_curve: float = 0.0
+    mod7_curve: float = 0.0
+    mod8_curve: float = 0.0
+    mod9_curve: float = 0.0
+    mod10_curve: float = 0.0
+    mod11_curve: float = 0.0
+    mod12_curve: float = 0.0
+    # LFOs 4, 5 and 6 (route sources "lfo4".."lfo6"): general LFOs as 2
+    # and 3 are — rate, shape, sync, start phase, retrig / free, a drawing
+    lfo4_rate: float = 1.0
+    lfo4_shape: str = "sine"
+    lfo4_sync: str = "off"
+    lfo4_phase: float = 0.0
+    lfo4_mode: str = "retrig"
+    lfo4_draw: str = ""
+    lfo5_rate: float = 4.0
+    lfo5_shape: str = "sine"
+    lfo5_sync: str = "off"
+    lfo5_phase: float = 0.0
+    lfo5_mode: str = "retrig"
+    lfo5_draw: str = ""
+    lfo6_rate: float = 0.25
+    lfo6_shape: str = "sine"
+    lfo6_sync: str = "off"
+    lfo6_phase: float = 0.0
+    lfo6_mode: str = "retrig"
+    lfo6_draw: str = ""
+    # an envelope stage's time as a sync division (params.SYNC_DIVISIONS):
+    # "off" is its seconds; else `at_bpm` writes the division's seconds at
+    # the song's tempo into the time field just before rendering
+    filter_attack_sync: str = "off"
+    filter_decay_sync: str = "off"
+    filter_release_sync: str = "off"
+    env3_attack_sync: str = "off"
+    env3_decay_sync: str = "off"
+    env3_release_sync: str = "off"
+    env4_attack_sync: str = "off"
+    env4_decay_sync: str = "off"
+    env4_release_sync: str = "off"
+    # --- the "spectral" shape (synthlab/spectral.py): the sampler's sample
+    # (its span and loop, root and key track) resynthesised from its
+    # spectrum, time and pitch apart. Read only while an oscillator is
+    # "spectral" (render.KEY_ADDED_FIELDS keeps them out of its cache keys
+    # at these) ---
+    spectral_pos: float = 0.0  # 0..1 across the region (a curve, a route target)
+    spectral_scan: float = 1.0  # the read's speed: 1 as recorded, 0 frozen
+    spectral_timbre: float = 0.0  # semitones the spectral envelope moves
+    spectral_formants: str = "move"  # | "keep": the envelope stays as keys move
+    spectral_low: float = 0.0  # partials of the root cut below (0: none)
+    spectral_high: float = 512.0  # partials of the root kept up to (512: all)
+    spectral_transient: float = 0.0  # 0..1: attacks kept sharp when stretched
 
     def tweak(self, **kw) -> Patch:
         """Return a copy with parameters changed: pad.tweak(cutoff=800)."""
@@ -550,8 +667,10 @@ def synced_rate(division: str, bpm: float) -> float | None:
 
 
 def at_bpm(p: Patch, bpm: float) -> Patch:
-    """Resolve any synced LFO rate against `bpm`. A no-op for an unsynced
-    patch, so it is safe to call on every render path."""
+    """Resolve any synced LFO rate, and any envelope stage given as a
+    division (`ENV_SYNC_TIMES`: its seconds at `bpm`), against `bpm`. A
+    no-op for an unsynced patch, so it is safe to call on every render
+    path."""
     kw: dict[str, float] = {}
     rate = synced_rate(p.lfo_sync, bpm)
     if rate is not None:
@@ -559,10 +678,14 @@ def at_bpm(p: Patch, bpm: float) -> Patch:
     rate = synced_rate(p.filter_lfo_sync, bpm)
     if rate is not None:
         kw["filter_lfo_rate"] = rate
-    for k in (2, 3):  # the general LFOs
+    for k in GENERAL_LFOS:  # the general LFOs 2-6
         rate = synced_rate(getattr(p, f"lfo{k}_sync"), bpm)
         if rate is not None:
             kw[f"lfo{k}_rate"] = rate
+    for name in ENV_SYNC_TIMES:
+        beats = SYNC_DIVISIONS.get(getattr(p, f"{name}_sync"), 0.0)
+        if beats > 0:
+            kw[name] = beats * 60.0 / bpm  # seconds
     return replace(p, **kw) if kw else p
 
 
@@ -621,10 +744,13 @@ def lfo_free_phase(f0: float, k: int) -> float:
     return drift_u(drift_seed(f0), _LFO_FREE_KEY + k)
 
 
+_LFO_SOURCES = {f"lfo{k}": k for k in GENERAL_LFOS}
+
+
 def general_lfo(p: Patch, k: int, n: int, sr: int, f0: float | None) -> np.ndarray:
-    """General LFO `k` (1, 2, 3) over a note's `n` samples, -1..1. LFO 1 in
+    """General LFO `k` (1-6) over a note's `n` samples, -1..1. LFO 1 in
     an old shape is the call it always was (`core.lfo`); the new shapes and
-    LFO 2 / 3 are `core.lfo_ext` (LFO 1 always restarts at phase 0)."""
+    LFOs 2-6 are `core.lfo_ext` (LFO 1 always restarts at phase 0)."""
     if k == 1:
         shape, rate, phase, draw = p.lfo_shape, p.mod_lfo_rate, 0.0, p.lfo_draw
         if shape in LFO_SHAPES:
@@ -647,8 +773,8 @@ def _mod_source(p: Patch, src: str, n: int, sr: int, velocity, gate, duration, f
     0..1 (the envelopes, velocity, the wheel, aftertouch)."""
     if src == "lfo":
         return general_lfo(p, 1, n, sr, f0)
-    if src in ("lfo2", "lfo3"):
-        return general_lfo(p, int(src[3]), n, sr, f0)
+    if src in _LFO_SOURCES:  # LFOs 2-6
+        return general_lfo(p, _LFO_SOURCES[src], n, sr, f0)
     if src == "fenv":
         return _filter_env(p, n, sr, gate, duration)
     if src == "aenv":
@@ -685,6 +811,27 @@ def _fit_arrays(p: Patch, n: int) -> Patch:
     return p.tweak(**fit) if fit else p
 
 
+# how far a route's curve bends its source at +-1: the warp's bend
+# (core.warp_phase's k = 1 + 15 x amount), so the steepest is 16 x
+ROUTE_CURVE_K = 15.0
+
+
+def route_curve(s, c: float) -> np.ndarray:
+    """A route's source bent by its curve `c` (-1..1) before the amount:
+    the source's size |s| (up to 1) through a rational curve that keeps 0
+    at 0 and 1 at 1, its sign kept, so a bipolar LFO bends the same either
+    side of zero and a 0..1 envelope or velocity stays 0..1. `c` > 0 rises
+    early (k |s| / (1 + (k - 1) |s|)), `c` < 0 late (|s| / (k - (k - 1)
+    |s|): the first's inverse), k = 1 + 15 |c|. Only + - x / and a
+    comparison, so the live voice (voice-worklet.js `route`) computes the
+    same numbers; `_mod_routes` never calls it at 0."""
+    s = np.asarray(s, dtype=np.float64)
+    k = 1.0 + ROUTE_CURVE_K * abs(float(c))
+    a = np.minimum(np.abs(s), 1.0)
+    y = k * a / (1.0 + (k - 1.0) * a) if c > 0 else a / (k - (k - 1.0) * a)
+    return np.where(s < 0, -y, y)
+
+
 def _mod_routes(
     p: Patch,
     n: int,
@@ -711,8 +858,12 @@ def _mod_routes(
         src, dst, amt = (getattr(p, f"{slot}_{k}") for k in ("src", "dst", "amt"))
         if src not in sources:
             sources[src] = _mod_source(p, src, n, sr, velocity, gate, duration, f0)
+        s = sources[src]
+        c = float(getattr(p, f"{slot}_curve", 0.0))
+        if c != 0.0:  # (a curve of 0 is the source untouched, bit for bit)
+            s = route_curve(s, c)
         if dst == PITCH_ROUTE:
-            bend = amt * PITCH_ROUTE_ST * sources[src]
+            bend = amt * PITCH_ROUTE_ST * s
             pitch = bend if pitch is None else pitch + bend
             continue
         lo, hi = MOD_RANGES[dst]
@@ -726,7 +877,7 @@ def _mod_routes(
         b = np.asarray(getattr(p, dst), dtype=np.float64)
         clip_lo = min(lo, float(np.min(b)))
         clip_hi = max(hi, float(np.max(b)))
-        changes[dst] = np.clip(base + amt * (hi - lo) * sources[src], clip_lo, clip_hi)
+        changes[dst] = np.clip(base + amt * (hi - lo) * s, clip_lo, clip_hi)
     return (p.tweak(**changes) if changes else p), pitch
 
 
@@ -1009,6 +1160,9 @@ class Synth:
         shapes = (p.osc1, p.osc2) if p.osc2 else (p.osc1,)
         if native is None or any(s not in _STACK_SHAPES for s in shapes):
             return None
+        # oscillator 3 is the Python loop's (the kernel sums two)
+        if osc3_on(p):
+            return None
         # the oscillator extras (hard sync, a drifting start
         # phase) are the Python loop's: measured cheap enough there
         if _synced(p) or _drift(p) > 0:
@@ -1098,6 +1252,8 @@ class Synth:
         if np.any(np.asarray(p.pwm_depth) > 0):
             width = 0.5 + lfo(p.pwm_rate, n, "sine", sr) * p.pwm_depth * 0.45
 
+        # the shapes playing: osc1, osc2, and osc3 while its level is up
+        playing = shapes_of(p)
         # kwargs only the "fm" / "pluck" shapes read; others ignore them
         shape_kw = {
             "ratio": p.fm_ratio,
@@ -1105,15 +1261,21 @@ class Synth:
             "index_decay": p.fm_decay,
             "damping": p.pluck_damping,
             "bright": p.pluck_bright,
-            "table": _wt_table(p) if "wavetable" in (p.osc1, p.osc2) else p.wt_table,
+            "table": _wt_table(p) if "wavetable" in playing else p.wt_table,
             "pos": p.wt_pos,
             # a "noise" oscillator shape is coloured like the noise layer
             "color": p.noise_color,
         }
-        if "sampler" in (p.osc1, p.osc2):
+        if "sampler" in playing:
             shape_kw["sampler"] = SamplerSettings.of(p, velocity, rr)
             shape_kw["key_hz"] = key_hz
-        if "fm4" in (p.osc1, p.osc2):
+        if "granular" in playing:
+            shape_kw["granular"] = GrainSettings.of(p)
+            shape_kw["key_hz"] = key_hz
+        if "spectral" in playing:
+            shape_kw["spectral"] = SpectralSettings.of(p)
+            shape_kw["key_hz"] = key_hz
+        if "fm4" in playing:
             shape_kw.update(
                 fm4_algo=p.fm4_algo,
                 fm4_ratios=[getattr(p, f"fm4_ratio{k}") for k in (1, 2, 3, 4)],
@@ -1171,6 +1333,10 @@ class Synth:
         if o2 is not None:
             out = _plus(out, _times(p.osc2_level, o2))
 
+        if osc3_on(p):
+            o3 = self._osc3(p, freq, n, seed, width, drift_seed, shape_kw)
+            out = _plus(out, _times(p.osc3_level, o3))
+
         if np.any(np.asarray(p.sub_level) > 0):
             out = _plus(out, _times(p.sub_level, osc("sine", freq * 0.5, n, sr)))
 
@@ -1183,6 +1349,32 @@ class Synth:
                 ),
             )
         return out
+
+    def _osc3(self, p: Patch, freq, n: int, seed: int, width, drift_seed, shape_kw):
+        """Oscillator 3 of unison copy `seed`: a plain layer (no sync, no
+        cross FM), at its own octave, semitones and cents, its noise and
+        bursts seeded apart from osc1's / osc2's (seed + 200), its drifting
+        start phase its own (slot 2). Only `_osc_stack` calls it, and only
+        while `osc3_on`."""
+        f3 = (
+            freq
+            * 2.0**p.osc3_octave
+            * 2 ** ((100 * p.osc3_semi + p.osc3_detune) / 1200)
+        )
+        kw3 = {}
+        if p.osc3 in _PHASED and drift_seed is not None:
+            kw3["phase0"] = drift_phase(drift_seed, 2, seed)
+        return osc(
+            p.osc3,
+            f3,
+            n,
+            self.sr,
+            width=width,
+            seed=seed + 200,
+            warp=warp_of(p, 3),
+            **kw3,
+            **shape_kw,
+        )
 
     # -- chords ------------------------------------------------------------
     def chord(

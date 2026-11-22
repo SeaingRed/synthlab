@@ -622,7 +622,7 @@ html[data-motion="calm"] #audio-led.busy { animation: none; opacity: 0.7; }
 .panel { background: var(--bg-raised); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 12px 14px; margin: 0;
   container-type: inline-size; min-width: 0; overflow: clip; }
-.panel legend { padding: 0 6px; font-size: var(--fs-xs); letter-spacing: 0.14em;
+.panel legend { padding: 0 6px; font-size: var(--fs-xs); letter-spacing: var(--track-caps);
   text-transform: uppercase; color: var(--text-dim);
   display: flex; align-items: center; gap: 6px;
   border-bottom: 1px solid var(--line); padding-bottom: var(--s1);
@@ -897,6 +897,13 @@ html[data-sounds-compact] .sound-card {
   padding: var(--s2) var(--s1); text-align: center; }
 .macro + .macro { border-left: 1px solid var(--line); }
 .macro:not(.assigned) > :is(.macro-name, output) { opacity: 0.55; }
+/* no macro assigned yet: the rack is one line — each name and its
+   "assign" — not four dead dials; the first target brings the dials back */
+.macro-as-name { display: none; }
+.macro-rack:not(:has(.macro.assigned)) .macro { padding: 0 var(--s1); }
+.macro-rack:not(:has(.macro.assigned)) .macro > :is(.knob, output, .macro-what, .macro-name),
+.macro-rack:not(:has(.macro.assigned)) .macro-as-word { display: none; }
+.macro-rack:not(:has(.macro.assigned)) .macro-as-name { display: inline; white-space: nowrap; }
 .macro-name { font-size: var(--fs-s); color: var(--text); max-width: 100%; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 .macro > output { font-size: var(--fs-xs); color: var(--signal-text); }
@@ -1281,6 +1288,30 @@ html[data-embed] .keys-dock { display: none; }
 .arp-pop output { color: var(--signal-text); }
 .arp-pop[popover] { position-anchor: --arp-set; position-area: top span-right;
   position-try-fallbacks: flip-block, flip-inline; inset: auto; margin: 0 0 var(--s1); }
+/* the arp pattern's editor (fragments/arp_pattern.html): a popover of every
+   page anchored to whichever ▦ opened it (the grid arp's, the keys arp's
+   ⚙ row); a column a step, each value a small number field whose fill is
+   its share (velocity, gate, chance: --fill), a step off dimmed */
+.arp-pat[popover] { inset: auto; margin: var(--s1) 0; position-area: top span-right;
+  position-try-fallbacks: flip-block, flip-inline; width: max-content; max-width: calc(100vw - 32px); }
+.arp-pat:popover-open { display: grid; gap: var(--s2); }
+.ap-form { display: grid; gap: var(--s2); margin: 0; }
+.ap-head, .ap-set, .ap-slots { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.ap-head h3 { margin: 0; }
+.ap-plays { color: var(--text-dim); font-size: var(--fs-xs); }
+.ap-plays b { color: var(--accent-text); font-weight: inherit; }
+.ap-head .btn { margin-left: auto; }
+.ap-set label, .ap-slots label { display: inline-flex; align-items: center; gap: var(--s1); color: var(--text-dim); font-size: var(--fs-xs); }
+.ap-lane { border-collapse: collapse; font-size: var(--fs-xs); }
+.ap-lane th { color: var(--text-dim); font-weight: inherit; text-align: right; padding: 0 var(--s1); white-space: nowrap; }
+.ap-lane thead th { text-align: center; font-variant-numeric: tabular-nums; }
+.ap-lane thead th.ap-off { color: var(--text-faint); }
+.ap-lane td { padding: 1px; text-align: center; }
+.ap-lane .field { width: 4.2ch; min-width: 0; padding: 0 2px; text-align: center; font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield; }
+.ap-lane .field::-webkit-inner-spin-button { display: none; }
+.ap-lane .ap-bar { background-image: linear-gradient(to top, color-mix(in oklab, var(--accent), transparent 72%) var(--fill), transparent var(--fill)); }
+.ap-slot[data-filled] { color: var(--accent-text); box-shadow: inset 0 -2px 0 var(--accent); }
 /* a key the arp holds (piano.js `arped`): ringed in the accent while the
    arp plays it; the note sounding is lit as any (.down). No transition */
 .pkey.arped:not(.down) { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -1333,6 +1364,13 @@ html:is([data-keylayout="letters"], [data-keylayout="columns"]) .pkey.down::afte
 /* Play tools open over the page, above the whole dock at its right end —
    never over the keys, and their button never moves */
 .play-tools-btn:has(+ .play-tools:popover-open) { border-color: var(--accent); }
+/* "Pads ▴" (piano.html): the Loops page's Play opens from here — on that
+   page alone; lit while it is open (perform.js sets aria-expanded) */
+#view:not([data-view="perform"]) ~ .keys-dock .play-pads-btn { display: none; }
+/* on the Loops page the deck's Rec ▾ says where a take lands (one Rec): the
+   dock's copy of new | overdub | replace would only wrap its toolbar there */
+#view[data-view="perform"] ~ .keys-dock #key-how { display: none; }
+.play-pads-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-text); }
 .keys-dock { anchor-name: --keys-dock; }
 .play-tools { inset: auto; margin: 0 var(--s2) var(--s1) 0; position-anchor: --keys-dock;
   position-area: top; justify-self: end; width: min(760px, calc(100vw - 32px)); }
@@ -1463,7 +1501,7 @@ html[data-motion="calm"] .grid .playhead { display: none !important; }
 .tcluster { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   min-width: 0; border: none; border-top: 1px solid var(--line); margin: 0;
   padding: 8px 0 0; }
-.tcluster legend { padding: 0 6px 0 0; font-size: var(--fs-xs); letter-spacing: 0.14em;
+.tcluster legend { padding: 0 6px 0 0; font-size: var(--fs-xs); letter-spacing: var(--track-caps);
   text-transform: uppercase; color: var(--text-dim); }
 .tcluster:last-of-type { margin-left: auto; }
 
@@ -1695,28 +1733,53 @@ html[data-loops="pinned"] .perform-view { --loops-col: var(--loops-w); }
 .perform-view #perform-arrange { min-width: 0; }
 .perform-arrange .arrange-link { color: var(--accent-text); text-decoration: none; font-weight: 600; }
 .perform-arrange .arrange-link:hover { text-decoration: underline; }
-/* compact live strip: play, tempo, loop position, meter, volume */
-.perform-transport { display: flex; align-items: center; gap: 14px;
-  flex-wrap: wrap; padding: 8px 12px; margin-bottom: 12px;
+/* The deck (views/perform.html, loopdeck.js; loop-and-perform.md, "The
+   deck"): the Loops page's one transport — ■ ▶, the source (Loop | Scene |
+   Song), ⏺ Rec and its ▾, the bar meter, tempo, meter, key, level, the
+   part mutes and the editor's focus — on one line, a machined strip whose
+   lamps follow what plays. */
+.perform-transport { display: flex; align-items: center; gap: var(--s1) 12px;
+  flex-wrap: wrap; padding: 6px 12px; margin-bottom: 12px;
   background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--r-m); }
 .perform-transport .ptempo, .perform-transport .pvol {
   display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs);
   color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; }
-/* loop position: the launcher queues to the wrap, so seeing the wrap matters */
-/* Capped: with flex-grow and no ceiling the position bar ate every spare
-   pixel of the "compact live strip", pushing jam / meter / volume onto two
-   more wrapped rows and making a 40px strip 146px tall. */
-.loopbar { flex: 1 1 120px; min-width: 80px; max-width: 460px;
-  height: 10px; position: relative;
-  background: var(--bg-inset); border: 1px solid var(--line); border-radius: 3px;
-  /* four beat ticks: stopped, a bare track read as a broken slider rather
-     than as the loop position it is */
-  background-image: repeating-linear-gradient(to right,
-    var(--line) 0 1px, transparent 1px 25%); }
-.loopbar { container-type: inline-size; }
-.loopbar .playhead { position: absolute; top: 0; bottom: 0; left: 0; width: 2px;
-  background: var(--signal); display: block;
-  translate: calc(var(--phase, 0) * 100cqw); will-change: translate; }
+.deck-keys, .deck-rec { display: flex; align-items: center; gap: var(--s0); }
+.deck-keys > .btn-stop { min-width: calc(var(--h-m) * 1.1); }
+.deck-src > button { min-width: 4.1em; }
+.deck .play-cue { max-width: 20ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* playing, ▶'s lamp and the meter say so: the cue gives its room back */
+.deck .play-cue[data-state="playing"] { display: none; }
+/* the strip says "show" by its buttons: its legend is read, not drawn */
+.deck > .rack-focus > legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+/* (the cue's own words: transport.js reads data-plays-now) */
+.deck-says { display: none; }
+/* "make it a song": the Song source's, shown while it is the source */
+.deck:not([data-src="song"]) #deck-arrange { display: none; }
+.deck-rec-more { min-width: 1.6em; padding: 0 var(--s0); }
+.deck:has(#jam-rec[aria-pressed="true"]) .deck-rec-more { color: var(--danger-text); border-color: var(--danger); }
+.deck-rec-menu { min-width: 250px; gap: var(--s1); padding: var(--s2); }
+.deck-rec-menu > .menu-cap { font-size: var(--fs-2xs); color: var(--text-dim); }
+.deck-rec-menu > .seg { justify-self: start; }
+.deck-opts { display: flex; gap: var(--s1); }
+.deck-lands { font-size: var(--fs-2xs); min-height: 1.3em; }
+.deck-rec-menu > #jam-rec { justify-self: start; }
+/* the bar meter: a lamp a bar, lit to the bar playing, that one pulsing on
+   its beat (--pulse, loopdeck.js: 1 under calm motion); a count-in's beats
+   in the record red. A display pressed into the strip (.module-well) */
+.deck-meter { display: flex; gap: 3px; align-items: center; flex: none;
+  height: 18px; padding: 0 6px; box-shadow: var(--well); }
+.deck-meter > i { width: 13px; height: 8px; border-radius: 1.5px; box-shadow: var(--bevel-in);
+  background: color-mix(in oklab, var(--signal), var(--bg-inset) 86%); }
+.deck-meter > i[data-s="off"] { display: none; }
+.deck-meter > i[data-s="past"] { background: color-mix(in oklab, var(--signal), var(--bg-inset) 42%); }
+.deck-meter > i[data-s="now"] { opacity: var(--pulse, 1);
+  background: radial-gradient(ellipse at 50% 35%, color-mix(in oklch, var(--signal), var(--white) 60%), var(--signal) 70%);
+  box-shadow: 0 0 calc(var(--glow-r) * 0.8) var(--signal), 0 0 calc(var(--glow-r) * 2) color-mix(in oklch, var(--signal), transparent 55%); }
+.deck-meter > i[data-s="count"] { background: var(--danger);
+  box-shadow: 0 0 calc(var(--glow-r) * 0.8) var(--danger); }
+.deck-pos { min-width: 6.5ch; font-size: var(--fs-xs); color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.deck-key { max-width: 11ch; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-xs); color: var(--text); white-space: nowrap; }
 .perform-view #analysis { display: none; }
 .perform-pads { display: grid; gap: 12px; align-content: start;
   grid-template-columns: repeat(4, 1fr); }
@@ -1739,7 +1802,7 @@ html:not([data-typeto="pads"]) :is(.perform-pads .pad-key, .pfx kbd) { color: va
   align-content: start; min-width: 0; }
 #drumxy { position: relative; width: min(100%, 460px); aspect-ratio: 1 / 1; height: auto;
   margin-inline: auto; background: var(--bg-inset);
-  border: 1px solid var(--line); border-radius: var(--radius); cursor: crosshair;
+  border: 1px solid var(--line); border-radius: var(--r-xs); cursor: crosshair;
   touch-action: none; margin-bottom: 6px;
   background-image:
     linear-gradient(color-mix(in oklab, var(--line), transparent 60%) 1px, transparent 1px),
@@ -2837,8 +2900,11 @@ html[data-motion="calm"] .song-playhead { display: none; }
 }
 
 /* ---------- 9d-b. XY performance pad ---------- */
-.xy-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s15) var(--s2);
+.xy-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s1) var(--s2);
   margin-bottom: var(--s2); min-width: 0; }
+/* (the name and ⊕ are the head's strip; the axes start the line under it) */
+#xypad-panel .xy-axes { flex: 1 1 100%; }
+#xypad-panel #xy-center { margin-left: auto; }
 #xypad:focus-visible, #drumxy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .xy-axes { display: flex; flex-wrap: wrap; gap: var(--s2); min-width: 0; }
 .xy-axes label { display: flex; align-items: center; gap: var(--s1); min-width: 0;
@@ -2855,7 +2921,7 @@ html[data-motion="calm"] .song-playhead { display: none; }
 /* square, capped: equal x/y travel reads as equal measures */
 #xypad { position: relative; width: min(100%, 320px); aspect-ratio: 1 / 1; height: auto;
   margin-inline: auto; background: var(--bg-inset);
-  border: 1px solid var(--line); border-radius: var(--radius); cursor: crosshair;
+  border: 1px solid var(--line); border-radius: var(--r-xs); cursor: crosshair;
   touch-action: none; margin-bottom: 6px;
   /* faint quarter-tick layer tiles every 25% of the box, landing lines at
      25%, 50% and 75% (0%/100% coincide with the border); the strong layer
@@ -3013,6 +3079,16 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
 .sampler-svg .sw-start, .sampler-svg .sw-end { stroke: var(--accent); }
 .sampler-svg .sw-slice { stroke: var(--text); stroke-dasharray: 3 3; }
 .sampler-svg .sw-rev { stroke: var(--accent); }
+/* the granular cloud (samplerview.cloud): the spray's reach, one grain's
+   read from the position, the position's line */
+.sampler-svg .sw-spray { fill: color-mix(in oklch, var(--text), transparent 86%); }
+.sampler-svg .sw-grain { fill: color-mix(in oklch, var(--accent), transparent 50%); }
+.sampler-svg .sw-pos { stroke: var(--text); }
+/* the spectral read (samplerview.scan): what the scan crosses in a second
+   from the position, dashed when it runs backwards */
+.sampler-svg .sw-scan { fill: color-mix(in oklch, var(--accent), transparent 60%); }
+.sampler-svg .sw-back { stroke: var(--accent); stroke-dasharray: 3 2; stroke-width: 1;
+  vector-effect: non-scaling-stroke; }
 /* a slice start's marker (layout.js drags it): a wide grab strip, a thin line */
 .sampler-wave { position: relative; }
 .slice-mark { position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -6px;
@@ -3262,7 +3338,11 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
 .lp-pick .seg button { font-size: var(--fs-xs); white-space: nowrap; }
 /* open, a menu takes a line of its own under the row's actions: nothing it holds
    stretches the buttons beside it */
-.lp-acts { flex-wrap: wrap; align-items: center; }
+/* a row's actions are its right-click menu's (menu.js reads them here):
+   never drawn, in every Loops list */
+.lp-row > .lp-acts { display: none; }
+.lp-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.lp-row { cursor: default; user-select: none; } /* (a double-click edits: it selects no word) */
 .lp-pick[open] { flex-wrap: wrap; }
 .lp-list .lp-q[open] { flex-basis: 100%; order: 9; }
 .lp-all { flex: none; }
@@ -3272,9 +3352,6 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
   text-overflow: ellipsis; line-height: 1.25; }
 :is(.cd-loops, .kt-bin) .lp-name small { display: block; overflow: hidden; text-overflow: ellipsis;
   color: var(--text-dim); }
-.lp-edit-note { display: flex; align-items: center; gap: var(--s15); margin: 0 0 var(--s1);
-  font-size: var(--fs-s); color: var(--text); }
-.lp-edit-note .lp-done { margin-inline-start: auto; }
 /* a row's ★, its kind, its tags (any Loops list); ▶ asking the server for
    its audio (a render the first time) */
 .lp-star[aria-pressed="true"] { color: var(--accent-text); }
@@ -3284,6 +3361,10 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
   border-radius: var(--r-pill); color: var(--text-dim); }
 .lp-tag[aria-pressed="true"] { color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent); }
 .lp-play[aria-busy="true"] { opacity: .6; cursor: progress; }
+/* ▷ listen: hollow — a quiet preview over what plays, never a transport
+   key (the Loops page's deck is the one ▶) */
+.btn.lp-play.listen { color: var(--signal-text); font-size: var(--fs-xs); }
+.btn.lp-play.listen:hover { color: var(--signal-text); border-color: color-mix(in oklab, var(--signal), var(--line-ctl) 40%); }
 .lp-roll.lp-steps path { stroke-width: 0.9; }
 
 /* ---------- 14c. The Loops panel (views/perform.html
@@ -3337,23 +3418,21 @@ html[data-alive] .panel::before, html[data-arriving] .panel::before { will-chang
 .lp-none { display: none; padding: var(--s2); }
 #loops-dock[data-none] .lp-none { display: block; }
 .lp-body > .kt-lane { margin-top: auto; padding: var(--s1); border-top: 1px solid var(--line); }
-/* a row: ▶, its roll, its name over its detail, ★ — then its tags, when it
-   has any, and its actions, each on a line of its own under them */
+/* a row: ▷, its name over its facts, ★ — nothing else is drawn: every
+   other action is its right-click menu (loop_rows.html: the controls are
+   there, `.lp-acts`, never shown). One tab stop: Enter edits, the Menu
+   key opens its menu (loopspanel.js) */
 .lp-panel-list { flex-direction: column; overflow: visible; gap: 1px; }
-.lp-panel-list > .lp-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto;
-  grid-template-areas: "play roll name star" "tags tags tags tags" "acts acts acts acts";
-  align-items: center; gap: var(--s0) var(--s1); flex: none; padding: var(--s1); }
+.lp-panel-list > .lp-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "play name star"; align-items: center; gap: 0 var(--s1); flex: none;
+  padding: var(--s0) var(--s1); }
 .lp-panel-list > .lp-row:hover { border-color: var(--line-strong); }
 .lp-panel-list .lp-play { grid-area: play; }
-.lp-panel-list .lp-roll { grid-area: roll; width: 48px; }
 .lp-panel-list .lp-name { grid-area: name; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; line-height: 1.25; font-size: var(--fs-xs); }
 .lp-panel-list .lp-name small { display: block; overflow: hidden; text-overflow: ellipsis; color: var(--text-dim);
   font-size: var(--fs-2xs); }
 .lp-panel-list .lp-star { grid-area: star; }
-.lp-panel-list .lp-tags { grid-area: tags; }
-.lp-panel-list .lp-acts { grid-area: acts; justify-content: flex-end; flex-wrap: wrap; }
-.lp-panel-list > .lp-row.lp-editing .lp-name { grid-column: roll / star; }
 .lp-panel-list > .lp-row[draggable="true"] { cursor: grab; }
 /* a row dragged over Perform's grids: the one it opens on lights */
 html[data-lp-drag="notes"] .perform-view #transport,
@@ -3697,10 +3776,10 @@ details[open] > .pop { animation: pop-drop var(--t-med) var(--ease); }
    under the button that opens it (`popovertarget` makes that button its
    implicit anchor), flipped where there is no room; Esc and a click away
    are the browser's, and menu.js's arrows walk its rows. Drawn as .pop */
-:is(.pt-menu-panel, .row-menu-panel, .reset-panel, .macro-assign > form)[popover] {
+:is(.pt-menu-panel, .row-menu-panel, .reset-panel, .macro-assign > form, .deck-rec-menu)[popover] {
   inset: auto; margin: var(--s1) 0 0; position-area: bottom span-right;
   position-try-fallbacks: flip-block, flip-inline; }
-:is(.pt-menu-panel, .row-menu-panel, .reset-panel, .macro-assign > form)[popover]:not(:popover-open) { display: none; }
+:is(.pt-menu-panel, .row-menu-panel, .reset-panel, .macro-assign > form, .deck-rec-menu)[popover]:not(:popover-open) { display: none; }
 .menu { display: grid; gap: 1px; min-width: 180px; padding: var(--s1); margin: 0; list-style: none; }
 .menu-item { display: flex; align-items: center; gap: var(--s2); width: 100%; box-sizing: border-box;
   min-height: var(--h-m); padding: 0 var(--s2); font: inherit; font-size: var(--fs-s);
@@ -4286,6 +4365,16 @@ select.field { padding-right: 20px; }
 :where(#patch, .patch-panel) .param > input[type="range"]:not(.knob) { width: 100%; min-width: 0; }
 :where(#patch, .patch-panel) .param > select { grid-column: 2 / 4; min-width: 0; }
 :where(#patch, .patch-panel) .param > .seg { grid-column: 2 / -1; justify-self: start; flex-wrap: wrap; max-width: 100%; }
+/* an envelope time with its sync division (param_row.html): the select
+   after the read-out; while it names a division the time stands back —
+   at_bpm writes the division's seconds over it */
+:where(#patch, .patch-panel) .param:has(> select.env-sync):not(.param-knob) {
+  grid-template-columns: minmax(60px, 7.5em) minmax(0, 1fr) max-content max-content var(--h-s); }
+:where(#patch, .patch-panel) .param > select.env-sync { grid-column: auto; font-size: var(--fs-2xs);
+  padding-inline: var(--s1) var(--s4); max-width: 9ch; }
+:where(#patch, .patch-panel) .param-knob > select.env-sync { order: 4; justify-self: center; }
+:where(#patch, .patch-panel) .param:has(> select.env-sync option:checked:not([value="off"])) > input[type="range"] { opacity: 0.4; }
+:where(#patch, .patch-panel) .param:has(> select.env-sync option:checked:not([value="off"])) > output { color: var(--text-faint); }
 :where(#patch, .patch-panel) .param > .seg > label { text-transform: none; letter-spacing: 0; color: var(--text-dim); }
 :where(#patch, .patch-panel) .param > .seg > label:has(:checked) { color: var(--text); }
 /* (a script or a test that clicks the radio itself must reach it) */
@@ -4294,6 +4383,16 @@ select.field { padding-right: 20px; }
 :where(#patch, .patch-panel) .param output { min-width: 4.5ch; }
 :is(#patch .panel, #view .patch-panel) > .subhead { flex: 1 1 100%; }
 :where(#patch, .patch-panel) .subhead { margin: var(--s15) 0 0; }
+/* a section at rest (bench.js 4): the engine hears none of its rows, so it
+   is its heading alone — a mark before the name, the rows a click away */
+[data-rested] { display: none !important; }
+[data-rest] { cursor: pointer; }
+[data-rest]:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+h4.subhead[data-rest]::before, legend[data-rest] > .panel-name::before { content: "▾"; width: 1em;
+  color: var(--text-faint); font-size: var(--fs-2xs); }
+h4.subhead[data-rest="folded"]::before, legend[data-rest="folded"] > .panel-name::before { content: "▸"; }
+:is(h4.subhead, legend)[data-rest="folded"], legend[data-rest="folded"] > .panel-name { color: var(--text-faint); }
+#view fieldset.patch-panel > legend[data-rest="folded"] { margin-bottom: 0; }
 :where(#patch, .patch-panel) .panel-viz { flex: 1 1 100%; }
 /* a knob cell: the dial, its engraved name, its value */
 :where(#patch, .patch-panel) .param-knob { flex: 0 0 20%; grid-template-columns: minmax(0, 1fr); justify-items: center;
@@ -4411,11 +4510,22 @@ select.field { padding-right: 20px; }
   pointer-events: none; }
 .pb-cables .cable.neg path { stroke-dasharray: 5 3; }
 .pb-cables .cable.drag path { stroke-dasharray: 2 3; opacity: 0.7; }
+.pb-cables .cable.off { opacity: 0.3; } /* a bypassed route: its lead stays, faint */
 .pb-cables text { font-size: var(--fs-2xs); fill: var(--cable); text-anchor: middle;
   paint-order: stroke; stroke: var(--bg-inset); stroke-width: 3px; font-variant-numeric: tabular-nums; }
-/* a route: lamp, source, target, amount, its value, invert, unplug */
+/* a route: its lamp (the switch), source, target, amount, its value, the
+   source's curve, its value, invert, unplug */
 .route { flex: 1 1 100%; display: grid; align-items: center; gap: 0 var(--s1); min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.25fr) auto 6ch auto auto; min-height: var(--h-l); }
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.25fr) auto 6ch auto auto auto;
+  min-height: var(--h-l); }
+/* the switch: a power key, as an FX unit's — two radios in one cell, of
+   which only the one to press shows (the other stays focusable: the arrows
+   step the group); the lamp is lit while the route plays */
+.route-sw { display: inline-grid; width: 18px; height: 18px; border-radius: var(--r-round); }
+.route-sw > label { grid-area: 1 / 1; display: grid; place-items: center; cursor: pointer; }
+.route-sw > label > input { position: absolute; opacity: 0; pointer-events: none; }
+.route-sw > label:has(:checked) { opacity: 0; pointer-events: none; }
+.route-sw:has(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 1px; }
 :where(#patch, .patch-panel) .route > .param { display: contents; }
 :where(#patch, .patch-panel) .route > .param > * { order: 0; }
 :where(#patch, .patch-panel) .route > .param > label { position: absolute; width: 1px; height: 1px; overflow: hidden;
@@ -4423,12 +4533,19 @@ select.field { padding-right: 20px; }
 :where(#patch, .patch-panel) .route > .param > select { grid-column: auto; }
 :where(#patch, .patch-panel) .route > .param > .curve-spacer { display: none; }
 :where(#patch, .patch-panel) .route > .param > output { justify-self: stretch; text-align: right; }
-.route:not(:has(select[name$="_src"] option[value="none"]:checked)) .route-led {
+/* the curve is a small knob (.knob-s) read by its arc (from the middle:
+   0 is straight) — its number would take the target's room */
+:where(#patch, .patch-panel) .route > .param > output[for$="_curve"] { display: none; }
+.route:not(:has(select[name$="_src"] option[value="none"]:checked)):not(:has([name$="_on"][value="off"]:checked)) .route-led {
   background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 /* an unplugged route: its controls stand back, its read-out and its ± ✕
-   are the faint tone (text dimmed by an opacity reads 1.9:1) */
-.route:has(select[name$="_src"] option[value="none"]:checked) > .param:not(:first-of-type) > :is(select, input) { opacity: 0.4; }
-.route:has(select[name$="_src"] option[value="none"]:checked) > .param:not(:first-of-type) > output,
+   are the faint tone (text dimmed by an opacity reads 1.9:1); a bypassed
+   one (its switch off) the same, all but the switch */
+.route:has(select[name$="_src"] option[value="none"]:checked) > .param:not(.route-power, :has([name$="_src"])) > :is(select, input) { opacity: 0.4; }
+.route:has([name$="_on"][value="off"]:checked) > .param:not(.route-power) > :is(select, input) { opacity: 0.4; }
+.route:has([name$="_on"][value="off"]:checked) > .param:not(.route-power) > output,
+.route:has([name$="_on"][value="off"]:checked) > .btn,
+.route:has(select[name$="_src"] option[value="none"]:checked) > .param:not(.route-power, :has([name$="_src"])) > output,
 .route:has(select[name$="_src"] option[value="none"]:checked) > .btn { color: var(--text-faint); }
 
 /* twelve routes — slots 5-12 stand only while they
@@ -4508,8 +4625,16 @@ select.field { padding-right: 20px; }
    rubber sleeve, the signal colour's core and a sheen on its top, with a
    soft shadow; its plugs a barrel and a collar; each module a socket a side */
 .fx-units { position: relative; }
-.fx-units[data-wired] { row-gap: var(--s4); padding-inline-start: var(--s4); }
-.fx-units[data-wired] > .cable { visibility: hidden; width: 34px; }
+.fx-units { --fx-gap: 22px; --fx-gutter: 24px; }
+/* (one gap between two units, beside or below. The in jack stands in the
+   rack's left gutter, so every row of units starts on one left edge; the
+   out jack and its lead are one gap wide, so they end the last unit's row) */
+.fx-units[data-wired] { row-gap: var(--fx-gap); padding-inline-start: var(--fx-gutter); }
+.fx-units[data-wired] > .cable { visibility: hidden; width: calc(var(--fx-gap) + 2px); }
+.fx-units[data-wired] > .fx-io { width: 10px; }
+.fx-units[data-wired] > .fx-io:not(:last-child) { margin-inline-start: calc(0px - var(--fx-gutter)); }
+.fx-units[data-wired] > .fx-io:not(:last-child) + .cable { width: 16px; }
+.fx-units[data-wired] > .cable:has(+ .fx-io:last-child) { width: 14px; }
 .fx-wires { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;
   pointer-events: none; z-index: 1;
   filter: drop-shadow(0 2px 1.5px color-mix(in oklch, var(--black), transparent 55%)); }
@@ -4536,6 +4661,22 @@ select.field { padding-right: 20px; }
   margin: 0; min-height: var(--h-s); }
 .fx-unit strong { font-size: var(--fs-xs); font-weight: var(--fw-b); letter-spacing: var(--track-caps);
   text-transform: uppercase; }
+.fx-unit > header > strong { margin-right: auto; }
+.fx-power { min-height: 18px; width: 18px; min-width: 18px; }
+.fx-power > .led { --led: var(--signal); margin: 0; }
+/* (a lamp, not a latched key: lit is the unit sounding — no pressed tint) */
+.btn.fx-power[aria-pressed] { background: none; border-color: transparent; box-shadow: none; }
+/* bypassed: the unit keeps its place and its settings, drawn at rest */
+.fx-unit[data-off] { background: none; border-style: dashed; }
+.fx-unit[data-off] :is(.fx-knobs, strong) { filter: saturate(0); color: var(--text-faint); }
+.fx-unit[data-off] .fx-param > output { color: var(--text-faint); }
+/* its band (full / lows / mids / highs / mid / side): a small select by
+   the name, quiet at full, lit in the signal's colour on a part */
+.fx-band { flex: none; width: auto; min-height: 18px; padding-block: 0; font-size: var(--fs-2xs);
+  color: var(--text-dim); }
+.fx-band:has(option:checked:not([value="full"])) { color: var(--signal-text); border-color: var(--signal); }
+/* the convolution's impulse: a clip's name, cut short in its knob's place */
+.fx-ir > select { max-width: 18ch; }
 .fx-acts { display: inline-flex; opacity: 0.55; }
 .fx-unit:is(:hover, :focus-within) .fx-acts { opacity: 1; }
 .fx-acts .btn { min-height: 18px; width: 18px; min-width: 18px; }
@@ -4612,16 +4753,22 @@ fieldset:has(> .fx-units > .fx-none) > .fx-units { flex: 1 1 10em; min-width: 0;
   #view[data-view="editor"] :is(.macro-rack, #xypad-panel, .bass-module, .sub-module) { margin: 0; padding: var(--s1) var(--s2) var(--s2); }
   #view[data-view="editor"] .perform-tools-body { gap: 0; margin: 0; }
   #view[data-view="editor"] .macro-rack { overflow: visible; } /* (its assign form hangs below it) */
-  #view[data-view="editor"] .bass-module + .sub-module { border-top: 1px solid var(--line); }
+  /* a seam is the foot of the module over it (as a panel's is), never the
+     top of the one under: every head then stands at one height */
+  #view[data-view="editor"] .bass-module:has(+ .sub-module) { border-bottom: 1px solid var(--line); }
+  #view[data-view="editor"] :is(.macro-rack, .bass-module, .sub-module) > .module-head { margin-bottom: var(--s1); }
+  /* (Perform tools is a place, not a box: Bass check's edges) */
+  #view[data-view="editor"] > .perform-tools { border-top: 0; border-right: 0; border-radius: 0; }
   .module-head .summary-sub { text-transform: none; letter-spacing: 0; }
   #view[data-view="editor"] .bass-module #bass-panels { margin: 0; }
   #view #patch.panels { column-gap: 0; column-rule: 1px solid var(--line); }
   #view :is(#patch .panel, #view .patch-panel) { margin: 0; padding: var(--s1) var(--s2) var(--s2); border-bottom: 1px solid var(--line); }
-  #view :is(#patch .panel, #view .patch-panel) > legend { padding: 0 0 var(--s0); margin-bottom: var(--s0); border-bottom: 0; }
+  #view :is(#patch .panel, #view .patch-panel) > legend { padding: 0; margin-bottom: var(--s1); border-bottom: 0; }
   #view .fx-rack { gap: 0; }
   #view .fx-scope { padding: var(--s1) var(--s2) var(--s2); }
   #view .fx-scope + .fx-scope { border-left: 1px solid var(--line); }
-  #view .fx-scope > legend { border-bottom: 0; margin: 0; }
+  #view .fx-scope > legend { border-bottom: 0; margin: 0 0 var(--s1); padding: 0; }
+  #view .fx-scope:has(> .fx-units > .fx-none) > legend { margin: 0; }
   #view #xypad-panel { border-left: 1px solid var(--line); }
   #view #dock-filter { width: 100%; margin: 0 0 var(--s1); background: var(--bg-inset);
     border: 1px solid var(--line-strong); border-radius: var(--r-s); padding: 0 var(--s2); }
@@ -4718,9 +4865,30 @@ fieldset:has(> .fx-units > .fx-none) > .fx-units { flex: 1 1 10em; min-width: 0;
   #view[data-view="editor"] > :is(#fx-rack, .rack) { border-left: 1px solid var(--line); }
   #view[data-view="editor"] > #fx-rack { display: flex; flex-direction: column; border-bottom: 0; }
   #view[data-view="editor"] > #patch { border-bottom: 0; }
-  #view[data-view="editor"] .fx-scope + .fx-scope { border-left: 0; border-top: 1px solid var(--line); }
+  #view[data-view="editor"] .fx-scope + .fx-scope { border-left: 0; }
+  #view[data-view="editor"] .fx-scope:has(+ .fx-scope) { border-bottom: 1px solid var(--line); }
   #view[data-view="editor"] .perform-tools-body { grid-template-columns: minmax(0, 1fr); }
-  #view[data-view="editor"] #xypad-panel { border-left: 0; border-top: 1px solid var(--line); }
+  #view[data-view="editor"] #xypad-panel { border-left: 0; }
+  #view[data-view="editor"] .macro-rack { border-bottom: 1px solid var(--line); }
+  /* the pedalboard in a column: two units a row, each half the rack, on
+     the rack's own left edge; a unit too narrow for that takes a row */
+  #view[data-view="editor"] > #fx-rack .fx-units[data-wired] > .fx-unit {
+    flex: 1 1 calc(50% - var(--fx-gap) - 1px); max-width: calc(50% - var(--fx-gap) - 1px); min-width: 130px;
+    padding-inline: var(--s1); }
+  /* (three dials a row in a half-rack unit, whatever the density) */
+  #view[data-view="editor"] > #fx-rack .fx-units[data-wired] .fx-knobs { gap: var(--s0) 0; }
+  #view[data-view="editor"] > #fx-rack .fx-units[data-wired] .fx-param:not(.fx-pattern, .fx-choice) { flex: 0 0 33.33%; min-width: 0; }
+  /* an empty rack there is its head and the one-press suggestion: one line */
+  #view[data-view="editor"] > #fx-rack .fx-units:has(> .fx-none) > .fx-io { display: none; }
+  #view[data-view="editor"] > #fx-rack .fx-units > .fx-none { font-size: 0; }
+  #view[data-view="editor"] > #fx-rack fieldset:has(> .fx-units > .fx-none) > .fx-units { flex: 0 1 auto; }
+  /* (a half-rack unit's head: its name gives way, and the two move keys
+     show under the hand — the unit's right click lists them too) */
+  #view[data-view="editor"] > #fx-rack .fx-units[data-wired] > .fx-unit > header { gap: var(--s0); }
+  #view[data-view="editor"] > #fx-rack .fx-units[data-wired] > .fx-unit > header > strong { min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #view[data-view="editor"] > #fx-rack .fx-units[data-wired] > .fx-unit:not(:hover, :focus-within)
+    .fx-acts > [data-menu^="Move"] { display: none; }
 }
 
 /* (a knob under a finger is section 9f's.) Spelt with "hover: none" first
@@ -5412,6 +5580,21 @@ html[data-ghosts="off"] .roll .cell.ghost { --ghost: none; }
 .grid.roll .gridrow:not(.sliderow) .cell.nudged:checked { position: relative; z-index: 1;
   translate: calc(var(--mx, 0px) + var(--nudge) * var(--step-w)) var(--my, 0);
   box-shadow: inset 2px 0 0 var(--signal); }
+/* each note's own feel (`note_feel`, a take as played: notefeel.marks): its
+   start cell off its step line (`--fs`, a share of the cell), its last cell
+   silent past where it was let go (`--fe`: that share of the cell painted as
+   the roll, a background layer — no clip, no layer of its own), let go past
+   the line: the end handle in the signal colour. Classes and properties on
+   the cells the grid has: no element per note. (Measured on a 16-bar
+   chromatic grid of 6,400 cells, 177 felt notes: test_take_feel.py) */
+.grid.roll .gridrow:not(.sliderow) .cell.felt-s:checked { position: relative; z-index: 1;
+  translate: calc(var(--mx, 0px) + var(--fs, 0) * 100%) var(--my, 0);
+  box-shadow: inset 2px 0 0 var(--signal); }
+.grid.roll .gridrow:not(.sliderow) .cell.felt-e:checked {
+  background: linear-gradient(to left, var(--roll-bg) calc(var(--fe, 0) * 100%), transparent 0),
+    linear-gradient(180deg, color-mix(in oklch, var(--accent), var(--white) 24%), var(--accent) 45%,
+      color-mix(in oklab, var(--accent), var(--bg) 24%)); }
+.grid.roll .gridrow:not(.sliderow) .cell.felt-past:checked { border-right-color: var(--signal); }
 /* (carried notes are not what the pointer is over: the step beneath them is).
    `.carrying` is roll.js's class for a move under way — never
    `.roll[style*="--mx"]`: an ancestor's [style] in a selector made EVERY
@@ -5972,6 +6155,8 @@ input[type="range"]:is(:hover, :focus-visible, :active) {
 .hub-make:has([name="target"][value="beat"]:checked) .hub-opts-beat,
 .hub-make:has([name="target"][value="notes"]:checked) .hub-opts-notes,
 .hub-make:has([name="target"][value="sound"]:checked) .hub-opts-sound { display: flex; }
+/* → Chop keys: its own row, whatever the target (its button posts /hub/chop) */
+.hub-make .hub-opts.hub-chop { display: flex; padding-top: var(--s15); border-top: 1px dashed var(--line); }
 .hub-opts > label:not(.param-knob, .hub-check) { display: grid; gap: 2px; font-size: var(--fs-2xs);
   color: var(--text-dim); }
 .hub-sound { max-width: 28ch; }
@@ -6238,6 +6423,32 @@ input[type="range"].knob.fader {
   border-color: transparent; background: transparent; box-shadow: none; }
 .pattern-tools .pt-group > :is(.btn, .pt-menu > .btn):not(:disabled):hover {
   background: color-mix(in oklab, var(--text), transparent 90%); }
+/* Perform's toolbars (the note grid's, the drum rack's): one line — what a
+   hand reaches for while drawing, undo and Tools ▾ at the right end — and
+   the grid's length and steps in it (a fieldset whose legend the bars'
+   label already says: read, not drawn) */
+.pattern-tools > .pt-end { margin-left: auto; }
+.pattern-tools > .tcluster { flex-wrap: nowrap; gap: var(--s1); margin: 0; padding: 0; border: 0; }
+.pattern-tools > .tcluster > legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.pattern-tools > .tcluster .label-text, .pattern-tools > .tcluster label { font-size: var(--fs-xs); color: var(--text-dim); }
+/* Tools ▾: the rest of a toolbar, a row a group — its caption, then its
+   buttons, one inset well as a toolbar's group is — opening leftwards under
+   its button at the toolbar's right end */
+/* (spelt .pattern-tools .pt-more: the menu-popover rule's :is() weighs a
+   class and an element; a short window puts it above its button) */
+.pattern-tools .pt-more[popover] { position-area: bottom span-left;
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  max-height: calc(100dvh - 2 * var(--s2)); overflow: auto; overscroll-behavior: contain; }
+.pt-more:popover-open { display: grid; gap: var(--s1); padding: var(--s2); min-width: 0; }
+.ptm-row { display: flex; align-items: center; gap: 1px; padding: 1px 1px 1px var(--s15);
+  background: var(--bg-inset); border: 1px solid var(--line); border-radius: var(--r-s); }
+.ptm-cap { flex: none; width: 6.5em; font-size: var(--fs-2xs); color: var(--text-dim); }
+.ptm-row .btn:not([aria-pressed="true"]) { border-color: transparent; background: transparent; box-shadow: none; }
+.ptm-row .btn:not(:disabled):hover { background: color-mix(in oklab, var(--text), transparent 90%); }
+.ptm-row > .roll-stamp { display: inline-flex; align-items: center; gap: 1px; }
+.ptm-sep { flex: none; width: 1px; align-self: stretch; margin: 3px var(--s1); background: var(--line); }
+/* Q (the loop open on the grid): its rates and strengths, ✦ */
+.lp-q-panel:popover-open { display: grid; justify-items: start; gap: var(--s1); padding: var(--s2); }
 
 /* Synths: one ghost "+ layer" row, never three rows that say "empty" */
 .lrow.empty ~ .lrow.empty { display: none; }
@@ -6250,7 +6461,7 @@ input[type="range"].knob.fader {
 .pb-dst .pb-jack > span { overflow: hidden; text-overflow: ellipsis; }
 /* the source column as wide as its longest name ("Filter envelope" was cut),
    the amount as wide as "-100%" (it read "0...."): the target takes the rest */
-.route { grid-template-columns: auto minmax(max-content, 0.7fr) minmax(0, 1.7fr) auto max-content auto auto; }
+.route { grid-template-columns: auto minmax(max-content, 0.7fr) minmax(0, 1.7fr) auto max-content auto auto auto; }
 :where(#patch, .patch-panel) .route select { font-size: var(--fs-xs); padding-inline: var(--s1) var(--s4); }
 :where(#patch, .patch-panel) .route output { font-size: var(--fs-xs); min-width: 5ch; overflow: visible; }
 /* the rail: icons throughout (the deck's too), and the density toggle a
@@ -6633,11 +6844,14 @@ input[type="range"]:is(.afterglow, .afterglow:hover), .grid .cell.afterglow {
 /* ---------- 41. Perform's launcher: slots and scenes ----------
    #perform-slots (views/perform.html, grid area `slots`), its grid the
    region `slots` (fragments/slots.html, slots.js): a column a lane — the
-   four layer slots, then the drums — a row a scene, its ▶ at the head and
-   ⤓ at the end, ■ a lane at the foot. A slot: the loop's title on its well;
-   playing = the signal's edge and glow (what sounds), waiting for its
-   point = the accent's dashed edge (every wait), stopping = dimmed. (Its
-   dense half is dense.css D41.) */
+   four layer slots, then the drums — its head the lane's lamp (lit while
+   it sounds and the output carries signal), name and ■; a row a scene,
+   its ▸ at the head and ⤓ at the end. A cell: the loop's title on its
+   well; selected = the accent's edge (the one selection: what the editor
+   shows); playing = the signal's edge and glow with a ring of its loop's
+   position (--ring, loopdeck.js); waiting for its point = the accent's
+   dashed edge, pulsing; stopping = dimmed. (Its dense half is dense.css
+   D41.) */
 .slots-module { grid-area: slots; display: flex; flex-direction: column; gap: var(--s1); min-width: 0;
   padding: var(--s1) var(--s2); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--r-m); }
 .sl-head { display: flex; align-items: center; gap: var(--s2); }
@@ -6647,12 +6861,23 @@ input[type="range"]:is(.afterglow, .afterglow:hover), .grid .cell.afterglow {
 .sl-grid { --sl-h: 28px; display: grid; gap: var(--s0); min-width: 0; min-height: 0; overflow: auto; scrollbar-width: thin; }
 .sl-row { display: grid; align-items: stretch; gap: var(--s0);
   grid-template-columns: 4.6em repeat(var(--sl-lanes, 5), minmax(0, 1fr)) 3.4em; }
-.sl-heads > *, .sl-stops > .sl-corner { align-self: end; font-size: var(--fs-2xs); color: var(--text-dim);
+.sl-heads > * { align-self: end; font-size: var(--fs-2xs); color: var(--text-dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sl-lane { padding: 0 var(--s1); font-weight: var(--fw-b); color: var(--text); }
+.sl-lane { display: flex; align-items: center; gap: var(--s1); min-width: 0; padding: 0 0 1px var(--s1);
+  font-weight: var(--fw-b); color: var(--text); }
+.sl-lane-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sl-lane small { font-weight: 400; color: var(--text-dim); }
 .sl-lane.is-edited { box-shadow: inset 0 -2px 0 var(--accent); }
-.sl-lane.is-stopped { color: var(--text-dim); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.sl-lane.is-stopped .sl-lane-name { color: var(--text-dim); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+/* the lane's lamp: dark glass, lit in the signal while it sounds — the
+   server says it may (data-sounding: not stopped, a sound), the output
+   says it does (html[data-alive]) */
+.sl-lamp { width: 6px; height: 6px; }
+html[data-alive] .sl-lane[data-sounding] > .sl-lamp { background: radial-gradient(circle at 38% 32%, color-mix(in oklch, var(--led), var(--white) 72%) 0 12%,
+    var(--led) 58%, color-mix(in oklab, var(--led), var(--black) 22%));
+  box-shadow: 0 0 calc(var(--glow-r) * 0.6) var(--led), 0 0 calc(var(--glow-r) * 1.8) color-mix(in oklch, var(--led), transparent 55%); }
+.sl-lane > .sl-stop { flex: none; min-width: 0; width: 18px; min-height: 0; height: 16px; padding: 0; font-size: var(--fs-2xs); }
+.sl-lane > .sl-stop::before { content: none; }
 .sl-scene { justify-content: flex-start; gap: var(--s1); min-height: var(--sl-h); padding: 0 var(--s1);
   overflow: hidden; white-space: nowrap; }
 .sl-scene small { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-dim); }
@@ -6672,33 +6897,39 @@ input[type="range"]:is(.afterglow, .afterglow:hover), .grid .cell.afterglow {
 .sl-cell[data-state="playing"] > .sl-slot { border-color: var(--signal);
   background: color-mix(in oklab, var(--bg-inset), var(--signal) 18%);
   box-shadow: 0 0 var(--glow-r) color-mix(in oklch, var(--signal), transparent 55%); }
-.sl-cell[data-state="playing"] > .sl-slot::before { content: "▶ "; color: var(--signal-text); }
+.sl-cell[data-state="playing"] > .sl-slot { padding-left: 1.7em; }
+/* its loop's position: a ring that fills (loopdeck.js writes --ring on the
+   cell; still under calm motion) */
+.sl-ring { display: none; }
+.sl-cell[data-state="playing"] .sl-ring { display: block; position: absolute; left: 5px; top: 50%; translate: 0 -50%;
+  width: 11px; height: 11px; border-radius: var(--r-round);
+  background: conic-gradient(var(--signal) calc(var(--ring, 0) * 360deg), color-mix(in oklab, var(--signal), transparent 78%) 0);
+  -webkit-mask: radial-gradient(circle, transparent 2.4px, var(--black) 2.6px); mask: radial-gradient(circle, transparent 2.4px, var(--black) 2.6px); }
+html[data-motion="calm"] .sl-cell[data-state="playing"] .sl-ring { background: var(--signal); }
 /* waiting: the server draws the new slot playing at once; until the switch
    it reads as waiting (transport.js rings it: data-wait, --q) */
 .sl-cell[data-q="go"] > .sl-slot { border: 1px dashed var(--accent); background: var(--bg-inset); box-shadow: none;
   animation: launch-blink .5s steps(2) infinite; }
 .sl-cell[data-q="go"] > .sl-slot::before { content: "◷ "; color: var(--accent-text); }
+.sl-cell[data-q="go"] .sl-ring { display: none; }
 .sl-cell[data-q="stop"] > .sl-slot { opacity: 0.55; }
 html[data-motion="calm"] .sl-cell[data-q="go"] > .sl-slot { animation: none; }
 .sl-cell[data-drop] > .sl-slot { outline: 2px dashed var(--accent); outline-offset: -2px; }
-.sl-x { position: absolute; top: 50%; right: calc(2px + 1.5em); translate: 0 -50%; display: none; padding: 0 var(--s0); border: 0; border-radius: var(--r-s);
+.sl-x { position: absolute; top: 50%; right: 2px; translate: 0 -50%; display: none; padding: 0 var(--s0); border: 0; border-radius: var(--r-s);
   background: var(--bg-raised); color: var(--text-dim); font: inherit; font-size: var(--fs-2xs); line-height: 1.4; cursor: pointer; }
-/* a filled slot's own ▶ (its click only selects it); its name
-   keeps clear of it */
-.sl-go { position: absolute; top: 50%; right: 2px; translate: 0 -50%; padding: 0 var(--s0); border: 0; border-radius: var(--r-s);
-  background: transparent; color: var(--text-dim); font: inherit; font-size: var(--fs-2xs); line-height: 1.4; cursor: pointer; opacity: 0.6;
-  transition: opacity var(--t-fast), color var(--t-fast); }
-.sl-go:is(:hover, :focus-visible), .sl-cell[aria-selected="true"] > .sl-go { opacity: 1; color: var(--signal-text); background: var(--bg-raised); }
-.sl-go:active { translate: 0 calc(-50% + 1px); }
-.sl-cell > .sl-slot:not(.sl-empty) { padding-right: 1.6em; }
 .sl-cell:is(:hover, :focus-within) > .sl-x { display: block; }
 .sl-x:hover { color: var(--danger-text); }
 /* an empty slot's ＋ (the slot's own click selects it) */
 .sl-plus { position: absolute; top: 50%; right: 2px; translate: 0 -50%; padding: 0 var(--s0); border: 0; border-radius: var(--r-s);
   background: transparent; color: var(--text-faint); font: inherit; font-size: var(--fs-2xs); line-height: 1.4; cursor: pointer; }
 .sl-plus:is(:hover, :focus-visible) { color: var(--accent-text); background: var(--bg-raised); }
-/* selected (slots.js, per tab): where ⏺ Rec, ⟲ Capture and the arp's print land */
-.sl-cell[aria-selected="true"] > .sl-slot { outline: 2px solid var(--accent); outline-offset: -2px; opacity: 1; }
+/* selected (slots.js, per tab): the one selection — what the editor
+   shows, what Loop ▶ plays, where ⏺ Rec, ⟲ Keep and the arp's print land:
+   the accent's edge, and a tick at its foot */
+.sl-cell[aria-selected="true"] > .sl-slot { outline: 2px solid var(--accent); outline-offset: -2px; opacity: 1;
+  box-shadow: inset 0 -3px 0 color-mix(in oklab, var(--accent), transparent 35%); }
+.sl-cell[aria-selected="true"][data-state="playing"] > .sl-slot { box-shadow: inset 0 -3px 0 color-mix(in oklab, var(--accent), transparent 35%),
+  0 0 var(--glow-r) color-mix(in oklch, var(--signal), transparent 55%); }
 .sl-cell[aria-selected="true"] > .sl-slot.sl-empty::before { content: "⏺ rec here"; color: var(--accent-text); font-size: var(--fs-2xs); }
 .sl-cell[aria-selected="true"][data-kind="beat"] > .sl-slot.sl-empty::before { content: none; }
 .sl-keep { align-self: center; }
@@ -6706,7 +6937,6 @@ html[data-motion="calm"] .sl-cell[data-q="go"] > .sl-slot { animation: none; }
 .sl-acts { display: flex; align-items: center; justify-content: flex-end; gap: 0; }
 /* ⟲ Capture: the scene launches as played, counted while there are some */
 .sl-capture[data-n]::after { content: " " attr(data-n); color: var(--signal-text); font-variant-numeric: tabular-nums; }
-.sl-stops .sl-stop { min-height: 20px; padding: 0; font-size: var(--fs-2xs); }
 .sl-stop[aria-pressed="true"] { opacity: 0.5; }
 /* a row dragged out of the Loops panel while it slides over the page:
    the panel stands aside (see-through, no target) so the slots under it —
@@ -6719,11 +6949,12 @@ html[data-loops="over"][data-lp-drag] .loops-panel { opacity: 0.25; pointer-even
 /* ---------- 42. The Loops page, laid out ----------
    (views/perform.html; loop-and-perform.md, "Loops, laid out".) The
    Loops panel | the live strip, the launcher, the editor | the
-   right column. The right column (`.perform-side`, grid area `side`) is a
-   flex column of three modules: → Song, the lane inspector (its body the
-   region `lane-inspector`, ✦ Coach its other tab) and Play (pads, XY, FX,
-   beats: one tab shown, layout.js). Its width is --lane-w (the splitter on
-   its left seam). From 1200 px, in both densities, the page is the window
+   right column. The right column (`.perform-side`, grid area `side`) is the
+   lane inspector alone, its whole height (its body the region
+   `lane-inspector`, ✦ Coach its other tab); → Song sits in the launcher's
+   head, and Play (pads, XY, FX, beats: one tab shown, layout.js) is a
+   popover the keyboard dock's Tools open (below). Its width is --lane-w
+   (the splitter on its left seam). From 1200 px, in both densities, the page is the window
    — comfy tiles as dense does, with its own larger type and gaps (stacked,
    the launcher would sit ~1000 px below the grids' foot) — and every pane
    scrolls inside itself. Dense: D42. */
@@ -6732,10 +6963,11 @@ html[data-loops="over"][data-lp-drag] .loops-panel { opacity: 0.25; pointer-even
 .perform-side > .splitter { right: auto; left: -12px; }
 /* (laid out by the workspace, the column is empty and out of the way) */
 [data-ws-on] > .perform-side:not(:has(> .module)) { display: none; }
-.perform-side > #perform-arrange { flex: none; }
-/* its note opens under it (section 35): the button is the column's top, so the
-   foot is not held to the keyboard dock's top — that pinned it far below */
-.perform-side > #perform-arrange .to-song-note { bottom: auto; }
+/* → Song in the launcher's head, beside Scene → Song: its note opens under
+   it (section 35) — the button is near the page's top, so the foot is not
+   held to the keyboard dock's top, which pinned it far below */
+.sl-head > #perform-arrange { display: inline-flex; flex-wrap: nowrap; gap: var(--s1); }
+.sl-head > #perform-arrange .to-song-note { bottom: auto; }
 
 /* the lane inspector: a head (its fold, Lane | ✦ Coach), a body that
    scrolls: the lane or the coach */
@@ -6780,11 +7012,18 @@ html[data-loops="over"][data-lp-drag] .loops-panel { opacity: 0.25; pointer-even
 .insp-chain { flex: 1 1 8em; min-width: 0; font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .insp-synths { align-self: flex-start; }
 
-/* Play: its head (the fold, the tabs), one part shown */
-.play-module { display: flex; flex-direction: column; flex: none; min-width: 0; max-height: 62%;
-  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--r-m); }
-.play-head { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s2); }
-.play-fold { font: inherit; font-size: var(--fs-xs); letter-spacing: .08em; text-transform: uppercase; }
+/* Play: a manual popover over the page, above the keyboard dock's right end
+   as Play tools is (section 14: its button, "Pads ▴", is the dock's Tools'
+   and shows on this page alone); its head (Play, the tabs, ✕), one part
+   shown */
+.play-module[popover] { inset: auto; margin: 0 var(--s2) var(--s1) 0; position-anchor: --keys-dock;
+  position-area: top; justify-self: end; width: min(440px, calc(100vw - 32px)); max-height: 60dvh;
+  padding: 0; overflow: hidden; }
+.play-module:popover-open { display: flex; flex-direction: column; min-width: 0; }
+.play-head { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s2);
+  border-bottom: 1px solid var(--line); }
+.play-cap { font-size: var(--fs-xs); color: var(--text-dim); }
+.play-x { flex: none; }
 .play-tabs { margin-left: auto; }
 .play-tabs [aria-selected="true"] { color: var(--accent-text); box-shadow: inset 0 -2px 0 var(--accent); }
 .play-body { min-height: 0; overflow: auto; scrollbar-width: thin; padding: 0 var(--s2) var(--s2); }
@@ -6804,13 +7043,25 @@ html[data-loops="over"][data-lp-drag] .loops-panel { opacity: 0.25; pointer-even
 /* a module popped out of Play (the workspace) shows whatever tab is up */
 ws-float > :is(#perform-pads, #drumxy-panel, #perf-fx, #perform-launch) { display: block !important; }
 
-/* the editor's lane (transport.html): which lane the grid edits */
-.ed-lane-name { max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: var(--fs-s); }
-.ed-lane-name b { color: var(--accent-text); }
-/* (under 1800 px its room is the controls row's one line: the lane inspector
-   names the lane at the right) */
-@media (max-width: 1799px) { .perform-view .ed-lane { display: none; } }
+/* the editor's head (transport.html, perform_drums.html; loop-and-perform.md,
+   "One selection"): what the grid is — the loop open on its lane, "saved"
+   with a lit lamp, or a sketch, "not saved" with a dark one — and its lane.
+   The first group of the note grid's controls row (no line of its own:
+   the roll keeps its rows); inline in the drum rack's tools */
+.ed-head { display: flex; align-items: center; gap: var(--s1); min-width: 0; margin: 0;
+  font-size: var(--fs-xs); color: var(--text-dim); white-space: nowrap; }
+.ed-head .ed-cap { font-size: var(--fs-2xs); }
+.ed-head .ed-name { min-width: 0; max-width: 14em; overflow: hidden; text-overflow: ellipsis;
+  font-size: var(--fs-s); font-weight: var(--fw-b); color: var(--text); }
+.ed-head .ed-sketch { font-weight: 400; font-style: italic; color: var(--text-dim); }
+.ed-head .ed-lane { min-width: 0; max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
+.ed-head .ed-lane b { color: var(--accent-text); }
+.ed-head .ed-state { display: inline-flex; align-items: center; gap: var(--s0); font-size: var(--fs-2xs);
+  text-transform: uppercase; letter-spacing: var(--track-caps); }
+.ed-head .ed-state .led { --led: var(--go); }
+.ed-head:not(.is-saved) .ed-state { color: var(--text-faint); }
+.ed-head .lp-q, .ed-head .lp-done, .ed-head .ed-save { flex: none; }
+.ed-drums { margin: 0; gap: var(--s1); }
 
 /* --- tiled: the page is the window (both densities, a fine pointer: under a
    finger the page flows, its targets 40 px, as before) --- */
@@ -6967,7 +7218,7 @@ html[data-motion="calm"] .pm-sweep { display: none; }
   font-family: var(--font-panel); font-stretch: calc(var(--panel-wdth) * 1%);
   font-variation-settings: "wdth" var(--panel-wdth); font-variant-numeric: tabular-nums;
   font-size: var(--fs-2xs); color: var(--text-dim); }
-.lp-facts .fc { flex: none; overflow: hidden; text-overflow: ellipsis; padding-inline-end: var(--s15); }
+.lp-facts .fc { flex: none; box-sizing: content-box; overflow: hidden; text-overflow: ellipsis; padding-inline-end: var(--s15); }
 .lp-facts .fc i { font-style: normal; margin-inline-start: 1px; color: var(--text-faint); }
 .lp-facts .c-len { width: 7.5ch; }
 .lp-facts .c-grid { width: 4.5ch; }

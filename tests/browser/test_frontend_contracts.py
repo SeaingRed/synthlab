@@ -185,9 +185,15 @@ def test_open_song_swaps_the_page_and_keeps_the_audio(studio):
 
 
 def test_a_pattern_tools_menu_is_a_popover_esc_and_a_click_away_close(studio):
+    """The note grid's Tools ▾ (`#ptm-notes`): a popover in the top layer,
+    whole; Esc and a click away shut it; ↓ from its button walks its
+    buttons, Esc gives the button back; a tool run from it posts, and it
+    stays open for the next (its region's redraw draws it shut: layout.js
+    opens the new one)."""
     page = studio.open("perform")
     studio.settle()
-    opener, menu = '#transport [popovertarget="ptm-nvel"]', "#ptm-nvel"
+    opener, menu = "#transport .pt-more-btn", "#ptm-notes"
+    row = f"{menu} .ptm-row .btn"
     page.click(opener)
     page.wait_for_selector(f"{menu}:popover-open")
     # in the top layer, whole: what is at its rows' centre is its row
@@ -197,14 +203,24 @@ def test_a_pattern_tools_menu_is_a_popover_esc_and_a_click_away_close(studio):
         box["x"] >= 0 and box["x"] + box["width"] <= vw["width"] and box["height"] > 40
     ), box
     hit = page.evaluate(
-        """(sel) => {
-           const row = document.querySelector(sel + " .menu-item");
-           const b = row.getBoundingClientRect();
+        """(sel) => [...document.querySelectorAll(sel + " .ptm-row")].every((r) => {
+           const b = r.getBoundingClientRect();
            const at = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
-           return !!at?.closest(sel); }""",
+           return !!at?.closest(sel); })""",
         menu,
     )
     assert hit, "the menu is covered or clipped"
+    # its rows: a group each, captioned
+    caps = page.locator(f"{menu} .ptm-cap").all_inner_texts()
+    assert [c.strip().lower() for c in caps] == [
+        "move",
+        "notes",
+        "length",
+        "velocity",
+        "⚄ write",
+        "clipboard",
+        "view",
+    ], caps
     page.keyboard.press("Escape")
     page.wait_for_selector(f"{menu}:not(:popover-open)", state="attached")
     # a click away
@@ -217,19 +233,24 @@ def test_a_pattern_tools_menu_is_a_popover_esc_and_a_click_away_close(studio):
     page.keyboard.press("Enter")
     page.wait_for_selector(f"{menu}:popover-open")
     page.keyboard.press("ArrowDown")
-    assert page.evaluate(f"() => document.activeElement.matches('{menu} .menu-item')")
-    first = page.evaluate("() => document.activeElement.textContent.trim()")
+    assert page.evaluate(f"() => document.activeElement.matches('{row}')")
+    first = page.evaluate("() => document.activeElement.getAttribute('aria-label')")
     page.keyboard.press("ArrowDown")
-    assert page.evaluate("() => document.activeElement.textContent.trim()") != first
+    assert (
+        page.evaluate("() => document.activeElement.getAttribute('aria-label')")
+        != first
+    )
     page.keyboard.press("Escape")
     page.wait_for_selector(f"{menu}:not(:popover-open)", state="attached")
     assert page.evaluate(f"() => document.activeElement.matches('{opener}')")
-    # a row runs its tool and the menu closes with it
+    # a row runs its tool, and Tools ▾ is open again for the next one
     page.click(opener)
     with page.expect_response("**/fragment/pattern/notes/vel_ramp"):
-        page.click(f"{menu} .menu-item:has-text('ramp')")
-    page.wait_for_selector(f"{menu}:not(:popover-open)", state="attached")
+        page.click(f"{menu} .btn:has-text('ramp')")
     studio.settle()
+    page.wait_for_selector(f"{menu}:popover-open")
+    page.keyboard.press("Escape")
+    page.wait_for_selector(f"{menu}:not(:popover-open)", state="attached")
 
 
 def test_the_reset_menu_stays_open_through_a_redraw_of_its_region(studio):

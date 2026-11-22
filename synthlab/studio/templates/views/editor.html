@@ -55,6 +55,9 @@
             hx-trigger="change" hx-sync="this:queue all">
         <label class="btn btn-s filepick" title="import a project: a .json, or a .zip exported with its audio">Import… <input type="file" name="file" accept=".json,application/json,.zip,application/zip" hidden></label>
       </form>
+      {#- an SFZ instrument as the sound: the same file input as the sampler panel's button (below #patch) -#}
+      <label class="btn btn-s" for="sfz-file"
+             title="a .zip of an .sfz and its samples (WAV, FLAC or OGG) becomes this sound: a sampler with a zone a region; what it does not read is listed in the toast (Ctrl+Z undoes it)">Import SFZ…</label>
     </div>
   </aside>
   {# the dock scrolls, so its resize handle sits beside it in the same grid
@@ -101,23 +104,28 @@
      hx-swap="none". The rows stay in the DOM (morphs and preset loads keep
      working); they just don't take half the Source panel. #}
   <style>
-    {% for shape, deps in shape_deps.items() %}
-    #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked))
-      :is({% for d in deps %}#row-{{ d }}, #sub-{{ d }}, {% endfor %}.shape-{{ shape }}) { display: none; }
+    {#- a row more than one shape reads (the sample: sampler, granular and
+        spectral) hides only while none of them is picked -#}
+    {% for shapes, deps in shape_rows.items() %}
+    #view{% for shape in shapes %}:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked)):not(:has([name="osc3"][value="{{ shape }}"]:checked)){% endfor %}
+      :is({% for d in deps %}#row-{{ d }}, #sub-{{ d }}{{ ", " if not loop.last }}{% endfor %}{% if shapes | length == 1 %}, .shape-{{ shapes[0] }}{% endif %}) { display: none; }
     {% endfor %}
-    #view:not(:has([name="osc1"][value="sampler"]:checked)) #sampler-panel { display: none; }
+    #view:not(:has([name="osc1"][value="sampler"]:checked)):not(:has([name="osc1"][value="granular"]:checked)):not(:has([name="osc1"][value="spectral"]:checked)) #sampler-panel { display: none; }
     {#- filter 2's rows while it plays; a drawn LFO's drawing while
         its shape is "drawn"; a target jack while its module can be heard
         (or a lead is plugged into it) -#}
     #view:has([name="filter2_route"][value="off"]:checked) .f2-block > .param:not(#row-filter2_route) { display: none; }
-    {% for k in ("lfo", "lfo2", "lfo3") %}
+    {% for k in ("lfo", "lfo2", "lfo3", "lfo4", "lfo5", "lfo6") %}
     #view:not(:has(#p-{{ k }}_shape option[value="drawn"]:checked)) #draw-{{ k }} { display: none; }
     {% endfor %}
     #view:has([name="filter2_route"][value="off"]:checked) .pb-jack[data-dst^="filter2_"]:not([data-on]),
     #view:has([name="osc2"][value=""]:checked) .pb-jack[data-dst="fm_amount"]:not([data-on]),
-    #view:has([name="osc2_sync"][value="off"]:checked) .pb-jack[data-dst="sync_pitch"]:not([data-on]) { display: none; }
-    {% for shape, dsts in (("wavetable", ("wt_pos",)), ("fm", ("fm_index",)), ("fm4", ("fm4_level1", "fm4_level2", "fm4_level3", "fm4_level4"))) %}
-    #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked))
+    #view:has([name="osc2_sync"][value="off"]:checked) .pb-jack[data-dst="sync_pitch"]:not([data-on]),
+    #view:has(#p-osc3_warp option[value="off"]:checked) .pb-jack[data-dst="osc3_warp_amt"]:not([data-on]),
+    {% for k in (1, 2, 3) %}#view:has(#p-osc{{ k }}_warp2 option[value="off"]:checked) .pb-jack[data-dst="osc{{ k }}_warp2_amt"]:not([data-on]){{ "," if not loop.last }}
+    {% endfor %}{ display: none; }
+    {% for shape, dsts in (("wavetable", ("wt_pos",)), ("fm", ("fm_index",)), ("fm4", ("fm4_level1", "fm4_level2", "fm4_level3", "fm4_level4")), ("granular", ("grain_pos",)), ("spectral", ("spectral_pos",))) %}
+    #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked)):not(:has([name="osc3"][value="{{ shape }}"]:checked))
       :is({% for d in dsts %}.pb-jack[data-dst="{{ d }}"]{{ ", " if not loop.last }}{% endfor %}):not([data-on]) { display: none; }
     {% endfor %}
     {#- the FM4 panel: the algorithm the select holds is the drawing lit, and
@@ -147,10 +155,10 @@
     {% set layout = [["Source"], ["Filter", "Vowel"], ["Amp envelope", "Character", "Mod matrix"], ["Motion", "Modulators"]] %}
     {% set named = layout | sum(start=[]) %}
     {% set by = dict(groups) %}
-    {% set notes = {"Source": "FM, FM4, pluck, wavetable and sampler settings appear here when an oscillator uses that shape.",
+    {% set notes = {"Source": "FM, FM4, pluck, wavetable, sampler, granular and spectral settings appear here when an oscillator uses that shape.",
                     "Vowel": "Shapes the sound like a sung vowel. Raise Vowel amount to hear it; automate the vowel for talking sounds.",
                     "Motion": "The modulators: LFO 1, the filter LFO, vibrato, tremolo, pulse width, the pitch envelope and bend, the wheels. The mod matrix routes them.",
-                    "Modulators": "Envelopes 3 and 4 and LFOs 2 and 3: they move nothing until a route in the mod matrix reads them."} %}
+                    "Modulators": "Envelopes 3 and 4 and LFOs 2 to 6: they move nothing until a route in the mod matrix reads them (LFOs 4-6 fold away until one does)."} %}
     {% for col in layout %}
     <div class="pcol">
     {% set rest = (groups | map(attribute=0) | reject("in", named) | list) if loop.last else [] %}
@@ -214,11 +222,28 @@
           while they route, or once "+ route" opens the next (bench.js) -#}
       {% for spec in specs if spec.name in route_fields %}
       {% set slot = spec.name.split("_")[0] %}{% set k = slot[3:] %}
-      {# each slot's source, target and amount sit in one line, read left to
-         right; an unused slot dims to its source #}
-      {% if spec.name.endswith("_src") %}<div class="route" data-slot="{{ slot }}" data-ctx="Route {{ k }}"{% if k | int > 4 %} data-extra{% endif %}><i class="led route-led" aria-hidden="true"></i>{% endif %}
+      {# each slot's switch, source, target, amount and source curve sit in
+         one line, read left to right; an unused slot dims to its source, a
+         bypassed one (its switch off) to its switch #}
+      {% if spec.name.endswith("_on") %}<div class="route" data-slot="{{ slot }}" data-ctx="Route {{ k }}"{% if k | int > 4 %} data-extra{% endif %}>
+      {#- the route's switch is its lamp (a power key, as an FX unit's): two
+          radios, on / off, of which only the one to press shows — its lamp
+          lit while the route plays. An id'd radio group: the keyboard's
+          arrows, the deck, MIDI learn and the menu step it as any -#}
+      <div class="param route-power" id="row-{{ spec.name }}" data-kind="pills" data-hint="{{ spec.hint }}">
+        <span class="route-sw" id="p-{{ spec.name }}" role="radiogroup" aria-label="{{ spec.label }}">
+          {% for value, label in spec.options %}
+          <label class="sw-{{ value }}" title="{{ 'bypassed: press to switch it back on' if value == 'on' else 'on: press to bypass (the route keeps its settings)' }}">
+            <input type="radio" name="{{ spec.name }}" value="{{ value }}"{% if patch_values[spec.name] == value %} checked{% endif %}>
+            <i class="led route-led" aria-hidden="true"></i><span class="visually-hidden">{{ label }}</span>
+          </label>
+          {% endfor %}
+        </span>
+      </div>
+      {% else %}
       {% include "fragments/param_row.html" %}
-      {% if spec.name.endswith("_amt") %}
+      {% endif %}
+      {% if spec.name.endswith("_curve") %}
         <button type="button" class="btn btn-ghost btn-icon btn-s" data-route="flip" data-menu="Invert the amount"
                 aria-label="invert route {{ k }}" title="invert this route's amount">±</button>
         <button type="button" class="btn btn-ghost btn-icon btn-s" data-route="off" data-menu="Unplug"
@@ -272,9 +297,9 @@
       {% endif %}
       {#- (the FM4 shape's other thirteen fields and sync pitch are drawn
           inside their blocks: the FM4 panel, the sync block) -#}
-      {% for spec in specs if spec.name not in route_fields
+      {% for spec in specs if spec.name not in route_fields and spec.name not in env_syncs
                               and not (spec.name[:4] == "fm4_" and spec.name != "fm4_algo") and spec.name != "sync_pitch"
-                              and spec.name not in ("osc1_warp_amt", "osc2_warp_amt")
+                              and not (spec.name[:3] == "osc" and spec.name[5:] in ("warp_amt", "warp2", "warp2_amt"))
                               and not (spec.name[:8] == "filter2_" and spec.name != "filter2_route") %}
       {% if spec.name == "fm4_algo" %}
       {% include "fragments/fm4_panel.html" %}
@@ -288,7 +313,7 @@
         {% with spec = spec_of(name) %}{% include "fragments/param_row.html" %}{% endwith %}
         {% endfor %}
       </div>
-      {% elif spec.name in ("lfo_shape", "lfo2_shape", "lfo3_shape") %}
+      {% elif spec.name[:3] == "lfo" and spec.name.endswith("_shape") %}
       {% include "fragments/param_row.html" %}
       {% with lfo = spec.name[:-6] %}{% include "fragments/lfo_draw.html" %}{% endwith %}
       {% elif spec.name == "osc2_sync" %}
@@ -298,12 +323,15 @@
         {% include "fragments/param_row.html" %}
         {% with spec = spec_of("sync_pitch") %}{% include "fragments/param_row.html" %}{% endwith %}
       </div>
-      {% elif spec.name in ("osc1_warp", "osc2_warp") %}
+      {% elif spec.name in ("osc1_warp", "osc2_warp", "osc3_warp") %}
       {#- an oscillator's phase warp as one block in its area — the
           mode's select (the deck and MIDI learn step it) and its amount's knob -#}
       <div class="warp-block module-well" role="group" aria-label="Oscillator {{ spec.name[3] }} warp">
         {% include "fragments/param_row.html" %}
         {% with spec = spec_of(spec.name ~ "_amt") %}{% include "fragments/param_row.html" %}{% endwith %}
+        {#- the second warp, on the phase the first made: its mode and amount -#}
+        {% with spec = spec_of(spec.name ~ "2") %}{% include "fragments/param_row.html" %}{% endwith %}
+        {% with spec = spec_of(spec.name ~ "2_amt") %}{% include "fragments/param_row.html" %}{% endwith %}
       </div>
       {% else %}
       {% if spec.name == "filter_env" %}
@@ -323,6 +351,15 @@
     {% endfor %}
     </div>
     {% endfor %}
+  </form>
+
+  {#- Import SFZ…: the sampler panel's and the zone map's buttons are labels
+      for this file input (`for="sfz-file"`), which sits outside #patch (its
+      every `input` is a patch post). A multipart form that answers with the
+      whole page, the new instrument loaded (routes/sampler.py `sampler_sfz`) -#}
+  <form id="sfz-import" hx-post="/fragment/sampler/sfz" hx-encoding="multipart/form-data"
+        hx-target="body" hx-swap="innerMorph" hx-trigger="change" hx-sync="this:queue all" hidden>
+    <input type="file" id="sfz-file" name="file" accept=".zip,application/zip" aria-label="an SFZ instrument: a zip of the .sfz and its samples">
   </form>
 
   {#- your own wavetable: + from clip… and draw… (the picker's buttons open

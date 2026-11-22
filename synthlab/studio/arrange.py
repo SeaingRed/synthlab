@@ -30,7 +30,7 @@ from ..sequencer import (
     render_each,
 )
 from ..synth import Patch, Synth, at_bpm
-from . import limits
+from . import arppattern, limits, notefeel
 from . import meter as _meter
 from .curves import CURVABLE, curve_array, lane_array
 from .drumlab import specs_of
@@ -43,6 +43,10 @@ from .state import (
     drum_row_sounds,
     pitch_rows,
 )
+
+# the grid arp's modes (`Arrangement.arp_mode`): "pattern" plays the lane's
+# `arp_pattern` (arppattern.py), the rest the arp they always were
+ARP_MODES = ("off", "up", "down", "updown", "pattern")
 
 # -- note memo -------------------------------------------------------------
 # A loop edit moves one note; the stem it lives in re-renders whole. Every
@@ -141,14 +145,17 @@ _CHANCE_PREFIX = "nchance."  # the note grid's chance lane (`note_chance`)
 
 def arrangement_from_form(
     form: Mapping[str, str],
-    bar_choices: tuple[int, ...] = limits.BAR_CHOICES,
+    bar_choices: tuple[int, ...] = limits.LOOP_BAR_CHOICES,
     meter: str = "4/4",
 ) -> Arrangement:
     """A grid form as an Arrangement. `bar_choices`: the bars the grid
-    may have — the loop's by default; the Song drawer passes a pool
-    pattern's (`song_model.bar_choices`, up to 8). `meter`: the grid's bar
-    (a form never carries it: the loop's own, or the pattern's), whose
-    step counts `steps` must be one of (`meter.step_choices`)."""
+    may have — the loop's by default (`limits.LOOP_BAR_CHOICES`, up to 16);
+    the Song drawer passes a pool pattern's (`song_model.bar_choices`).
+    Only those whose bars x steps fit `MAX_GRID_STEPS` are taken: a value
+    between two choices, or past what fits, is the longest choice under
+    it. `meter`: the grid's bar (a form never carries it: the loop's own,
+    or the pattern's), whose step counts `steps` must be one of
+    (`meter.step_choices`)."""
     meter = _meter.clean(meter)
     step_choices = _meter.step_choices(meter)
     try:
@@ -169,6 +176,9 @@ def arrangement_from_form(
         steps_per_bar = step_choices[0]
     if steps_per_bar not in step_choices:
         steps_per_bar = step_choices[0]
+    fits = [b for b in bar_choices if b * steps_per_bar <= limits.MAX_GRID_STEPS]
+    fits = fits or [min(bar_choices)]
+    bars = max((b for b in fits if b <= bars), default=min(fits))
 
     root = str(form.get("root", "A1"))
     if root not in ROOTS:
@@ -264,7 +274,7 @@ def arrangement_from_form(
     slides.sort()
 
     arp_mode = str(form.get("arp_mode", "off"))
-    if arp_mode not in ("off", "up", "down", "updown"):
+    if arp_mode not in ARP_MODES:
         arp_mode = "off"
     try:
         arp_octaves = int(form.get("arp_octaves", 1))
@@ -787,6 +797,7 @@ def _uses_timeline(
         or bool(arr.slides)
         or bool(arr.strum)
         or bool(nudge_of(arr))
+        or bool(notefeel.of(arr))
         or mono
         or ramp
     )
@@ -861,6 +872,10 @@ def _lane_timeline(
     notes its roll says (`note_plays`): under an arp, step by step."""
     timeline: list[tuple] = []
     chance = getattr(arr, "note_chance", None)
+    if arr.arp_mode == "pattern":
+        if arppattern.of(arr).get("held"):  # the keys held: a take's arp
+            return _held_timeline(by_pitch, arr, step_beats, breaks)
+        return _pattern_timeline(by_pitch, arr, step_beats, arp)
     if arr.arp_mode != "off":
         pitches = list(arp[0]) if arp else list(by_pitch)
         seq = _arp_sequence(pitches, arr.arp_mode, arr.arp_octaves)
@@ -880,22 +895,221 @@ def _lane_timeline(
     by_pitch = _chanced(by_pitch, arr, breaks)
     slide_steps = set(arr.slides)
     nudge = nudge_of(arr)
+    feel = notefeel.of(arr)
     loop_beats = arr.bars * arr.steps_per_bar * step_beats
     for pitch, steps in sorted(by_pitch.items()):
         for start, run in _merge_runs(steps, _row_breaks(breaks, arr.cuts, pitch)):
-            shift = arr.swing * step_beats if start % 2 == 1 else 0.0
-            # timing inside a step: the start moves (after swing), the end
-            # stays where it was (as a strum's), never under an eighth
-            n = float(nudge.get(str(start), 0.0)) * step_beats if nudge else 0.0
-            dur = max(run * step_beats - shift - n, step_beats / 8)
             vel = arr.velocities.get(str(start), 0.9)
-            at = start * step_beats + shift + n
+            if feel and (f := feel.get(f"{pitch}.{start}")):
+                # a note's own feel (notefeel.py): it starts and ends where
+                # it was played — no swing, no step nudge, no gate — and
+                # takes its share of the step's velocity. `dur` is its
+                # sounding length over NOTE_GATE, so every reader of the
+                # timeline (the gate, a mono line, the MIDI note-off) gets
+                # that length back
+                # (in beats to a billionth: so a take's own decimals come
+                # back as the very floats it was posted in, and a gate on a
+                # half-sample tie rounds as the take's would)
+                o, e, share = (float(x) for x in f)
+                at = round((start + o) * step_beats, 9)
+                held = round(max(run + e - o, notefeel.MIN_STEPS) * step_beats, 9)
+                dur = held / NOTE_GATE
+                vel = min(1.0, vel * share)
+            else:
+                shift = arr.swing * step_beats if start % 2 == 1 else 0.0
+                # timing inside a step: the start moves (after swing), the
+                # end stays where it was (as a strum's), never under an eighth
+                n = float(nudge.get(str(start), 0.0)) * step_beats if nudge else 0.0
+                dur = max(run * step_beats - shift - n, step_beats / 8)
+                at = start * step_beats + shift + n
             if at < 0.0:  # before the loop's first beat: its last (a circle)
                 at += loop_beats
             timeline.append((at, dur, pitch, vel, start in slide_steps))
     if gap := strum_beats(arr):
         return _strummed(timeline, gap, step_beats / 8)
     return timeline
+
+
+def played_order(by_pitch: dict[str, list[int]]) -> list[str]:
+    """A lane's rows in the order they first play (ties low to high): the
+    grid arp's "as played" chord (arppattern.cycle)."""
+    return sorted(by_pitch, key=lambda p: (min(by_pitch[p]), midi(p)))
+
+
+def _pattern_timeline(
+    by_pitch: dict[str, list[int]], arr: Arrangement, step_beats: float, arp: tuple
+) -> list[tuple]:
+    """The grid arp in "pattern" mode (`arr.arp_pattern`, arppattern.py):
+    `_lane_timeline`'s tuples. The chord it holds is the grid arp's — every
+    row with a note, the whole loop (`arp[0]`, a section's, in the order
+    they first play) — and the pattern walks it step by step: a step every
+    `rate` beats, counted from each bar line (the meter's bar,
+    `bar_beats`: a step past the bar's end starts the next bar's count, as
+    the keys arp re-anchors at every bar line), the odd steps of a bar
+    late by the loop's swing. `retrig` "note" starts the walk again at
+    every pass of the loop's pattern (its chord is struck there: `arp[2]`
+    steps a pass, from the block's start in a trimmed one), "bar" at
+    every bar, "free" never. A section's chunk walks from the cycle's
+    start (`arp[1]`: where the chunk sits) and keeps its own bars' notes,
+    so the chunks rendered apart are the cycle rendered whole. A hit
+    sounds `gate` of its step (`dur` is that over `NOTE_GATE`); its
+    velocity is the grid's lane at the step it falls on times the step's
+    `vel`; the grid's chance lane rolls there too, after the step's own."""
+    pat = arppattern.of(arr)
+    held = [midi(p) for p in (arp[0] if arp else played_order(by_pitch))]
+    if not held:
+        return []
+    spb = int(arr.steps_per_bar)
+    beats = bar_beats(arr)
+    rate = arppattern.rate_beats(pat, step_beats)
+    per_bar = arppattern.steps_in(beats, rate)
+    start_bar, period, lo, hi = 0, max(1, arr.bars), 0, None
+    if arp:
+        start_bar, period = int(arp[1]) // spb, max(1, int(arp[2]) // spb)
+        if len(arp) >= 5:  # a trimmed block: from its first bar, silent past it
+            lo, hi = int(arp[3]) // spb, int(arp[4]) // spb
+    key = arppattern.key_of(arr.root, arr.scale_name)
+    chance = getattr(arr, "note_chance", None)
+    run = arppattern.Run()
+    out: list[tuple] = []
+    for bar in range(lo, start_bar + arr.bars):
+        if hi is not None and bar >= hi:
+            break
+        if pat["retrig"] == "bar" or (
+            pat["retrig"] == "note" and (bar - lo) % period == 0
+        ):
+            run.restart()
+        for j in range(per_bar):
+            hits = arppattern.step(run, held, pat, key)
+            if bar < start_bar or not hits:
+                continue
+            base = (bar - start_bar) * beats + j * rate
+            shift = arr.swing * rate if j % 2 else 0.0
+            g = int(base / step_beats + 1e-9)  # the grid step it falls on
+            vel = arr.velocities.get(str(g), 0.9)
+            for off, m, scale, gate in hits:
+                if chance and not note_plays(chance, g, (m,)):
+                    continue
+                at = base + shift + off * rate
+                dur = gate / NOTE_GATE * rate
+                out.append((at, dur, name_of(m), vel * scale, False))
+    return out
+
+
+# the keys arp's clock (static/arp.js): a note struck up to this long after
+# a step starts a run on it ("one struck up to 30 ms late sounds at once"),
+# and a step's notes are read this long before it is due (LOOK, 60 ms
+# ahead, by a pump every 20 ms: 40-60 ms, the middle taken)
+HELD_LATE_S = 0.03
+HELD_READ_S = 0.05
+
+
+def held_notes(by_pitch: dict, arr: Arrangement, step_beats: float, breaks=()):
+    """A lane's notes as the keys held them: (start, end, midi, velocity)
+    in beats, sorted by start — each note's own feel where it has one (a
+    take placed as played), else its run; a start a hair before the loop's
+    first beat counts from it. The chord the "held" arp reads
+    (`_held_timeline`)."""
+    feel = getattr(arr, "note_feel", None) or {}
+    out = []
+    for pitch, steps in _chanced(by_pitch, arr, breaks).items():
+        for start, run in _merge_runs(steps, _row_breaks(breaks, arr.cuts, pitch)):
+            vel = arr.velocities.get(str(start), 0.9)
+            f = feel.get(f"{pitch}.{start}")
+            if f:
+                o, e, share = (float(x) for x in f)
+                at = (start + o) * step_beats
+                end = at + max(run + e - o, notefeel.MIN_STEPS) * step_beats
+                vel = min(1.0, vel * share)
+            else:
+                at, end = start * step_beats, (start + run) * step_beats
+            out.append((max(0.0, at), end, midi(pitch), vel))
+    return sorted(out)
+
+
+def _held_timeline(
+    by_pitch: dict[str, list[int]], arr: Arrangement, step_beats: float, breaks=()
+) -> list[tuple]:
+    """The grid arp in "pattern" mode with a HELD pattern (`arp_pattern
+    ["held"]`: a take recorded as "the keys I held", loop-and-perform.md,
+    "The arp pattern"): the walk the keys arp made over the keys as they
+    were held — `_lane_timeline`'s tuples. Not the grid's chord (every row,
+    the whole loop): at each of the pattern's steps (every `rate` beats
+    from each bar line, the odd ones late by the pattern's own `swing`, the
+    keys arp's) the chord is the notes held when the keys arp read it
+    (`HELD_READ_S` before the step; a run's first step, the first at or
+    after its first press less `HELD_LATE_S`, reads the chord struck). A
+    run is a stretch with a key down: the walk starts afresh with each
+    ("free": a ▦ pattern goes on where the last run left it). Within one,
+    "plain" (the keys arp's up / down / … modes) never starts again; a ▦
+    pattern's `retrig` "note" starts again at the first step read after a
+    note is struck (not one joining within `HELD_LATE_S` of where the walk
+    started: a chord's notes), "bar" at every bar line (a run begun
+    mid-bar walked to its place). A hit's velocity is the newest held
+    note's times the step's `vel`; "played" walks the notes in the order
+    they were struck."""
+    pat = arppattern.of(arr)
+    notes = held_notes(by_pitch, replace(arr, arp_mode="off"), step_beats, breaks)
+    if not notes:
+        return []
+    bps = float(arr.bpm) / 60.0
+    late, read = HELD_LATE_S * bps, HELD_READ_S * bps
+    beats = bar_beats(arr)
+    rate = arppattern.rate_beats(pat, step_beats)
+    per_bar = arppattern.steps_in(beats, rate)
+    swing = float(pat.get("swing", arr.swing))
+    key = arppattern.key_of(arr.root, arr.scale_name)
+    plain = pat["held"] == "plain"
+    # the runs: the stretches some key is down
+    runs: list[list[float]] = []
+    for at, end, _m, _v in notes:
+        if runs and at <= runs[-1][1]:
+            runs[-1][1] = max(runs[-1][1], end)
+        else:
+            runs.append([at, end])
+    grid = [
+        (bar * beats + j * rate, j)
+        for bar in range(max(1, int(arr.bars)))
+        for j in range(per_bar)
+    ]
+    out: list[tuple] = []
+    kept: arppattern.Run | None = None
+    for r0, r1 in runs:
+        steps = [(b, j) for b, j in grid if b >= r0 - late - 1e-9 and b - read < r1]
+        if not steps:
+            continue
+        first = steps[0][0]
+        if pat["retrig"] == "free" and kept is not None and not plain:
+            run = kept
+        else:
+            run = arppattern.Run()
+        kept, since, prev = run, first, None
+        for n, (b, j) in enumerate(steps):
+            t = max(r0, b - read) if n == 0 else b - read
+            held = [x for x in notes if x[0] <= t + 1e-9 and x[1] > t]
+            if not held:
+                continue
+            if n == 0 and pat["retrig"] == "bar" and not plain:
+                run.restart()
+                for _ in range(j):  # begun mid-bar: walked to its place
+                    arppattern.step(run, [x[2] for x in held], pat, key)
+            elif not plain and prev is not None:
+                struck = any(prev < x[0] <= t and x[0] > since + late for x in held)
+                if (pat["retrig"] == "note" and struck) or (
+                    pat["retrig"] == "bar" and j == 0
+                ):
+                    run.restart()
+                    since = b
+            prev = t
+            hits = arppattern.step(run, [x[2] for x in held], pat, key)
+            vel = max(held, key=lambda x: x[0])[3]  # the newest note's
+            shift = swing * rate if j % 2 else 0.0
+            for off, m, scale, gate in hits:
+                at = b + shift + off * rate
+                out.append(
+                    (at, gate / NOTE_GATE * rate, name_of(m), vel * scale, False)
+                )
+    return out
 
 
 FOLLOW_OCTAVES = (-2, -1, 0, 1)  # how far a following layer may transpose
@@ -965,6 +1179,10 @@ def follow_layer(
     else:
         out.pop("arp_mode", None)
         out.pop("arp_octaves", None)
+    if arr.arp_mode == "pattern" and arr.arp_pattern:  # the pattern it plays
+        out["arp_pattern"] = arr.arp_pattern
+    else:
+        out.pop("arp_pattern", None)
     if arr.strum and arr.arp_mode == "off":
         out["strum"] = arr.strum
     else:
@@ -973,6 +1191,10 @@ def follow_layer(
         out["note_nudge"] = dict(nudge)
     else:
         out.pop("note_nudge", None)
+    if feel := notefeel.of(arr):  # each note's own feel, at its octave
+        out["note_feel"] = notefeel.shifted(feel, semis)
+    else:
+        out.pop("note_feel", None)
     # the main lane's chance on its steps: the roll is the pitch classes',
     # so an octave away the same notes rest (`note_roll`)
     if arr.note_chance:
@@ -994,7 +1216,8 @@ def layer_arrangement(arr: Arrangement, lay: dict) -> Arrangement:
     layer's own sequencing. A layer dict carries `velocities` only when
     they differ from the main lane's (`song_bridge.lane_render`; without
     them it plays the main lane's), and `slides`/`arp_mode`/`arp_octaves`/
-    `strum`/`note_chance` only when set — never the main lane's."""
+    `arp_pattern`/`strum`/`note_chance`/`note_feel` only when set — never
+    the main lane's."""
     vel = lay.get("velocities")
     return replace(
         arr,
@@ -1006,6 +1229,8 @@ def layer_arrangement(arr: Arrangement, lay: dict) -> Arrangement:
         strum=float(lay.get("strum") or 0.0),
         note_nudge=dict(lay.get("note_nudge") or {}),
         note_chance=dict(lay.get("note_chance") or {}),
+        arp_pattern=dict(lay.get("arp_pattern") or {}),
+        note_feel=dict(lay.get("note_feel") or {}),
     )
 
 
@@ -1023,11 +1248,25 @@ def _playing_steps(arr: Arrangement, cells=None) -> dict[str, list[int]]:
     by_pitch: dict[str, list[int]] = {}
     for pitch, step in arr.cells if cells is None else cells:
         by_pitch.setdefault(pitch, []).append(int(step))
+    # a note on the grid's END line whose feel starts it early sounds
+    # inside the grid (a section chunk's next downbeat, played early:
+    # `song_model.SectionParts.window` hands it to the chunk it sounds in)
+    feel = notefeel.of(arr)
+    early = {
+        p
+        for k, v in feel.items()
+        if (at := notefeel.split(k)) and at[1] == total and float(v[0]) < 0
+        for p in (at[0],)
+    }
     out: dict[str, list[int]] = {}
     for pitch, steps in by_pitch.items():
         kept: list[int] = []
         for s in sorted(set(steps)):
-            if 0 <= s < total or (kept and kept[-1] == s - 1):
+            if (
+                0 <= s < total
+                or (kept and kept[-1] == s - 1)
+                or (s == total and pitch in early)
+            ):
                 kept.append(s)
         if kept:
             out[pitch] = kept

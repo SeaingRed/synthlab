@@ -11,6 +11,7 @@ then sparser is no denser than it started."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -256,6 +257,8 @@ def test_every_note_is_on_the_ladder_inside_the_register_on_the_grid(root, scale
     assert nt.BASS_LOW[0] <= nt.bass_root(song) <= nt.BASS_LOW[1]
     for seed in (1, 2, 3):
         for kind in nt.GENERATORS:
+            if kind in nt.SLICE_KINDS:
+                continue  # its pitches are slice keys, not the key's tones
             ctx = _ctx(song, nt.KIND_REGISTER[kind], seed, role=kind)
             lane = nt.generate(kind, ctx)
             assert lane["bars"] == 8 and lane["steps_per_bar"] == 16 and lane["cells"]
@@ -477,3 +480,236 @@ def test_the_styles_are_whole_and_name_only_what_exists():
         for k in ("melodic_techno", "filter_house", "garage", "trance")
     ] == [176, 144, 104, 144]
     assert styles.bars_of("trance", "long") == 208
+
+
+# --- the bass switch: call and response between bass sounds -------------------
+
+
+def _switch(voices=2, every=2.0, seed=7, song=None, bars=8, **kw):
+    ctx = _ctx(song, "bass", seed, role="sw", bars=bars)
+    return nt.bass_switch(ctx, voices, every, **kw), ctx
+
+
+def _held(lane: dict) -> set[int]:
+    return {s for _p, s in lane["cells"]}
+
+
+def test_a_bass_switch_never_holds_a_step_in_two_lanes():
+    for voices in (2, 3, 4):
+        for every in (1.0, 2.0, 3.0):
+            lanes, _ = _switch(voices, every)
+            assert len(lanes) == voices
+            sets = [_held(lane) for lane in lanes]
+            for i, a in enumerate(sets):
+                for b in sets[i + 1 :]:
+                    assert not a & b
+
+
+def test_every_window_holds_a_note_in_its_own_lane():
+    for voices, every in ((2, 2.0), (3, 2.0), (2, 1.0), (4, 1.0)):
+        lanes, ctx = _switch(voices, every)
+        win = int(every * 4)
+        for w in range(ctx.total // win):
+            ons = {s for k in range(voices) for s in nt.note_ons(lanes[k])}
+            own = nt.note_ons(lanes[w % voices])
+            assert any(w * win <= s < (w + 1) * win for s in own), (voices, every, w)
+            # and nothing of another voice there
+            for k in range(voices):
+                if k != w % voices:
+                    assert not any(
+                        w * win <= s < (w + 1) * win for s in nt.note_ons(lanes[k])
+                    )
+            assert ons
+
+
+def test_a_bass_switch_is_seeded_and_the_seed_moves_the_figure():
+    a, _ = _switch(seed=7)
+    assert a == _switch(seed=7)[0]
+    assert any(_switch(seed=s)[0] != a for s in range(8, 14))
+
+
+def test_one_voice_plays_every_window():
+    (lane,), ctx = _switch(1, 2.0)
+    ons = nt.note_ons(lane)
+    assert all(any(w * 8 <= s < w * 8 + 8 for s in ons) for w in range(ctx.total // 8))
+
+
+def test_a_bass_switch_plays_the_chord_roots_the_roots_bass_reads():
+    lanes, ctx = _switch(2, 2.0)
+    for lane in lanes:
+        for pitch, start, _n in nt.runs(lane):
+            want = nt.above(ctx.low, ctx.chord(start - start % 8)["root"])
+            assert midi(pitch) == want
+
+
+def test_generate_returns_one_lane_a_voice():
+    lanes, ctx = _switch(3, 2.0)
+    for k in range(3):
+        assert nt.generate("bass_switch", ctx, voice=k, voices=3, every=2.0) == lanes[k]
+
+
+def test_a_bass_switch_can_leave_the_kicks_steps():
+    ctx = _ctx(role="sw", kick=(0, 10))
+    for k in range(2):
+        lane = nt.generate("bass_switch", ctx, voice=k, leave_kick=True)
+        assert not {s % 16 for s in nt.note_ons(lane)} & {0, 10}
+        assert nt.note_ons(lane)
+
+
+@pytest.mark.parametrize("meter", ["3/4", "6/8", "7/8"])
+def test_a_bass_switch_in_another_meter_stays_inside_its_bars(meter):
+    from synthlab.studio import meter as _m
+    from synthlab.studio import meterops
+
+    six = _m.parse(meter).sixteenths
+    lanes, ctx = _switch(2, 2.0)
+    fitted = [meterops.beat_fit(lane, meter) for lane in lanes]
+    for lane in fitted:
+        for _p, start, n in nt.runs(lane):
+            assert start // six == (start + n - 1) // six  # no note crosses a bar
+    held = [_held(lane) for lane in fitted]
+    assert not held[0] & held[1]
+    # the windows restart at each bar: the first voice opens every bar
+    for bar in range(ctx.bars):
+        first = min(s for lane in fitted for s in nt.note_ons(lane) if s // six == bar)
+        assert first in nt.note_ons(fitted[0])
+
+
+# --- chop stutter: a chopped sampler's slice keys, walked ----------------------
+
+
+def _stutter(seed=7, bars=8, **kw) -> dict:
+    return nt.chop_stutter(_ctx(None, "vocal", seed, role="chop", bars=bars), **kw)
+
+
+def _ends(bars: int) -> set[int]:
+    """The last half beat of every 4-bar phrase (and of the lane)."""
+    ends = {min(bars, b + 4) * 16 for b in range(0, bars, 4)}
+    return {e - k for e in ends for k in (1, 2)}
+
+
+def test_chop_stutter_plays_only_the_slice_keys():
+    for slices in (8, 16, 32):
+        for order in nt.CHOP_ORDERS:
+            for repeat in (0.0, 0.3, 1.0):
+                lane = _stutter(slices=slices, order=order, repeat=repeat)
+                keys = {midi(p) for p, _s in lane["cells"]}
+                assert keys <= set(range(nt.CHOP_ROOT, nt.CHOP_ROOT + slices))
+                assert lane["bars"] == 8 and lane["steps_per_bar"] == 16
+                raw = {"id": "aaaaaaaa", "kind": "notes", "name": "x", **lane}
+                assert schema.conform_strict(raw, N.PATTERN_NOTES)["cells"]
+    # a walk of 16 at repeat 0 plays every slice key
+    keys = {midi(p) for p, _s in _stutter(repeat=0.0)["cells"]}
+    assert keys == set(range(nt.CHOP_ROOT, nt.CHOP_ROOT + 16))
+    assert nt.CHOP_ROOT == 60  # C4: the sampler's own default root
+
+
+def test_chop_stutter_is_seeded():
+    a = _stutter(seed=3, order="shuffle", repeat=0.4)
+    assert a == _stutter(seed=3, order="shuffle", repeat=0.4)
+    assert any(_stutter(seed=s, order="shuffle", repeat=0.4) != a for s in (4, 5, 6))
+    # forward is a walk, whatever the seed, when nothing stutters
+    assert _stutter(seed=1, repeat=0.0) == _stutter(seed=2, repeat=0.0)
+
+
+def test_reverse_walks_down_and_forward_walks_up():
+    for order, step in (("forward", 1), ("reverse", -1)):
+        bar = sorted(
+            (s, midi(p))
+            for p, s in _stutter(order=order, repeat=0.0)["cells"]
+            if s < 14
+        )
+        pitches = [m for _s, m in bar]
+        assert all(b - a == step for a, b in zip(pitches, pitches[1:], strict=False))
+    assert midi(_stutter(order="reverse", repeat=0.0)["cells"][0][0]) == 75
+
+
+def test_no_stutter_at_repeat_zero_but_every_phrase_ends_in_one():
+    for bars in (8, 6, 1):
+        lane = _stutter(repeat=0.0, bars=bars)
+        notes = nt.runs(lane)
+        ends = _ends(bars)
+        for (p0, _s0, _n0), (p1, s1, _n1) in zip(notes, notes[1:], strict=False):
+            if s1 not in ends:
+                assert p1 != p0, (bars, s1)  # every step moves on
+        # ... and the last half beat of each phrase: the slice before, twice
+        by = {s: p for p, s, _n in notes}
+        for e in sorted(ends)[1::2]:
+            assert by[e] == by[e - 1] == by[e - 2], (bars, e)
+
+
+def test_at_repeat_one_every_bar_still_moves_on():
+    for slices in (8, 16, 32):
+        lane = _stutter(repeat=1.0, slices=slices)
+        notes = nt.runs(lane)
+        assert {midi(p) for p, _s, _n in notes} <= set(range(60, 60 + slices))
+        firsts = [p for p, s, _n in notes if s % 16 == 0]
+        assert len(firsts) == 8  # every bar opens on a note ...
+        for a, b in zip(firsts, firsts[1:4], strict=False):  # ... a new slice
+            assert a != b
+        # and the rest of a bar stutters: never more than two slices a bar
+        for bar in range(8):
+            held = {p for p, s, _n in notes if bar * 16 <= s < bar * 16 + 16}
+            assert len(held) <= 2
+
+
+def test_some_stutters_at_a_middling_repeat_and_they_are_short():
+    lane = _stutter(repeat=0.5)
+    notes = nt.runs(lane)
+    ends = _ends(8)
+    repeats = [
+        b
+        for a, b in zip(notes, notes[1:], strict=False)
+        if b[0] == a[0] and b[1] not in ends
+    ]
+    assert repeats and all(n == 1 for _p, _s, n in repeats)  # sixteenths
+
+
+def test_hostile_settings_never_raise():
+    for kw in ({"slices": "x"}, {"repeat": "nan"}, {"repeat": float("nan")},
+               {"slices": 999}, {"slices": -3}, {"order": "sideways"}):  # fmt: skip
+        lane = _stutter(**kw)
+        assert lane["cells"]
+        assert {midi(p) for p, _s in lane["cells"]} <= set(range(60, 60 + 32))
+
+
+def test_chop_stutter_is_a_kind_the_write_menu_offers():
+    from synthlab.studio.service.songpage import GEN_KINDS
+
+    assert "chop_stutter" in nt.GENERATORS and nt.KIND_REGISTER["chop_stutter"]
+    assert "chop_stutter" in dict(GEN_KINDS)
+    assert build._KIND_ROLE["chop_stutter"] == "vocal"
+    song = _song()
+    tid = sm.add_track(song, "synth", "Chops")
+    sm.add_section(song, "A", 8)
+    (pid,) = build.write(song, tid, "chop_stutter", 5)
+    p = song["patterns"][pid]
+    assert p["gen"]["kind"] == "chop_stutter" and p["cells"]
+    assert {midi(c[0]) for c in p["cells"]} <= set(range(60, 76))
+    assert sm._track(song, tid)["role"] == "vocal"
+
+
+# the kinds there were before chop_stutter: their lanes, three seeds, three
+# keys — the digest the code before it wrote (an append must move none)
+OLD_KINDS = (
+    "bass_rolling", "bass_root", "bass_offbeat", "bass_walk", "bass_2step",
+    "bass_switch", "chords", "pad", "arp", "lead", "chops", "hit",
+)  # fmt: skip
+OLD_DIGEST = "453d4b47d82b263460ff2516cf5f883c5e5e40569e58e57e98f5e031643542b5"
+
+
+def test_the_existing_generators_write_what_they_wrote():
+    out = {}
+    for seed in (1, 7, 11):
+        for root, scale in (
+            ("F#1", "minor"),
+            ("C2", "pentatonic_minor"),
+            ("D2", "major"),
+        ):
+            song = _song(root, scale)
+            for kind in OLD_KINDS:
+                ctx = _ctx(song, nt.KIND_REGISTER[kind], seed, role=kind)
+                out[f"{seed}:{root}:{kind}"] = nt.generate(kind, ctx)
+    got = hashlib.sha256(json.dumps(out, sort_keys=True).encode()).hexdigest()
+    assert got == OLD_DIGEST
+    assert list(nt.GENERATORS)[: len(OLD_KINDS)] == list(OLD_KINDS)

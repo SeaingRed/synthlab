@@ -91,6 +91,10 @@ def test_the_chains_exist_and_are_clean():
         "8-Bit Crush",
         "Hard Kick Drive",
         "Phonk Crush",
+        # the multiband drive's (the bass-music twelve)
+        "MB Growl",
+        "MB Bite",
+        "Drop Glue",
     ]
     for name, preset in CHAIN_PRESETS.items():
         units = preset["units"]

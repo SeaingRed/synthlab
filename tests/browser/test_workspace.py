@@ -58,11 +58,11 @@ def _ids_in_order(page) -> list[str]:
 
 
 def test_a_module_dragged_by_its_frame_lands_beside_another_and_stays(studio):
-    # (the pads are a tab of the Play module, which
-    # moves; the launcher has a head of its own)
+    # (the lane inspector, the right column's one module, moves; the
+    # launcher has a head of its own)
     page = studio.open("perform")
     pads, notes = (
-        _mod(page, "perform.play").bounding_box(),
+        _mod(page, "perform.lane").bounding_box(),
         _mod(page, "perform.notes").bounding_box(),
     )
     # the drop zone: the right half of the note grid, previewed by a transform only
@@ -80,12 +80,12 @@ def test_a_module_dragged_by_its_frame_lands_beside_another_and_stays(studio):
     )
     page.mouse.up()
     page.wait_for_timeout(150)
-    after = _mod(page, "perform.play").bounding_box()
+    after = _mod(page, "perform.lane").bounding_box()
     notes = _mod(page, "perform.notes").bounding_box()
     assert after["x"] >= notes["x"] + notes["width"] - 2, (after, notes)
     assert (
         page.evaluate(
-            "() => document.querySelector('[data-module=\"perform.play\"]')"
+            "() => document.querySelector('[data-module=\"perform.lane\"]')"
             ".parentElement.localName"
         )
         == "ws-group"
@@ -95,7 +95,7 @@ def test_a_module_dragged_by_its_frame_lands_beside_another_and_stays(studio):
     page.wait_for_function(
         "() => !document.documentElement.hasAttribute('data-ws-wait')"
     )
-    again = _mod(page, "perform.play").bounding_box()
+    again = _mod(page, "perform.lane").bounding_box()
     page.wait_for_timeout(800)  # (the view's entrance moves it: motion.js)
     assert abs(again["x"] - after["x"]) < 2 and abs(again["width"] - after["width"]) < 2
     # Esc cancels a drag: nothing moves
@@ -116,7 +116,7 @@ def test_two_modules_share_a_place_as_tabs(studio):
     page = studio.open("perform")
     head, pads = (
         page.locator("#perform-slots .sl-head h2").bounding_box(),
-        _mod(page, "perform.play").bounding_box(),
+        _mod(page, "perform.lane").bounding_box(),
     )
     _drop(
         page,
@@ -125,25 +125,25 @@ def test_two_modules_share_a_place_as_tabs(studio):
         at=(4, 4),
     )
     tabs = page.locator("ws-tabs .ws-tab")
-    assert tabs.all_text_contents() == ["Play", "Launcher"]
+    assert tabs.all_text_contents() == ["Lane inspector", "Launcher"]
     assert (
         _mod(page, "perform.slots").is_visible()
-        and not _mod(page, "perform.play").is_visible()
+        and not _mod(page, "perform.lane").is_visible()
     )
     # a tab shows its module (the click that ended the drag was no tab's)
     tabs.first.click()
     assert (
-        _mod(page, "perform.play").is_visible()
+        _mod(page, "perform.lane").is_visible()
         and not _mod(page, "perform.slots").is_visible()
     )
     assert tabs.first.get_attribute("aria-selected") == "true"
     page.reload()
     assert (
-        _mod(page, "perform.play").is_visible()
+        _mod(page, "perform.lane").is_visible()
         and not _mod(page, "perform.slots").is_visible()
     )
-    # a pad still plays from its tab: the pads' own island finds them
-    page.locator("#perform-pads .hit-pad").first.click()
+    # its region still lands in it where it stands
+    assert page.locator("#perform-lane #lane-inspector").count() == 1
 
 
 def test_a_module_folds_floats_and_takes_the_window_from_its_menu(studio):
@@ -154,25 +154,25 @@ def test_a_module_folds_floats_and_takes_the_window_from_its_menu(studio):
     _menu(page, "#perform-slots", "Expand")
     assert _mod(page, "perform.slots").bounding_box()["height"] > 40
     # popped out: a fixed panel over the page, kept across a reload
-    _menu(page, "#perform-play", "Pop out")
+    _menu(page, "#perform-lane", "Pop out")
     assert (
         page.evaluate(
-            "() => { const f = document.querySelector('#perform-play').parentElement;"
+            "() => { const f = document.querySelector('#perform-lane').parentElement;"
             " return f.localName + ' ' + getComputedStyle(f).position; }"
         )
         == "ws-float fixed"
     )
-    assert "perform.play" in page.evaluate(_STATE)["float"]
+    assert "perform.lane" in page.evaluate(_STATE)["float"]
     float_box = page.locator("ws-float").bounding_box()
     # a floating panel is moved by its frame
     _drop(
         page,
-        _mod(page, "perform.play").bounding_box(),
+        _mod(page, "perform.lane").bounding_box(),
         (float_box["x"] - 198, float_box["y"] + 82),
     )
     moved = page.locator("ws-float").bounding_box()
     assert (
-        # (leftwards: Play floats at the right)
+        # (leftwards: the inspector floats at the right)
         abs(moved["x"] - float_box["x"] + 200) < 3
         and abs(moved["y"] - float_box["y"] - 80) < 3
     )
@@ -182,9 +182,9 @@ def test_a_module_folds_floats_and_takes_the_window_from_its_menu(studio):
     )  # (the view's entrance moves it with the page: motion.js)
     again = page.locator("ws-float").bounding_box()
     assert abs(again["x"] - moved["x"]) < 1 and abs(again["y"] - moved["y"]) < 1
-    _menu(page, "#perform-play", "Dock it back")
+    _menu(page, "#perform-lane", "Dock it back")
     assert page.locator("ws-float").count() == 0
-    assert "perform.play" not in (page.evaluate(_STATE) or {"float": {}})["float"]
+    assert "perform.lane" not in (page.evaluate(_STATE) or {"float": {}})["float"]
     # focus: the module alone, the whole window; Esc returns
     _menu(page, "#perform-lane", "Focus (Esc returns)")
     box = _mod(page, "perform.lane").bounding_box()
@@ -234,9 +234,9 @@ def test_reset_puts_the_page_back_as_the_studio_draws_it(studio):
     before = _ids_in_order(page)
     boxes = {
         m: _mod(page, m).bounding_box()
-        for m in ("perform.play", "perform.notes", "perform.drums")
+        for m in ("perform.lane", "perform.notes", "perform.drums")
     }
-    pads, drums = boxes["perform.play"], boxes["perform.drums"]
+    pads, drums = boxes["perform.lane"], boxes["perform.drums"]
     _drop(
         page, pads, (drums["x"] + drums["width"] / 2, drums["y"] + drums["height"] - 10)
     )
@@ -331,20 +331,20 @@ def test_the_keyboard_walks_the_modules_and_moves_one(studio):
         page.evaluate("() => document.activeElement.dataset.module")
         == "perform.transport"
     )
-    # the pads, then Alt+Shift+→ puts them right of the nearest module that way
+    # the inspector, then Alt+Shift+← puts it left of the nearest module that way
     page.evaluate(
-        "() => { const m = document.getElementById('perform-play');"
+        "() => { const m = document.getElementById('perform-lane');"
         " m.tabIndex = -1; m.focus(); }"
     )
-    before = _mod(page, "perform.play").bounding_box()
+    before = _mod(page, "perform.lane").bounding_box()
     page.keyboard.press("Alt+Shift+ArrowLeft")
-    after = _mod(page, "perform.play").bounding_box()
+    after = _mod(page, "perform.lane").bounding_box()
     assert after["x"] < before["x"] - 100, (before, after)
     assert (
-        page.evaluate("() => document.activeElement.dataset.module") == "perform.play"
+        page.evaluate("() => document.activeElement.dataset.module") == "perform.lane"
     )
     page.keyboard.press("Alt+Shift+ArrowRight")
-    assert _mod(page, "perform.play").bounding_box()["x"] > after["x"]
+    assert _mod(page, "perform.lane").bounding_box()["x"] > after["x"]
     # the menu row says how, and puts the keyboard on the module
     _menu(page, "#perform-slots", "Move with the keyboard")
     assert page.evaluate("() => document.activeElement.id") == "perform-slots"
@@ -405,6 +405,11 @@ def _wide(studio, w: int = 2560, h: int = 1440):
     # the page settles first (its fetches land, the view's entrance ends):
     # a drag measures once, at its start
     studio.settle()
+    # the panels at their full height (the sections at rest opened: bench.js
+    # 4): their column sets the page's, and so the room under the others
+    page.evaluate(
+        "() => document.querySelectorAll('[data-rest=folded]').forEach(h => h.click())"
+    )
     page.wait_for_timeout(800)
     return page
 

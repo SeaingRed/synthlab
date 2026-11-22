@@ -3173,3 +3173,269 @@ def _transient(x, attack=0.0, sustain=0.0, output=0.0, sr=SR):
 
 def transient(attack=0.0, sustain=0.0, output=0.0):
     return partial(_transient, attack=attack, sustain=sustain, output=output)
+
+
+# ----------------------------------------------------------------------------
+# multiband drive — the OTT's three bands, each through the drive's shape at
+# its own amount: a bass driven into a growl while its top stays clean, or
+# only the air fizzed. Memoryless but for the crossovers, so causal; its
+# live twin is in static/fx2-worklet.js beside the OTT's.
+# ----------------------------------------------------------------------------
+
+
+def _unshaped(amount) -> bool:
+    """A band's amount that leaves it as it is: 1 (or a lane at 1 all
+    through). The drive's shapes are not the identity at 1 (soft's is
+    tanh(x) / tanh(1)), so such a band is passed, never shaped."""
+    return bool(np.all(np.asarray(amount) == 1.0))
+
+
+def _mbdrive(x, low=1.0, mid=1.0, high=1.0, mode="soft", mix=1.0, sr=SR):
+    """Three bands (`ott_bands`: 120 Hz / 2.5 kHz), each through
+    `drive_shape` at its own amount (`low`, `mid`, `high`, 1..12, any of
+    `DRIVE_MODES`) — a band at 1 passed as it is — summed: the wet. The dry
+    under a `mix` below 1 is the bands summed unshaped (the input through
+    the two all-passes), in phase with the wet: the raw input would cancel
+    the wet near 2.5 kHz at an even blend. With every band at 1 nothing is
+    split and the unit is its input. Each amount and `mix` may be a
+    per-sample array (a lane): an amount where it reads 1 is the band's own
+    sample, elsewhere the shape at its value."""
+    amounts = (low, mid, high)
+    if all(_unshaped(a) for a in amounts):
+        return x
+    st = to_stereo(x)
+    if len(st) == 0:
+        return x
+    bands = ott_bands(st, sr)
+    dry = bands[0] + bands[1] + bands[2]
+    wet = np.zeros_like(st)
+    for band, amount in zip(bands, amounts, strict=True):
+        a = np.asarray(amount, dtype=np.float64)
+        if a.ndim == 0:
+            wet += band if float(a) == 1.0 else drive_shape(band, float(a), mode)
+        elif _unshaped(a):
+            wet += band
+        else:
+            wet += np.where(a[:, None] == 1.0, band, drive_shape(band, a, mode))
+    m = _per_sample(mix, st)
+    res = dry * (1 - m) + wet * m
+    return res if is_stereo(x) else res.mean(axis=1)
+
+
+def mbdrive(low=1.0, mid=1.0, high=1.0, mode="soft", mix=1.0):
+    return partial(_mbdrive, low=low, mid=mid, high=high, mode=mode, mix=mix)
+
+
+# ----------------------------------------------------------------------------
+# a unit's band — any rack unit on part of the signal: the lows, mids or highs
+# (the OTT's crossover, `ott_bands`) or the mid or side channel. The other
+# part passes and is summed back. Not a unit: a wrapper round one
+# (`fxrack.build_chain` puts it round a unit whose `band` is set).
+# ----------------------------------------------------------------------------
+
+BANDS = ("low", "mid", "high", "ms_mid", "ms_side")
+_FREQ_BANDS = BANDS[:3]
+
+
+def band_apply(x, band, fn, wet=False, sr=SR):
+    """`fn` (a unit: mono or stereo in, the same shape out) on one band of
+    `x`, the rest passed and summed back in phase with it.
+
+    "low" / "mid" / "high": `ott_bands`' three bands (Linkwitz-Riley at
+    `OTT_SPLIT`), `fn` on its band, the other two summed onto its output.
+    The bands sum to the input through two all-passes, so the part that
+    passes is all-passed as the band is: a unit that leaves its band as it
+    is (at mix 0, say) gives the all-passed input — flat in level, its
+    phase turned round 120 Hz and 2.5 kHz — never the raw input, whose sum
+    with an all-passed band would comb. "ms_mid" / "ms_side": mid = (L +
+    R) / 2, side = (L - R) / 2, exact (no filter); `fn` hears its channel
+    on both sides and its two outputs are averaged back to one, L = mid +
+    side and R = mid - side after. A mono input has no side: "ms_mid" is
+    `fn` on it, "ms_side" leaves it as it is.
+
+    `wet`: the band's output alone (a mixer return: what it sends is the
+    effect, never level) — "ms_mid" as (y, y), "ms_side" as (y, -y). An
+    unknown band is the whole signal."""
+    x = np.asarray(x)
+    if band not in BANDS or len(x) == 0:
+        return fn(x)
+    if band in _FREQ_BANDS:
+        parts = ott_bands(x, sr)
+        i = _FREQ_BANDS.index(band)
+        y = np.asarray(fn(parts[i]))
+        if wet:
+            return y
+        a, b = (parts[j] for j in range(3) if j != i)
+        return y + (a + b)
+    if not is_stereo(x) and band == "ms_side":  # no side to work on
+        return np.zeros_like(x, dtype=np.float64) if wet else x
+    st = to_stereo(x)
+    mid = (st[:, 0] + st[:, 1]) * 0.5
+    side = (st[:, 0] - st[:, 1]) * 0.5
+    own = mid if band == "ms_mid" else side
+    y = to_stereo(np.asarray(fn(np.column_stack([own, own])))).mean(axis=1)
+    if wet:
+        res = np.column_stack([y, y if band == "ms_mid" else -y])
+    elif band == "ms_mid":
+        res = np.column_stack([y + side, y + -side])
+    else:
+        res = np.column_stack([mid + y, mid + -y])
+    return res if is_stereo(x) else res.mean(axis=1)
+
+
+def banded(effect, band, wet=False):
+    """`effect` (a prepared unit) on `band` of whatever it is handed
+    (`band_apply`)."""
+    return partial(band_apply, band=band, fn=effect, wet=wet)
+
+
+# ----------------------------------------------------------------------------
+# utility — a mixing desk's channel tools in one unit: polarity, width, the
+# lows made mono, pan and gain. Every gain fixed or a lane, the one filter
+# causal: its live twin is in static/band-worklet.js.
+# ----------------------------------------------------------------------------
+
+UTILITY_Q = OTT_Q  # bass mono's crossover: a Linkwitz-Riley half, as the OTT's
+
+
+def _utility(
+    x, gain=0.0, pan=0.0, width=1.0, bass_mono=0.0, flip_l=0.0, flip_r=0.0, sr=SR
+):
+    """In order: each channel's polarity (`flip_l` / `flip_r` at 1), the
+    side x `width` (0 mono, 1 as is, 2 twice as wide), the side's lows
+    taken out under `bass_mono` Hz (0: off) — a Linkwitz-Riley split: the
+    side through its high-pass twice, the mid through the pair's all-pass
+    so the two stay in phase, so the lows of both channels are their mono
+    sum —, `pan` (`effects.pan`'s law on a stereo input: unity at the
+    centre) and `gain` dB. `gain` and `width` may be per-sample arrays
+    (lanes). At its defaults the input itself, bit for bit."""
+    g = np.asarray(gain, dtype=np.float64)
+    w = np.asarray(width, dtype=np.float64)
+    flips = float(flip_l) >= 0.5 or float(flip_r) >= 0.5
+    rest = float(pan) == 0.0 and float(bass_mono) <= 0.0 and not flips
+    if rest and np.all(g == 0.0) and np.all(w == 1.0):
+        return x
+    st = to_stereo(np.asarray(x, dtype=np.float64))
+    if len(st) == 0:
+        return x
+    left = st[:, 0] * (-1.0 if float(flip_l) >= 0.5 else 1.0)
+    right = st[:, 1] * (-1.0 if float(flip_r) >= 0.5 else 1.0)
+    mid = (left + right) * 0.5
+    side = (left - right) * 0.5 * w
+    if float(bass_mono) > 0.0:
+        f = float(bass_mono)
+        mid = _lfilter(*allpass_coeffs(f, UTILITY_Q, sr), mid)
+        hp = biquad_coeffs("highpass", f, UTILITY_Q, sr)
+        side = _lfilter(*hp, _lfilter(*hp, side))
+    gl, gr = _pan_gains(pan)
+    lin = 10.0 ** (g / 20.0)
+    res = np.column_stack([(mid + side) * gl * lin, (mid - side) * gr * lin])
+    return res if is_stereo(x) else res.mean(axis=1)
+
+
+def utility(gain=0.0, pan=0.0, width=1.0, bass_mono=0.0, flip_l=0.0, flip_r=0.0):
+    return partial(
+        _utility,
+        gain=gain,
+        pan=pan,
+        width=width,
+        bass_mono=bass_mono,
+        flip_l=flip_l,
+        flip_r=flip_r,
+    )
+
+
+# ----------------------------------------------------------------------------
+# convolution — a recorded impulse response (a clip made into a sample: the
+# sampler's content-addressed store, `sampler.get`) as a reverb, a cabinet,
+# a body. Named by content, so every key that holds the unit holds the IR;
+# a missing IR is a dry pass. Its gain is the IR's own (1 / ||ir||), never
+# matched to what it is fed: causal, and the live keys' ConvolverNode loads
+# exactly `convolve_ir` (GET /fx/ir.wav?kind=clip).
+# ----------------------------------------------------------------------------
+
+# an IR's length, cut there (studio/limits.py MAX_IR_SECONDS)
+CONVOLVE_MAX_SECONDS = 8.0
+CONVOLVE_CUTS = (20.0, 20000.0)  # lowcut / highcut at these ends: no filter
+_CONVOLVE_IRS: OrderedDict[tuple, np.ndarray] = OrderedDict()
+_CONVOLVE_KEEP = 8
+_CONVOLVE_LOCK = threading.Lock()
+
+
+def convolve_ir(ir="", predelay=0.0, lowcut=20.0, highcut=20000.0, sr=SR):
+    """The IR the convolution plays, gain included, or None (no such sample
+    here, or one with no energy): the sample `ir` (stereo, the store's
+    16-bit grid) cut to `CONVOLVE_MAX_SECONDS`, at `sr`, high-passed at
+    `lowcut` and low-passed at `highcut` (RBJ, Q 0.707, each channel; at
+    `CONVOLVE_CUTS`' ends not run), `predelay` seconds of silence before
+    it, then divided by its energy (sqrt of the channels' mean sum of
+    squares): a white input's wet comes out at its own level, whatever the
+    recording's level was."""
+    from . import sampler
+
+    src = sampler.get(ir)
+    if src is None or not len(src):
+        return None
+    x = np.asarray(src, dtype=np.float64)[: int(CONVOLVE_MAX_SECONDS * SR)]
+    if int(sr) != SR:
+        from math import gcd
+
+        from scipy.signal import resample_poly
+
+        g = gcd(int(sr), SR)
+        x = resample_poly(x, int(sr) // g, SR // g, axis=0)
+    if float(lowcut) > CONVOLVE_CUTS[0]:
+        x = _lfilter(*biquad_coeffs("highpass", float(lowcut), 0.707, sr), x)
+    if float(highcut) < CONVOLVE_CUTS[1]:
+        x = _lfilter(*biquad_coeffs("lowpass", float(highcut), 0.707, sr), x)
+    pre = int(round(max(0.0, float(predelay)) * sr))
+    if pre:
+        x = np.vstack([np.zeros((pre, 2)), x])
+    energy = float(np.sqrt(np.mean(np.sum(x**2, axis=0))))
+    if not energy > 1e-12:
+        return None
+    return x / energy
+
+
+def _convolve_room(key: tuple) -> np.ndarray | None:
+    """`convolve_ir(*key)`, kept for the render path (read-only, a few by
+    their arguments; a missing IR is never kept, so one imported later is
+    found)."""
+    with _CONVOLVE_LOCK:
+        room = _CONVOLVE_IRS.get(key)
+        if room is not None:
+            _CONVOLVE_IRS.move_to_end(key)
+            return room
+    room = convolve_ir(*key)
+    if room is None:
+        return None
+    room.flags.writeable = False
+    with _CONVOLVE_LOCK:
+        _CONVOLVE_IRS[key] = room
+        while len(_CONVOLVE_IRS) > _CONVOLVE_KEEP:
+            _CONVOLVE_IRS.popitem(last=False)
+    return room
+
+
+def _convolve(x, ir="", mix=0.3, predelay=0.0, lowcut=20.0, highcut=20000.0, sr=SR):
+    """`x` convolved with the IR (`convolve_ir`, each channel with its own),
+    blended `dry * (1 - mix) + wet * mix` — `mix` may be a per-sample array
+    (a lane). No IR here: the input itself, at any mix."""
+    key = (str(ir), float(predelay), float(lowcut), float(highcut), int(sr))
+    room = _convolve_room(key)
+    if room is None or len(x) == 0:
+        return x
+    st = to_stereo(x)
+    n = len(st)
+    nfft = sp_fft.next_fast_len(n + len(room) - 1, True)
+    spec = sp_fft.rfft(st, nfft, axis=0) * _ir_spectrum("convolve", key, room, nfft)
+    wet = sp_fft.irfft(spec, nfft, axis=0)[:n]
+    m = _per_sample(mix, st)
+    out = st * (1 - m) + wet * m
+    return out if is_stereo(x) else out.mean(axis=1)
+
+
+def convolve(ir="", mix=0.3, predelay=0.0, lowcut=20.0, highcut=20000.0):
+    return partial(
+        _convolve, ir=ir, mix=mix, predelay=predelay, lowcut=lowcut, highcut=highcut
+    )

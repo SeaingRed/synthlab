@@ -98,6 +98,44 @@ def note_ons(song: dict, sec: dict, t: dict) -> set[int]:
     }
 
 
+def held_steps(song: dict, sec: dict, t: dict) -> set[int]:
+    """The sixteenths of a pass of the section a track's notes sound on (a
+    held note holds every step it covers)."""
+    p = _pattern(song, sec, t["id"])
+    if p is None or p["kind"] != "notes" or t.get("mute"):
+        return set()
+    at, n = _block(sec, t["id"])
+    per = p["steps_per_bar"]
+    held: dict[int, set[int]] = {}
+    for _pitch, s in p.get("cells") or ():
+        if int(s) < p["bars"] * per:
+            held.setdefault(int(s) // per, set()).add(int(s) % per * 16 // per)
+    return {
+        bar * 16 + step
+        for bar in range(at, at + n)
+        for step in held.get((bar - at) % p["bars"], ())
+    }
+
+
+def _alternates(song: dict, sec: dict) -> bool:
+    """Two bass tracks answering each other in the section: both sound, no
+    step is held by both, and the sound changes hands at least twice along
+    the pass. Read from the notes, never from a track's name."""
+    owned = [
+        (t, held_steps(song, sec, t))
+        for t in _tracks(song, "bass")
+        if held_steps(song, sec, t)
+    ]
+    for i, (_a, ha) in enumerate(owned):
+        for _b, hb in owned[i + 1 :]:
+            if ha & hb:
+                continue
+            order = [0 if s in ha else 1 for s in sorted(ha | hb)]
+            if sum(x != y for x, y in zip(order, order[1:], strict=False)) >= 2:
+                return True
+    return False
+
+
 def _unit(t: dict, *kinds: str) -> dict | None:
     return next((u for u in t.get("fx") or () if u["kind"] in kinds), None)
 
@@ -1158,6 +1196,10 @@ def _dubstep(song: dict) -> list[dict]:
         ),
         _c("a wobble: a bass whose filter LFO is synced to the clock", bool(synced)),
         _c("wobbles at two clock rates or more", len(synced) >= 2),
+        _c(
+            "two basses answering each other in a drop, never on one step",
+            any(_alternates(song, d) for d in drops),
+        ),
         _c("a growl: FM or the vowel filter on a bass, driven or folded", growl),
         _c("a sine sub, ducked", any(_ducked(t) for t in basses if _sine_sub(t))),
         _c("a cut before a drop", _cut_into_drop(song)),

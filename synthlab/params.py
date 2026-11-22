@@ -45,7 +45,7 @@ from typing import Any
 
 import numpy as np
 
-from . import sampler, wavetables
+from . import granular, sampler, spectral, wavetables
 from .core import (
     FM4_ALGO_NAMES,
     SYNC_SHAPES,
@@ -74,6 +74,10 @@ MOD_SOURCES = (
     "aftertouch",
     "key",
     "random",
+    # LFOs 4-6 (appended: GENERAL_LFOS)
+    "lfo4",
+    "lfo5",
+    "lfo6",
 )
 # what a bred route draws from: the five it always did (a longer source
 # gene re-draws every seeded litter); a hand-made route to the rest is kept
@@ -122,6 +126,18 @@ MOD_DESTINATIONS = (
     "fm4_level3",
     "fm4_level4",
     "formant_vowel",
+    # the granular shape's position — no gene choice
+    "grain_pos",
+    # oscillator 3's level, detune and warp amount — no gene choices
+    "osc3_level",
+    "osc3_detune",
+    "osc3_warp_amt",
+    # each oscillator's second warp amount — no gene choices
+    "osc1_warp2_amt",
+    "osc2_warp2_amt",
+    "osc3_warp2_amt",
+    # the spectral shape's scan position — no gene choice
+    "spectral_pos",
     "pitch",
 )
 ROUND6_DESTINATIONS = MOD_DESTINATIONS[
@@ -156,10 +172,16 @@ MOD_GENE_DESTINATIONS = tuple(
 # core.lfo() dispatches these: WAVEFORMS plus its own "noise" special case
 LFO_SHAPES = ("sine", "triangle", "saw", "square", "noise")
 # the general LFOs' shapes (LFO 1, 2, 3): those, then a drawn
-# curve (`lfo_draw`...), a chaotic map and a smooth random line, all seeded
+# curve (`lfo_draw`...), a chaotic map, a smooth random line and two
+# chaotic flows (appended: core.ATTRACTORS), all seeded
 # and loop-safe (core.lfo_ext). LFO 1's gene keeps the five: the rest are
 # its cap, a hand-made choice
-GENERAL_LFO_SHAPES = (*LFO_SHAPES, "drawn", "chaos", "smooth")
+GENERAL_LFO_SHAPES = (*LFO_SHAPES, "drawn", "chaos", "smooth", "lorenz", "rossler")
+# the general LFOs beside LFO 1 (each its own rate, shape, sync, phase, mode
+# and drawing): 2 and 3, then 4, 5, 6 — six in all, not more: each is six
+# Patch fields and a source jack, and six already outnumber the routes a
+# sound tends to spend on LFOs
+GENERAL_LFOS = (2, 3, 4, 5, 6)
 # "retrig": a general LFO starts each note at its phase; "free": each note
 # picks the cycle up where its own seed puts it (core.lfo_free_phase)
 LFO_MODES = ("retrig", "free")
@@ -181,6 +203,13 @@ SYNC_DIVISIONS: dict[str, float] = {
     "1/8T": 1.0 / 3.0,
 }
 SYNC_CHOICES = tuple(SYNC_DIVISIONS)
+# the envelope stage times that may be given as a sync division instead of
+# seconds (each one's `<time>_sync` field; synth.at_bpm resolves them)
+ENV_SYNC_TIMES = tuple(
+    f"{env}_{stage}"
+    for env in ("filter", "env3", "env4")
+    for stage in ("attack", "decay", "release")
+)
 
 OSC1_SHAPES = (
     "sine",
@@ -194,9 +223,26 @@ OSC1_SHAPES = (
 )
 OSC2_SHAPES = (None, "sine", "saw", "square", "triangle", "fm", "pluck", "wavetable")
 # hand-made shapes (in an oscillator's cap, never its gene): "noise",
-# "sampler" and "fm4" — a random 4-operator patch is
-# rarely a sound, and a longer shape gene would re-draw every seeded litter
-HAND_SHAPES = ("noise", "sampler", "fm4")
+# "sampler", "fm4", "granular" and "spectral" (appended) — a random
+# 4-operator patch is rarely a sound, a sample is no number to breed, and a
+# longer shape gene would re-draw every seeded litter
+HAND_SHAPES = ("noise", "sampler", "fm4", "granular", "spectral")
+# oscillator 3's shapes: every oscillator shape but those that play a
+# recording — sampler, granular, spectral (the sampler's panel, its live
+# payload and the project's sample bundling follow osc1 / osc2). It has no
+# "off": its level is the switch (`osc3_on`)
+OSC3_SHAPES = (
+    "sine",
+    "saw",
+    "square",
+    "triangle",
+    "supersaw",
+    "fm",
+    "pluck",
+    "wavetable",
+    "noise",
+    "fm4",
+)
 FILTER_TYPES = ("ladder", "lowpass", "bandpass", "highpass", "notch", "none")
 # how many voices a patch plays at once (sequencer.mono_lines),
 # and when it glides
@@ -218,6 +264,8 @@ FILTER_TYPES_ALL = (
 # where filter 2 sits: nowhere (every older patch), after filter 1, or
 # beside it (the two outputs averaged)
 FILTER2_ROUTES = ("off", "serial", "parallel")
+# a route slot's switch: "off" bypasses the route (it keeps its settings)
+ROUTE_SWITCH = ("on", "off")
 
 # An envelope time's hard ceiling: a 4 s pad release is sound design, not
 # corruption, however narrow the musical gene range is.
@@ -237,16 +285,40 @@ def _never(p) -> bool:
     return False
 
 
+def osc3_on(p) -> bool:
+    """Does oscillator 3 play? Its level above 0 anywhere — a value, a drawn
+    curve, or (in the patch after the mod matrix) a route lifting it. The
+    one gate: at 0 nothing reads its other fields."""
+    return bool(np.any(np.asarray(getattr(p, "osc3_level", 0.0)) > 0))
+
+
+def shapes_of(p) -> tuple:
+    """The shapes the oscillators play: osc1, osc2 (None while off), and
+    osc3 while its level is up."""
+    if osc3_on(p):
+        return (p.osc1, p.osc2, p.osc3)
+    return (p.osc1, p.osc2)
+
+
 @dataclass(frozen=True)
 class uses_shape:
-    """Live only while osc1 or osc2 plays `shape`. A class rather than a
+    """Live only while an oscillator plays `shape` (osc3 only while its
+    level is up: `shapes_of`). A class rather than a
     lambda so the studio can read *which* shape (paramui.SHAPE_DEPS dims
     the rows of an unused shape from these)."""
 
     shape: str
+    # more shapes that read the field too (the sample the "sampler",
+    # "granular" and "spectral" shapes share)
+    also: tuple[str, ...] = ()
+
+    @property
+    def shapes(self) -> tuple[str, ...]:
+        return (self.shape, *self.also)
 
     def __call__(self, p) -> bool:
-        return self.shape in (p.osc1, p.osc2)
+        playing = shapes_of(p)
+        return any(s in playing for s in self.shapes)
 
 
 def slot_active(p, slot: str) -> bool:
@@ -256,15 +328,19 @@ def slot_active(p, slot: str) -> bool:
     return (
         src in MOD_SOURCES
         and src != "none"
+        and getattr(p, f"{slot}_on", "on") != "off"
         and getattr(p, f"{slot}_dst") in MOD_RANGES
         and abs(getattr(p, f"{slot}_amt")) >= 1e-3
     )
 
 
 def _routed(p, source: str) -> bool:
-    """Some slot reads `source` with an amount worth mutating around."""
+    """Some slot reads `source` with an amount worth mutating around (and
+    is not bypassed)."""
     return any(
-        getattr(p, f"{s}_src") == source and abs(getattr(p, f"{s}_amt")) >= 0.05
+        getattr(p, f"{s}_src") == source
+        and abs(getattr(p, f"{s}_amt")) >= 0.05
+        and getattr(p, f"{s}_on", "on") != "off"
         for s in MOD_SLOTS
     )
 
@@ -388,9 +464,21 @@ def _env(name, lo, hi, **kw):
 
 
 _SAMPLING = uses_shape("sampler")
+# the fields the granular and spectral shapes read of the sampler's: the
+# sample, its span and loop, its root and key track
+_SAMPLE_READ = uses_shape("sampler", ("granular", "spectral"))
+_GRAINING = uses_shape("granular")
+_GRAIN_WHY = "a granular setting: it plays a recording, not a bred sound"
+_SPECTRAL = uses_shape("spectral")
+_SPECTRAL_WHY = "a spectral setting: it plays a recording, not a bred sound"
 _WARP_WHY = "a hand-made phase warp: breeding never draws one"
+_OSC3_WHY = "a hand-made third oscillator: breeding never draws one"
 _VOICE_WHY = "how the keys and the loop play the sound, not the sound itself"
 _SAMPLE_WHY = "a sampler setting: it shapes a recording, not a bred sound"
+_ROUTE_WHY = (
+    "a route's switch and source curve: hand-made, never bred (a longer genome "
+    "would re-draw every seeded litter)"
+)
 
 _SLOT_AMTS = [_lin(f"{s}_amt", -1.0, 1.0) for s in MOD_GENE_SLOTS]
 _SLOT_CATS = [
@@ -429,6 +517,10 @@ def _r6(name, kind, cap, **kw):
 
 
 _ENV_T = (0.001, 8.0)  # a general envelope's times (log sliders)
+# a general LFO's rate, Hz: up to audio rate (LFO 1's gene stays 0.05-12,
+# its cap is this ceiling too; the ceiling was 30 for LFOs 2 / 3)
+LFO_RATE_MAX = 1000.0
+_LFO_RATE = (0.02, LFO_RATE_MAX)
 # The second filter, two general envelopes, two
 # general LFOs, the mod wheel and aftertouch, route slots 5-12. None is a
 # gene — a longer genome re-draws every seeded litter — so each is a
@@ -455,7 +547,7 @@ _ROUND6: list[Param] = [
         _r6(f"lfo{k}_{part}", kind, cap)
         for k in (2, 3)
         for part, kind, cap in (
-            ("rate", "log", (0.02, 30.0)),
+            ("rate", "log", _LFO_RATE),
             ("shape", "cat", GENERAL_LFO_SHAPES),
             ("sync", "cat", SYNC_CHOICES),
             ("phase", "lin", (0.0, 1.0)),
@@ -552,7 +644,7 @@ _ALL: list[Param] = [
         live=lambda p: p.formant_amount >= 0.05,
     ),
     _lin("formant_size", 0.6, 1.8, live=lambda p: p.formant_amount >= 0.05),
-    _lin("mod_lfo_rate", 0.05, 12.0, live=_lfo_rate_heard),
+    _lin("mod_lfo_rate", 0.05, 12.0, cap=(0.05, LFO_RATE_MAX), live=_lfo_rate_heard),
     _lin("env_curve", 1.0, 6.0),
     *_SLOT_AMTS,
     # appended to the lin run: hard sync's sweep
@@ -619,20 +711,22 @@ _ALL: list[Param] = [
     # the "sampler" shape (synthlab/sampler.py): which part of a recording
     # plays and how. Never genes: a bred start point or chop only garbles
     # somebody's recording, and a sample isn't a number to mutate
+    # (the granular shape reads the sample, its span, loop, root and key
+    # track too: `_SAMPLE_READ`)
     *[
-        _p(name, kind, cap=cap, curve=curve, live=_SAMPLING, nogene=_SAMPLE_WHY)
-        for name, kind, cap, curve in (
-            ("sampler_root", "int", (0, 127), False),
-            ("sampler_start", "lin", (0.0, 1.0), False),
-            ("sampler_end", "lin", (0.0, 1.0), False),
-            ("sampler_loop", "cat", sampler.ON_OFF, False),
-            ("sampler_loop_start", "lin", (0.0, 1.0), False),
-            ("sampler_loop_end", "lin", (0.0, 1.0), False),
-            ("sampler_xfade", "lin", (0.0, 0.5), False),
-            ("sampler_keytrack", "cat", ("on", "off"), False),
-            ("sampler_mode", "cat", sampler.MODES, False),
+        _p(name, kind, cap=cap, curve=curve, live=live, nogene=_SAMPLE_WHY)
+        for name, kind, cap, curve, live in (
+            ("sampler_root", "int", (0, 127), False, _SAMPLE_READ),
+            ("sampler_start", "lin", (0.0, 1.0), False, _SAMPLE_READ),
+            ("sampler_end", "lin", (0.0, 1.0), False, _SAMPLE_READ),
+            ("sampler_loop", "cat", sampler.ON_OFF, False, _SAMPLE_READ),
+            ("sampler_loop_start", "lin", (0.0, 1.0), False, _SAMPLE_READ),
+            ("sampler_loop_end", "lin", (0.0, 1.0), False, _SAMPLE_READ),
+            ("sampler_xfade", "lin", (0.0, 0.5), False, _SAMPLING),
+            ("sampler_keytrack", "cat", ("on", "off"), False, _SAMPLE_READ),
+            ("sampler_mode", "cat", sampler.MODES, False, _SAMPLING),
             # drawable: a stretch curve warps time across the note
-            ("sampler_stretch", "lin", (0.25, 4.0), True),
+            ("sampler_stretch", "lin", (0.25, 4.0), True, _SAMPLING),
         )
     ],
     # not the sound: never bred, clamped, drawn or routed
@@ -641,7 +735,7 @@ _ALL: list[Param] = [
     _p("voice_fx", "meta"),
     # the sampler's content hash and chops: strings the sampler routes set,
     # cleaned by `clamp` (META_CLEAN), never numbers
-    _p("sampler_sample", "meta", live=_SAMPLING),
+    _p("sampler_sample", "meta", live=_SAMPLE_READ),
     _p("sampler_slices", "meta", live=_SAMPLING),
     # appended as one run: hand-made, never
     # genes — a random warp on every bred oscillator is rarely a sound, a
@@ -677,6 +771,119 @@ _ALL: list[Param] = [
     # the sampler's zone map (a multi-sample instrument): a
     # string the zone routes set, cleaned by `clamp` (META_CLEAN)
     _p("sampler_zones", "meta", live=_SAMPLING),
+    # the granular shape (synthlab/granular.py), appended as one run: never
+    # genes (a cloud needs a sample; new genes would re-draw every seeded
+    # litter). The position is drawable and a route target
+    _p(
+        "grain_pos",
+        "lin",
+        cap=(0.0, 1.0),
+        curve=True,
+        mod=True,
+        live=_GRAINING,
+        nogene=_GRAIN_WHY,
+    ),
+    *[
+        _p(name, kind, cap=cap, live=_GRAINING, nogene=_GRAIN_WHY)
+        for name, kind, cap in (
+            ("grain_size", "log", granular.SIZE),
+            ("grain_density", "log", granular.DENSITY),
+            ("grain_spray", "lin", (0.0, 1.0)),
+            ("grain_pitch_spray", "lin", (0.0, granular.PITCH_SPRAY)),
+            ("grain_shape", "lin", (0.0, 1.0)),
+            ("grain_dir", "cat", granular.DIRECTIONS),
+            ("grain_scan", "lin", (-granular.SCAN, granular.SCAN)),
+        )
+    ],
+    # oscillator 3, appended as one run: never genes (new genes would
+    # re-draw every seeded litter, and a bred third layer is rarely a
+    # sound). Its level, detune and warp amount are drawable and routable
+    # as osc2's are
+    _p("osc3", "cat", cap=OSC3_SHAPES, nogene=_OSC3_WHY),
+    *[
+        _p(name, kind, cap=cap, curve=move, mod=move, nogene=_OSC3_WHY)
+        for name, kind, cap, move in (
+            ("osc3_level", "lin", (0.0, 1.0), True),
+            ("osc3_octave", "int", (-2, 2), False),
+            ("osc3_semi", "int", (-12, 12), False),
+            ("osc3_detune", "lin", (-50.0, 50.0), True),
+        )
+    ],
+    _p("osc3_warp", "cat", cap=WARP_MODES, nogene=_WARP_WHY),
+    _p(
+        "osc3_warp_amt",
+        "lin",
+        cap=(0.0, 1.0),
+        curve=True,
+        mod=True,
+        nogene=_WARP_WHY,
+    ),
+    # a second warp per oscillator, appended as one run (hand-made, as the
+    # first is): the same modes, applied to the first's phase
+    *[
+        param
+        for k in (1, 2, 3)
+        for param in (
+            _p(f"osc{k}_warp2", "cat", cap=WARP_MODES, nogene=_WARP_WHY),
+            _p(
+                f"osc{k}_warp2_amt",
+                "lin",
+                cap=(0.0, 1.0),
+                curve=True,
+                mod=True,
+                nogene=_WARP_WHY,
+            ),
+        )
+    ],
+    # each route slot's switch and the curve on its source, appended as
+    # one run (synth.route_curve): "on" and 0 are the route as it was
+    *[_p(f"{s}_on", "cat", cap=ROUTE_SWITCH, nogene=_ROUTE_WHY) for s in MOD_SLOTS],
+    *[_p(f"{s}_curve", "lin", cap=(-1.0, 1.0), nogene=_ROUTE_WHY) for s in MOD_SLOTS],
+    # LFOs 4-6, appended as one run: general LFOs as 2 and 3 are (never
+    # genes), each with its drawing
+    *[
+        param
+        for k in (4, 5, 6)
+        for param in (
+            *[
+                _r6(f"lfo{k}_{part}", kind, cap)
+                for part, kind, cap in (
+                    ("rate", "log", _LFO_RATE),
+                    ("shape", "cat", GENERAL_LFO_SHAPES),
+                    ("sync", "cat", SYNC_CHOICES),
+                    ("phase", "lin", (0.0, 1.0)),
+                    ("mode", "cat", LFO_MODES),
+                )
+            ],
+            _p(f"lfo{k}_draw", "meta"),
+        )
+    ],
+    # an envelope stage's time as a sync division ("off": its seconds),
+    # appended as one run: the filter envelope's and envelopes 3 / 4's
+    *[_r6(f"{t}_sync", "cat", SYNC_CHOICES) for t in ENV_SYNC_TIMES],
+    # the spectral shape (synthlab/spectral.py), appended as one run: never
+    # genes (it needs a sample; new genes would re-draw every seeded
+    # litter). The scan position is drawable and a route target
+    _p(
+        "spectral_pos",
+        "lin",
+        cap=(0.0, 1.0),
+        curve=True,
+        mod=True,
+        live=_SPECTRAL,
+        nogene=_SPECTRAL_WHY,
+    ),
+    *[
+        _p(name, kind, cap=cap, live=_SPECTRAL, nogene=_SPECTRAL_WHY)
+        for name, kind, cap in (
+            ("spectral_scan", "lin", (-spectral.SCAN, spectral.SCAN)),
+            ("spectral_timbre", "lin", (-spectral.TIMBRE, spectral.TIMBRE)),
+            ("spectral_formants", "cat", spectral.FORMANTS),
+            ("spectral_low", "lin", (0.0, spectral.LOW_MAX)),
+            ("spectral_high", "log", spectral.HIGH),
+            ("spectral_transient", "lin", (0.0, 1.0)),
+        )
+    ],
 ]
 
 PARAMS: dict[str, Param] = {p.name: p for p in _ALL}
@@ -717,6 +924,9 @@ META_CLEAN: dict[str, Callable[[Any], str]] = {
     "lfo_draw": clean_draw,
     "lfo2_draw": clean_draw,
     "lfo3_draw": clean_draw,
+    "lfo4_draw": clean_draw,
+    "lfo5_draw": clean_draw,
+    "lfo6_draw": clean_draw,
     "sampler_zones": sampler.clean_zones,
 }
 

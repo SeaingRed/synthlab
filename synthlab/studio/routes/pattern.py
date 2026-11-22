@@ -39,7 +39,7 @@ from ..routing import (
     studio_router,
 )
 from ..state import StudioState, key_ladder
-from ..state.model import GRID_OCTAVES, NOTE_LANE, grid_rows
+from ..state.model import NOTE_LANE, grid_rows, octave_range
 from .drums import _bank_response
 from .patch import _oct, _span
 
@@ -91,7 +91,7 @@ def pattern_notes(request: Request, op: str, form: StrForm, svc: Svc) -> Respons
                 rows=set(rows),
                 ladder=key_ladder(a),
                 octave=len(SCALES[a.scale_name]),
-                choices=limits.BAR_CHOICES,
+                choices=limits.loop_bar_choices(a.steps_per_bar),
                 seed=random.randrange(1 << 30),
                 arp_on=a.arp_mode != "off",
             )
@@ -99,7 +99,10 @@ def pattern_notes(request: Request, op: str, form: StrForm, svc: Svc) -> Respons
         return Response(status_code=404)
     except po.ToolRefused as err:
         return svc.toast(str(err))
-    s.arrangement = replace(a, **lane)
+    asked = replace(a, **lane)
+    if asked.bars > a.bars and (refusal := loop_refusal(a, asked)):
+        return svc.toast(refusal)  # ×2 past the loop cap (8 or 16 bars, slow)
+    s.arrangement = asked
     resp = svc.do_render(request)
     if now is not None:
         trig = json.loads(resp.headers.get("HX-Trigger") or "{}")
@@ -339,14 +342,15 @@ def pattern_undo(request: Request, svc: Svc) -> Response:
 @router.post("/fragment/grid/span")
 def grid_span(request: Request, form: StrForm, svc: Svc) -> Response:
     """The note grid's rows: `span` 1 = six tones of the key from the root,
-    2 = two octaves of the key, 3 = chromatic (24 semitones); `oct_by`
+    2 = two octaves of the key, 3 = chromatic (24 semitones), 4 = every
+    row the notes use (`state.model.note_rows`: no window); `oct_by`
     +1 / -1 moves the octave window (the loop's `state.grid_oct` on
     Perform; on the Song page the open drawer's own, kept with the drawer).
     A view setting — nothing is changed, so nothing renders; the grid
     comes back by its watch."""
     s: StudioState = svc.state
     raw, by = form.get("span", ""), form.get("oct_by", "")
-    if raw not in ("", "1", "2", "3") or by not in ("", "1", "-1") or not raw + by:
+    if raw not in ("", "1", "2", "3", "4") or by not in ("", "1", "-1") or not raw + by:
         return Response(status_code=422)
     if raw:
         s.grid_span = int(raw)
@@ -356,7 +360,7 @@ def grid_span(request: Request, form: StrForm, svc: Svc) -> Response:
             octave = min(4, max(-2, d["oct"] + int(by)))
             s.song_drawer = {**s.song_drawer, "oct": octave}
     elif by:
-        lo, hi = GRID_OCTAVES
+        lo, hi = octave_range(s.arrangement.root)
         s.grid_oct = min(hi, max(lo, s.grid_oct + int(by)))
     s.save_soon()
     return Response(status_code=204)

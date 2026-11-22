@@ -12,6 +12,7 @@ glide, vibrato) work everywhere for free.
 from __future__ import annotations
 
 import math
+import threading
 from collections.abc import Callable
 from functools import cache
 from typing import NamedTuple
@@ -634,7 +635,9 @@ def warp_phase(mode: str, t, a):
         return np.where(t < d, 0.5 * t / d, 0.5 + 0.5 * (t - d) / (1.0 - d))
     if mode == "mirror":  # forward to c, then back
         c = 1.0 - 0.5 * a
-        return np.where(t < c, t / c, (1.0 - t) / np.maximum(1.0 - c, 1e-9))
+        # (`<=`: the same samples for any t < 1; at t = 1, which only a
+        # second warp's input reaches, amount 0 is the identity's 1)
+        return np.where(t <= c, t / c, (1.0 - t) / np.maximum(1.0 - c, 1e-9))
     if mode == "asym":  # the first half bent, the second as it was
         return np.where(t < 0.5, 0.5 * _bend(2.0 * t, k), t)
     if mode == "quantize":  # 256 steps at 0 down to 2 at 1
@@ -657,6 +660,27 @@ def warp_end(mode: str, a):
         steps = 2.0 + np.floor(254.0 * q * q * q)
         return (steps - 1.0) / steps
     return np.ones_like(a, dtype=np.float64)
+
+
+def warp_twice(mode: str, a, mode2: str, a2, t):
+    """Two warps on one phase: `mode2` (amount `a2`) bends what `mode`
+    (amount `a`) made of `t`. The first warp's phase is in [0, 1] — pwm
+    holds it at 1, the mirror's peak reaches 1 — so the second reads its
+    input at 1 too."""
+    return warp_phase(mode2, warp_phase(mode, t, a), a2)
+
+
+def warp_end_twice(mode: str, a, mode2: str, a2):
+    """Where two warps leave the phase just before the cycle wraps. The
+    first ends at `warp_end(mode, a)`: approached from below when that is 1
+    (the second's own left limit there, `warp_end(mode2, a2)`), held
+    exactly (quantize's last step, pwm's hold at 1 — the second's value
+    there), or approached from above at 0 (the mirror: every mode is 0
+    at 0)."""
+    a = np.clip(a, 0.0, 1.0)
+    first = warp_end(mode, a)
+    held = (first < 1.0) | ((mode == "pwm") & (a > 0))
+    return np.where(held, warp_phase(mode2, first, a2), warp_end(mode2, a2))
 
 
 def warp_slope(mode: str, a):
@@ -690,6 +714,8 @@ def warped(
     pos=0.0,
     phase0: float = 0.0,
     naive: bool = False,
+    mode2: str = "off",
+    amount2=0.0,
 ) -> np.ndarray:
     """`shape` (one of WARP_SHAPES) with its phase warped by `mode` at
     `amount` (per sample or one), oversampled WARP_OS x and decimated
@@ -699,14 +725,23 @@ def warped(
     cycle's own wrap is polyBLEP'd with the step the warp leaves there, and
     output sample j is the FIR over sub-samples up to WARP_OS j + WARP_OS - 1
     (zeros before the note). `naive=True` is the warp at the output rate
-    with no band-limiting, for measuring what this buys."""
+    with no band-limiting, for measuring what this buys. `mode2` (not
+    "off") at `amount2` warps the warped phase again (`warp_twice`) on
+    the same path: the wrap's step is where both leave it
+    (`warp_end_twice`), a wavetable's mip as much darker as the two
+    slopes' product (the composition's steepest is at most that)."""
     os_ = 1 if naive else WARP_OS
     f = as_array(freq, n)
     d = np.repeat(f / (sr * os_), os_)
     t = np.cumsum(d) + phase0
     t -= np.floor(t)
     a = np.repeat(np.clip(as_array(amount, n), 0.0, 1.0), os_)
-    u = warp_phase(mode, t, a)
+    twice = mode2 != "off"
+    if twice:
+        a2 = np.repeat(np.clip(as_array(amount2, n), 0.0, 1.0), os_)
+        u = warp_twice(mode, a, mode2, a2, t)
+    else:
+        u = warp_phase(mode, t, a)
     if shape == "wavetable":
         stack = _wt_stack(table)
         nf = stack.shape[1]
@@ -718,6 +753,9 @@ def warped(
         peak = np.pad(np.abs(f), pad, mode="edge").reshape(nb, -1).max(axis=1)
         top = np.pad(as_array(amount, n), pad, mode="edge").reshape(nb, -1).max(axis=1)
         peak = peak * warp_slope(mode, top)
+        if twice:
+            top2 = np.pad(as_array(amount2, n), pad, mode="edge")
+            peak = peak * warp_slope(mode2, top2.reshape(nb, -1).max(axis=1))
         mip = np.repeat(_wt_mip_index(peak, sr * os_), _WT_MIP_BLOCK)[:n]
         mip = np.repeat(mip, os_)
         fp = np.repeat(np.clip(as_array(pos, n), 0.0, 1.0) * (nf - 1), os_)
@@ -741,7 +779,11 @@ def warped(
         return y
     edge = np.flatnonzero((t < d) | (t > 1.0 - d))
     if len(edge):
-        jump = read(np.zeros(len(edge)), edge) - read(warp_end(mode, a[edge]), edge)
+        if twice:
+            end = warp_end_twice(mode, a[edge], mode2, a2[edge])
+        else:
+            end = warp_end(mode, a[edge])
+        jump = read(np.zeros(len(edge)), edge) - read(end, edge)
         y[edge] += jump / 2 * _polyblep(t[edge], d[edge])
     from scipy.signal import upfirdn
 
@@ -1133,10 +1175,11 @@ def wavetable_numpy(freq, n: int, sr: int = SR, table="basic", pos=0.0, phase0=0
 
 def osc(shape: str, freq, n: int, sr: int = SR, **kw) -> np.ndarray:
     """Dispatch by name: osc('saw', 220, 44100). `warp=(mode, amount)`
-    bends a WARP_SHAPES phase (`warped`); "off" and the other shapes
-    ignore it."""
+    bends a WARP_SHAPES phase (`warped`), `(mode, amount, mode2, amount2)`
+    twice; "off" and the other shapes ignore it."""
     warp = kw.get("warp")
     if warp and warp[0] != "off" and shape in WARP_SHAPES:
+        second = {"mode2": warp[2], "amount2": warp[3]} if len(warp) > 2 else {}
         return warped(
             shape,
             freq,
@@ -1148,6 +1191,7 @@ def osc(shape: str, freq, n: int, sr: int = SR, **kw) -> np.ndarray:
             table=kw.get("table", "basic"),
             pos=kw.get("pos", 0.0),
             phase0=kw.get("phase0", 0.0),
+            **second,
         )
     if shape == "wavetable":
         return wavetable(
@@ -1165,6 +1209,19 @@ def osc(shape: str, freq, n: int, sr: int = SR, **kw) -> np.ndarray:
         from . import sampler
 
         return sampler.render(freq, n, sr, kw.get("sampler"), kw.get("key_hz"))
+    if shape == "granular":
+        # the sampler's sample as a cloud of grains (synthlab.granular)
+        from . import granular
+
+        return granular.render(
+            freq, n, sr, kw.get("granular"), kw.get("key_hz"), kw.get("seed") or 0
+        )
+    if shape == "spectral":
+        # the sampler's sample resynthesised from its spectrum
+        # (synthlab.spectral): no seed, the analysis decides every phase
+        from . import spectral
+
+        return spectral.render(freq, n, sr, kw.get("spectral"), kw.get("key_hz"))
     if shape == "fm":
         return fm(
             freq,
@@ -1430,6 +1487,91 @@ def chaos_x0(seed: int) -> float:
     return 0.1 + 0.8 * hash_u(seed, 0)
 
 
+# The two chaotic flows ("lorenz", "rossler"): RK4 at a fixed step in
+# float64, ATTRACTOR_POINTS points a cycle (each `steps` RK4 steps of `h`
+# after the last), joined by straight lines, from a start seeded from the
+# LFO's seed and WARM points of warm-up (so a note starts on the
+# attractor). A cycle is about one turn round it: 0.75 time units of the
+# Lorenz system (sigma 10, rho 28, beta 8/3), 6 of the Rössler (a = b =
+# 0.2, c = 5.7, whose spike needs the finer step). The LFO reads x, centred
+# and scaled to -1..1 (`centre`, `scale`, measured over a long run: Lorenz
+# x within +-19.2, Rössler -9.1..11.5) and held there. Straight-line + - x /
+# in a fixed order, so the live voice (voice-worklet.js `attr`) computes
+# the same doubles.
+ATTRACTOR_POINTS = 8
+ATTRACTOR_WARM = 64
+LORENZ_B = 8.0 / 3.0
+ATTRACTORS = {
+    # h, RK4 steps a point, centre, scale
+    "lorenz": (0.046875, 2, 0.0, 20.0),
+    "rossler": (0.1875, 4, 1.0, 10.5),
+}
+_ATTR_CACHE: dict[tuple[str, int], tuple[np.ndarray, tuple]] = {}
+_ATTR_LOCK = threading.Lock()
+
+
+def _attr_f(m: str, x: float, y: float, z: float) -> tuple[float, float, float]:
+    if m == "lorenz":
+        return 10.0 * (y - x), x * (28.0 - z) - y, x * y - LORENZ_B * z
+    return -y - z, x + 0.2 * y, 0.2 + z * (x - 5.7)
+
+
+def attractor_step(m: str, s: tuple) -> tuple[float, float, float]:
+    """One point's worth of RK4 steps of flow `m` from state `s`."""
+    h, steps = ATTRACTORS[m][:2]
+    hh, h6 = 0.5 * h, h / 6.0
+    x, y, z = s
+    for _ in range(steps):
+        a = _attr_f(m, x, y, z)
+        b = _attr_f(m, x + hh * a[0], y + hh * a[1], z + hh * a[2])
+        c = _attr_f(m, x + hh * b[0], y + hh * b[1], z + hh * b[2])
+        d = _attr_f(m, x + h * c[0], y + h * c[1], z + h * c[2])
+        x = x + h6 * (a[0] + 2.0 * b[0] + 2.0 * c[0] + d[0])
+        y = y + h6 * (a[1] + 2.0 * b[1] + 2.0 * c[1] + d[1])
+        z = z + h6 * (a[2] + 2.0 * b[2] + 2.0 * c[2] + d[2])
+    return x, y, z
+
+
+def attractor_start(m: str, seed: int) -> tuple[float, float, float]:
+    """Flow `m`'s state at point 0: a start drawn from `seed` (hash_u keys
+    1-3), near the attractor, then ATTRACTOR_WARM points on."""
+    u = [hash_u(seed, k) for k in (1, 2, 3)]
+    if m == "lorenz":
+        s = (2.0 * u[0] - 1.0, 2.0 * u[1] - 1.0, 19.0 + 2.0 * u[2])
+    else:
+        s = (2.0 * u[0] - 1.0, 2.0 * u[1] - 1.0, u[2])
+    for _ in range(ATTRACTOR_WARM):
+        s = attractor_step(m, s)
+    return s
+
+
+def attractor_value(m: str, x: float) -> float:
+    centre, scale = ATTRACTORS[m][2:]
+    return min(1.0, max(-1.0, (x - centre) / scale))
+
+
+def attractor_points(m: str, seed: int, count: int) -> np.ndarray:
+    """The first `count` points of flow `m` from `seed`, as LFO values.
+    The same every call (a pure function of its arguments), so it is kept
+    and extended per (flow, seed): the trajectory never changes, only how
+    far a note reads into it."""
+    with _ATTR_LOCK:
+        vals, s = _ATTR_CACHE.get((m, seed)) or (None, None)
+        if s is None:
+            s = attractor_start(m, seed)
+            vals = np.asarray([attractor_value(m, s[0])])
+        if len(vals) < count:
+            more = []
+            for _ in range(count - len(vals)):
+                s = attractor_step(m, s)
+                more.append(attractor_value(m, s[0]))
+            vals = np.concatenate([vals, more])
+            vals.flags.writeable = False  # handed out as views
+            _ATTR_CACHE[(m, seed)] = (vals, s)
+        _ATTR_CACHE.setdefault((m, seed), (vals, s))
+        return vals[:count]
+
+
 def lfo_ext(
     shape: str,
     rate,
@@ -1448,10 +1590,18 @@ def lfo_ext(
     a cycle, smoothstepped from one to the next; "noise" the stepped random
     of `sample_hold`'s stream `table_seed` (the live voice's table holds the
     streams 0..7), stepped at each whole cycle of the phase; the rest are
-    `osc` shapes from `phase0`."""
-    if shape not in ("noise", "drawn", "chaos", "smooth"):
+    `osc` shapes from `phase0`. "lorenz" and "rossler" read their flow's
+    points (`attractor_points`, ATTRACTOR_POINTS a cycle) by straight lines."""
+    if shape not in ("noise", "drawn", "chaos", "smooth", *ATTRACTORS):
         return osc(shape, rate, n, sr, phase0=phase0)
     acc = np.cumsum(as_array(rate, n)) / sr + phase0
+    if shape in ATTRACTORS:
+        pos = acc * ATTRACTOR_POINTS
+        j = np.floor(pos)
+        fr = pos - j
+        j = j.astype(np.int64)
+        v = attractor_points(shape, seed, int(j[-1]) + 2 if n else 2)
+        return v[j] + (v[j + 1] - v[j]) * fr
     k = np.floor(acc)
     fr = acc - k
     k = k.astype(np.int64)

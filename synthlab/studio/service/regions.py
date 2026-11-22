@@ -22,6 +22,7 @@ import numpy as np
 from fastapi import Request
 
 from .. import (
+    arppattern,
     beatpick,
     cliphub,
     cliplib,
@@ -157,6 +158,17 @@ def _w_chord_bar(svc: StudioService, view: str) -> str:
     return _sig(a.root, a.scale_name, *held, *((a.meter,) if a.meter != "4/4" else ()))
 
 
+def _w_arp_pattern(svc: StudioService, view: str) -> str:
+    # the arp pattern's editor (every page: a popover in base.html): the
+    # edited lane's pattern, the key its steps transpose in, the grid's step
+    # (its "grid" rate), whether the grid arp plays it, and the 12 slots
+    return _sig(*arppattern.watch(svc.state.arrangement, svc.state.arp_slots))
+
+
+def _ctx_arp_pattern(svc: StudioService, request: Request, view: str) -> dict:
+    return {"arp_pat": arppattern.context(svc.state.arrangement, svc.state.arp_slots)}
+
+
 def _w_chain(svc: StudioService, view: str) -> str:
     ctx = svc.chain_context()
     return _sig(ctx["chain"], ctx["motion"])
@@ -290,7 +302,7 @@ def _w_key_takes(svc: StudioService, view: str) -> str:
     the clip store's listing itself: any clip's bounce, rename or delete
     moves that, and the strip would be re-sent with nothing of its own
     changed (tests/studio/test_oob_refresh.py)."""
-    return _sig(looplib.watch(svc.loops_context(view, session=True)))
+    return _sig(looplib.watch(svc.loops_context(view, session=True), strip=True))
 
 
 def _ctx_key_takes(svc: StudioService, request: Request, view: str) -> dict:
@@ -396,6 +408,7 @@ def _w_perform_drums(svc: StudioService, view: str) -> str:
         sorted((v, m.get("level")) for v, m in a.drum_mix.items() if "level" in m),
         a.drum_swing,
         _w_clips(svc, view),
+        svc.drum_editing(),  # the beat loop it edits: its head's "saved"
     )
 
 
@@ -794,6 +807,16 @@ REGIONS: dict[str, Region] = {
         ALL_VIEWS,
         _w_chord_bar,
         _ctx_chords,
+    ),
+    # the arp pattern's editor: a popover in base.html, outside #view, on
+    # every page (the grid arp's controls on Perform and the keys arp's ⚙
+    # open it); morphed, so it stays open while it is edited
+    "arp-pattern": Region(
+        "fragments/arp_pattern.html",
+        frozenset(),
+        ALL_VIEWS,
+        _w_arp_pattern,
+        _ctx_arp_pattern,
     ),
     # the clip library: a drawer in base.html, outside #view, on every page
     # (it replaced the clip shelf Synths and Perform drew)

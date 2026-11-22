@@ -438,3 +438,68 @@ def test_the_clipper_in_a_chain_caps_the_render():
     unit = {"kind": "clip", "params": {"drive": 18.0, "ceiling": -6.0, "soft": 0.0}}
     y = build_chain([unit], Arrangement())[0](x)
     assert np.max(np.abs(y)) <= 10 ** (-6.0 / 20) + 1e-12
+
+
+# --- a unit's power key: bypass ------------------------------------------------
+
+
+def test_a_bypassed_unit_keeps_its_place_and_settings_and_is_not_built():
+    from synthlab.studio.fxlive import lane_mode, live_chain, offline_units
+    from synthlab.studio.fxrack import active, edit_chain, rack_rows
+
+    chain = clean_chain(
+        [{"kind": "bitcrush", "params": {"bits": 5.0}}, {"kind": "granular"}]
+    )
+    # every unit on: stored as it always was (no key gains a field)
+    assert all("off" not in u for u in chain)
+    off, said, at = edit_chain(chain, "set", {"index": "0", "name": "on", "value": "0"})
+    assert (said, at) == ("Bitcrush bypassed", 0)
+    assert off[0] == {**chain[0], "off": True} and off[1] == chain[1]
+    assert clean_chain(off) == off  # it survives a save and a load
+    assert [u["kind"] for u in active(off)] == ["granular"]
+    assert [r["on"] for r in rack_rows(off)] == [False, True]
+    arr = Arrangement()
+    assert len(build_chain(off, arr)) == 1
+    # the live keys never see it: a bypassed offline unit blocks nothing
+    both, _, _ = edit_chain(off, "set", {"index": "1", "name": "on", "value": "0"})
+    assert live_chain(both, arr, False) == [] and offline_units(both) == []
+    assert offline_units(off) == ["granular"] and lane_mode(both) == "buffer"
+    # a recall keeps it bypassed; on again is the chain it was
+    kept, _, _ = edit_chain(
+        off, "set", {"index": "0", "name": "recall", "value": "defaults"}
+    )
+    assert kept[0].get("off") is True
+    on, said, _ = edit_chain(off, "set", {"index": "0", "name": "on", "value": "1"})
+    assert said == "Bitcrush on" and on == chain
+
+
+def test_a_bypassed_unit_is_out_of_the_render_and_its_key_moves():
+    arr = Arrangement()
+    p = preset("bass_reese")
+    crush = {"kind": "bitcrush", "params": {"bits": 5.0}}
+    dry = RenderInputs(patch=p, arr=arr)
+    wet = RenderInputs(patch=p, arr=arr, main_fx=[crush])
+    off = RenderInputs(patch=p, arr=arr, main_fx=[{**crush, "off": True}])
+    assert len({dry.key(), wet.key(), off.key()}) == 3
+    assert np.allclose(render_audio(off), render_audio(dry), atol=1e-9)
+    assert not np.allclose(render_audio(off), render_audio(wet), atol=1e-6)
+
+
+def test_the_power_key_posts_one_undo_step_and_the_chain_bar_follows(tmp_path):
+    client = make_client(tmp_path)
+    client.post("/fragment/fx/add", data={"scope": "master", "kind": "phaser"})
+    r = client.post(
+        "/fragment/fx/set",
+        data={"scope": "master", "index": "0", "name": "on", "value": "0"},
+    )
+    assert r.status_code == 200 and "data-off" in r.text
+    assert 'aria-pressed="false"' in r.text.split("fx-power")[1].split(">")[0]
+    s = client.app.state.svc.state
+    assert s.fx_master[0].get("off") is True
+    stages = client.app.state.svc.chain_context()["chain"]
+    assert stages[-1]["text"] == "none" and stages[-1]["off"]
+    r = client.post(
+        "/fragment/fx/set",
+        data={"scope": "master", "index": "0", "name": "on", "value": "1"},
+    )
+    assert "data-off" not in r.text and "off" not in s.fx_master[0]

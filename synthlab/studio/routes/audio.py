@@ -17,7 +17,7 @@ from fastapi.responses import RedirectResponse
 
 from ... import sampler
 from ...core import SR, note_to_hz
-from ...effects import plate_ir, reverb_ir, spring_ir, to_stereo
+from ...effects import convolve_ir, plate_ir, reverb_ir, spring_ir, to_stereo
 from ...sequencer import midi
 from ...synth import Patch, Synth, at_bpm
 from ...wavetables import live_url as wt_live_url
@@ -258,18 +258,27 @@ def fx_ir(
     decay: Annotated[float, Query(ge=0.2, le=6.0)] = 2.0,
     size: Annotated[float, Query(ge=0.2, le=1.0)] = 0.8,
     sr: Annotated[int, Query(ge=8000, le=192000)] = 44100,
-    kind: Literal["room", "plate", "spring"] = "room",
+    kind: Literal["room", "plate", "spring", "clip"] = "room",
     tone: Annotated[float, Query(ge=0.0, le=1.0)] = 0.65,
     predelay: Annotated[float, Query(ge=0.0, le=0.08)] = 0.012,
     drip: Annotated[float, Query(ge=0.0, le=1.0)] = 0.5,
+    id: Annotated[str, Query(max_length=16)] = "",
+    lowcut: Annotated[float, Query(ge=20.0, le=1000.0)] = 20.0,
+    highcut: Annotated[float, Query(ge=1000.0, le=20000.0)] = 20000.0,
 ) -> Response:
     """A reverb unit's room, wet gain included (`effects.reverb_ir`), for the
     live keys' ConvolverNode: the engine's own IR at the browser's own
     rate, 32-bit float so nothing is requantised. Pure in its query.
     `kind=plate` is the plate unit's (`effects.plate_ir`: decay, tone,
     predelay; `size` unread), `kind=spring` the spring's (`effects.spring_ir`:
-    decay, tone, drip)."""
-    if kind == "plate":
+    decay, tone, drip), `kind=clip` the convolution's (`effects.convolve_ir`:
+    the sample `id`, predelay, lowcut, highcut — 404 when this studio has no
+    such sample, or one with no energy: the unit is a dry pass then)."""
+    if kind == "clip":
+        ir = convolve_ir(id, predelay, lowcut, highcut, sr=sr)
+        if ir is None:
+            return Response(status_code=404)
+    elif kind == "plate":
         ir = plate_ir(decay, tone, predelay, sr=sr)
     elif kind == "spring":
         ir = spring_ir(decay, tone, drip, sr=sr)

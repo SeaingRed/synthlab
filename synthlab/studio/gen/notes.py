@@ -344,6 +344,71 @@ def bass_2step(ctx: Ctx) -> dict:
     return lane.data()
 
 
+# a window's figure, as (offset, length, velocity) in sixteenths from the
+# window's start: every one opens on the window's first step, so a window
+# always sounds, and is clipped to the window (and the bar) it is in
+_SWITCH_FIGURES = (
+    ((0, 6, 0.95),),
+    ((0, 2, 0.95), (2, 2, 0.85), (4, 2, 0.9), (6, 2, 0.8)),
+    ((0, 3, 0.95), (3, 3, 0.85), (6, 2, 0.9)),
+    ((0, 2, 0.95), (3, 1, 0.8), (4, 3, 0.9)),
+    ((0, 1, 0.95), (2, 1, 0.8), (4, 4, 0.9)),
+)
+SWITCH_VOICES = 4
+
+
+def bass_switch(
+    ctx: Ctx, voices: int = 2, every: float = 2.0, leave_kick: bool = False
+) -> list[dict]:
+    """Call and response between bass sounds: one lane a voice. Time is cut
+    into windows of `every` beats (a window never crosses a bar line: one
+    that would is split there) and voice k sounds only in the windows where
+    `window % voices == k`; in its window it plays one short figure on the
+    root of the chord under the window's start (the seed picks the figure,
+    from one stream for every voice, so a lane is the same whichever voice
+    is asked for) and nothing else. Written in 4/4 like the rest; another
+    meter takes it through `meterops.beat_fit`. `leave_kick` moves a note
+    that would start on a kick's step one step on (a voice whose chain has
+    no duck)."""
+    voices = max(1, min(SWITCH_VOICES, int(voices)))
+    win = max(1, round(max(0.25, min(8.0, float(every))) * 4))
+    r = rng(ctx, "bass_switch")
+    lanes = [Lane(ctx.bars) for _ in range(voices)]
+    for bar in range(ctx.bars):
+        lo, hi = bar * SPB, (bar + 1) * SPB
+        edges = sorted({lo, hi, *range((lo // win + 1) * win, hi, win)})
+        for a, b in zip(edges, edges[1:], strict=False):
+            lane = lanes[(a // win) % voices]
+            root = above(ctx.low, ctx.chord(a)["root"])
+            for off, length, vel in r.choice(_SWITCH_FIGURES):
+                at, n = a + off, length
+                if at >= b:
+                    continue
+                if leave_kick and at % SPB in ctx.kick:
+                    at, n = at + 1, n - 1
+                if n < 1 or at >= b:
+                    continue
+                lane.note(root, at, min(n, b - at), vel)
+                if at == lo:
+                    # a cut on every bar's first note: fitted to a shorter
+                    # bar, the note before it can end on that bar line
+                    lane.cuts.add((root, at))
+    return [lane.data() for lane in lanes]
+
+
+def _switch_lane(
+    ctx: Ctx,
+    voice: int = 0,
+    voices: int = 2,
+    every: float = 2.0,
+    leave_kick: bool = False,
+) -> dict:
+    """`bass_switch`'s lane `voice` (the one-lane-a-call shape the table
+    wants)."""
+    lanes = bass_switch(ctx, voices, every, leave_kick)
+    return lanes[max(0, min(len(lanes) - 1, int(voice)))]
+
+
 # --- chords, pad ----------------------------------------------------------------
 
 
@@ -573,6 +638,75 @@ def chops(ctx: Ctx) -> dict:
     return lane.data()
 
 
+# --- chop stutter: a chopped sampler's slices, walked ------------------------------
+
+# slice 0's key: C4, the sampler's own default root (`samplerview.DEFAULT_ROOT`,
+# which the clip hub's → Chop keys sets) — slice i plays on CHOP_ROOT + i
+CHOP_ROOT = 60
+CHOP_ORDERS = ("forward", "reverse", "shuffle")
+CHOP_PHRASE = 4  # bars: the last half beat of every phrase stutters
+MAX_CHOP_SLICES = 32  # the sampler's own `MAX_SLICES`
+# kinds whose pitches are a sampler's slice keys, not the key's tones
+SLICE_KINDS = frozenset({"chop_stutter"})
+
+
+def chop_stutter(
+    ctx: Ctx, slices: int = 16, repeat: float = 0.25, order: str = "forward"
+) -> dict:
+    """A chopped sample's slices walked across the keys (`CHOP_ROOT` up:
+    the pitches CHOP_ROOT .. CHOP_ROOT + slices - 1, whatever the song's
+    key — they name slices, not notes). The walk goes `order` — forward,
+    reverse, or shuffled once by the seed — on a steady grid (16 / slices
+    sixteenths rounded down to 1, 2, 4, 8 or 16, so a bar walks 16 slices
+    or all of them), carried on from bar to bar and started again at every
+    phrase (`CHOP_PHRASE` bars, the last one ending with the lane). At each
+    step, with chance `repeat` (0..1, the seed's), the previous slice is
+    re-triggered instead as a stutter of two or three sixteenths, and the
+    walk waits; a bar's first step always advances, so even at `repeat` 1
+    every bar moves on, and a stutter stops at the bar line. The last half
+    beat of every phrase always stutters: the slice played last, twice."""
+    try:
+        n = max(1, min(MAX_CHOP_SLICES, int(slices)))
+        chance = float(repeat)
+    except (TypeError, ValueError, OverflowError):
+        n, chance = 16, 0.0
+    chance = min(1.0, max(0.0, chance)) if chance == chance else 0.0  # NaN: none
+    seq = list(range(n))
+    if order == "reverse":
+        seq.reverse()
+    elif order == "shuffle":
+        rng(ctx, "chop_stutter:shuffle").shuffle(seq)
+    r = rng(ctx, "chop_stutter")
+    grid = 1
+    while grid * 2 * n <= SPB:
+        grid *= 2
+    lane = Lane(ctx.bars)
+    for first in range(0, ctx.bars, CHOP_PHRASE):
+        at = first * SPB
+        tail = min(ctx.bars, first + CHOP_PHRASE) * SPB - 2
+        walk, last = 0, None
+        while at < tail:
+            bar_end = (at // SPB + 1) * SPB
+            if last is not None and at % SPB and r.random() < chance:
+                k = 3 if r.random() < 0.5 else 2
+                stop = min(tail, bar_end)
+                for j in range(k):
+                    if at + j < stop:
+                        lane.note(CHOP_ROOT + last, at + j, 1, 0.62 + 0.1 * j)
+                at = min(bar_end, at + -(-k // grid) * grid)
+                continue
+            last = seq[walk % n]
+            walk += 1
+            lane.note(
+                CHOP_ROOT + last, at, min(grid, tail - at), 0.9 if at % 4 == 0 else 0.78
+            )
+            at += grid
+        end = CHOP_ROOT + (seq[0] if last is None else last)
+        for j in range(2):
+            lane.note(end, tail + j, 1, 0.7 + 0.15 * j)
+    return lane.data()
+
+
 def hit(ctx: Ctx, bars: int = 1) -> dict:
     """One note, the key's root at the bottom of the part's window, on the
     pattern's first step, held `bars` bars: a drop FX's single
@@ -678,12 +812,14 @@ GENERATORS = {
     "bass_offbeat": bass_offbeat,
     "bass_walk": bass_walk,
     "bass_2step": bass_2step,
+    "bass_switch": _switch_lane,
     "chords": chords,
     "pad": pad,
     "arp": arp,
     "lead": lead,
     "chops": chops,
     "hit": hit,
+    "chop_stutter": chop_stutter,
 }
 # the register a kind is written in unless the track says otherwise
 KIND_REGISTER = {
@@ -692,12 +828,14 @@ KIND_REGISTER = {
     "bass_offbeat": "bass",
     "bass_walk": "bass",
     "bass_2step": "sub",
+    "bass_switch": "bass",
     "chords": "chords",
     "pad": "pad",
     "arp": "arp",
     "lead": "lead",
     "chops": "vocal",
     "hit": "sub",
+    "chop_stutter": "vocal",  # its pitches are slice keys: the register is unused
 }
 
 

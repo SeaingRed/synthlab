@@ -17,11 +17,13 @@ from dataclasses import replace
 
 import numpy as np
 
-from .. import sampler
+from .. import granular, sampler, spectral
 from ..sequencer import name_of
 from ..synth import Patch
 
 SAMPLING = "sampler"
+GRANULAR = "granular"  # plays the same sample as a cloud (synthlab/granular.py)
+SPECTRAL = "spectral"  # resynthesises the same sample (synthlab/spectral.py)
 NUDGE_SECONDS = 0.005  # one ◀/▶ press moves a slice start 5 ms
 MIN_SLICE_SECONDS = 0.01  # a nudge or a dragged marker leaves slices this long
 CHOPS = ("8", "16", "transients", "clear")
@@ -42,6 +44,20 @@ DEFAULT_ROOT = 60
 
 def sampling(p: Patch) -> bool:
     return SAMPLING in (p.osc1, p.osc2)
+
+
+def graining(p: Patch) -> bool:
+    return GRANULAR in (p.osc1, p.osc2)
+
+
+def spectraling(p: Patch) -> bool:
+    return SPECTRAL in (p.osc1, p.osc2)
+
+
+def has_sample(p: Patch) -> bool:
+    """Does an oscillator play the sampler's sample (the sampler, the
+    granular or the spectral shape)? The panel stands while one does."""
+    return sampling(p) or graining(p) or spectraling(p)
 
 
 def detected_root(sid: str, sure: float = PITCH_SURE) -> int | None:
@@ -376,10 +392,11 @@ def wave_svg(p: Patch) -> str:
     parts = [
         f'<svg class="sampler-svg" viewBox="0 0 {_W} {_H}" preserveAspectRatio="none"'
         ' role="img" aria-label="sample waveform with its start, end, loop and '
-        'slice markers">',
+        'slice markers, and where the grains or the spectral read go">',
         f'<polygon class="sw-wave" points="{top} {bot}"/>',
     ]
-    slices = sampler.parse_slices(p.sampler_slices)
+    # (the granular shape plays no chops: its sound shows the span)
+    slices = sampler.parse_slices(p.sampler_slices) if sampling(p) else []
     if slices:
         for s in slices:
             cls = "sw-slice sw-rev" if s.rev else "sw-slice"
@@ -408,18 +425,137 @@ def wave_svg(p: Patch) -> str:
                 f'<line class="{cls}" x1="{_x(frac)}" x2="{_x(frac)}"'
                 f' y1="0" y2="{_H}"/>'
             )
+    if graining(p):
+        parts += _cloud_marks(p)
+    if spectraling(p):
+        parts += _scan_marks(p)
     parts.append("</svg>")
     return "".join(parts)
 
 
+def _first(v) -> float:
+    return float(np.asarray(v, dtype=np.float64).ravel()[0])
+
+
+def cloud(p: Patch) -> dict | None:
+    """Where the granular cloud reads, 0..1 of the whole sample: its region
+    (`granular.region`), the position (its first value: a curve's or a
+    route's motion is the note's), the spray's reach around it — one or
+    two spans, the region being circular — and one grain's read at the
+    root. None without a sample."""
+    secs = sampler.seconds(p.sampler_sample)
+    x = sampler.get(p.sampler_sample)
+    if x is None or secs <= 0:
+        return None
+    L = len(x)
+    r0, r1 = granular.region(L, granular.Settings.of(p))
+    if r1 - r0 < 4:
+        return None
+    lo, span = r0 / L, (r1 - r0) / L
+    at = min(max(_first(p.grain_pos), 0.0), 1.0)
+    half = min(max(_first(p.grain_spray), 0.0), 1.0) / 2
+    sprays = []
+    if half > 0:
+        a, b = at - half, at + half
+        pieces = [(a, b)] if 0 <= a and b <= 1 else []
+        if a < 0:
+            pieces = [(0.0, b), (1 + a, 1.0)]
+        elif b > 1:
+            pieces = [(a, 1.0), (0.0, b - 1)]
+        sprays = [(lo + u * span, (v - u) * span) for u, v in pieces]
+    grain = min(max(_first(p.grain_size), 0.0), 1.0) * sampler.SR / L
+    return {
+        "pos": lo + min(at, math.nextafter(1.0, 0.0)) * span,
+        "sprays": sprays,
+        "grain": grain,
+        "lo": lo,
+        "hi": lo + span,
+    }
+
+
+def _cloud_marks(p: Patch) -> list[str]:
+    """The cloud over the waveform: the spray's reach, one grain's read
+    from the position, the position's line."""
+    c = cloud(p)
+    if c is None:
+        return []
+    out = [
+        f'<rect class="sw-spray" x="{_x(a)}" y="0" width="{_x(a + w) - _x(a):.1f}"'
+        f' height="{_H}"/>'
+        for a, w in c["sprays"]
+    ]
+    x0 = _x(c["pos"])
+    w = max(1.0, _x(c["pos"] + c["grain"]) - x0)
+    out.append(
+        f'<rect class="sw-grain" x="{x0}" y="{_H / 4:.1f}" width="{w:.1f}"'
+        f' height="{_H / 2:.1f}"/>'
+    )
+    out.append(f'<line class="sw-pos" x1="{x0}" x2="{x0}" y1="0" y2="{_H}"/>')
+    return out
+
+
+def scan(p: Patch) -> dict | None:
+    """Where the spectral read goes, 0..1 of the whole sample: its region
+    (`spectral.region`), the position (its first value), and the stretch of
+    the recording the scan crosses in the note's first second — one or two
+    spans, wrapped round the loop or held at the span's end — and its
+    direction. None without a sample."""
+    x = sampler.get(p.sampler_sample)
+    if x is None or len(x) < 4:
+        return None
+    L = len(x)
+    st = spectral.Settings.of(p)
+    r0, r1, looped = spectral.region_of(L, st)
+    if r1 - r0 < 4:
+        return None
+    lo, span = r0 / L, (r1 - r0) / L
+    at = min(max(_first(p.spectral_pos), 0.0), 1.0)
+    rate = min(max(_first(p.spectral_scan), -spectral.SCAN), spectral.SCAN)
+    reach = rate * sampler.SR / (r1 - r0)  # region lengths in one second
+    a, b = sorted((at, at + reach))
+    if looped and b - a >= 1:
+        pieces = [(0.0, 1.0)]
+    elif looped and (a < 0 or b > 1):
+        pieces = [(a % 1, 1.0), (0.0, b % 1)] if a >= 0 else [(0.0, b), (1 + a, 1.0)]
+    else:
+        pieces = [(max(a, 0.0), min(b, 1.0))]
+    return {
+        "pos": lo + min(at, math.nextafter(1.0, 0.0)) * span,
+        "spans": [(lo + u * span, (v - u) * span) for u, v in pieces if v > u],
+        "back": rate < 0,
+        "lo": lo,
+        "hi": lo + span,
+    }
+
+
+def _scan_marks(p: Patch) -> list[str]:
+    """The spectral read over the waveform: the stretch the scan crosses in
+    a second, the position's line."""
+    c = scan(p)
+    if c is None:
+        return []
+    cls = "sw-scan sw-back" if c["back"] else "sw-scan"
+    out = [
+        f'<rect class="{cls}" x="{_x(a)}" y="{_H * 3 / 8:.1f}"'
+        f' width="{max(1.0, _x(a + w) - _x(a)):.1f}" height="{_H / 4:.1f}"/>'
+        for a, w in c["spans"]
+    ]
+    x0 = _x(c["pos"])
+    out.append(f'<line class="sw-pos" x1="{x0}" x2="{x0}" y1="0" y2="{_H}"/>')
+    return out
+
+
 def context(p: Patch) -> dict | None:
-    """What the sampler block draws; None while no oscillator samples."""
-    if not sampling(p):
+    """What the sampler block draws; None while no oscillator plays the
+    sample (the sampler, the granular or the spectral shape). The chops and
+    the zones are the sampler shape's (`chops`); the cloud the granular
+    one's, the scan the spectral one's."""
+    if not has_sample(p):
         return None
     sid = p.sampler_sample
     secs = sampler.seconds(sid)
     root = int(p.sampler_root)
-    parsed = sampler.parse_slices(p.sampler_slices)
+    parsed = sampler.parse_slices(p.sampler_slices) if sampling(p) else []
     min_len = _min_len(p)
     slices = []
     for i, s in enumerate(parsed):
@@ -451,7 +587,10 @@ def context(p: Patch) -> dict | None:
         "pitch": pitch_context(p) if sid and secs else None,
         "step": round(NUDGE_SECONDS / max(secs, 1e-3), 6),
         "secs": round(secs, 4),
-        "zones": zone_context(p),
+        "zones": zone_context(p) if sampling(p) else None,
+        "chops": sampling(p),
+        "granular": graining(p),
+        "spectral": spectraling(p),
     }
 
 
@@ -475,9 +614,20 @@ def pitch_context(p: Patch) -> dict:
 def watch(p: Patch) -> tuple:
     """Everything `context` reads, cheaply (the sample's length is read
     from the memory cache once loaded)."""
-    if not sampling(p):
+    if not has_sample(p):
         return (None,)
+    grains = (
+        (repr(p.grain_pos), repr(p.grain_spray), repr(p.grain_size))
+        if graining(p)
+        else ()
+    )
+    scans = (repr(p.spectral_pos), repr(p.spectral_scan)) if spectraling(p) else ()
     return (
+        sampling(p),
+        graining(p),
+        spectraling(p),
+        *grains,
+        *scans,
         p.sampler_sample,
         sampler.seconds(p.sampler_sample),
         p.sampler_root,

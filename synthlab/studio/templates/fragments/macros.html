@@ -26,7 +26,8 @@
       <span class="macro-what">{% for t in m.targets %}{{ macro_choices | selectattr(0, "equalto", t.param) | map(attribute=1) | first | default(t.param) }}{{ " · " if not loop.last }}{% else %}unassigned{% endfor %}</span>
       <span class="macro-assign">
         <button type="button" class="btn btn-ghost btn-s" popovertarget="macro-assign-{{ i }}" aria-label="assign {{ m.name }}"
-                data-cmd="Assign macro {{ i + 1 }} ({{ m.name }})" data-cmd-group="Panels">assign</button>
+                data-cmd="Assign macro {{ i + 1 }} ({{ m.name }})" data-cmd-group="Panels"
+                title="pick up to three parameters for {{ m.name }} to move"><span class="macro-as-name">{{ m.name }} ＋</span><span class="macro-as-word">assign</span></button>
         <form popover id="macro-assign-{{ i }}" class="pop" hx-post="/fragment/macro/{{ i }}/assign"
               hx-target="#macros" hx-swap="outerHTML">
           <label class="macro-rename">name

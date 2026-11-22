@@ -69,6 +69,13 @@ _SOUND_BASE = "sound_base"
 # into the drag's step and left with nothing to undo.
 _MOVED = "moved"
 
+# what a patch step also keeps when one press replaced the patch AND emptied
+# a rack (`push_undo_step(also_fx=)`: Resample ↻ bakes the layer's FX into
+# the sample and empties the layer rack): that scope's chain as it was, so
+# one Ctrl+Z gives both back — two steps would leave a sampler of baked FX
+# playing through the FX again, or the old synth with no FX.
+_FX_ALSO = "fx_also"
+
 
 def _sound_of(track: dict) -> dict:
     return {k: track[k] for k in _TRACK_SOUND if k in track}
@@ -161,15 +168,28 @@ class History:
         with the "sound" baseline of the moment (`_SOUND_BASE`)."""
         return _patch_to_json(self.patch) | {_SOUND_BASE: self.baselines.get("sound")}
 
-    def push_undo_step(self, before: dict) -> None:
+    def push_undo_step(
+        self, before: dict, also_fx: tuple[str, list] | None = None
+    ) -> None:
         """`before` (a `patch_snapshot`) as ONE undo step of its own — never
         coalesced into a drag a moment earlier — when the patch has moved
         off it since. For the whole-scope actions (the reset menu's revert
         and defaults), which replace the patch without going through
-        `push_history`: Ctrl+Z after them used to skip the pre-reset sound."""
-        if _patch_to_json(self.patch) == {
+        `push_history`: Ctrl+Z after them used to skip the pre-reset sound.
+        `also_fx` (scope, a copy of its chain before the edit): the same
+        step gives that rack back too (`_FX_ALSO`), kept when either the
+        patch or the chain moved."""
+        patch_still = _patch_to_json(self.patch) == {
             k: v for k, v in before.items() if k != _SOUND_BASE
-        }:
+        }
+        if also_fx is not None:
+            scope, chain = also_fx
+            if self.fx_chain(scope) != chain:
+                patch_still = False
+                before = before | {
+                    _FX_ALSO: {"scope": scope, "chain": copy.deepcopy(chain)}
+                }
+        if patch_still:
             return
         self._history.append(before)
         del self._history[: -self.UNDO_CAP]
@@ -198,6 +218,8 @@ class History:
         # the note grid's timing inside a step (free record's loops): it
         # goes back with the notes it sits on
         "note_nudge",
+        # each note's own feel (a take as played): likewise
+        "note_feel",
     )
 
     def pattern_snapshot(self) -> dict:
@@ -254,6 +276,12 @@ class History:
             if back != was:  # the lanes the step does not hold follow
                 self.fit_other_lanes(was, back)
             self.arrangement = replace(self.arrangement, **step["arr"])
+            if "played" in step:  # a take's loop placed again by its length
+                from .. import loops  # lazy: loops reads the model this package holds
+
+                # (`/loop/length`): its notes as played back too
+                name, played = step["played"]
+                loops.update(self.data_dir, name, played=played)
             return None
         return "Nothing to undo in the pattern."
 
@@ -271,7 +299,8 @@ class History:
         grid from elsewhere (a loop, a take, a section, a generated part),
         so none lands out of sight ("48 hidden notes"). The notes are never
         moved: the window is (`notes_window`). An empty grid keeps it."""
-        midis = sorted({midi_of(p) for p, _st in self.arrangement.cells})
+        # a cell each, so a window is chosen by how much of the notes it shows
+        midis = sorted(midi_of(p) for p, _st in self.arrangement.cells)
         if midis:
             self.grid_span, self.grid_oct, _rows = notes_window(
                 self.arrangement, midis, self.grid_span, self.grid_oct
@@ -317,6 +346,7 @@ class History:
             "slides": list(seq.get("slides") or []),
             "note_nudge": dict(seq.get("note_nudge") or {}),
             "note_chance": dict(seq.get("note_chance") or {}),
+            "note_feel": copy.deepcopy(seq.get("note_feel") or {}),
         }
 
     def _edit_state(self, e: dict) -> dict:
@@ -460,15 +490,23 @@ class History:
         self._history_at = now
 
     def pop_history(self) -> bool:
-        """Undo the newest step of the patch ring: the patch, or one FX
-        scope's chain (`push_fx_undo`). False with nothing to undo."""
+        """Undo the newest step of the patch ring: the patch (with the rack
+        the same press emptied, `_FX_ALSO`), or one FX scope's chain
+        (`push_fx_undo`). False with nothing to undo."""
         while self._history:
             step = self._history.pop()
             self._history_at = -1e9  # the next edit is a fresh step
             if _FX_STEP not in step:
                 step.pop(_MOVED, None)
                 base = step.pop(_SOUND_BASE, None)
+                also = step.pop(_FX_ALSO, None)
                 self.patch = _patch_from_json(step) or self.patch
+                if also is not None:
+                    # the rack the same press emptied (the ring is the edited
+                    # slot's, swapped with it: its "layer" chain is that slot's)
+                    chain = self.fx_chain(also["scope"])
+                    if chain is not None:
+                        chain[:] = copy.deepcopy(also["chain"])
                 # back on the sound that was the baseline then: it is again,
                 # so "edited" reads against it (a later save stays the
                 # baseline for any other step)

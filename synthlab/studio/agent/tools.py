@@ -43,25 +43,33 @@ from ..arrange import FOLLOW_OCTAVES, LAYER_ROLES
 from ..audition import PHRASES
 from ..curves import CURVABLE
 from ..fxrack import (
+    CLIP_UNITS,
     DYNAMICS_UNITS,
     FX2_UNITS,
     FX_UNITS,
     MAX_UNITS,
+    MULTIBAND_UNITS,
+    UTILITY_UNITS,
     VOCAL_UNITS,
     clean_chain,
 )
-from ..paramui import MACRO_PARAMS, UI, spec_of
+from ..paramui import ENV_SYNC_FIELDS, MACRO_PARAMS, UI, spec_of
 
 # every Patch field the editor has a control for, in panel order — except
 # the performance controls (`Param.nogene`: the bend wheel and its range),
 # which are the player's, not the sound's. Filter 2 and the general
 # modulators are no genes either, but they are the sound's: they are here
 # (routes 5-12 are `add_mod_route`'s, by slot)
+# (LFOs 4-6 are routed by `add_mod_route` but set on the panel: six more
+# catalogue lines on every request for what LFOs 2 / 3 already offer)
 _R6_AGENT = ("filter2_", "env3_", "env4_", "lfo2_", "lfo3_")
+# (and an envelope stage's sync division is the panel's too)
 UI_PARAMS: tuple[str, ...] = tuple(
     n
     for n, u in UI.items()
-    if u.group is not None and (not PARAMS[n].nogene or n.startswith(_R6_AGENT))
+    if u.group is not None
+    and (not PARAMS[n].nogene or n.startswith(_R6_AGENT))
+    and n not in ENV_SYNC_FIELDS
 )
 CURVE_SHAPES = ("rise", "fall", "dip", "swell", "points", "clear")
 MAX_AGENT_CURVE_POINTS = 32
@@ -83,8 +91,17 @@ _AGENT_FX_CAPS = {("width", "amount"): 1.5}
 # the units the agent may put on a sound: every one but the live vocal
 # chain's (a mic's, not a synth's — and five more catalogue lines on every
 # request), the FX2 units (nine more lines: past the schema's budget,
-# tests/studio/test_agent.py) and the dynamics units (three more)
-_NOT_OFFERED = VOCAL_UNITS | FX2_UNITS | DYNAMICS_UNITS
+# tests/studio/test_agent.py), the dynamics units (three more) and the
+# multiband drive (one more); the utility (the budget again) and the
+# convolution, whose impulse is a clip of this studio's
+_NOT_OFFERED = (
+    VOCAL_UNITS
+    | FX2_UNITS
+    | DYNAMICS_UNITS
+    | MULTIBAND_UNITS
+    | UTILITY_UNITS
+    | CLIP_UNITS
+)
 AGENT_FX = {k: v for k, v in FX_UNITS.items() if k not in _NOT_OFFERED}
 
 

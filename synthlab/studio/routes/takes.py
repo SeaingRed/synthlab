@@ -47,8 +47,9 @@ from fastapi import Request, Response
 from fastapi.responses import HTMLResponse
 
 from ...audio import read_pcm16
-from .. import keytakes as kt
 from .. import (
+    arppattern,
+    keylevel,
     limits,
     looplib,
     loops,
@@ -57,8 +58,10 @@ from .. import (
     song_bridge,
     takeclean,
     takecoach,
+    takemoves,
     tosong,
 )
+from .. import keytakes as kt
 from .. import meter as _meter
 from .. import song_model as sm
 from ..agent.client import AgentError
@@ -130,6 +133,8 @@ def take_keys(
     bars = _number(form.get("bars", ""), 0.01, limits.MAX_TAKE_BARS)
     if bpm is None or bars is None:
         return svc.toast("A take needs its tempo and its length in bars.")
+    # "the keys I held" (keyrec.js): the keys arp's settings, for its loop
+    arp = _keys_arp(form.get("arp", ""))
     s: StudioState = svc.state
     asked = form.get("name", "").strip() or "keys"
     name = free_clip_name(s.data_dir, asked)
@@ -142,19 +147,247 @@ def take_keys(
     if a.meter != _meter.DEFAULT:
         meta["meter"] = a.meter
     payload = s.sound_payload()
+    # the controls turned during the take: its loop's curves (takemoves.py),
+    # over the grid its loop is placed on; the session's sound is left as
+    # the knobs are now
+    meter = _take_meter(meta)
+    # its rate: the one its notes sit on best (a 1/8T arp: 12 a bar)
+    steps = loops.pick_steps(notes, meter, bpm)
+    grid = loops.grid_bars(bars, steps)
+    sent = takemoves.parse(form.get("moves", ""))
+    payload, kept, missed = takemoves.apply(
+        payload, sent, grid * _meter.bar_beats(meter), s.macros
+    )
+    moved = takemoves.said(kept, missed, sent["capped"])
     meta["sound"] = kt.save_sound(s.data_dir, payload)
     if form.get("beat") == "1":
         meta["beat"] = True
     kt.write_notes(s.data_dir, name, {"notes": notes})  # there before the clip is
-    save_clip(s.data_dir, name, audio, sr=sr, meta=meta)
+    # (a take of up to 60 s, a free take's length: `limits.MAX_KEY_TAKE_SECONDS`)
+    save_clip(
+        s.data_dir, name, audio, sr=sr, meta=meta, cap=limits.MAX_KEY_TAKE_SECONDS
+    )
     resp = kept_as(HTMLResponse(""), asked, name)
     try:
-        made = _loop_from_take(s, name, meta, notes, payload)
+        made = _loop_from_take(s, name, meta, notes, payload, steps, arp=arp)
         resp.headers["X-Loop-Name"] = quote(made)  # "·": a header is latin-1
+        resp.headers["X-Loop-Rate"] = quote(_rate_said(meter, steps))
     except OSError as err:  # the store is full: the take stays, as a take
         return with_toast(resp, f"Kept the take “{name}” — no loop of it: {err}")
     at = slotrec.target(s, form)
-    return _landed(svc, resp, made, at, notes) if at else resp
+    if at:
+        return _moved_too(_landed(svc, resp, made, at, notes), moved, s, made)
+    loop = loops.load(s.data_dir, made)
+    if loop is not None and (rest := loops.rest_bars(loop)):
+        on = loop["lane"]["bars"]
+        resp = with_toast(
+            resp,
+            f"Took “{_title(s, made)}”: {plural(on + rest, 'bar')}, "
+            f"{plural(len(notes), 'note')}, {_rate_said(meter, steps)}. "
+            f"The loop's grid holds bars 1–{on}; "
+            f"bars {on + 1}–{on + rest} are kept as played — → Song lays out "
+            "every bar as sections you can edit.",
+        )
+    elif loop is not None and (ask := _length_ask(s, loop, meta)):
+        trig = json.loads(resp.headers.get("HX-Trigger") or "{}")
+        resp.headers["HX-Trigger"] = json.dumps(trig | {"song-ask": ask})
+    return _moved_too(resp, moved, s, made)
+
+
+def _moved_too(resp: Response, said: str, s: StudioState, made: str) -> Response:
+    """The take's answer with what its controls did said too
+    (`takemoves.said`): after the toast it has, or as its own."""
+    if not said:
+        return resp
+    trig = json.loads(resp.headers.get("HX-Trigger") or "{}")
+    was = (trig.get("studio-toast") or {}).get("message")
+    return with_toast(
+        resp, f"{was} {said}" if was else f"Took “{_title(s, made)}”. {said}"
+    )
+
+
+# --- a take's length: not whole bars, asked after it (`/loop/length`) ----------------
+
+LENGTHS = ("keep", "trim", "fit")
+
+
+def _length_plan(
+    how: str, notes: list, took: float, bpm: float, meter: str, steps: int
+):
+    """How the loop of a take `took` bars long (at `bpm`, `notes` as
+    played) is placed by `how`: (its grid's bars, its tempo, its notes) —
+    `keep`, the grid as a take is placed (the take's bars rounded up: the
+    gap before it repeats); `trim`, the longest grid inside the take (its
+    whole bars), the notes past its end line cut at it; `fit`, the tempo at
+    which the take is exactly whole bars — the nearest of the bars either
+    side (a grid's choice; else the nearest choice) inside
+    `limits.BPM_RANGE` — every note kept where it was in time, its beats
+    scaled with the tempo. Or the words for why not."""
+    bb = _meter.bar_beats(meter)
+    grids = [b for b in loops.GRID_BARS if b * steps <= limits.MAX_GRID_STEPS] or [1]
+    if how == "keep":
+        return loops.grid_bars(took, steps), bpm, notes
+    if how == "trim":
+        bars = max((b for b in grids if b <= took + 1e-6), default=None)
+        if bars is None:
+            return (
+                "The take is shorter than a bar: there is no whole bar to trim it to."
+            )
+        end = bars * bb
+        cut = [
+            [n[0], round(min(n[1], end - n[0]), 6), *n[2:]]
+            for n in notes
+            if n[0] < end - 1e-6
+        ]
+        return bars, bpm, cut
+    lo, hi = limits.BPM_RANGE
+    near = [b for b in {math.floor(took), math.ceil(took)} if b in grids] or grids
+    for bars in sorted(near, key=lambda b: (abs(b - took), b)):
+        k = bars / took
+        if lo <= bpm * k <= hi:
+            scaled = [[round(n[0] * k, 6), round(n[1] * k, 6), *n[2:]] for n in notes]
+            return bars, round(bpm * k, 3), scaled
+    return f"Whole bars would need a tempo outside {lo:g}–{hi:g} bpm."
+
+
+def _take_basis(s: StudioState, loop: dict):
+    """What a take's loop is placed again from by `/loop/length`: its take's
+    (length in bars, tempo, notes as played) — from the take, never from
+    the loop, so each choice starts over from what was recorded — or None:
+    no take (a capture, a beat, a free loop's own shape)."""
+    take = loop["take"]
+    meta = kt.read_meta(s.data_dir, take) if take else None
+    if meta is None or loop["kind"] != "notes" or loop["free"] is not None:
+        return None
+    took, bpm = kt.bars_of(meta), meta.get("bpm")
+    if not took or not kt.meta_number(bpm):
+        return None
+    doc = kt.read_notes(s.data_dir, take, meta)
+    return took, float(bpm), doc.get("raw", doc["notes"])
+
+
+def _length_ask(s: StudioState, loop: dict, meta: dict) -> dict | None:
+    """The question after a take whose length is not whole bars (nothing
+    playing, or "to ■" off the grid): `song-ask`'s detail — Keep N bars,
+    Trim to M bars, Fit the tempo, each a `/loop/length` post (tosong.py's
+    question; songdrag.js draws it) — or None (whole bars: nothing to ask)."""
+    took = kt.bars_of(meta)
+    if not took or abs(took - round(took)) < 0.01:
+        return None
+    basis = _take_basis(s, loop)
+    if basis is None:
+        return None
+    name, title = loop["name"], _title(s, loop["name"])
+    meter, steps = loop["meter"], loop["lane"]["steps_per_bar"]
+    keep = loops.grid_bars(took, steps)
+    choices = [
+        {
+            "label": f"Keep {plural(keep, 'bar')}",
+            "title": f"as it is: {keep - took:.2f} bar of silence before it repeats",
+            "vals": {"name": name, "how": "keep"},
+        }
+    ]
+    plan = _length_plan("trim", basis[2], took, basis[1], meter, steps)
+    if not isinstance(plan, str):
+        end = plan[0] * _meter.bar_beats(meter)
+        cut = sum(1 for n in basis[2] if n[0] + n[1] > end + 1e-6)
+        choices.append(
+            {
+                "label": f"Trim to {plural(plan[0], 'bar')}",
+                "title": f"the notes past bar {plan[0]}'s end line cut at it"
+                + (f" ({plural(cut, 'note')})" if cut else ""),
+                "vals": {"name": name, "how": "trim"},
+            }
+        )
+    plan = _length_plan("fit", basis[2], took, basis[1], meter, steps)
+    if not isinstance(plan, str):
+        choices.append(
+            {
+                "label": "Fit the tempo",
+                "title": f"{plan[1]:g} bpm: the take is exactly "
+                f"{plural(plan[0], 'bar')}, every note where it was played",
+                "vals": {"name": name, "how": "fit"},
+            }
+        )
+    return {
+        "message": f"“{title}” is {took:.2f} bars — its loop:",
+        "choices": [c | {"path": "/loop/length"} for c in choices],
+    }
+
+
+@router.post("/loop/length")
+def loop_length(request: Request, form: StrForm, svc: Svc) -> Response:
+    """A take's loop whose take is not whole bars, placed again (the
+    question after the take, `_length_ask`): `how` — `keep` (the grid as a
+    take is placed: the gap before it repeats), `trim` (the longest grid
+    inside the take, the notes past its end cut at it) or `fit` (the tempo
+    that makes the take whole bars, the notes' beats scaled with it:
+    `_length_plan`) — each from the take itself (`_take_basis`), at the
+    loop's rate and strength. Its notes as played are the placed ones. Open
+    on the grid by Edit, the grid follows: one pattern undo step, which
+    puts the tempo and the notes as played back too. Refused in words: no
+    take, the grid edited since, open in a launcher slot, not possible."""
+    s: StudioState = svc.state
+    how = form.get("how", "")
+    if how not in LENGTHS:
+        return svc.toast("Keep, trim or fit: one of the three.")
+    got = _loop_named(svc, form)
+    if isinstance(got, Response):
+        return got
+    loop = loops.load(s.data_dir, got)
+    if loop is None:
+        return svc.toast("That loop is gone.")
+    title = _title(s, got)
+    basis = _take_basis(s, loop)
+    if basis is None:
+        return svc.toast(f"“{title}” has no take of its own to set the length of.")
+    if loop["edited"]:
+        return svc.toast(
+            f"“{title}” was edited on the grid since: Q places it again from "
+            "the notes as played."
+        )
+    e = s.loop_edit_of()
+    here = e is not None and e["name"] == got and e.get("row") is None
+    if s.loop_open(got) and not here:
+        return svc.toast(f"“{title}” plays in a launcher slot: stop it there first.")
+    took, bpm0, notes0 = basis
+    meter, steps = loop["meter"], loop["lane"]["steps_per_bar"]
+    plan = _length_plan(how, notes0, took, bpm0, meter, steps)
+    if isinstance(plan, str):
+        return svc.toast(plan)
+    bars, bpm, notes = plan
+    a = s.arrangement
+    if here and (refusal := loop_refusal(a, replace(a, bars=bars, bpm=bpm))):
+        return svc.toast(refusal)
+    lane = loops.place(notes, meter, bars, steps, loop["quantise"])
+    lane.setdefault("note_nudge", {})  # (as Q: what a placing does not set is cleared)
+    lane.setdefault("note_feel", {})
+    loops.update(s.data_dir, got, arr=lane | {"bpm": bpm}, played=notes, edited=False)
+    said = {
+        "keep": f"“{title}”: {plural(bars, 'bar')}, as taken.",
+        "trim": f"“{title}”: trimmed to {plural(bars, 'bar')}.",
+        "fit": f"“{title}”: {bpm:g} bpm — the take is {plural(bars, 'bar')} exactly.",
+    }[how]
+    resp = with_toast(HTMLResponse(""), said)
+    if not here:
+        return resp
+    before = s.pattern_snapshot()
+    # Ctrl+Z puts the tempo and the loop's notes as played back as well
+    # (`pop_pattern_undo`: a step's arr is fields of the arrangement)
+    before["arr"]["bpm"] = a.bpm
+    before["played"] = (got, loop["played"])
+    s.arrangement = replace(a, **lane, bpm=bpm)
+    s.push_pattern_undo(before)
+    s.loop_edit_synced()
+    s.save()
+    try:  # the transport plays the loop as it is now
+        trig = json.loads(svc.preview_trigger(view="perform")["HX-Trigger"])
+    except RenderError:
+        return resp
+    resp.headers["HX-Trigger"] = json.dumps(
+        trig | json.loads(resp.headers["HX-Trigger"])
+    )
+    return resp
 
 
 @router.post("/take/keys/capture")
@@ -230,6 +463,29 @@ def _take_meter(meta: dict) -> str:
     return m if m in _meter.METERS else _meter.DEFAULT
 
 
+def _keys_arp(raw: str) -> dict | None:
+    """A take's `arp` field (keyrec.js, "the keys I held": the keys arp's
+    mode, rate, octaves, gate, swing and ▦ pattern) as the grid arp's
+    pattern that plays its held keys (`arppattern.from_keys`), conformed —
+    or None: none sent, or nothing the grid arp can play."""
+    if not raw or len(raw) > limits.MAX_ARP_FIELD_CHARS:
+        return None
+    try:
+        got = json.loads(raw)
+    except (ValueError, RecursionError):
+        return None
+    pat = arppattern.from_keys(got)
+    if pat is None:
+        return None
+    clean = schema.conform({"arp_pattern": pat}, schema.nodes().ARRANGEMENT)
+    return clean.get("arp_pattern") or None
+
+
+def _rate_said(meter: str, steps: int) -> str:
+    """A placed take's rate as its toast says it: "on 1/8T (12 a bar)"."""
+    return f"on {loops.rate_word(meter, steps)} ({steps} a bar)"
+
+
 def _loop_from_take(
     s: StudioState,
     take: str,
@@ -237,19 +493,25 @@ def _loop_from_take(
     notes: list,
     sound: dict | None,
     steps: int = 0,
-    strength: int = 100,
+    strength: int = 0,
     *,
     clip: bool = True,
+    arp: dict | None = None,
 ) -> str:
     """A keys take's loop, kept under the take's name: its notes as played
     (`played`, never rewritten) placed on a grid of the take's bars
-    (`loops.grid_bars`) at `steps` a bar (the meter's sixteenths unasked)
-    and `strength` (`loops.place`), `sound` (the one that played it), the
-    take's tempo, key and meter; its audio is the take (`clip` False: a
-    ⟲ Capture's, which has none). The loop's name. OSError past
+    (`loops.grid_bars`) at `steps` a bar
+    and `strength` (`loops.place`: unasked "as played", 0 — every note on
+    its nearest step with its own feel, so the loop plays the take),
+    `sound` (the one that played it), the take's tempo, key and meter;
+    its audio is the take (`clip` False: a ⟲ Capture's, which has none).
+    Unasked, the rate is the one its notes sit on best (`loops.pick_steps`:
+    a 1/8T arp lands on 12 a bar). The loop's name. OSError past
     `limits.MAX_LOOPS`."""
     meter = _take_meter(meta)
-    steps = steps if steps in _meter.step_choices(meter) else loops.default_steps(meter)
+    if steps not in _meter.step_choices(meter):
+        tempo = meta.get("bpm") if kt.meta_number(meta.get("bpm")) else 120.0
+        steps = loops.pick_steps(notes, meter, float(tempo))
     played = kt.bars_of(meta) or (
         max((n[0] + n[1] for n in notes), default=0) / _meter.bar_beats(meter)
     )
@@ -260,6 +522,8 @@ def _loop_from_take(
     lo, hi = limits.BPM_RANGE
     bpm = float(bpm) if kt.meta_number(bpm) and lo <= bpm <= hi else s.arrangement.bpm
     arr = Arrangement(bpm=bpm, root=root, scale_name=scale, meter=meter, **lane)
+    if arp:  # "the keys I held": the grid arp plays them as the keys arp did
+        arr = replace(arr, arp_mode="pattern", arp_pattern=arp)
     name = take
     if loops.is_auto(take):  # named by the clock: named from what it is
         played_on = (sound or {}).get("patch", {}).get("name", "")
@@ -350,6 +614,29 @@ def _take_or_toast(svc, form: StrForm) -> tuple[str, dict] | Response:
     name = clip_safe(form.get("name", "").strip())
     meta = kt.read_meta(svc.state.data_dir, name)
     return (name, meta) if meta is not None else svc.toast("That take is gone.")
+
+
+def _to_main_lane(s: StudioState) -> str:
+    """A loop opened while the edited lane follows the main one opens on
+    the main lane (a follower has no notes of its own, and the loop brings
+    its whole sound): the edited lane moves there. A word on it, or ""."""
+    if not s.follows(s.active_layer):
+        return ""
+    was = s.active_layer + 1
+    s.select_layer(s.main_index())
+    return f" (on layer {s.active_layer + 1}: layer {was} follows it)"
+
+
+def _rest_notes(s: StudioState, loop: dict) -> list:
+    """The notes a loop's later bars are placed from: its take's as they
+    stand after a ✦ clean-up, else as played."""
+    take = loop["take"]
+    meta = kt.read_meta(s.data_dir, take) if take else None
+    if meta is not None:
+        doc = kt.read_notes(s.data_dir, take, meta)
+        if "raw" in doc and doc["notes"]:
+            return doc["notes"]
+    return loop["played"]
 
 
 def _lane_refused(svc) -> Response | None:
@@ -660,8 +947,12 @@ def _loop(svc, form: StrForm):
 def _loop_lane(s: StudioState, loop: dict) -> tuple[Arrangement, str]:
     """The loop arrangement with `loop` on the edited lane — its grid, its
     tempo and key — and the words for what moved (`_adopt`). Nothing in
-    the session is touched."""
+    the session is touched. A loop with a grid arp of its own (a take of
+    "the keys I held") brings it; a loop without one leaves the lane's —
+    unless that was another such take's, which is that loop's alone."""
     arr = replace(s.arrangement, **loop["lane"])
+    if "arp_mode" not in loop["lane"] and (arr.arp_pattern or {}).get("held"):
+        arr = replace(arr, arp_mode="off", arp_pattern={})
     key = loop["key"]
     return _adopt(arr, key["bpm"], (key["root"], key["scale_name"]))
 
@@ -678,14 +969,13 @@ def loop_load(request: Request, form: StrForm, svc: Svc) -> Response:
         return svc.toast("That loop is gone.")
     if loop["kind"] == "idea":
         return svc.toast(_IDEA)
-    if refused := _lane_refused(svc):
-        return refused
+    where = _to_main_lane(s)
     _play_sound(s, loop["sound"], loop["name"])
     s.arrangement, word = _loop_lane(s, loop)
     s.show_notes()  # the roll's window on its notes, as Edit's
     s.end_loop_edit()  # a copy on the grid: edits stay the working loop's
     s.save()
-    said = f"“{_title(s, loop['name'])}” is on the grid" + (
+    said = f"“{_title(s, loop['name'])}” is on the grid{where}" + (
         f" · {word}" if word else ""
     )
     return svc.land_on(request, "perform", f"{said}. Ctrl+Z takes the notes back.")
@@ -715,8 +1005,7 @@ def loop_edit(request: Request, form: StrForm, svc: Svc) -> Response:
         return svc.toast(_IDEA)
     if loop["kind"] == "beat":  # a beat opens on the drum grid
         return loop_beat(request=request, form=form, svc=svc)
-    if refused := _lane_refused(svc):
-        return refused
+    where = _to_main_lane(s)
     a = s.arrangement
     asked, word = _loop_lane(s, loop)
     if refusal := loop_refusal(a, replace(asked, meter=loop["meter"])):
@@ -731,8 +1020,11 @@ def loop_edit(request: Request, form: StrForm, svc: Svc) -> Response:
     s.push_pattern_undo(before)
     s.open_loop_edit(loop["name"])
     s.save()
-    said = f"Editing the loop “{_title(s, loop['name'])}”: every change saves to it"
-    said += f" · {word}" if word else ""
+    said = f"Editing the loop “{_title(s, loop['name'])}”{where}: every change saves"
+    said += " to it" + (f" · {word}" if word else "")
+    if rest := loops.rest_bars(loop):
+        on = loop["lane"]["bars"]
+        said += f" · bars 1–{on} of {on + rest} played: → Song has them all"
     return svc.land_on(request, "perform", said + ". Done ends it; Ctrl+Z too.")
 
 
@@ -787,6 +1079,7 @@ def loop_quantise(request: Request, form: StrForm, svc: Svc) -> Response:
         bars = loops.grid_bars(max(loop["lane"]["bars"], math.ceil(took - 1e-6)), steps)
         lane = loops.place(loop["played"], m, bars, steps, strength)
     lane.setdefault("note_nudge", {})  # (placed on the steps: no timing inside one)
+    lane.setdefault("note_feel", {})  # (... nor a note's own feel)
     loops.update(s.data_dir, got, arr=lane, quantise=strength, edited=False)
     e = s.loop_edit_of()
     if e is not None and e["name"] == loop["name"]:
@@ -848,13 +1141,30 @@ def _render_loop(svc, loop: dict, bpm: float | None = None):
             return svc.render(
                 "drums", arrangement=_beat_arr(s, loop["beat"], bpm or own)
             )
-        arr, _word = _loop_lane(s, loop)
-        sound = loop["sound"]
-        heard = {"patch": sound[0], "chain": sound[1], "mix": True} if sound else {}
-        arr = replace(arr, bpm=bpm or own)
-        return svc.render("perform", arrangement=arr, parts=("synth",), **heard)
+        return svc.render("perform", **_loop_args(s, loop, bpm))
     except RenderError as err:
         return svc.toast(str(err))
+
+
+def _loop_args(s: StudioState, loop: dict, bpm: float | None) -> dict:
+    """How a loop of notes renders (`_render_loop`): `svc.render("perform",
+    ...)`'s arguments — its lane on its clock and key at its own tempo or
+    `bpm`, the synths alone, in its sound."""
+    arr, _word = _loop_lane(s, loop)
+    sound = loop["sound"]
+    heard = {"patch": sound[0], "chain": sound[1], "mix": True} if sound else {}
+    arr = replace(arr, bpm=bpm or loop["key"]["bpm"])
+    return {"arrangement": arr, "parts": ("synth",), **heard}
+
+
+def _keys_gain(svc, loop: dict, made, bpm: float | None = None) -> float | None:
+    """The dB that plays `made` (`_render_loop`'s render of `loop`) at the
+    keys' level — where the key bus put the same notes (`keylevel`) — or
+    None: a beat, or no notes."""
+    if loop["kind"] != "notes":
+        return None
+    inp = svc.render_inputs("perform", **_loop_args(svc.state, loop, bpm))
+    return keylevel.playback_db(inp, made)
 
 
 def _bounce(svc, loop: dict) -> str | Response:
@@ -867,7 +1177,11 @@ def _bounce(svc, loop: dict) -> str | Response:
     bars = loop["beat"]["bars"] if loop["kind"] == "beat" else loop["lane"]["bars"]
     kept = free_clip_name(s.data_dir, loop["name"])
     meta = {"bpm": loop["key"]["bpm"], "bars": bars, "source": f"loop: {loop['name']}"}
-    save_clip(s.data_dir, kept, made.audio(), meta=meta)
+    gain = _keys_gain(
+        svc, loop, made
+    )  # a loop's audio is at the keys' level, as a take's
+    audio = made.audio() * (10 ** (gain / 20) if gain is not None else 1.0)
+    save_clip(s.data_dir, kept, audio, meta=meta)
     return kept
 
 
@@ -914,6 +1228,17 @@ def loop_song(request: Request, form: StrForm, svc: Svc) -> Response:
         loops.update(s.data_dir, name, take=made)  # its audio from now on
         clip = made
     said: list[str] = []
+    # a take longer than the loop's grid: the bars after it, a section each
+    rest = []
+    if not (audio or beat or lane_drop) and loops.rest_bars(loop):
+        lane = loop["lane"]
+        rest = loops.rest_lanes(
+            _rest_notes(s, loop),
+            loop["meter"],
+            lane["bars"],
+            lane["steps_per_bar"],
+            loop["quantise"],
+        )
 
     def change(song: dict) -> None:
         if not song["sections"]:
@@ -944,24 +1269,41 @@ def loop_song(request: Request, form: StrForm, svc: Svc) -> Response:
                 )
                 how = "as a beat on the drums track"
             else:
-                lanes = _loop_lanes(s, loop, arr)
-                sid = song_bridge.add_lanes_section(
-                    song,
-                    index,
-                    name,
-                    arr,
-                    lanes,
-                    s.curves,
-                    onto=tosong.onto_of(form),
-                    at=at_section,
-                )
+                parts = [arr] + [
+                    schema.conform(
+                        {**arr, **more, "note_chance": {}}, schema.nodes().ARRANGEMENT
+                    )
+                    for more in rest
+                ]
+                sids = [
+                    song_bridge.add_lanes_section(
+                        song,
+                        index,
+                        f"{name} {k + 1}" if rest else name,
+                        part,
+                        _loop_lanes(s, loop, part),
+                        s.curves,
+                        onto=tosong.onto_of(form),
+                        at=None if at_section is None else at_section + k,
+                    )
+                    for k, part in enumerate(parts)
+                ]
+                sid = sids[0]
                 how = "as a pattern on a track with its sound"
         except song_bridge.TrackCap as err:
             raise tosong.cap_ask(song, err, form) from None
         plain = at_section is None and form.get("again") != "1"
-        if plain and (twin := tosong.already(song, sid)) is not None:
+        if plain and not rest and (twin := tosong.already(song, sid)) is not None:
             raise tosong.already_ask(song, twin, title, form)
         n = sm.section_index(song, sid) + 1
+        if rest:
+            total = sum(song["sections"][n - 1 + k]["bars"] for k in range(len(sids)))
+            said.append(
+                f"Added “{title}” to the song as patterns on a track with its "
+                f"sound: sections {n}–{n + len(rest)}, every one of the "
+                f"{plural(total, 'bar')} you played."
+            )
+            return
         bars = plural(song["sections"][n - 1]["bars"], "bar")
         said.append(f"Added “{title}” to the song {how}: section {n}, {bars}.")
 
@@ -1179,6 +1521,11 @@ def loop_preview(request: Request, form: StrForm, svc: Svc) -> Response:
         if isinstance(made, Response):
             return made
         url = f"/preview/{made.key}.wav"
+        gain = _keys_gain(svc, loop, made, bpm)
+        if gain is not None:  # at the keys' level, as its take plays
+            return HTMLResponse(
+                "", headers={"X-Preview-Url": url, "X-Preview-Gain": str(gain)}
+            )
     return HTMLResponse("", headers={"X-Preview-Url": url})
 
 

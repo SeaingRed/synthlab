@@ -25,10 +25,21 @@ from fastapi.templating import Jinja2Templates
 
 from .. import percussion
 from ..params import taper
-from . import beatgen, limits, meter, modmixes, oscfaces, security, workspace
+from . import (
+    beatgen,
+    irs,
+    limits,
+    meter,
+    modmixes,
+    notefeel,
+    oscfaces,
+    security,
+    workspace,
+)
 from .fxrack import chain_browser
 from .mapview import bright_pct
 from .paramui import (
+    ENV_SYNC_FIELDS,
     MOD_SOURCE_LABELS,
     MOD_TARGET_LABELS,
     ROUTE_FIELDS,
@@ -153,6 +164,8 @@ def make_templates() -> Jinja2Templates:
     # the bar (meter.py): the pickers' meters, each grid's step choices
     # and its accents (`meter.step_choices`, `meter.accents`)
     templates.env.globals["meter"] = meter
+    # a felt note's drawing on the roll (grids.html, notefeel.marks)
+    templates.env.globals["feel_marks"] = notefeel.marks
     # row headings inside a panel (paramui.SUBHEADS): a global, because a
     # macro move renders param_row.html OOB with its own small context
     templates.env.globals["subheads"] = SUBHEADS
@@ -164,6 +177,8 @@ def make_templates() -> Jinja2Templates:
     # every route slot's three fields (twelve slots): the mod
     # matrix draws them, every other panel leaves them out
     templates.env.globals["route_fields"] = ROUTE_FIELDS
+    # an envelope time's sync division: a select in the time's own row
+    templates.env.globals["env_syncs"] = ENV_SYNC_FIELDS
     # the FX racks' chain browser: every chain preset, grouped (fx_rack.html)
     templates.env.globals["chain_browser"] = chain_browser()
     # a drum row's "Percussion" choices (synthlab/percussion.py)
@@ -226,6 +241,10 @@ def create_app(
     # studio's store, drawn wherever param_row.html draws the picker
     svc.templates.env.globals["own_tables"] = lambda: oscfaces.own_faces(
         svc.state.wavetable_dir
+    )
+    # the convolution unit's impulse select (irs.choices): this studio's clips
+    svc.templates.env.globals["ir_choices"] = lambda current: irs.choices(
+        svc.state.data_dir, current or ""
     )
     # the session state under its historical name (tests and tools read it)
     app.state.studio = svc.state

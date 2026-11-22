@@ -37,7 +37,7 @@ from synthlab.studio.agent.config import AgentConfig, load_config, parse_dotenv,
 from synthlab.studio.audition import PHRASES
 from synthlab.studio.curves import CURVABLE
 from synthlab.studio.fxrack import FX_UNITS
-from synthlab.studio.paramui import MACRO_PARAMS, UI, spec_of
+from synthlab.studio.paramui import ENV_SYNC_FIELDS, MACRO_PARAMS, UI, spec_of
 from synthlab.studio.server import create_app
 from synthlab.synth import Patch
 
@@ -113,6 +113,7 @@ def test_set_params_covers_every_ui_param_with_registry_bounds():
         for n, u in UI.items()
         if u.group is not None
         and (not PARAMS[n].nogene or n.startswith(atools._R6_AGENT))
+        and n not in ENV_SYNC_FIELDS  # an envelope time's division: the panel's
     }
     assert "pitch_bend" not in shown  # a performance control, not the sound
     assert "mod_wheel" not in shown and "mod5_src" not in shown
@@ -167,9 +168,22 @@ def test_the_catalogue_is_under_half_the_schema_it_replaced():
     # what the catalogue carries: hard sync, fm4 (its numbered runs on one
     # line each), drift, the wavetables, filter 2, envelopes 3 / 4, LFOs
     # 2 / 3, the filter types, LFO shapes, route sources and targets —
-    # 4,406 and 12,789 characters
-    assert sizes["set_params"] < 4_500
-    assert sum(sizes.values()) < 12_900
+    # 4,406 and 12,789 characters; the granular shape's eight fields (one
+    # catalogue line, the curve, macro and route enums) took them to 4,462
+    # and 13,042; oscillator 3 (three route targets, its level, detune and
+    # warp amount in the curve and macro enums — its fields are hand-made,
+    # out of the catalogue as the warps are) to 4,499 and 13,208; the
+    # second warps (three more route targets, curve and macro entries) to
+    # 4,544 and 13,406; the routes' source curves (twelve macro entries —
+    # the switches and curves are hand-made, out of the catalogue) to 13,565;
+    # the Lorenz and Rössler LFO shapes (LFO 1-3's shape choices) and the
+    # sources LFO 4-6 (whose own fields are the panel's, not the
+    # catalogue's) to 4,574 and 13,691; the spectral shape (its pill on
+    # both oscillators, a route target, its position in the curve and macro
+    # enums — its other fields hand-made, out of the catalogue) to 4,629
+    # and 13,877
+    assert sizes["set_params"] < 4_700
+    assert sum(sizes.values()) < 14_000
 
 
 def test_the_other_tools_are_generated_from_their_tables():
@@ -194,7 +208,7 @@ def test_the_other_tools_are_generated_from_their_tables():
     )
     # every declaration is plain JSON and every one has an implementation
     blob = json.dumps(atools.declarations())
-    assert len(blob) < 13_400  # the catalogue as it stands (above)
+    assert len(blob) < 14_600  # the catalogue as it stands (above): 14,439
     assert atools.TOOL_NAMES == tuple(atools.TOOLS)
 
 

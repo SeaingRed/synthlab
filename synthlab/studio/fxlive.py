@@ -11,8 +11,9 @@ measures it against `effects.py` (`tests/studio/test_live_fx.py`).
               and the live vocal units through static/vox-worklet.js, the
               FX2 units — auto-filter, tremolo, tape, ping-pong,
               formant and frequency shifters, exciter, vocoder — and
-              the dynamics (OTT, limiter, transient shaper)
-              through static/fx2-worklet.js, all in the same scope)
+              the dynamics (OTT, limiter, transient shaper) and the
+              multiband drive through static/fx2-worklet.js, all in the
+              same scope)
     "clock"   the same, timed on the transport clock (gate / pump /
               sidechain: the loop's own beat, not the key's)
     "native"  a Web Audio node computes it exactly: reverb is a
@@ -54,7 +55,7 @@ from .. import effects as fx
 from .. import sampler, wavetables
 from ..synth import Patch, at_bpm
 from . import worklet
-from .fxrack import FX_UNITS, clean_chain, kick_steps, resolve_unit
+from .fxrack import FX_UNITS, active, kick_steps, resolve_unit
 from .render import patch_key
 from .state import Arrangement, Lane, audible_layers
 
@@ -93,6 +94,9 @@ FX_LIVE: dict[str, str] = {
     "ott": "js",
     "limiter": "js",
     "transient": "js",
+    "mbdrive": "js",
+    "utility": "js",
+    "convolve": "native",
     "spring": "native",
     "gate": "clock",
     "pump": "clock",
@@ -122,7 +126,7 @@ assert TRANSPORT <= {k for k, v in FX_LIVE.items() if v == "offline"}
 def lane_mode(units, all_live: bool = False) -> str:
     """ "live" (a voice node in the worklet) or "buffer" (pre-rendered
     notes) for a lane that isn't the edited slot."""
-    if all_live or any(u["kind"] in CLOCK | TRANSPORT for u in clean_chain(units)):
+    if all_live or any(u["kind"] in CLOCK | TRANSPORT for u in active(units)):
         return "live"
     return "buffer"
 
@@ -146,7 +150,7 @@ def lane_key(voice, units, arr: Arrangement) -> str:
 
 def offline_units(units) -> list[str]:
     """The kinds in a chain the live keys can't play."""
-    return [u["kind"] for u in clean_chain(units) if FX_LIVE[u["kind"]] == "offline"]
+    return [u["kind"] for u in active(units) if FX_LIVE[u["kind"]] == "offline"]
 
 
 def keys_bpm(s) -> float:
@@ -381,6 +385,14 @@ _FX2 = {
         "scale": fx.TRANSIENT_SCALE,
         "top": fx.TRANSIENT_MAX / fx.TRANSIENT_SCALE,
     },
+    # the multiband drive: the OTT's crossovers, the drive's shapes' constants
+    "mbdrive": lambda kw: {
+        "split": fx.OTT_SPLIT,
+        "q": fx.OTT_Q,
+        "fuzz_bias": fx.FUZZ_BIAS,
+        "fuzz_gain": fx.FUZZ_GAIN,
+        "tube_even": fx.TUBE_EVEN,
+    },
 }
 
 
@@ -390,9 +402,10 @@ def live_chain(units, arr: Arrangement, drums: bool) -> list[dict]:
     plus what the browser needs to reach it — the reverb's IR URL, the
     clock of a pump (seconds per beat trigger) or of a sidechain (the kick
     hits inside the drum loop, none when the view renders no drums: the
-    loop's sidechain ducks on nothing then too, `render.chain_arr`)."""
+    loop's sidechain ducks on nothing then too, `render.chain_arr`) — and a
+    banded unit's band with the crossover it splits at (band-worklet.js)."""
     out: list[dict] = []
-    for u in clean_chain(units):
+    for u in active(units):
         name, kw = resolve_unit(u, arr)
         # the factory's own defaults for what the rack doesn't expose
         # (a chorus's base delay, a phaser's stages): never retyped in JS
@@ -410,6 +423,18 @@ def live_chain(units, arr: Arrangement, drums: bool) -> list[dict]:
                 f"/fx/ir.wav?kind=plate&decay={kw['decay']:.6g}"
                 f"&tone={kw['tone']:.6g}&predelay={kw['predelay']:.6g}"
             )
+        elif u["kind"] == "convolve":
+            # its IR as the loop plays it (`effects.convolve_ir`); none here:
+            # no IR and mix 0 — the dry pass the loop is, exactly
+            cuts = (float(kw["predelay"]), float(kw["lowcut"]), float(kw["highcut"]))
+            room = fx._convolve_room((str(kw["ir"]), *cuts, fx.SR))
+            unit["ir"] = (
+                None
+                if room is None
+                else f"/fx/ir.wav?kind=clip&id={kw['ir']}&predelay={kw['predelay']:.6g}"
+                f"&lowcut={kw['lowcut']:.6g}&highcut={kw['highcut']:.6g}"
+            )
+            unit["mix"] = 0.0 if room is None else kw["mix"]
         elif u["kind"] == "spring":
             unit["ir"] = (
                 f"/fx/ir.wav?kind=spring&decay={kw['decay']:.6g}"
@@ -448,6 +473,8 @@ def live_chain(units, arr: Arrangement, drums: bool) -> list[dict]:
             }
         elif u["kind"] == "vgate":
             unit["attack"] = fx.VGATE_ATTACK
+        elif u["kind"] == "utility":  # bass mono's crossover Q (band-worklet.js)
+            unit["xover_q"] = fx.UTILITY_Q
         elif u["kind"] in _FX2:  # the FX2 units' constants (fx2-worklet.js)
             unit |= _FX2[u["kind"]](kw)
         elif u["kind"] == "pump":
@@ -460,5 +487,7 @@ def live_chain(units, arr: Arrangement, drums: bool) -> list[dict]:
             # worklet repeats every hit each loop, so it ducked where no
             # kick sounds; a muted or soloed-out kick row leaves none
             unit["hits"] = sorted(s * step for s in kick_steps(arr)) if drums else []
+        if u.get("band"):  # its band (band-worklet.js): which, and the crossover
+            unit |= {"band": u["band"], "band_split": fx.OTT_SPLIT, "band_q": fx.OTT_Q}
         out.append(unit)
     return out

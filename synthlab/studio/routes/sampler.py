@@ -15,21 +15,34 @@ clip store and then used exactly as "Use as sampler" uses a clip."""
 
 from __future__ import annotations
 
+import copy
 import json
 import math
+import re
 import time
 import wave
 from dataclasses import replace
 
 from fastapi import Request, Response
 
-from ... import params, sampler
+from ... import params, sampler, sfz
 from ...audio import read_pcm16
-from .. import limits
+from ...sequencer import midi
+from .. import fxrack, limits
 from .. import samplerview as sv
 from ..clips import free_clip_name, load_clip, save_clip
 from ..render import RenderError
-from ..routing import RawForm, StrForm, Svc, TakeUpload, lock_free, studio_router
+from ..routing import (
+    OutsideLock,
+    RawForm,
+    SfzUpload,
+    StrForm,
+    Svc,
+    TakeUpload,
+    lock_free,
+    render_outside_lock,
+    studio_router,
+)
 from ..state import StudioState
 from ..words import plural
 from .macros import param_rows_oob
@@ -195,6 +208,64 @@ def sampler_resample(request: Request, form: StrForm, svc: Svc) -> Response:
     return adopt_audio(
         request, svc, audio, sampler.SR, f"resampled {source}", say=say, kind="done"
     )
+
+
+_GENERATION = re.compile(r"^(.*) ↻(\d*)$")
+
+
+def _next_generation(name: str) -> str:
+    """ "Acid" -> "Acid ↻" -> "Acid ↻2" -> ...: each press one generation."""
+    m = _GENERATION.match(name)
+    if m is None:
+        return f"{(name or 'sound')[:56]} ↻"
+    return f"{m.group(1)[:52]} ↻{int(m.group(2) or 1) + 1}"
+
+
+@router.post("/fragment/sampler/rebake")
+def sampler_rebake(request: Request, form: StrForm, svc: Svc) -> Response:
+    """Resample ↻: the edited layer's phrase through that layer's own rack
+    (as it sounds: bypassed units skipped; not the master rack, not the
+    other layers, not the beat) becomes that layer's sampler sound, rooted
+    on the phrase's root so the phrase's keys play it back — and the layer
+    rack is emptied in the same step, so the FX baked into the sample are
+    not applied twice. Pressing again resamples the result: one generation
+    a press. One undo step gives back the patch and the rack together
+    (`push_undo_step(also_fx=)`). A phrase longer than the sampler stores
+    (`sampler.MAX_SAMPLE_SECONDS`), a render error or silence is refused in
+    words, changing nothing."""
+    s: StudioState = svc.state
+    rack = s.fx_chain("layer") or []
+    chain = {"main_fx": fxrack.active(rack), "curves": s.curves, "layers": None}
+    try:
+        inp = svc.render_inputs("editor", patch=s.patch, chain=chain, mix=False)
+        audio = svc.render("editor", patch=s.patch, chain=chain, mix=False).audio()
+    except RenderError as err:
+        return svc.toast(f"Couldn't resample: {err}")
+    secs = len(audio) / sampler.SR
+    if secs > sampler.MAX_SAMPLE_SECONDS:
+        return svc.toast(
+            f"The phrase is {secs:.1f} s: a sample holds "
+            f"{sampler.MAX_SAMPLE_SECONDS:g} s at most. Nothing changed."
+        )
+    if sv.silent(audio):
+        return svc.toast("The phrase is silent: nothing to resample.")
+    sid = sampler.save(s.sample_dir, audio, sampler.SR)
+    was = s.patch.name or "the sound"
+    name = _next_generation(s.patch.name)
+    before = s.patch_snapshot()
+    rack_before = copy.deepcopy(rack)
+    s.load_sound(sv.sampler_patch(sid, name, midi(inp.arr.root)), label=name)
+    # the FX are in the sample now: the rack empties with the same press
+    # (the chain as stored, so `fx_chain` keeps the same list)
+    s.fx_chain("layer")[:] = []
+    s.push_undo_step(before, also_fx=("layer", rack_before))
+    s.save()
+    fx = plural(len(fxrack.active(rack_before)), "unit")
+    say = (
+        f"Layer {s.active_layer + 1} is now “{name}”: the phrase through its "
+        f"FX ({fx}, {secs:.1f} s), the rack emptied. Ctrl+Z gives “{was}” back."
+    )
+    return svc.land_on(request, "editor", say, kind="done")
 
 
 @router.post("/fragment/sampler/chop")
@@ -364,13 +435,89 @@ def sampler_zones(request: Request, form: StrForm, svc: Svc) -> Response:
     return resp
 
 
+def sfz_limits() -> sfz.Limits:
+    """`sfz.Limits` from `limits.py`, read per request (a test's
+    monkeypatch of an attribute takes effect, as security.py's do)."""
+    return sfz.Limits(
+        members=limits.MAX_SFZ_MEMBERS,
+        uncompressed=limits.MAX_SFZ_UNCOMPRESSED,
+        member_bytes=limits.MAX_SFZ_MEMBER_BYTES,
+        ratio=limits.MAX_SFZ_RATIO,
+        text_bytes=limits.MAX_SFZ_TEXT_BYTES,
+        lines=limits.MAX_SFZ_LINES,
+        include_depth=limits.MAX_SFZ_INCLUDE_DEPTH,
+        includes=limits.MAX_SFZ_INCLUDES,
+        defines=limits.MAX_SFZ_DEFINES,
+        define_chars=limits.MAX_SFZ_DEFINE_CHARS,
+        line_chars=limits.MAX_SFZ_LINE_CHARS,
+        expanded=limits.MAX_SFZ_EXPANDED,
+        headers=limits.MAX_SFZ_HEADERS,
+        regions=limits.MAX_SFZ_REGIONS,
+        audio_seconds=limits.MAX_SFZ_AUDIO_SECONDS,
+        min_sr=limits.MIN_SR,
+        max_sr=limits.MAX_SR,
+        max_channels=limits.MAX_SOURCE_CHANNELS,
+    )
+
+
+@router.post("/fragment/sampler/sfz")
+@render_outside_lock
+def sampler_sfz(
+    request: Request, upload: SfzUpload, svc: Svc
+) -> Response | OutsideLock:
+    """Import SFZ…: a .zip of an .sfz and its samples (`synthlab/sfz.py`)
+    becomes the edited sound — a sampler with one zone a region, the first
+    region's amplitude envelope on the patch — as one undo step, landing on
+    Synths with a toast that names every opcode it did not import. The zip
+    is untrusted (sfz.py's limits; the body is capped at
+    MAX_SFZ_UPLOAD_BYTES here and in BodySizeLimit). Decoding the samples
+    is seconds of work that touches only the sample store (self-locking),
+    so it runs with the studio lock released; the sound is loaded under it
+    again."""
+    s: StudioState = svc.state
+    if upload.too_large:
+        return svc.toast("That file is too large for an SFZ import.", status=413)
+    if upload.data is None:
+        return svc.toast("Choose a .zip holding an .sfz and its samples.")
+    data, directory, lim = upload.data, s.sample_dir, sfz_limits()
+
+    def run() -> Response:
+        try:
+            inst = sfz.load(
+                data,
+                lambda audio, sr: sampler.save(directory, audio, sr),
+                lim,
+                root_of=sv.detected_root,
+            )
+        except sfz.SfzError as err:
+            return svc.toast(str(err))
+        with s.lock:
+            before = s.patch_snapshot()
+            first = inst.zones[0]
+            patch = sv.sampler_patch(first.sample, inst.name, first.root)
+            patch = sv.with_zones(patch, inst.zones)
+            patch = params.clamp(replace(patch, **inst.envelope))
+            s.load_sound(patch, label=inst.name)
+            s.push_undo_step(before)
+            s.save()
+            say = sfz.summary(inst)
+            if not sampler.live_ok(patch):
+                say += (
+                    " Too much audio for the live keys to stream: they play "
+                    "rendered notes instead, a moment slower."
+                )
+            return svc.land_on(request, "editor", say, kind="done")
+
+    return OutsideLock(run)
+
+
 @router.post("/fragment/sampler/root")
 def sampler_root(request: Request, svc: Svc) -> Response:
     """The panel's "use": the sample's detected pitch becomes its root
     (`sampler_root`), one undo step. The root's slider row comes back
     OOB, or the #patch form's next post would send the old root back."""
     s: StudioState = svc.state
-    if not sv.sampling(s.patch) or not s.patch.sampler_sample:
+    if not sv.has_sample(s.patch) or not s.patch.sampler_sample:
         return Response(status_code=422)
     key = sv.detected_root(s.patch.sampler_sample, sv.PITCH_SHOWN)
     if key is None:

@@ -71,10 +71,10 @@ def _loops_page(studio):
     page.evaluate(
         """() => {
           localStorage.setItem('synthlab.loops', '{"open": true, "pin": true}');
-          localStorage.setItem('synthlab.keyRecBars', '0'); }"""
+          localStorage.setItem('synthlab.keyRecBars', 'free'); }"""
     )
     page.reload()
-    page.wait_for_selector("#lp-free-rec")
+    page.wait_for_selector("#deck-rec")
     studio.settle()
     page.locator(".view-head h1").click()  # a gesture: the audio context starts
     page.click("#midi-btn")
@@ -126,16 +126,15 @@ def test_free_rec_a_phrase_shape_it_and_make_a_loop_that_keeps_its_timing(
     # an empty slot selected: where Make loop lands
     page.locator(f"{_slot(1, 0)} .sl-empty").click()
     page.locator(f'{_slot(1, 0)}[aria-selected="true"]').wait_for()
-    page.click("#lp-free-rec")
+    page.click("#deck-rec")
     page.wait_for_function(
-        "() => document.getElementById('lp-free-rec')"
-        ".textContent.includes('free: play')"
+        "() => document.getElementById('deck-rec').textContent.includes('free: play')"
     )
     page.wait_for_timeout(600)  # silence before the first note is not the take's
     _play(page)
     page.wait_for_timeout(450)
     with page.expect_response("**/take/keys/free") as answer:
-        page.click("#lp-free-rec")
+        page.click("#deck-rec")
     assert answer.value.ok, answer.value.text()
     take = answer.value.headers["x-clip-name"]
     meta = keytakes.read_meta(server.data_dir, take)
@@ -206,7 +205,7 @@ def test_free_rec_a_phrase_shape_it_and_make_a_loop_that_keeps_its_timing(
         assert abs(near - t) < 0.012, (t, heard_at)
         assert abs(near - round(t / step) * step) > 0.004  # not on the step
     # Edit: on the grid, notes drawn off their step lines
-    row.locator(".lp-edit").click()
+    row.dblclick()  # a row's double-click: Edit
     page.wait_for_selector(".grid.roll .cell.nudged")
     studio.settle()
     assert page.locator(".grid.roll .cell.nudged").count() == len(
@@ -251,6 +250,9 @@ def test_the_docks_free_length_records_free_and_nothing_played_takes_nothing(
     page.wait_for_selector("#free-shaper:not(:popover-open)", state="attached")
     # the take waits in the Loops panel: ✂ Shape opens it again
     take = answer.value.headers["x-clip-name"]
-    page.locator(f'#loops-panel [data-free-take="{take}"]').click()
+    page.locator(f'#loops-panel .lp-row:has([data-free-take="{take}"])').click(
+        button="right"
+    )  # its right-click menu
+    page.locator("#ctx-menu .menu-item", has_text="Shape").click()
     page.wait_for_selector("#free-shaper:popover-open .shp-roll svg")
     assert studio.unexplained() == []

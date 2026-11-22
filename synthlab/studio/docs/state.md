@@ -126,7 +126,9 @@ plain persisted key — `schema.PAYLOAD`'s first **absent when unset**
 the rows past the last that holds anything, so no session that never
 used it gains a key and the pinned bytes stand; `_apply` reads an absent
 one as its default) — and in the "Sequence" reset scope, left out of a
-snapshot while unset (`scopes._OPTIONAL`). A launch is a whole-loop
+snapshot while unset (`scopes._OPTIONAL`). The arp pattern's 12 slots
+(`arp_slots`, `loop-and-perform.md`, "The arp pattern") are the second:
+None while no slot holds one, dropped from the payload then. A launch is a whole-loop
 pattern step: `_whole_loop` holds the launcher's rows and `perform_parts`
 too. No migration: a file from before reads as an empty launcher.
 
@@ -153,7 +155,7 @@ depends on predicting an exception type. **A new persisted key or
 is missing, then fuzzes every node automatically. **An Arrangement field
 added after the pinned states is OPTIONAL: absent when unset wherever an
 arrangement is written down** — `schema.ARR_OPTIONAL` (`drum_hits`,
-`drum_row_swing`, `strum`, `note_nudge` …: "unset" is the field's own falsy default, an
+`drum_row_swing`, `strum`, `note_nudge`, `arp_pattern`, `note_feel` …: "unset" is the field's own falsy default, an
 empty table or 0; a scalar one gives its `Num` an `example`, the value
 the schema tests' fixed point writes down): the Arrangement node's post
 drops an empty one (and

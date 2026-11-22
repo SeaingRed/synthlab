@@ -39,6 +39,12 @@ pieces:
   the ceiling as the slider would be), the transient shaper's `attack`
   and `sustain` (each its detector's dB times the value, per sample):
   memoryless in the parameter, exact, standing still bit for bit.
+- the multiband drive's `low` / `mid` / `high` (each band's drive amount,
+  per sample: `effects.drive_shape` takes an array; a sample at 1 is the
+  band itself) and its `mix`, which it takes itself (`OWN_MIX`: its dry is
+  the bands summed, not its input). Memoryless in the parameters, exact,
+  standing still bit for bit. A lane at 1 on every band all through is
+  the unit at rest: its input, unsplit.
 - lowpass / highpass `cutoff` and `q`: `core.biquad`'s swept state-variable
   filter, one coefficient set per 64-sample block (1.45 ms) — the engine's
   own swept filter, the one a Patch's cutoff curve runs.
@@ -148,9 +154,12 @@ def values(
 BLOCKED = frozenset({"lowpass", "highpass", "eq"})
 BLOCK = 64
 # the units that blend inside their own regions (a repeat's, a stop's
-# window) rather than over the whole buffer: they take the mix array
-# themselves, where every other `mix` is `dry * (1 - mix) + wet * mix`
-OWN_MIX = frozenset({"beat_repeat", "stop"})
+# window) rather than over the whole buffer, or against a dry that is not
+# their input (the multiband drive's: its bands summed, the input through
+# two all-passes) or whose missing IR passes its input at any mix (the
+# convolution's): they take the mix array themselves, where every other
+# `mix` is `dry * (1 - mix) + wet * mix` with the input the dry
+OWN_MIX = frozenset({"beat_repeat", "stop", "mbdrive", "convolve"})
 
 
 def _unit(x: np.ndarray, u: dict, arr: Arrangement, arrays: dict, n: int) -> np.ndarray:
@@ -171,12 +180,20 @@ def _unit(x: np.ndarray, u: dict, arr: Arrangement, arrays: dict, n: int) -> np.
     name, kw = unit_args(u, arr, len(x) / SR)
     mix = None if u["kind"] in OWN_MIX else arrays.get("mix")
     kw |= {k: v for k, v in arrays.items() if k != "mix" or mix is None}
-    if mix is None:
-        return getattr(fx, name)(**kw)(x)
-    st = fx.to_stereo(x)
-    wet = fx.to_stereo(getattr(fx, name)(**{**kw, "mix": 1.0})(st))
-    m = mix[:, None]
-    return st * (1 - m) + wet * m
+
+    def run(y: np.ndarray) -> np.ndarray:
+        if mix is None:
+            return getattr(fx, name)(**kw)(y)
+        st = fx.to_stereo(y)
+        wet = fx.to_stereo(getattr(fx, name)(**{**kw, "mix": 1.0})(st))
+        m = mix[:, None]
+        return st * (1 - m) + wet * m
+
+    # a banded unit: the same unit, its arrays and all, on its band — the
+    # band's samples are the buffer's, so a lane's value at sample i is
+    # the unit's there, and the rest passes as `build_chain`'s does
+    band = u.get("band")
+    return fx.band_apply(x, band, run) if band else run(x)
 
 
 def render(
@@ -198,6 +215,8 @@ def render(
         x = head
         for i in range(first, len(units)):
             u = units[i]
+            if u.get("off"):  # bypassed: its lane moves nothing
+                continue
             if i not in found:
                 x = fx.chain(x, build_chain([u], arr, span=span))
                 continue

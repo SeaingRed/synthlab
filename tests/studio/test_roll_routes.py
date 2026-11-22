@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from synthlab.studio import rollview, schema
 from synthlab.studio.server import create_app
 from synthlab.studio.state import StudioState, pitch_rows
-from synthlab.studio.state.model import grid_rows
+from synthlab.studio.state.model import grid_rows, octave_range
 from tests.studio.test_song_routes import HX as SONG
 from tests.studio.test_song_routes import use_song
 
@@ -162,15 +162,21 @@ def test_chromatic_rows_are_24_semitones_and_the_window_moves_by_octaves(client)
     r = client.post("/fragment/grid/span", data={"span": "3"}, headers=PERFORM)
     # (204 from the route; 200 once the wrapper adds the redrawn transport)
     assert r.status_code == 200 and 'id="transport"' in r.text and s.grid_span == 3
-    for _ in range(6):  # ... and stops at its range
+    # ... and stops at the root's own range (`octave_range`): from A1 the
+    # window's bottom reaches A6 (two octaves above it still notes) and A-1
+    # (MIDI 9) — it was -1..3 whatever the root, so a take played up in
+    # octave 6-7 over a low root could never be shown
+    assert octave_range(a.root) == (-2, 5)
+    for _ in range(12):
         client.post("/fragment/grid/span", data={"oct_by": "1"}, headers=PERFORM)
-    assert s.grid_oct == 3
-    for _ in range(6):
+    assert s.grid_oct == 5 and grid_rows(a, 3, 5)[-1] == "A6"
+    for _ in range(12):
         client.post("/fragment/grid/span", data={"oct_by": "-1"}, headers=PERFORM)
-    assert s.grid_oct == -1
+    assert s.grid_oct == -2
+    assert octave_range("C4") == (-4, 3) and octave_range("C-1") == (0, 8)
 
 
-@pytest.mark.parametrize("data", [{}, {"span": "4"}, {"oct_by": "2"}, {"span": "x"}])
+@pytest.mark.parametrize("data", [{}, {"span": "5"}, {"oct_by": "2"}, {"span": "x"}])
 def test_a_hostile_window_is_refused(client, data):
     s = client.app.state.studio
     r = client.post("/fragment/grid/span", data=data, headers=PERFORM)

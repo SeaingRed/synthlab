@@ -9,7 +9,13 @@
   the route it feeds moves a held note's spectral centre;
 - routes 5-12: "+ route" opens them one by one, a route set there posts;
 - a mod-wheel route from a stand-in MIDI port: CC 1 opens the cutoff of a
-  held note (and the Modulators panel is on the page).
+  held note (and the Modulators panel is on the page);
+- a route's switch (its lamp) bypasses it and switches it back on, its
+  curve knob posts;
+- LFOs 4-6 rest folded while nothing routes them; opened, one takes a
+  chaotic flow and a route from it plays on the worklet;
+- an envelope stage's sync division (a select in its time's row): the
+  keys' patch carries the division in seconds, the time stands back.
 
 Nobody listens: each proves the sound changed, not that it is good.
 """
@@ -246,3 +252,83 @@ def test_a_mod_wheel_route_from_a_midi_port(studio, server):
     assert open_ > shut * 1.3, (shut, open_)
     # a route reads the wheel: CC 1 is its source, not the old cutoff sweep
     assert page.evaluate("() => window.synthlab.piano.patch().cutoff") == 250.0
+
+
+def test_a_routes_switch_bypasses_it_and_its_curve_posts(studio, server):
+    """The lamp is the switch: pressed, the route is bypassed (its lead
+    faint, the live keys still on the worklet, the held note back where an
+    unrouted one sits); pressed again it plays. The curve knob posts."""
+    page = _open(
+        studio,
+        server,
+        filter_type="lowpass",
+        cutoff=300.0,
+        filter_env=0.0,
+        mod1_src="velocity",
+        mod1_dst="cutoff",
+        mod1_amt=0.8,
+    )
+    routed = _held(studio)
+    lamp = "#p-mod1_on label:not(:has(:checked))"
+    assert page.locator(lamp).get_attribute("class") == "sw-off"  # on: press to bypass
+    page.click(lamp)
+    _wait(page, lambda: server.state.patch.mod1_on == "off", "the bypass posted")
+    _patch_follows(page, "mod1_on", "off")
+    page.wait_for_selector('#patchbay .cable.off[data-slot="mod1"]')
+    assert page.evaluate("() => window.synthlab.piano.patch().worklet_ok") is True
+    bypassed = _held(studio)
+    assert bypassed < routed * 0.7, (routed, bypassed)
+    page.click(lamp)
+    _wait(page, lambda: server.state.patch.mod1_on == "on", "switched back on")
+    # the curve: a small knob, posted as any control
+    assert page.locator("#p-mod1_curve.knob.knob-s").count() == 1
+    page.focus("#p-mod1_curve")
+    page.keyboard.press("Home")
+    _wait(page, lambda: server.state.patch.mod1_curve == -1.0, "the curve posted")
+    _patch_follows(page, "mod1_curve", -1.0)
+
+
+def test_lfos_4_to_6_rest_folded_until_opened_and_route_like_any(studio, server):
+    page = _open(studio, server)
+    for k in (4, 5, 6):
+        head = page.locator(f"#panel-modulators #sub-lfo{k}_rate")
+        assert head.get_attribute("data-rest") == "folded", k
+        assert not page.locator(f"#row-lfo{k}_rate").is_visible()
+    page.click("#sub-lfo5_rate")
+    assert page.locator("#row-lfo5_rate").is_visible()
+    page.select_option("#p-lfo5_shape", "rossler")
+    _wait(page, lambda: server.state.patch.lfo5_shape == "rossler", "the shape posted")
+    # a source jack of its own; a route from it plays on the worklet
+    assert page.locator('#patchbay .pb-jack[data-src="lfo5"]').count() == 1
+    page.select_option("#p-mod1_src", "lfo5")
+    _wait(page, lambda: server.state.patch.mod1_src == "lfo5", "the route posted")
+    _patch_follows(page, "mod1_src", "lfo5")
+    assert page.evaluate("() => window.synthlab.piano.patch().worklet_ok") is True
+
+
+def test_an_envelope_stage_takes_a_division_and_the_keys_get_its_seconds(
+    studio, server
+):
+    page = _open(studio, server, filter_env=4000.0)
+    row = page.locator("#row-filter_attack")
+    assert row.locator("select#p-filter_attack_sync").count() == 1
+    page.select_option("#p-filter_attack_sync", "1/4")
+    _wait(page, lambda: server.state.patch.filter_attack_sync == "1/4", "it posted")
+    bpm = page.evaluate("() => window.synthlab.piano.patch().bpm")
+    _wait(
+        page,
+        lambda: (
+            abs(
+                page.evaluate("() => window.synthlab.piano.patch().filter_attack")
+                - 60.0 / bpm
+            )
+            < 1e-9
+        ),
+        "the keys' patch carries the beat in seconds",
+    )
+    assert page.evaluate("() => window.synthlab.piano.patch().worklet_ok") is True
+    # the time it overrides stands back
+    op = page.evaluate(
+        "() => getComputedStyle(document.querySelector('#p-filter_attack')).opacity"
+    )
+    assert float(op) < 1.0

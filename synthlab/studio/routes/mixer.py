@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from fastapi import Request, Response
 
-from .. import mixer
+from .. import irs, mixer
 from ..render import RenderError
 from ..routing import OutsideLock, StrForm, Svc, render_outside_lock, studio_router
 from .song import _commit
@@ -77,6 +77,10 @@ def track_rack(request: Request, track_id: str, form: StrForm, svc: Svc) -> Resp
     op = form.get("op", "")
     if op not in mixer.RACK_OPS:
         return svc.toast("No such rack edit.")
+    try:  # a clip picked as a convolution's impulse: its sample (irs.py)
+        form = irs.resolve(svc.state.data_dir, svc.state.sample_dir, form)
+    except irs.IRError as err:
+        return svc.toast(str(err))
     said: dict = {}
     sid = form.get("section_id", "")
     sections = svc.state.song["sections"]

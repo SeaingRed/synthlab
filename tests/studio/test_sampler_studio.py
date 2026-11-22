@@ -4,6 +4,7 @@ persistence (studio/samplerview.py, routes/sampler.py)."""
 
 from __future__ import annotations
 
+import copy
 import json
 from dataclasses import replace
 
@@ -12,7 +13,9 @@ from fastapi.testclient import TestClient
 
 from synthlab import sampler
 from synthlab.core import SR
+from synthlab.sequencer import midi
 from synthlab.studio.clips import save_clip
+from synthlab.studio.fxrack import clean_chain
 from synthlab.studio.render import keyed_patch, patch_key
 from synthlab.studio.server import create_app
 from synthlab.studio.worklet import blockers
@@ -152,6 +155,69 @@ def test_resample_says_what_it_replaced_and_undo_clears_edited(tmp_path):
     assert "Ctrl+Z gives “my acid” back" in toast["message"]
     client.post("/fragment/undo", headers=HX)
     assert s.patch.name == "my acid" and not s.is_dirty("sound")
+
+
+def _rack(s, *units):
+    s.fx_chain("layer")[:] = clean_chain(list(units))
+    return copy.deepcopy(s.fx_chain("layer"))
+
+
+DRIVE = {"kind": "drive", "params": {"amount": 6.0}}
+OFF_REVERB = {"kind": "reverb", "params": {}, "off": True}
+
+
+def test_resample_chain_bakes_the_layer_rack_and_empties_it(tmp_path):
+    """Resample ↻: the layer's phrase through its own rack becomes its
+    sampler, rooted on the phrase's root, and the rack is emptied in the
+    same step; a second press resamples the result (a new sample)."""
+    client = _client(tmp_path)
+    s = client.app.state.studio
+    svc = client.app.state.svc
+    _rack(s, DRIVE, OFF_REVERB)
+    root = svc.render_inputs("editor").arr.root
+    r = client.post("/fragment/sampler/rebake", headers=HX)
+    assert r.status_code == 200
+    toast = json.loads(r.headers["HX-Trigger"])["studio-toast"]
+    assert toast["kind"] == "done" and "the rack emptied" in toast["message"]
+    first = s.patch.sampler_sample
+    assert s.patch.osc1 == "sampler" and sampler.valid_id(first)
+    assert s.patch.sampler_root == midi(root) and s.patch.sampler_loop == "off"
+    assert s.fx_chain("layer") == []
+    r = client.post("/fragment/sampler/rebake", headers=HX)
+    assert r.status_code == 200
+    assert s.patch.osc1 == "sampler" and s.patch.sampler_sample != first
+    assert s.patch.name.endswith(" ↻2")
+
+
+def test_resample_chain_skips_bypassed_units_and_undoes_in_one_step(tmp_path):
+    client = _client(tmp_path)
+    s = client.app.state.studio
+    patch = s.patch
+    rack = _rack(s, DRIVE, OFF_REVERB)
+    client.post("/fragment/sampler/rebake", headers=HX)
+    with_off = s.patch.sampler_sample
+    # one undo: the synth and its rack, both exactly as they were
+    client.post("/fragment/undo", headers=HX)
+    assert s.patch == patch and s.fx_chain("layer") == rack
+    # the bypassed reverb was never heard: the drive alone bakes the same
+    # audio, so the same content id
+    _rack(s, DRIVE)
+    client.post("/fragment/sampler/rebake", headers=HX)
+    assert s.patch.sampler_sample == with_off
+
+
+def test_resample_chain_refuses_a_phrase_longer_than_a_sample(tmp_path, monkeypatch):
+    client = _client(tmp_path)
+    s = client.app.state.studio
+    patch = s.patch
+    rack = _rack(s, DRIVE)
+    steps = len(s._history)
+    monkeypatch.setattr(sampler, "MAX_SAMPLE_SECONDS", 0.5)  # the phrase is a bar
+    r = client.post("/fragment/sampler/rebake", headers=HX)
+    assert r.status_code == 422 and "a sample holds 0.5 s at most" in r.text
+    assert s.patch == patch and s.fx_chain("layer") == rack
+    assert len(s._history) == steps
+    assert not list((tmp_path / "samples").glob("*.wav"))
 
 
 def test_chops_map_slices_to_keys_and_slice_edits_are_undoable(tmp_path):
@@ -419,3 +485,106 @@ def test_a_move_without_a_real_position_is_refused(tmp_path):
     assert s.patch.sampler_slices == before
     _move(client, 99, 0.5)  # no such slice: nothing moves
     assert s.patch.sampler_slices == before
+
+
+# --- the granular shape: the same sample as a cloud ----------------------------
+
+
+def test_the_granular_shape_plays_the_sample_on_the_wav_path(tmp_path):
+    """A pill away from the sampler: the same sample, its panel and its
+    pitch tools stay, the cloud is drawn over the waveform, the chops and
+    zones go (the sampler shape's alone). Its keys take the server WAV
+    (`osc1` blocks, and every grain field off its default: "default"; off
+    the shape they block nothing),
+    and its render key carries the grain fields only when they move."""
+    client = _client(tmp_path)
+    s = client.app.state.studio
+    save_clip(tmp_path, "tone", _tone(220, 1.0))
+    _use(client, "tone")
+    r = client.post(
+        "/fragment/patch",
+        data={"osc1": "granular", "grain_pos": "0.4", "grain_spray": "0.3"},
+        headers=HX,
+    )
+    assert r.status_code == 200
+    assert s.patch.osc1 == "granular" and s.patch.grain_pos == 0.4
+    page = client.get("/view/editor").text
+    panel = page.split('id="sampler-panel"')[1].split('id="row-')[0]
+    assert "sampler-svg" in panel and "sw-pos" in panel and "sw-spray" in panel
+    assert "sw-grain" in panel and "Chop" not in panel and "＋ zone" not in panel
+    assert "#row-grain_pos" in page and 'value="granular"' in page
+    audio = client.app.state.svc.render("editor").audio()
+    assert np.abs(audio).max() > 0.02
+    pj = client.get("/patch.json?view=editor").json()
+    assert pj["worklet_ok"] is False
+    assert pj["worklet_blockers"] == ["osc1", "grain_pos", "grain_spray"]
+    assert pj["sampler_live"] is None
+    r = client.get("/note/A3.wav?view=editor")
+    assert r.status_code == 200 and len(r.content) > 10_000
+    # the grain fields left on a synth block nothing, and stay out of its key
+    synth = replace(s.patch, osc1="saw")
+    assert "grain_pos" not in blockers(synth)
+    assert "grain_pos" in keyed_patch(s.patch)
+    assert "grain_size" not in keyed_patch(s.patch)  # at its default
+    # "use" the detected pitch works for the cloud too
+    assert client.post("/fragment/sampler/root", headers=HX).status_code == 200
+
+
+# --- the spectral shape: the same sample resynthesised ---------------------------
+
+
+def test_the_spectral_shape_plays_the_sample_on_the_wav_path(tmp_path):
+    """Another pill away: the same sample, its panel and pitch tools stay,
+    the scan is drawn over the waveform (the position's line, what the scan
+    crosses in a second), the chops and zones go. Its keys take the server
+    WAV (`osc1` blocks, and every spectral field off its default:
+    "default"; off the shape they block nothing), and its render key
+    carries the spectral fields only when they move."""
+    client = _client(tmp_path)
+    s = client.app.state.studio
+    save_clip(tmp_path, "tone", _tone(220, 1.0))
+    _use(client, "tone")
+    r = client.post(
+        "/fragment/patch",
+        data={"osc1": "spectral", "spectral_pos": "0.25", "spectral_scan": "0.5"},
+        headers=HX,
+    )
+    assert r.status_code == 200
+    assert s.patch.osc1 == "spectral" and s.patch.spectral_pos == 0.25
+    page = client.get("/view/editor").text
+    panel = page.split('id="sampler-panel"')[1].split('id="row-')[0]
+    assert "sampler-svg" in panel and "sw-pos" in panel and "sw-scan" in panel
+    assert "sw-grain" not in panel and "Chop" not in panel and "＋ zone" not in panel
+    assert "#row-spectral_pos" in page and 'value="spectral"' in page
+    audio = client.app.state.svc.render("editor").audio()
+    assert np.abs(audio).max() > 0.02
+    pj = client.get("/patch.json?view=editor").json()
+    assert pj["worklet_ok"] is False
+    assert pj["worklet_blockers"] == ["osc1", "spectral_pos", "spectral_scan"]
+    assert pj["sampler_live"] is None
+    r = client.get("/note/A3.wav?view=editor")
+    assert r.status_code == 200 and len(r.content) > 10_000
+    # the spectral fields left on a synth block nothing, and stay out of its key
+    synth = replace(s.patch, osc1="saw")
+    assert "spectral_pos" not in blockers(synth)
+    assert "spectral_pos" in keyed_patch(s.patch)
+    assert "spectral_timbre" not in keyed_patch(s.patch)  # at its default
+    assert client.post("/fragment/sampler/root", headers=HX).status_code == 200
+
+
+def test_the_scan_is_drawn_where_the_read_goes():
+    from synthlab.studio import samplerview as sv
+
+    sid = sampler.register(_tone(220, 2.0))
+    base = Patch(osc1="spectral", osc2=None, sampler_sample=sid)
+    c = sv.scan(replace(base, spectral_pos=0.25, spectral_scan=0.5))
+    # a quarter in, a quarter of the 2 s sample crossed in the first second
+    assert c["pos"] == 0.25 and not c["back"]
+    assert c["spans"] == [(0.25, 0.25)]
+    c = sv.scan(replace(base, spectral_pos=0.25, spectral_scan=-1.0))
+    assert c["back"] and c["spans"] == [(0.0, 0.25)]  # held at the start
+    looped = replace(base, sampler_loop="on", spectral_pos=0.75, spectral_scan=1.0)
+    c = sv.scan(looped)  # the loop is the whole sample: round past its end
+    assert [round(a, 6) for a, _ in c["spans"]] == [0.75, 0.0]
+    assert sv.scan(replace(base, sampler_sample="")) is None
+    assert sv.watch(base) != sv.watch(replace(base, spectral_scan=2.0))

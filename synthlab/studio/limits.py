@@ -36,6 +36,34 @@ MAX_CLIP_META_BYTES = 64_000  # one clips/<name>.meta.json in a bundle
 MAX_MIDI_UPLOAD_BYTES = 1_000_000
 MAX_MIDI_TRACKS = 64
 MAX_MIDI_EVENTS = 200_000
+# a clip picked as the convolution unit's impulse (studio/irs.py): its length
+# (= effects.CONVOLVE_MAX_SECONDS, which cuts any IR there) and its file
+MAX_IR_SECONDS = 8.0
+MAX_IR_BYTES = 6_000_000
+
+# --- SFZ import (synthlab/sfz.py, POST /fragment/sampler/sfz) ----------------
+# A zip of an .sfz and its samples, untrusted from the first byte. The upload
+# cap is also the path's BodySizeLimit cap. The rest bound what is read out of
+# it: entries (counted from the zip's own directory before it is built), what
+# they claim to unpack to, one entry, and how well one may compress (a zip
+# bomb); the .sfz's text, lines, #include depth / count, #defines and what a
+# #define may expand to; regions; and the audio decoded in all.
+MAX_SFZ_UPLOAD_BYTES = 64_000_000
+MAX_SFZ_MEMBERS = 1024
+MAX_SFZ_UNCOMPRESSED = 256_000_000
+MAX_SFZ_MEMBER_BYTES = 48_000_000
+MAX_SFZ_RATIO = 100  # declared / compressed, for an entry over a megabyte
+MAX_SFZ_TEXT_BYTES = 1_000_000  # one .sfz or #include
+MAX_SFZ_LINES = 60_000  # every file together
+MAX_SFZ_INCLUDE_DEPTH = 8
+MAX_SFZ_INCLUDES = 64  # files read as text, the .sfz included
+MAX_SFZ_DEFINES = 512
+MAX_SFZ_DEFINE_CHARS = 4096  # one variable's value, expanded
+MAX_SFZ_LINE_CHARS = 16_384  # one line, once substituted
+MAX_SFZ_EXPANDED = 4_000_000  # the text, once substituted
+MAX_SFZ_HEADERS = 20_000
+MAX_SFZ_REGIONS = 4096  # past sampler.MAX_ZONES the rest are counted, not kept
+MAX_SFZ_AUDIO_SECONDS = 1200.0  # every sample decoded, as recorded
 
 # --- the Sample Lab (studio/sources.py, routes/lab.py) -----------------------
 # /lab/upload: a whole song as WAV / FLAC / MP3 / OGG. A ten-minute stereo
@@ -83,9 +111,18 @@ MAX_TREATED_SECONDS = 35.5
 # from its first note to ■, so a whole idea fits — 60 s (deliberately past
 # the clip cap, 30). Its audio is a clip that long.
 MAX_FREE_TAKE_SECONDS = 60.0
+# Every take of the keys' ⏺ Rec — whole bars, to ■, free (POST /take/keys,
+# keyrec.js): as long as a free take, so a take of 16 bars (the note grid's
+# longest, `LOOP_BAR_CHOICES`) fits from 64 bpm up. Its audio is a clip that
+# long, which the store keeps and every reader of clips reads back
+# (`MAX_STORED_CLIP_SECONDS`); a reader with a cap of its own takes the
+# start (the sampler's 30 s, `sampler.MAX_SAMPLE_SECONDS`).
+MAX_KEY_TAKE_SECONDS = MAX_FREE_TAKE_SECONDS
 # the longest clip the store keeps (`clips.save_clip`) and reads back (the
 # hub, a project bundle): a free take's
-MAX_STORED_CLIP_SECONDS = max(MAX_TREATED_SECONDS, MAX_FREE_TAKE_SECONDS)
+MAX_STORED_CLIP_SECONDS = max(
+    MAX_TREATED_SECONDS, MAX_FREE_TAKE_SECONDS, MAX_KEY_TAKE_SECONDS
+)
 # A whole song. A club or trance arrangement is five to seven minutes. 480
 # was measured, not assumed (tools/song_measure.py): the
 # loudness-mastered export of a 480 s, 8-synth song had to
@@ -98,11 +135,14 @@ MAX_SONG_SECONDS = 480.0
 MAX_SECTION_SECONDS = 120.0
 
 # --- persisted-state caps (studio/schema.py) ---------------------------------
-# The largest grid the UI can produce: 4 bars x 32 steps, for both the synth
-# grid and the drum machine's own clock. A step past it can only be garbage;
-# a step inside it is kept even when the *current* grid is smaller (a shrunk
-# grid hides notes, it doesn't delete them).
-MAX_GRID_STEPS = 4 * 32
+# The largest grid the UI can produce: a recorded loop of 16 bars at 1/16
+# (`LOOP_BAR_CHOICES`), 8 bars x 32, 4 bars x 32 for the drum machine's own
+# clock. A step past it can only be garbage; a step inside it is kept even
+# when the *current* grid is smaller (a shrunk grid hides notes, it doesn't
+# delete them). It was 4 x 32 = 128 until loops held 16 bars: every state
+# conformed under 128 conforms to itself under 256 (no step it holds is
+# past 127), so nothing saved and no render key moved.
+MAX_GRID_STEPS = 16 * 16
 
 
 def step_key(raw: str) -> str | None:
@@ -130,6 +170,9 @@ def step_key(raw: str) -> str | None:
 MAX_GRID_PITCHES = 24
 MAX_GRID_CELLS = MAX_GRID_STEPS * MAX_GRID_PITCHES
 MAX_DRUM_CELLS = MAX_GRID_STEPS * 8  # 8 drum voices (state.DRUM_ROWS)
+# a lane's per-note feel entries (`Arrangement.note_feel`): one a note at
+# most, and a note is at least one cell
+MAX_FEEL_NOTES = MAX_GRID_CELLS
 MAX_SONG_ENTRIES = 64  # a v2 file's scene running order (migration only)
 MAX_CURVE_POINTS = 512  # per automated param
 MAX_XY_GESTURE_POINTS = 300  # /fragment/xy/gesture enforces the same
@@ -142,7 +185,26 @@ MAX_NAME_CHARS = 200  # any free-text name persisted in state
 # These used to be a literal duplicated in arrange.py's clamps, server.py's
 # route-level clamps, schema.py's Choice/Num nodes, and three templates.
 BPM_RANGE = (40.0, 200.0)
-BAR_CHOICES = (1, 2, 3, 4)  # the synth grid's bars, and the drum bank slot count
+BAR_CHOICES = (1, 2, 3, 4)  # the drum grid's bars, and the drum bank slot count
+# The note grid's bars (the working loop, a recorded take's loop): the
+# drum grid's four, and 8 and 16 while bars x steps a bar fits
+# MAX_GRID_STEPS (16 at 1/16 and coarser, 8 at 1/32) — a take as long as
+# it was played. Powers of two past 4, so a 1, 2 or 4-bar beat divides
+# them and the loop (the lcm of the two lanes) stays as long as the notes.
+# Its render is one piece: `render.LOOP_CAP_SECONDS` still refuses, in
+# words, a grid too long at its tempo (16 bars of 4/4 play from 54 bpm up).
+LOOP_BAR_CHOICES = (1, 2, 3, 4, 8, 16)
+
+
+def loop_bar_choices(steps_per_bar: int) -> tuple[int, ...]:
+    """The note grid's bars at `steps_per_bar` (`LOOP_BAR_CHOICES` whose
+    bars x steps fit `MAX_GRID_STEPS`): all six at 1/16, five at 1/32. The
+    four of `BAR_CHOICES` always fit (`meter.MAX_STEPS_A_BAR` is 32)."""
+    return tuple(
+        b for b in LOOP_BAR_CHOICES if b * max(1, int(steps_per_bar)) <= MAX_GRID_STEPS
+    )
+
+
 # Same four values as STEP_CHOICES today, but a separate name: the synth
 # grid's steps_per_bar and the drum machine's own drum_steps are two clocks
 # (Randomise/Mutate once read the wrong one), and giving them one
@@ -165,11 +227,11 @@ MAX_AUDIO_TRACKS = 3
 MAX_SECTION_BARS = 64
 MAX_SECTION_REPEATS = 16
 MAX_PATTERNS = 128  # the shared pattern pool
-# A pool pattern's bars (schema.SONG_PATTERN): the loop's own choices plus
-# 8, when bars x steps a bar still fits MAX_GRID_STEPS (8 bars at 4, 8 or
-# 16 steps) — an 8-bar progression, or a fill in bar 8, as ONE pattern. The
-# Perform loop keeps BAR_CHOICES: its render is one piece.
-PATTERN_BAR_CHOICES = (1, 2, 3, 4, 8)
+# A pool pattern's bars (schema.SONG_PATTERN): the loop's own choices
+# (`LOOP_BAR_CHOICES`, 8 and 16 when bars x steps a bar still fits
+# MAX_GRID_STEPS) — an 8-bar progression, a fill in bar 8, or a 16-bar take
+# as ONE pattern, so a loop goes to the song as the pattern it is.
+PATTERN_BAR_CHOICES = LOOP_BAR_CHOICES
 # the Song page's playlist (fragments/song_arranger.html): pattern
 # thumbnails one arranger fragment draws (a legal song is at most 400 bars
 # — 480 s at 200 bpm — so 400 a lane and 4800 for twelve; an over-cap
@@ -237,11 +299,26 @@ VOICE_OCTAVE_RANGE = (-2, 2)  # a followed carrier against the sung pitch
 # the notes played during one take: 13 a second for a free take's 60 s (it
 # was 400 for 30 s)
 MAX_TAKE_NOTES = 800
+# a take's `arp` field ("the keys I held", keyrec.js): the keys arp's
+# settings and its ▦ pattern (16 steps of six numbers) — a few hundred
+# characters; past this it is not read
+MAX_ARP_FIELD_CHARS = 4000
 MAX_TAKE_NOTES_CHARS = 100_000  # the notes' JSON as posted
 # one take's notes sidecar (studio_data/takenotes/<clip>.json), read or in a
 # bundle: the notes and the notes as played, compact, are ~50 kB at most
 MAX_TAKE_NOTES_BYTES = 128_000
 MAX_TAKE_BARS = 64  # a free take's 60 s (MAX_FREE_TAKE_SECONDS) at 200 bpm is 50 bars
+# the controls moved during one take, kept as its loop's curves (takemoves.py):
+# how many controls, how many points each and in all as posted (past either,
+# the rest is not read, and the take's toast says so), the JSON's size, and
+# the take clock's resolution for a move — points closer than it are one
+# (the last value wins), so what reaches the thinning is bounded by the
+# take's length, not by what was sent (64 bars: 12,800 at most)
+MAX_TAKE_MOVE_FIELDS = 32
+MAX_TAKE_MOVE_POINTS = 4000
+MAX_TAKE_MOVE_TOTAL = 32_000
+MAX_TAKE_MOVES_CHARS = 400_000
+TAKE_MOVE_GRID = 0.02  # beats
 # --- loops (studio_data/loops/, loops.py: Save as loop) ---------------------------
 MAX_LOOPS = 200  # the store; a save past it is refused
 MAX_LOOP_TAGS = 12  # a loop's tags (the Loops panel)

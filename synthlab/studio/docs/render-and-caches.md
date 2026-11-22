@@ -76,7 +76,10 @@ and a layer's dict carries its own the same way
 record's loops: `arrange.nudge_of` — set, and no arp; a
 layer's only on its note steps): no key of a loop without one moved, and
 `RENDER_REV` did not (`tests/studio/test_render_cache_keys.py`,
-"timing inside a step").
+"timing inside a step"). **And each note's own feel** (`note_feel`, a
+take as played: `notefeel.of` — set, and no arp; a layer's only on its
+notes' starts, `song_bridge.lane_render`): absent from every key of a lane
+without one (`tests/studio/test_note_feel.py`).
 **A loop with chance is several passes** (`RenderInputs.passes`:
 `song_model.loop_passes` at the end of `svc.render_inputs`
 tiles a loop whose lanes hold a chance lane to `LOOP_CHANCE_PASSES`
@@ -108,7 +111,9 @@ player hears (`_kick_times` therefore emits several loops of triggers, on
 the drum machine's own clock rather than the synth grid's).
 `normalize_master` scales by a high percentile of the mix and then limits,
 because peak normalization handed the volume of everything to its single
-loudest sample; the limiter runs over two repeats too, or it ducks the
+loudest sample (`RenderResult.norm_gain_db` is the gain it applied: a
+take's loop is played at the keys' level by undoing it in the player,
+never in the render — `loop-and-perform.md`, "At the keys' level"); the limiter runs over two repeats too, or it ducks the
 loop's opening attack and leaves a step in level at every wrap. Finished loops also cache as `RenderResult` in `RenderCache` keyed by
 `RenderInputs.key()` (which must include *every* input that affects
 audio — there is no free `render_key(...)` function, so an edit

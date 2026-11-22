@@ -9,7 +9,12 @@ again; ★ and tags are kept on the loop; ▶ on a loop with no audio asks for
 it (a render at the tempo playing) and the master carries it; a row dragged
 onto the note grid opens it there as the loop, and an edit saves back to
 it; ✚ Keep on the drum rack keeps the grid's beat, which the panel then
-lists as a beat, and Open puts a beat on the drum grid. Levels are the
+lists as a beat, and a double-click on a beat's row puts it on the drum
+grid; a row shows ▷, its name, its facts and ★ alone, its other actions
+its right-click menu (tags there); Enter on a 16-bar loop's row opens it
+whole on the roll, which keeps its step width and scrolls, and a note
+clicked in bar 16 saves to it; a row dragged onto a launcher cell fills
+it, and a double-click on a loop a cell holds selects that cell. Levels are the
 page's analyser's — nobody has listened: whether the preview lands on the
 bar line by ear, and the sound, are unchecked.
 """
@@ -67,6 +72,13 @@ def _row(page, text: str, bpm: int | None = None):
     return page.locator(f'{ROWS}[data-title*="{text.lower()}"]{at}').first
 
 
+def row_menu(page, row, item: str) -> None:
+    """A Loops row's right-click menu (menu.js): its row named `item`."""
+    row.click(button="right")
+    page.wait_for_selector("#ctx-menu:popover-open")
+    page.locator("#ctx-menu .menu-item", has_text=item).first.click()
+
+
 def test_the_panel_finds_stars_tags_sorts_and_previews_in_time(studio, server):
     _seed(server)
     page = studio.open("perform")
@@ -107,9 +119,17 @@ def test_the_panel_finds_stars_tags_sorts_and_previews_in_time(studio, server):
     page.click("[data-lp-star]")
     assert _shown(page) == ["acid bass riff"]
     page.click("[data-lp-star]")
-    # tags: a prompt of words, then a chip that filters
+    # a row shows ▷, its name, its facts and ★ — nothing else drawn
+    glass = _row(page, "glass lead")
+    shown = glass.evaluate(
+        """(r) => [...r.querySelectorAll('button, svg, .lp-tags')]
+             .filter((b) => b.checkVisibility())
+             .map((b) => b.className.baseVal ?? b.className)"""
+    )
+    assert len(shown) == 2 and "lp-play" in shown[0] and "lp-star" in shown[1], shown
+    # tags: its right-click menu's, a prompt of words, then a chip that filters
     with page.expect_response("**/loop/tag"):
-        _row(page, "glass lead").locator(".lp-tagit").click()
+        row_menu(page, glass, "Tags")
         name_it(page, "dark #wide")
     page.wait_for_selector('#loops-panel .lp-tagbar [data-tag="dark"]')
     page.click('#loops-panel .lp-tagbar [data-tag="dark"]')
@@ -179,7 +199,7 @@ def test_a_row_dragged_onto_the_grid_edits_it_and_a_kept_beat_is_a_beat(studio, 
     # dragged onto the note grid: Edit, as this loop
     with page.expect_response("**/loop/edit"):
         glass.drag_to(page.locator("#transport .grid"))
-    page.wait_for_selector("#transport .lp-edit-note")
+    page.wait_for_selector("#transport .ed-head.is-saved")
     assert server.state.loop_edit_of()["name"] == name
     loop = loops.load(server.data_dir, name)
     cell = '#transport input.cell[name="cell.F#3.0"]'
@@ -194,7 +214,7 @@ def test_a_row_dragged_onto_the_grid_edits_it_and_a_kept_beat_is_a_beat(studio, 
     # a bank slot onto the drum grid, then ✚ Keep: the grid's beat, a beat
     techno = page.locator(f'{ROWS}[data-kind="bank"]').nth(1)
     with page.expect_response("**/loop/beat"):
-        techno.locator(".lp-open").click()
+        techno.dblclick()  # a row's double-click: its Open
     _wait(page, lambda: bool(server.state.arrangement.drums), "the beat on the grid")
     with page.expect_response("**/loop/beat/keep") as answer:
         page.click("#perform-drums .lp-keep-beat")
@@ -211,8 +231,117 @@ def test_a_row_dragged_onto_the_grid_edits_it_and_a_kept_beat_is_a_beat(studio, 
     cells = list(server.state.arrangement.cells)
     server.state.arrangement = Arrangement(cells=cells)
     with page.expect_response("**/loop/beat"):
-        row.locator(".lp-open").click()
+        row_menu(page, row, "Open on the drum grid")
     _wait(page, lambda: bool(server.state.arrangement.drums), "the kept beat opened")
     assert server.state.arrangement.cells == cells
     page.click('[data-lp-kind="all"]')
+    assert studio.unexplained() == []
+
+
+def test_a_sixteen_bar_loop_opens_whole_and_the_roll_scrolls(studio, server):
+    """The note grid holds 16 bars at 1/16 (`limits.LOOP_BAR_CHOICES`): Edit
+    puts all of a 16-bar loop on Perform's roll, which keeps its step width
+    and scrolls rather than squeezing 256 steps into the pane; a note
+    clicked in bar 16 saves to the loop."""
+    s, d = server.state, server.data_dir
+    cells = [["A2", 0], ["C3", 124], ["E3", 252]]
+    arr = Arrangement(
+        bpm=120, root="A2", scale_name="minor", bars=16, steps_per_bar=16, cells=cells
+    )
+    payload = s.sound_payload()
+    payload["patch"] = {**payload["patch"], "name": "Long lead"}
+    name = loops.save(d, "long lead riff", arr, payload)
+    page = studio.open("perform")
+    page.evaluate(
+        "() => localStorage.setItem('synthlab.loops',"
+        " JSON.stringify({open: true, pin: true}))"
+    )
+    page.reload()
+    page.wait_for_selector("#loops-dock .lp-head")
+    studio.settle()
+    with page.expect_response("**/loop/edit"):
+        _row(page, "long lead").focus()  # a row is one tab stop: Enter edits it
+        page.keyboard.press("Enter")
+    page.wait_for_selector("#transport .ed-head.is-saved")
+    studio.settle()
+    assert (s.arrangement.bars, s.arrangement.steps_per_bar) == (16, 16)
+    roll = page.locator("#transport .grid.roll")
+    assert roll.get_attribute("data-bars") == "16"
+    assert page.locator("#transport .grid.roll .ruler b").count() == 16
+    # the 16 and 8 chips are on the transport, 16 pressed
+    assert page.locator('#transport .barchip[aria-pressed="true"]').inner_text() == "16"
+    got = page.evaluate(
+        """() => {
+          const g = document.querySelector('#transport .grid.roll');
+          const a = g.querySelector('input.cell[name="cell.A2.0"]');
+          const b = g.querySelector('input.cell[name="cell.A2.1"]');
+          const pans = (el) => el.scrollWidth > el.clientWidth + 1
+            && getComputedStyle(el).overflowX !== 'visible';
+          let p = g;
+          while (p && !pans(p)) p = p.parentElement;
+          const x = (el) => el.getBoundingClientRect().x;
+          return {step: x(b) - x(a), scrolls: !!p,
+                  pane: p ? p.clientWidth : 0, wide: p ? p.scrollWidth : 0};
+        }"""
+    )
+    assert got["step"] >= 16 and got["scrolls"] and got["wide"] > got["pane"], got
+    # a click in bar 16: on the grid and in the loop
+    cell = '#transport input.cell[name="cell.A2.250"]'
+    page.locator(cell).scroll_into_view_if_needed()
+    clear_of_dock(page, cell)
+    page.locator(cell).click()
+    _wait(
+        page,
+        lambda: ["A2", 250] in loops.load(d, name)["lane"]["cells"],
+        "the edit saved",
+    )
+    lane = loops.load(d, name)["lane"]
+    assert lane["bars"] == 16 and ["E3", 252] in lane["cells"]
+    assert studio.unexplained() == []
+    page.goto("about:blank")  # (the 32 s loop's WAV: let its connection go)
+
+
+def test_a_row_dragged_onto_a_cell_fills_it_and_a_double_click_selects_that_cell(
+    studio, server
+):
+    """The Loops page: a panel row dragged onto an empty launcher cell is
+    placed there (`/fragment/perform/slot/place`); a double-click on a row
+    edits — and a loop a cell holds is edited by selecting that cell (its
+    launch with `select`: open on its lane), never by /loop/edit; a loop in
+    no cell is /loop/edit."""
+    _seed(server)
+    page = studio.open("perform")
+    page.evaluate(
+        "() => localStorage.setItem('synthlab.loops',"
+        " JSON.stringify({open: true, pin: true}))"
+    )
+    page.reload()
+    page.wait_for_selector("#slots")
+    studio.settle()
+    glass = _row(page, "glass lead")
+    name = glass.get_attribute("data-ctx").removeprefix("loop ")
+    cell = '#slots .sl-cell[data-lane="0"][data-row="0"]'
+    with page.expect_response("**/fragment/perform/slot/place"):
+        glass.drag_to(page.locator(cell))
+    page.locator(f"{cell} .sl-slot:not(.sl-empty)").wait_for()
+    assert server.state.slot_rows()[0]["slots"][0] == name
+    # a double-click: the cell that holds it is selected, its loop opened there
+    seen: list[str] = []
+    page.on("request", lambda r: seen.append(r.url))
+    with page.expect_response("**/fragment/perform/slot/launch"):
+        _row(page, "glass lead").dblclick()
+    page.wait_for_selector(f'{cell}[aria-selected="true"]')
+    _wait(
+        page,
+        lambda: (server.state.loop_edit_of(0) or {}).get("name") == name,
+        "open on its lane",
+    )
+    assert not any(u.endswith("/loop/edit") for u in seen), seen
+    # a loop in no cell: /loop/edit, on the edited lane
+    acid = _row(page, "acid bass riff", bpm=132)
+    other = acid.get_attribute("data-ctx").removeprefix("loop ")
+    with page.expect_response("**/loop/edit"):
+        acid.dblclick()
+    page.wait_for_selector("#transport .ed-head.is-saved")
+    _wait(page, lambda: server.state.loop_edit_of()["name"] == other, "the loop open")
     assert studio.unexplained() == []

@@ -57,7 +57,17 @@ from fastapi import Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from ...sequencer import SCALES, midi, name_of
-from .. import beatgen, beatpick, drumops, limits, meter, schema, song_bridge, song_play
+from .. import (
+    beatgen,
+    beatpick,
+    drumops,
+    limits,
+    meter,
+    moves,
+    schema,
+    song_bridge,
+    song_play,
+)
 from .. import patternops as po
 from .. import song_model as sm
 from ..arrange import arrangement_from_form
@@ -607,7 +617,28 @@ def section_duplicate(request: Request, section_id: str, svc: Svc) -> Response:
 
 @router.post("/song/section/{section_id}/move")
 def section_move(request: Request, section_id: str, form: StrForm, svc: Svc):
-    """To index `to`, or by `delta` places (-1 left, +1 right); clamped."""
+    """To index `to`, or by `delta` places (-1 left, +1 right); clamped.
+
+    With a `move` instead (an automation move, `moves.MOVES`) it puts that
+    ready-made lane on `track` in this section: the lane, and the FX unit
+    it needs when the rack lacks one, are one undo step, and the toast says
+    what was done; a move the track cannot take, or a full rack, is refused
+    in words."""
+    if "move" in form:
+        said: list[str] = []
+
+        def put(song):
+            said[:] = [
+                moves.apply(song, section_id, form.get("track", ""), form["move"])
+            ]
+
+        return _commit(
+            svc,
+            put,
+            label="automation move",
+            soon=True,
+            then=lambda: {"studio-toast": {"message": said[0]}},
+        )
 
     def change(song):
         _section(song, section_id)
@@ -1230,9 +1261,9 @@ def _choice(form: dict, key: str, choices, current: int) -> int:
 
 def _bars(form: dict, per_bar: int, p: dict) -> int:
     """A pool pattern's bars from a grid form: one of the bars its
-    resolution allows (`sm.bar_choices`: up to 8 while bars x steps
+    resolution allows (`sm.bar_choices`: up to 16 while bars x steps
     fits the grid), else what it has, held to what still fits (finer
-    steps on an 8-bar pattern shorten it to 4)."""
+    steps on a 16-bar pattern shorten it to 8)."""
     fits = sm.bar_choices(per_bar)
     held = max((b for b in fits if b <= p["bars"]), default=1)
     return _choice(form, "bars", fits, held)
@@ -1253,7 +1284,7 @@ def _drums_grid(song: dict, p: dict, form: dict) -> None:
     merged. More bars at the same resolution repeat the ones there
     (`beatgen.extend_bars`), as the Drums transport does."""
     m = sm.pattern_meter(p)
-    steps = _choice(form, "steps", meter.step_choices(m), p["steps"])
+    steps = _choice(form, "steps", meter.straight_choices(m), p["steps"])
     bars = _bars(form, steps, p)
     merged = {"bars": str(bars), "steps": str(steps)}
     merged |= {k: v for k, v in form.items() if k.startswith("drum.")}
@@ -1311,8 +1342,8 @@ def _notes_grid(song: dict, p: dict, form: dict) -> None:
     whole = "bars" in form or "steps" in form
     # the rows the drawer's grid was drawn at: it posts its own `span`
     # and the octave window (`oct`) it was showing
-    span = int(form["span"]) if form.get("span") in ("1", "2", "3") else 1
-    rows = set(sm.window_rows(song, span, _octave(form)))
+    span = int(form["span"]) if form.get("span") in ("1", "2", "3", "4") else 1
+    rows = set(sm.window_rows(song, span, _octave(form), p["cells"]))
     total = bars * spb
     posted, posted_cuts = [], []
     for k, v in form.items():
@@ -1357,6 +1388,8 @@ def _notes_grid(song: dict, p: dict, form: dict) -> None:
         note_chance={
             k: v for k, v in (p.get("note_chance") or {}).items() if int(k) < total
         },
+        # each note's own feel stays on the notes still starting where it is
+        note_feel=schema.clean_feel(p.get("note_feel"), p["cells"], p.get("cuts")),
     )
 
 
@@ -1461,7 +1494,7 @@ def pattern_tool(request: Request, pattern_id: str, op: str, form: StrForm, svc:
     toast). Never touches the working loop."""
     note, now = "", None
     span = svc.state.grid_span
-    if form.get("span") in ("1", "2", "3"):
+    if form.get("span") in ("1", "2", "3", "4"):
         span = int(form["span"])
 
     def change(song):
@@ -1488,10 +1521,12 @@ def pattern_tool(request: Request, pattern_id: str, op: str, form: StrForm, svc:
                 for k in NOTE_LANE
             }
             lane["note_chance"] = dict(p.get("note_chance") or {})
+            if p.get("note_feel"):  # each note's own feel travels with it
+                lane["note_feel"] = dict(p["note_feel"])
             # the window the drawer shows this pattern at (a roll edit
             # posts the one its grid was drawn with)
             octave = _octave(form) if "oct" in form else svc.drawer_octave(p, span)
-            rows = sm.window_rows(song, span, octave)
+            rows = sm.window_rows(song, span, octave, p["cells"])
             if po.is_roll(op, form):
                 args = dict(form)
                 if op == "stamp" and form.get("q") == "track":
@@ -1510,12 +1545,17 @@ def pattern_tool(request: Request, pattern_id: str, op: str, form: StrForm, svc:
                     seed=seed,
                     arp_on=p.get("arp_mode", "off") != "off",
                 )
-            optional = {k: lane.pop(k, None) for k in ("note_nudge", "note_chance")}
+            optional = {
+                k: lane.pop(k, None) for k in ("note_nudge", "note_chance", "note_feel")
+            }
             p.update(lane)
             _set_optional(
                 p,
                 note_nudge=schema.clean_nudge(optional["note_nudge"], p["cells"]),
                 note_chance=optional["note_chance"],
+                note_feel=schema.clean_feel(
+                    optional["note_feel"], p["cells"], p.get("cuts")
+                ),
             )
         except po.ToolRefused as err:
             raise sm.SongError(str(err)) from None

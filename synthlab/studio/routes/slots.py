@@ -17,12 +17,13 @@ from fastapi.responses import HTMLResponse
 
 from .. import jam, limits, looplib, loops, schema, song_bridge, tosong
 from .. import song_model as sm
-from ..render import RenderError
+from ..render import RenderError, preview_url
 from ..routing import StrForm, Svc, prompt_value, studio_router
 from ..service import StudioService
 from ..state import Arrangement, StudioState
 from ..words import plural
 from . import song_jam as jam_routes
+from . import takes as take_routes
 from .pattern import with_toast
 from .song import _commit
 
@@ -157,7 +158,13 @@ def slot_select(request: Request, form: StrForm, svc: Svc) -> Response:
     arp's print land (`slotrec`) — and its lane becomes the edited one when
     it already has a sound, so the keys play what the slot will hold (a
     lane with none keeps the edited one: the take carries that sound
-    there). Nothing plays, renders or becomes an undo step."""
+    there). The selected slot is what the editor shows (loop-and-perform.md,
+    "One selection"), and an empty one holds no loop: its lane's grid is a
+    sketch from now on — a loop open on that lane stops being edited (it
+    keeps every edit, as Done does), so what is drawn there next saves to
+    no loop until "Save as loop". (A filled slot's click is its launch with
+    `select`: its loop opened on its lane.) Nothing plays, renders or
+    becomes an undo step."""
     s: StudioState = svc.state
     at = _at(s, form)
     if at is None:
@@ -166,10 +173,38 @@ def slot_select(request: Request, form: StrForm, svc: Svc) -> Response:
     sounded = lane == s.active_layer or bool(
         lane < len(s.layers) and s.layers[lane].get("patch")
     )
+    moved = s.slot_at(*at) is None and s.end_loop_edit(lane) is not None
     if lane != s.DRUM_LANE and lane != s.active_layer and sounded:
         s.select_layer(lane)
+        moved = True
+    if moved:
         s.save()
     return HTMLResponse("")
+
+
+@router.post("/fragment/perform/slot/hear")
+def slot_hear(request: Request, form: StrForm, svc: Svc) -> Response:
+    """The deck's Loop source (loop-and-perform.md, "The deck"): a slot's
+    loop alone — its notes in its own sound (a beat through the session's
+    kit), rendered as the Loops lists' ▷ renders a loop at another tempo
+    (`takes._render_loop`) at `bpm`, the page's tempo (none: the loop's
+    own) — named by `X-Preview-Url`, which the deck plays as the loop. Its
+    notes are the grid's: the loop open on its lane saved every edit to
+    it. Nothing moves."""
+    s: StudioState = svc.state
+    at = _at(s, form)
+    if at is None:
+        return Response(status_code=422)
+    name = s.slot_at(*at)
+    lp = loops.load(s.data_dir, name) if name else None
+    if lp is None:
+        return svc.toast("That slot is empty." if not name else "That loop is gone.")
+    made = take_routes._render_loop(
+        svc, lp, take_routes._number(form.get("bpm", ""), *limits.BPM_RANGE)
+    )
+    if isinstance(made, Response):
+        return made
+    return HTMLResponse("", headers={"X-Preview-Url": preview_url(made)})
 
 
 def _keep_lane(s: StudioState, lane: int) -> str | None:

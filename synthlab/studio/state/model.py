@@ -18,7 +18,7 @@ from pathlib import Path
 
 from ...sequencer import SCALES, midi, name_of, scale
 from ...synth import Patch
-from .. import schema, song_bridge
+from .. import notefeel, schema, song_bridge
 from ..views import BENCH_VIEWS
 from ..views import RESET_VIEWS as _VIEW_RESETS
 
@@ -69,8 +69,10 @@ RESET_SCOPES: dict[str, tuple[str, tuple[str, ...]]] = {
             "arr.scale_name",
             "arr.arp_mode",
             "arr.arp_octaves",
+            "arr.arp_pattern",
             "arr.strum",
             "arr.note_nudge",
+            "arr.note_feel",
             "arr.note_chance",
             "arr.chords",
             # Perform's launcher (its rows of slots; absent when unset, as
@@ -127,7 +129,8 @@ class Arrangement:
     bars: int = field(default=1, metadata=_lane("grid"))
     steps_per_bar: int = field(default=4, metadata=_lane("grid"))
     swing: float = field(default=0.0, metadata=_lane("grid"))
-    arp_mode: str = field(default="off", metadata=_lane("grid"))  # off|up|down|updown
+    # off|up|down|updown|pattern ("pattern": `arp_pattern` below)
+    arp_mode: str = field(default="off", metadata=_lane("grid"))
     arp_octaves: int = field(default=1, metadata=_lane("grid"))
     # "cell": the note grid's own content.
     cells: list[list] = field(
@@ -207,6 +210,19 @@ class Arrangement:
     # every note starting there (the roll's decision 3). ABSENT when unset
     # wherever an arrangement is written down, as the ones above
     note_nudge: dict[str, float] = field(default_factory=dict, metadata=_lane("cell"))
+    # the arp pattern (arppattern.py): the steps and settings the grid arp
+    # plays in its "pattern" mode and the keys arp in its own — the edited
+    # lane's, per slot (`LAYER_SEQ_OPTIONAL`). No form carries it (its own
+    # route sets it: routes/arp.py). ABSENT when unset wherever an
+    # arrangement is written down, as the ones above
+    arp_pattern: dict = field(default_factory=dict, metadata=_lane("grid"))
+    # a note's own feel (notefeel.py): "<pitch>.<step>" -> [start, end,
+    # share] — where it starts and ends between the lines and how hard it
+    # was struck, per NOTE (a take as played). It wins over the step's
+    # `note_nudge`, its swing and `arrange.NOTE_GATE`; a note without one
+    # plays as it always did. ABSENT when unset wherever an arrangement is
+    # written down, as the ones above
+    note_feel: dict[str, list] = field(default_factory=dict, metadata=_lane("cell"))
 
     @classmethod
     def from_dict(cls, d: dict) -> Arrangement:
@@ -231,6 +247,8 @@ NOTE_LANE = (
     "slides",
     # timing inside a step: {} here, absent where it is written down unset
     "note_nudge",
+    # a note's own feel (notefeel.py): likewise
+    "note_feel",
 )
 # Perform's launcher (studio loop-and-perform.md, "Slots and scenes"): its
 # lanes are the layer slots, then the drums — a beat's lane, `DRUM_LANE`
@@ -279,7 +297,23 @@ def drum_row_sounds(arr: Arrangement, voice: str) -> bool:
 
 
 GRID_SPANS = (1, 2, 3)  # six key tones, two octaves of the key, chromatic
-GRID_OCTAVES = (-1, 3)  # how far the roll's window moves from the root
+# how far the roll's window may move from the root, at most: the window a
+# root allows is narrower (`octave_range`: two octaves above it are notes).
+# It was (-1, 3), so from a low root (A1) a take played up in octave 6-7
+# could never be shown at all ("16 hidden notes", every window refusing)
+GRID_OCTAVES = (-4, 8)
+
+
+def octave_range(root: str) -> tuple[int, int]:
+    """The octaves the roll's window can move to from `root`: its bottom a
+    note (MIDI >= 0) and two octaves above it still notes (<= 127), within
+    `GRID_OCTAVES`. Every one of them is a window of its own, so an octave
+    button never presses into one that does not move."""
+    m = midi(root)
+    lo, hi = GRID_OCTAVES
+    lo = max(lo, -(m // 12))
+    hi = min(hi, (127 - 24 - m) // 12)
+    return lo, max(lo, hi)
 
 
 def window_root(root: str, octave: int = 0) -> str:
@@ -304,10 +338,43 @@ def pitch_rows(arr: Arrangement, span: int = 1) -> list[str]:
     return grid_rows(arr, span)
 
 
+# the roll's "notes" range (`grid_rows` span 4): every row the lane's notes
+# use, not a window — the octave buttons do not move it
+SPAN_NOTES = 4
+SPANS = (1, 2, 3, SPAN_NOTES)
+
+
+def note_rows(arr: Arrangement, cells=None) -> list[str]:
+    """The roll's rows for every note the lane holds (`span` 4), highest
+    first: the key's rows from the root at or below its lowest note to the
+    root at or above its highest (at least an octave), and the row of any
+    note out of the key among them — so a take played over five octaves
+    shows on one roll that scrolls, never in a window that hides most of
+    it. Only the rows that hold notes are added off the key, not the
+    chromatic run between: a 16-bar grid over five octaves chromatic is
+    61 rows, 15,616 cells (measured in `loop-and-perform.md`, "Rows, the
+    octave window"). No notes: the two octaves of span 2."""
+    held = sorted({midi(p) for p, _st in (arr.cells if cells is None else cells)})
+    held = [m for m in held if 0 <= m <= 127]
+    if not held:
+        return grid_rows(arr, 2)
+    key = midi(arr.root) % 12
+    pcs = {(key + s) % 12 for s in SCALES.get(arr.scale_name, SCALES["minor"])}
+    lo = held[0] - (held[0] - key) % 12
+    hi = held[-1] + (key - held[-1]) % 12
+    hi = max(hi, lo + 12)
+    lo, hi = max(0, lo), min(127, hi)
+    rows = {m for m in range(lo, hi + 1) if m % 12 in pcs} | set(held)
+    return [name_of(m) for m in sorted(rows, reverse=True)]
+
+
 def grid_rows(arr: Arrangement, span: int = 1, octave: int = 0) -> list[str]:
     """`pitch_rows` in the piano roll's octave window: `octave` moves the
     window's bottom whole octaves from the root (0 is every grid before
-    there was a window)."""
+    there was a window). Span 4 is no window: every row the notes use
+    (`note_rows`)."""
+    if span == SPAN_NOTES:
+        return note_rows(arr)
     root = window_root(arr.root, octave) if octave else arr.root
     if span >= 3:
         low = midi(root)
@@ -324,12 +391,18 @@ def notes_window(arr: Arrangement, midis: list[int], span: int, octave: int):
     `midis` where they are — the notes are never moved to fit: the window
     moves (the nearest octave first), and the range widens to two octaves
     of the key, or to the chromatic one when a note is out of the key
-    (`StudioState.show_notes`; a keys take's, keytakes.py)."""
+    (`StudioState.show_notes`; a keys take's, keytakes.py). `midis` may
+    repeat a pitch (a cell each): where they cannot all be shown, the
+    window holds the most of them, not the most distinct pitches. When no
+    window shows them all, the roll shows every row they use (span 4,
+    `note_rows`), and a roll on span 4 stays there."""
     names = [name_of(m) for m in midis]
+    if span == SPAN_NOTES:
+        return span, octave, note_rows(arr, [[n, 0] for n in names])
     spans = [span] if span == 3 else [span, 2, 3] if span == 1 else [2, 3]
     if not {m % 12 for m in midis} <= {midi(n) % 12 for n in key_ladder(arr)}:
         spans = [3]
-    lo, hi = GRID_OCTAVES
+    lo, hi = octave_range(arr.root)
     octaves = sorted(range(lo, hi + 1), key=lambda o: (abs(o - octave), o))
     best = None
     for sp in spans:
@@ -341,6 +414,8 @@ def notes_window(arr: Arrangement, midis: list[int], span: int, octave: int):
                 return sp, o, rows
             if best is None or fit > best[0]:
                 best = (fit, sp, o, rows)
+    if names:  # no window holds them all: every row they use
+        return SPAN_NOTES, octave, note_rows(arr, [[n, 0] for n in names])
     return best[1], best[2], best[3]
 
 
@@ -464,7 +539,13 @@ LAYER_SEQ_KEYS: tuple[str, ...] = (
 # before it existed reads the same): the strum, 0 when not there, and the
 # steps' chance and the timing inside a step (free record),
 # {} when not there
-LAYER_SEQ_OPTIONAL: tuple[str, ...] = ("strum", "note_chance", "note_nudge")
+LAYER_SEQ_OPTIONAL: tuple[str, ...] = (
+    "strum",
+    "note_chance",
+    "note_nudge",
+    "arp_pattern",  # the arp pattern, {} when not there
+    "note_feel",  # a note's own feel (notefeel.py), {} when not there
+)
 
 
 def seq_of(arr) -> dict:
@@ -481,6 +562,8 @@ def seq_changes(seq: dict) -> dict:
     out["strum"] = float(seq.get("strum") or 0.0)
     out["note_chance"] = dict(seq.get("note_chance") or {})
     out["note_nudge"] = dict(seq.get("note_nudge") or {})
+    out["note_feel"] = copy.deepcopy(seq.get("note_feel") or {})
+    out["arp_pattern"] = copy.deepcopy(seq.get("arp_pattern") or {})
     return out
 
 
@@ -502,12 +585,15 @@ def loop_window(lane: dict, bars: int) -> dict:
         "velocities": sm._tile_keys(lane.get("velocities") or {}, period, total),
         "slides": sorted({x for _z, x in sm._tile(slides, period, total)}),
         "note_nudge": sm._tile_keys(lane.get("note_nudge") or {}, period, total),
+        "note_feel": notefeel.tile(lane.get("note_feel") or {}, period, total),
         # the chance lane (a lane state carries it, {} when none), as velocities
         **(
             {"note_chance": sm._tile_keys(lane["note_chance"] or {}, period, total)}
             if "note_chance" in lane
             else {}
         ),
+        # a loop's own grid arp (a take of "the keys I held"), when it has one
+        **{k: lane[k] for k in ("arp_mode", "arp_octaves", "arp_pattern") if k in lane},
     }
 
 
@@ -541,6 +627,16 @@ def regrid_lane(lane: dict, to: int) -> dict:
             for k, v in (lane.get("note_nudge") or {}).items()
             for s in starts(k)[:1]
         },
+        # a note's own feel: the same time in the finer steps (a coarser
+        # grid drops it: `notefeel.regrid`)
+        "note_feel": notefeel.regrid(
+            lane.get("note_feel") or {},
+            bars,
+            spb,
+            to,
+            lane.get("cells") or [],
+            lane.get("cuts") or (),
+        ),
         # the working loop's chance lane, when a lane has one: as velocities
         **(
             {
@@ -639,6 +735,12 @@ def materialise(lay: dict, arr: Arrangement) -> dict:
         **({"strum": arr.strum} if arr.strum else {}),
         **({"note_nudge": dict(arr.note_nudge)} if arr.note_nudge else {}),
         **({"note_chance": dict(arr.note_chance)} if arr.note_chance else {}),
+        **(
+            {"note_feel": copy.deepcopy(plain["note_feel"])}
+            if plain.get("note_feel")
+            else {}
+        ),
+        **({"arp_pattern": copy.deepcopy(arr.arp_pattern)} if arr.arp_pattern else {}),
     }
     return out
 

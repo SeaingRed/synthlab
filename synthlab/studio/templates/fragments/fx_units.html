@@ -51,9 +51,32 @@ hx-post="{{ r.url if one else r.url[op] }}" hx-vals='{{ all | tojson }}'
   {% set idx = u.index %}
   {% set cmd = u.name ~ " " ~ (idx + 1) %}
   {{ lead() }}
-  <div class="fx-unit module" data-unit="{{ u.kind }}" data-ctx="{{ u.label }} · {{ r.title }}">
+  <div class="fx-unit module" data-unit="{{ u.kind }}"{{ ' data-off' if not u.on }} data-ctx="{{ u.label }} · {{ r.title }}">
     <header class="module-head">
+      {#- the unit's power key: off, the signal passes it by (it keeps its
+          place and its settings; `fxrack.active`). A press of its own in
+          the undo ring -#}
+      <button type="button" class="btn btn-ghost btn-icon btn-s fx-power" aria-pressed="{{ 'true' if u.on else 'false' }}"
+              data-menu="{{ 'Bypass' if u.on else 'Switch on' }}"
+              data-cmd="{{ cmd }}: {{ 'bypass' if u.on else 'switch on' }} ({{ r.title }})" data-cmd-group="{{ group }}"
+              {{ post(r, "set", {"index": idx | string, "name": "on", "value": "0" if u.on else "1"}) }}
+              {{ r.value | safe }}
+              aria-label="{{ u.label }} on" title="{{ 'on: press to bypass (the unit keeps its settings)' if u.on else 'bypassed: press to switch it back on' }}"><i class="led" aria-hidden="true"></i></button>
       <strong>{{ u.label }}</strong>
+      {% if u.bands %}
+      {#- the part of the signal it works on (`effects.band_apply`): all of
+          it, the lows / mids / highs (the OTT's crossover), or the mid / side
+          channel — the rest passes. A press of its own in the undo ring;
+          its own id (a binding names it alone: every knob is name=value),
+          and no dial of the unit's (`data-no-dial`: a setting, not a knob) -#}
+      <select class="field field-s fx-band" name="value" id="fx-{{ r.id }}-{{ idx }}-band" data-no-dial aria-label="{{ u.label }} band"
+              title="What it works on: the full signal, one band (the rest passes, in phase), or the mid or side channel"
+              data-cmd="{{ cmd }}: band ({{ r.title }})" data-cmd-group="{{ group }}"
+              {{ post(r, "set", {"index": idx | string, "name": "band"}) }} hx-include="this"
+              {{ r.value | safe }} hx-trigger="change" hx-sync="this:queue last">
+        {% for key, label in u.bands %}<option value="{{ key or 'full' }}" {% if u.band == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      {% endif %}
       <span class="fx-acts">
         {#- ★ the unit's presets (fxrack.FX_PRESETS) and ↺ its defaults: a
             popover menu, and — each row a `data-menu` — the module's
@@ -117,6 +140,20 @@ hx-post="{{ r.url if one else r.url[op] }}" hx-vals='{{ all | tojson }}'
     </label>
     {% endif %}
     {% endfor %}
+    {% if u.ir is not none %}
+    {#- the convolution's impulse: a clip of this studio's (under
+        limits.MAX_IR_SECONDS / MAX_IR_BYTES), posted as `clip:<name>` and
+        made into a sample by its content (irs.py) — the unit keeps the id -#}
+    <label class="fx-param fx-choice fx-ir">impulse
+      <select class="field field-s" name="value" id="fx-{{ r.id }}-{{ idx }}-ir" aria-label="{{ u.label }} impulse"
+              title="A clip as the room: its sound is what every note rings through (up to {{ limits.MAX_IR_SECONDS | int }} s)"
+              data-cmd="{{ cmd }}: impulse ({{ r.title }})" data-cmd-group="{{ group }}"
+              {{ post(r, "set", {"index": idx | string, "name": "ir"}) }} hx-include="this"
+              {{ r.value | safe }} hx-trigger="change" hx-sync="this:queue last">
+        {% for value, label, sel in ir_choices(u.ir) %}<option value="{{ value }}" {% if sel %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
     {% if u.pattern is not none %}
     <label class="fx-param fx-pattern">pattern
       <input type="text" class="field field-s" name="value" value="{{ u.pattern }}" maxlength="32"

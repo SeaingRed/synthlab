@@ -48,6 +48,7 @@ from synthlab.studio.library import by_family
 from synthlab.studio.server import create_app
 from synthlab.studio.service import PAGE_REGIONS, REGIONS
 from synthlab.synth import Patch
+from tests.sfzkit import small_instrument
 from tests.studio.test_agent import FakeClient
 from tests.studio.test_agent import calls as agent_calls
 from tests.studio.test_loop_coach import seed as coach_seed
@@ -146,6 +147,7 @@ def _tone(client) -> None:
 
 
 _HUB_BEAT = json.dumps({"target": "beat", "style": "techno", "kit": "Trance"})
+_HUB_KEYS = json.dumps({"target": "keys", "slices": 8, "cut": "equal"})
 
 
 def _hub_applied(client) -> None:
@@ -203,6 +205,16 @@ def _recorded(client) -> None:
     data["notes"] = "[[0.02, 1, 33, 0.8], [0.96, 1, 36, 1]]"
     files = {"file": ("take.wav", _wav(), "audio/wav")}
     client.post("/take/keys", data=data, files=files, headers=_hx("editor"))
+
+
+def _short(client) -> None:
+    """A take of 1.5 bars (nothing played under it: not whole bars), keys-s,
+    and its loop — open on Perform's grid."""
+    data = {"name": "keys-s", "bpm": "124", "bars": "1.5"}
+    data["notes"] = "[[0.02, 1, 33, 0.8], [4.5, 1, 36, 1]]"
+    files = {"file": ("take.wav", _wav(), "audio/wav")}
+    client.post("/take/keys", data=data, files=files, headers=_hx("editor"))
+    client.post("/loop/edit", data={"name": "keys-s"}, headers=_hx("perform"))
 
 
 def _editing(client) -> None:
@@ -401,6 +413,43 @@ def _panel_preset(client) -> None:
         "/fragment/panel/preset/save",
         data={"group": "Filter", "name": "f1"},
         headers=_hx("editor"),
+    )
+
+
+_ARP_POST = {
+    "n": "4",
+    "rate": "1/8",
+    "mode": "down",
+    "oct": "2",
+    "retrig": "bar",
+    **{f"{k}.0": v for k, v in (("on", "on"), ("vel", "50"), ("tr", "2"))},
+    **{f"{k}.0": v for k, v in (("gate", "40"), ("chance", "100"), ("rep", "2"))},
+}
+
+
+def _grid_arp_pattern(client) -> None:
+    """The grid arp plays the pattern: an edit of it moves the loop."""
+    s = _st(client)
+    s.arrangement = replace(s.arrangement, arp_mode="pattern")
+
+
+def _arp_pattern_set(client) -> None:
+    client.post("/fragment/arp/pattern", data=_ARP_POST, headers=_hx("perform"))
+
+
+def _arp_slot_filled(client) -> None:
+    client.post(
+        "/fragment/arp/pattern",
+        data={**_ARP_POST, "rate": "1/16"},
+        headers=_hx("editor"),
+    )
+    client.post(
+        "/fragment/arp/slot",
+        data={"slot": "2", "action": "save"},
+        headers=_hx("editor"),
+    )
+    client.post(
+        "/fragment/arp/pattern", data={"action": "clear"}, headers=_hx("editor")
     )
 
 
@@ -768,6 +817,25 @@ CASES: list[Case] = [
     C("/fragment/beat/pick", "perform", {"beat_pick": "bank:2"}),
     C("/fragment/arrangement", "perform", _grid_post, suppressed={"transport"}),
     C("/fragment/chords/grid", "editor", {"code": "Am F C G"}),
+    # the arp pattern's editor (every page's popover): the edited lane's
+    # pattern — the loop re-renders only while the grid arp plays it — and
+    # the 12 slots
+    C("/fragment/arp/pattern", "editor", _ARP_POST),
+    C("/fragment/arp/pattern", "perform", _ARP_POST, _grid_arp_pattern),
+    C("/fragment/arp/pattern", "perform", {"action": "clear"}, _arp_pattern_set),
+    C("/fragment/arp/slot", "editor", {"slot": "2", "action": "save"}),
+    C(
+        "/fragment/arp/slot",
+        "song",
+        {"slot": "2", "action": "recall"},
+        _arp_slot_filled,
+    ),
+    C(
+        "/fragment/arp/slot",
+        "perform",
+        {"slot": "2", "action": "clear"},
+        _arp_slot_filled,
+    ),
     C("/fragment/chords/code", "editor", {"code": "Am F"}),
     C("/fragment/morph", "editor", {"slot": "a", "t": "0.6"}, _slot_a),
     C("/fragment/panel/reset", "editor", {"group": "Filter"}, _edited),
@@ -889,6 +957,7 @@ CASES: list[Case] = [
     C("/fragment/sampler/clip", "perform", {"name": "tone"}, _tone),
     C("/fragment/sampler/clip", "editor", {"name": "hit"}, _clip),  # silent: toast
     C("/fragment/sampler/resample", "editor", {"source": "phrase"}),
+    C("/fragment/sampler/rebake", "editor", {}),
     # your own wavetable — made from a clip or drawn, a patch
     # edit answered with the whole page (the mod matrix's mixes do the same)
     C(
@@ -945,6 +1014,17 @@ CASES: list[Case] = [
     C("/fragment/sampler/zone/add", "editor", {"name": "hit"}, _clip),  # silent
     C("/fragment/sampler/zones/map", "editor", {"names": "tone\nlow"}, _two_tones),
     C("/fragment/sampler/zones/map", "editor", {"names": "gone"}),  # toast
+    # an SFZ instrument (a zip) as the sound: a whole-page load, like auto-map
+    C(
+        "/fragment/sampler/sfz",
+        "editor",
+        files=lambda c: {"file": ("inst.zip", small_instrument(), "application/zip")},
+    ),
+    C(  # not a zip: a toast, nothing moved
+        "/fragment/sampler/sfz",
+        "editor",
+        files=lambda c: {"file": ("inst.sfz", b"<region> sample=x.wav", "text/plain")},
+    ),
     C(
         "/fragment/sampler/zone",
         "editor",
@@ -1230,6 +1310,16 @@ CASES: list[Case] = [
     # an empty slot selected — its lane edited when it has a sound
     C("/fragment/perform/slot/select", "perform", {"lane": "1", "row": "0"}, _lane2),
     C("/fragment/perform/slot/select", "perform", {"lane": "2", "row": "0"}),
+    # an empty cell of a lane that plays a slot's loop: the lane a sketch
+    # (the loop no longer open: the editor's head, the launcher)
+    C("/fragment/perform/slot/select", "perform", {"lane": "0", "row": "2"}, _scened),
+    # the deck's Loop source: a cell's loop alone (moves nothing)
+    C(
+        "/fragment/perform/slot/hear",
+        "perform",
+        {"lane": "0", "row": "0", "bpm": "120"},
+        _slotted,
+    ),
     C("/fragment/perform/slot/keep", "perform", {"lane": "4", "row": "2"}),
     C("/fragment/perform/slot/clear", "perform", {"lane": "0", "row": "0"}, _slotted),
     C(
@@ -1390,6 +1480,9 @@ CASES: list[Case] = [
     C("/loop/quantise", "perform", {"name": "keys-r", "strength": "0"}, _recorded),
     C("/loop/quantise", "perform", {"name": "keys-r", "steps": "8"}, _editing),
     C("/loop/quantise", "editor", {"name": "keys-r", "steps": "12"}, _recorded),
+    C("/loop/length", "perform", {"name": "keys-s", "how": "trim"}, _short),
+    C("/loop/length", "perform", {"name": "keys-s", "how": "fit"}, _short),
+    C("/loop/length", "editor", {"name": "keys-r", "how": "keep"}, _recorded),
     C("/loop/song", "perform", {"name": "riff"}, _a_loop),
     C("/loop/song", "editor", {"name": "keys-r", "as": "audio"}, _recorded),
     C("/loop/song", "song", {"take": "keys-t"}, _keys_take),
@@ -1459,6 +1552,14 @@ CASES: list[Case] = [
         {"delta": "-1"},
         _song,
         url="/song/section/s2/move",
+    ),
+    # an automation move on a track of the section (moves.py): a lane
+    C(
+        "/song/section/{section_id}/move",
+        "song",
+        {"track": "t1", "move": "open_filter"},
+        _song,
+        url="/song/section/s1/move",
     ),
     C(
         "/song/section/{section_id}/delete",
@@ -2061,6 +2162,11 @@ CASES: list[Case] = [
         _tone,
     ),
     C("/hub/apply", "clips", {"item": "clip:tone", "plan": _HUB_BEAT}, _tone),
+    # → Chop keys: a preview like a make's (a toast when the clip is gone);
+    # its Apply lands on Synths, as → Sound's does
+    C("/hub/chop", "clips", {"item": "clip:tone", "slices": "8"}, _tone),
+    C("/hub/chop", "clips", {"item": "clip:nope", "slices": "8"}),
+    C("/hub/apply", "clips", {"item": "clip:tone", "plan": _HUB_KEYS}, _tone),
     C("/hub/apply", "clips", {"item": "clip:tone", "plan": "[1]"}, _tone),  # no plan
     C("/hub/undo", "clips", {}, _hub_applied),
     C("/hub/undo", "clips"),  # nothing to undo: a toast

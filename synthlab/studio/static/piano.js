@@ -109,16 +109,22 @@
   // are armed. (keysBlocked alone still gates the transport's Space.)
   const KEY_OWNERS = ".grid, .arranger-grid, .jam-grid, .ctile, #song-ruler, #lab-wave, .chop-mark, .slice-mark";
   const ownKey = (code) => (document.getElementById("view")?.dataset.ownKeys || "").split(" ").includes(code);
-  // a button or link a pointer pressed (a view's nav link, a toolbar's
-  // button) is not one the keyboard reached, though Chrome turns its
-  // :focus-visible on at the first key typed: it leaves the keys playing
-  // (its Space stays its own: keysBlocked, transport.js)
-  let pointed = null;
-  document.addEventListener("pointerdown", (e) => { pointed = e.target.closest?.("button, a, summary") || null; }, true);
-  document.addEventListener("keydown", (e) => { if (e.key === "Tab") pointed = null; }, true); // the keyboard moves on
-  const typing = (e) => keysOn && (!keysBlocked(e.target) || (e.target === pointed && e.code !== "Space")) &&
+  // only a button or link the KEYBOARD moved the focus to (Tab, an arrow,
+  // Home / End) keeps its letters. One a pointer pressed (a view's nav link,
+  // a toolbar's button) or a script focused (the context menu runs a row by
+  // focusing and clicking its control; a swap that loads a sound moves the
+  // focus) is not, though Chrome turns its :focus-visible on at the first
+  // key typed: it leaves the keys playing (its Space stays its own:
+  // keysBlocked, transport.js). It used to be "the one the pointer pressed",
+  // so a sound loaded from the menu left the keys dead until a click.
+  const NAV_KEYS = new Set(["Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]);
+  let navAt = -Infinity, reached = null; // when a key last moved the focus; where it went
+  document.addEventListener("keydown", (e) => { if (NAV_KEYS.has(e.key)) navAt = e.timeStamp; }, true);
+  document.addEventListener("focusin", (e) => { reached = e.timeStamp - navAt < 250 ? e.target : null; }, true);
+  const lettersBlocked = (e) => keysBlocked(e.target) && (isTypingTarget(e.target) || e.target === reached || e.code === "Space");
+  const typing = (e) => keysOn && !lettersBlocked(e) &&
     !e.target.closest?.(KEY_OWNERS) && !ownKey(e.code) && !padsTyping() && window.synthlab.songArmed?.()?.kind !== "drums";
-  Object.assign(window.synthlab, { typing, padsTyping }); // chords.js, letters.js, columns.js; perform.js
+  Object.assign(window.synthlab, { typing, padsTyping, lettersBlocked }); // chords.js, letters.js, columns.js; perform.js
 
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
   // Pen pressure -> velocity. A mouse reports exactly 0.5, which is "no
@@ -191,6 +197,7 @@
     voices.set(tok, { el, midi, vel: velocity, arp, holds: new Set(latching ? ["key", "latch"] : ["key"]) });
     active.set(id, tok);
     paint(el); paintLatch();
+    if (arp) window.synthlab.keyHeld?.(tok, midi, velocity); // keyrec.js: "the keys I held"
     if (arp) return void window.synthlab.arp.changed();
     sound(tok, el, midi, velocity, at, own);
     if (!holdMode && !own) setTimeout(() => { if (active.get(id) === tok) noteOff(id); }, GATE_MS);
@@ -225,6 +232,7 @@
     voices.delete(tok);
     for (const [id, t] of active) if (t === tok) active.delete(id);
     paint(v.el);
+    if (v.arp) window.synthlab.keyHeld?.(tok); // ... and where it is let go
     if (v.arp) return void window.synthlab.arp?.changed();
     stopVoice(tok, at);
     window.synthlab.keyNote?.(tok, undefined, undefined, at); // ... and where each ends
@@ -581,6 +589,7 @@
       patch[param] = value;
       voiceNode?.port.postMessage({ type: "mod", param, value });
       window.synthlab.liveMod(param, value);
+      window.synthlab.keyMove?.(param, value); // ⏺ Rec keeps it (keyrec.js)
     }
     if (readout && parts.length) readout.textContent = parts.join(" · ");
   }
@@ -799,7 +808,7 @@
     mod: (param, value) => { if (patch) patch[param] = value; voiceNode?.port.postMessage({ type: "mod", param, value }); },
     patch: () => patch, reload: loadPatch, octave: () => octave, setOctave, midiOf,
     // the keys arp (arp.js): the notes it holds, in the order played; off, they sound as they are held
-    arpHeld: () => [...voices.values()].filter((v) => v.arp).map((v) => ({ midi: v.midi, vel: v.vel, key: v.holds.has("key") })),
+    arpHeld: () => [...voices].filter(([, v]) => v.arp).map(([tok, v]) => ({ tok, midi: v.midi, vel: v.vel, key: v.holds.has("key") })),
     arpOff: () => { for (const [tok, v] of voices) if (v.arp) { v.arp = false; paint(v.el); sound(tok, v.el, v.midi, v.vel); } },
   };
 
@@ -813,6 +822,7 @@
   function setMod(param, v) {
     mods[param] = Math.min(1, Math.max(0, Number(v) || 0));
     voiceNode?.port.postMessage({ type: param === "mod_wheel" ? "modwheel" : "aftertouch", v: mods[param] });
+    window.synthlab.keyMove?.(param, mods[param]);
   }
   const range = () => Math.max(0, Number(patch?.bend_range ?? 2));
   function setWheel(w) {
@@ -820,6 +830,7 @@
     const st = wheel * range();
     voiceNode?.port.postMessage({ type: "wheel", st });
     window.synthlab.bendKeys?.(st);
+    window.synthlab.keyMove?.("pitch_bend", wheel); // ⏺ Rec keeps the wheel too
     syncBend();
   }
   function syncBend() {

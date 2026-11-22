@@ -79,6 +79,8 @@
   <script src="{{ asset('/static/keysbar.js') }}" defer></script>
   {# the keys arp: piano.js hands it the notes it holds and it plays them, in time, through the bridge chords.js wraps #}
   <script src="{{ asset('/static/arp.js') }}" defer></script>
+  {# the arp pattern's walk (the keys arp's ▦ mode): after arp.js, whose pick it uses #}
+  <script src="{{ asset('/static/arppat.js') }}" defer></script>
   <script src="{{ asset('/static/talkbox.js') }}" defer></script>
   {# hardware control: the control surface (dials / strip / keys), its
      Stream Deck + driver, MIDI learn, both decks' drawing, the virtual deck's panel; the pen #}
@@ -104,6 +106,9 @@
   {# Perform's launcher: the quantise, queued slots, drags onto a slot, its keys
      (after loopspanel.js: a Loops panel row dragged onto a slot) #}
   <script src="{{ asset('/static/slots.js') }}" defer></script>
+  {# the Loops page's deck: its source (Loop | Scene | Song), ▶'s choice, the
+     bar meter, a cell's loop played alone (after slots.js: S.slotSel) #}
+  <script src="{{ asset('/static/loopdeck.js') }}" defer></script>
   {# Perform's ✦ Coach: open / closed (Alt+K), its proposal drawn on the grids, 🎙 hold to talk #}
   <script src="{{ asset('/static/coach.js') }}" defer></script>
   {# the live vocal chain: the mic through a live rack (livefx.js's stages), the monitor, ⏺ in time #}
@@ -322,6 +327,8 @@
       swap never redraws it — the keys, their layout and settings, a held
       note, carry from page to page (fragments/keys_dock.html) -#}
   {% include "fragments/keys_dock.html" %}
+  {#- the arp pattern's editor (region arp-pattern): a popover the grid arp's ▦ and the keys arp's ⚙ open -#}
+  {% with oob = false %}{% include "fragments/arp_pattern.html" %}{% endwith %}
   {% include "fragments/shortcuts.html" %}
   {#- every sound there is, once a page (a Song lane's menu, Perform's lane
       heads), and the searchable menu a lane head's sound ▾ and Synths'

@@ -190,17 +190,18 @@ def test_one_rec_is_a_loop_to_edit_on_perform_and_put_in_the_song(studio, server
     row = page.locator(f'#key-takes [data-ctx="loop {name}"]')
     row.wait_for()
     assert row.locator(".kt-play").count() == 1
-    assert row.locator(".lp-roll path").get_attribute("d")
+    assert row.locator(".lp-facts").is_visible()  # its facts, beside its name
     # and the clip library's Loops, every page's ("All loops")
     page.locator("#key-takes .lp-all").click()
     page.wait_for_selector(f'#clip-drawer .cd-loops [data-ctx="loop {name}"]')
     page.keyboard.press("Escape")
     page.wait_for_selector("#clip-drawer:not(:popover-open)", state="attached")
-    # Edit: Perform's grid, the notes at their steps, as this loop
+    # Edit (a double-click on its row): Perform's grid, the notes at their
+    # steps, as this loop
     with page.expect_response("**/loop/edit"):
-        row.locator(".lp-edit").click()
+        row.dblclick()
     page.wait_for_selector('#view[data-view="perform"]')
-    page.wait_for_selector("#transport .lp-edit-note")
+    page.wait_for_selector("#transport .ed-head.is-saved")
     # the address bar follows (a reload stays on Perform)
     page.wait_for_url("**/view/perform")
     studio.settle()
@@ -221,10 +222,12 @@ def test_one_rec_is_a_loop_to_edit_on_perform_and_put_in_the_song(studio, server
     assert edited["played"] == loop["played"]
     # → Song as a pattern, from Perform's Loops panel
     studio.settle()
+    # (its right-click menu: → Song ▸ as a pattern)
     bin_row = page.locator(f'#loops-panel [data-ctx="loop {name}"]')
-    bin_row.locator(".lp-pick > summary").first.click()
+    bin_row.click(button="right")
+    page.locator("#ctx-menu .menu-item", has_text="→ Song").click()
     with page.expect_response("**/loop/song"):
-        bin_row.locator('.lp-pick button:has-text("pattern")').click()
+        page.locator("#ctx-menu .menu-item", has_text="as a pattern").click()
     song = server.state.song
     sec = song["sections"][-1]
     (tid, pid), *_ = sec["cells"].items()
@@ -282,9 +285,10 @@ def test_from_the_strip_delete_and_the_bin_loops_the_lane_it_then_edits(studio, 
     rows = page.locator("#key-takes .lp-row")
     rows.nth(1).wait_for()
     assert rows.nth(0).get_attribute("data-ctx") == f"loop {second}"  # newest first
-    # ✕ deletes the loop and its audio
+    # ✕ Delete (its right-click menu) deletes the loop and its audio
     with page.expect_response("**/loop/delete"):
-        page.locator(f'#key-takes [data-ctx="loop {second}"] .kt-drop').click()
+        page.locator(f'#key-takes [data-ctx="loop {second}"]').click(button="right")
+        page.locator("#ctx-menu .menu-item", has_text="Delete").click()
         confirm_it(page)
     page.wait_for_selector(f'#key-takes [data-ctx="loop {second}"]', state="detached")
     assert not loops.exists(server.data_dir, second)
@@ -301,7 +305,7 @@ def test_from_the_strip_delete_and_the_bin_loops_the_lane_it_then_edits(studio, 
         name_it(page, "hook")
     page.wait_for_selector('#loops-panel [data-ctx="loop hook"]')
     assert server.state.loop_edit_of()["name"] == "hook"
-    page.wait_for_selector("#transport .lp-edit-note")
+    page.wait_for_selector("#transport .ed-head.is-saved")
     assert studio.unexplained() == []
 
 
@@ -351,16 +355,21 @@ def test_rec_into_a_slot_overdub_replace_and_new_while_the_loop_plays(studio, se
     the slot, queued for the bar), or — an empty slot — a new loop there."""
     page = _launcher(studio, server)
     s = server.state
-    assert page.locator("#key-how").is_hidden()  # no slot selected: a free take
+    # where a take lands is the deck's Rec ▾ on this page (the dock's copy hidden)
+    how_ = '#deck-rec-menu [data-key-how="{}"]'
+    assert page.locator("#key-how").is_hidden()
     _played(page)
-    page.locator(f"{_slot(0, 0)} .sl-go").click()  # selected and launched
+    page.locator(
+        f"{_slot(0, 0)} .sl-slot"
+    ).click()  # selected: open on its lane, launched
     page.wait_for_function(SWITCHED, timeout=8000)
     page.locator(
         f'{_slot(0, 0)}[data-state="playing"][aria-selected="true"]'
     ).wait_for()
-    overdub = page.locator('#key-how [data-key-how="overdub"]')
+    overdub = page.locator(how_.format("overdub"))
     assert overdub.get_attribute("aria-pressed") == "true"
-    assert page.locator('#key-how [data-key-how="new"]').is_hidden()
+    # "a new loop" is a choice of its own (the lane's next empty cell)
+    assert page.locator(how_.format("new")).get_attribute("aria-pressed") == "false"
     # overdub: C4 played into the playing slot's loop, which saves it
     page.locator(".view-head h1").click()
     take = unquote(_record(page, keys=("KeyA",)).headers["x-loop-name"])
@@ -373,7 +382,9 @@ def test_rec_into_a_slot_overdub_replace_and_new_while_the_loop_plays(studio, se
     assert s.slot_at(0, 0) == "Acid line" and loops.exists(server.data_dir, take)
     assert any(c[0] == "C4" for c in s.arrangement.cells)  # the lane plays it
     # replace: the take's own loop takes the slot and plays from it
-    page.click('#key-how [data-key-how="replace"]')
+    page.click('[popovertarget="deck-rec-menu"]')
+    page.click(how_.format("replace"))
+    page.keyboard.press("Escape")
     how = page.evaluate("() => localStorage.getItem('synthlab.keyRecHow')")
     assert how == "replace"
     page.locator(".view-head h1").click()
@@ -388,7 +399,7 @@ def test_rec_into_a_slot_overdub_replace_and_new_while_the_loop_plays(studio, se
     page.locator(f"{_slot(1, 0)} .sl-empty").click()
     page.locator(f'{_slot(1, 0)}[aria-selected="true"]').wait_for()
     assert page.locator(f'{_slot(0, 0)}[aria-selected="true"]').count() == 0
-    new_how = page.locator('#key-how [data-key-how="new"]')
+    new_how = page.locator(how_.format("new"))
     assert new_how.get_attribute("aria-pressed") == "true"
     page.locator(".view-head h1").click()
     new = unquote(_record(page, keys=("KeyG",)).headers["x-loop-name"])

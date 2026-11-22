@@ -68,6 +68,11 @@ ARR_OPTIONAL = (
     "note_nudge",
     # the note grid's chance lane: absent while no step has one
     "note_chance",
+    # the arp pattern (arppattern.py): absent until one is written
+    "arp_pattern",
+    # a note's own feel (notefeel.py: a take as played): absent while no
+    # note has one
+    "note_feel",
 )
 # an optional field whose unset value is not falsy: the meter, unset at 4/4
 # (`meter.py`; a loop or a section in another meter, and a section's ramp,
@@ -80,6 +85,33 @@ def arr_unset(key: str, value) -> bool:
     if key in ARR_NEUTRAL:
         return value is None or value == ARR_NEUTRAL[key]
     return not value
+
+
+def clean_feel(feel, cells, cuts=()) -> dict:
+    """A note lane's per-note feel (`Arrangement.note_feel`) as it is kept:
+    only on a note's start, every value clamped (`notefeel.clean`)."""
+    from . import notefeel
+
+    return notefeel.clean(feel, cells, cuts)
+
+
+def _feel_key(x) -> str:
+    """A feel key: "<pitch>.<step>", a real pitch on a grid step."""
+    from . import notefeel
+
+    at = notefeel.split(x)
+    if at is None or not valid_pitch(at[0]) or not 0 <= at[1] < limits.MAX_GRID_STEPS:
+        raise Invalid("not a feel key")
+    return notefeel.key(*at)
+
+
+def _feel_value(x) -> list:
+    from . import notefeel
+
+    v = notefeel.value(x)
+    if v is None:
+        raise Invalid("not a feel value")
+    return v
 
 
 def clean_nudge(nudge, cells) -> dict:
@@ -132,11 +164,17 @@ def _meter_name(x) -> str:
 
 
 def _fit_steps(out: dict, meter_name: str, fields=("steps_per_bar", "drum_steps")):
-    """A grid's step counts held to its meter's (`meter.step_choices`): 4/4
-    keeps exactly the four it always had, and a count another meter's grid
-    has is that field's default here, as any stray value always was."""
-    ok = _meter.step_choices(meter_name)
+    """A grid's step counts held to its meter's (`meter.step_choices`, the
+    note grid's — a /4 meter's triplets too; the drum grid's
+    `meter.straight_choices`): 4/4 keeps the counts it always had, and a
+    count another meter's grid has is that field's default here, as any
+    stray value always was."""
     for k, d in zip(fields, (4, 16), strict=False):
+        ok = (
+            _meter.straight_choices(meter_name)
+            if k == "drum_steps"
+            else _meter.step_choices(meter_name)
+        )
         if k in out and out[k] not in ok:
             out[k] = _meter.like(meter_name, d)
 
@@ -642,7 +680,7 @@ def _clip_name(x) -> str:
 SLOT_LANES = limits.LAYER_SLOTS + 1
 # the session's keys ABSENT WHEN UNSET (`_payload_post`), as `ARR_OPTIONAL`
 # are an arrangement's: none of them is in a file that never used it
-PAYLOAD_OPTIONAL = ("perform_slots",)
+PAYLOAD_OPTIONAL = ("perform_slots", "arp_slots")
 
 
 def _slot_row_empty(row: dict) -> bool:
@@ -659,6 +697,8 @@ def _payload_post(out: dict, raw: dict) -> dict:
         out["perform_slots"] = rows
     else:
         out.pop("perform_slots", None)
+    if not any(out.get("arp_slots") or ()):  # no arp pattern slot holds one
+        out.pop("arp_slots", None)
     return out
 
 
@@ -761,10 +801,15 @@ def nodes() -> SimpleNamespace:
     unit = Num(0.0, 1.0)
     step = Num(0, limits.MAX_GRID_STEPS - 1, integer=True, clamp=False)
     grid_choice = Choice(limits.BAR_CHOICES)
+    # the note grid's bars (`limits.LOOP_BAR_CHOICES`: 8 and 16 while they
+    # fit `MAX_GRID_STEPS`, `arr_post`); the drum grid keeps `grid_choice`
+    loop_choice = Choice(limits.LOOP_BAR_CHOICES)
     spb_choice = Choice(limits.STEP_CHOICES)
     # a grid in any meter (`meter.step_choices`); the record's post holds
     # it to its own meter's
     spb_any = Choice(_meter.ALL_STEP_CHOICES, limits.STEP_CHOICES[0])
+    # the drum grid's: straight steps only (`meter.straight_choices`)
+    drum_spb_any = Choice(_meter.ALL_STRAIGHT_CHOICES, limits.STEP_CHOICES[0])
     # a meter by name (`meter.METERS`); 2/4 the example: its grid takes the
     # 4/4 grid's default step counts, so an example stays a fixed point
     meter_name = Leaf(_meter_name, _meter.DEFAULT, example="2/4")
@@ -834,6 +879,62 @@ def nodes() -> SimpleNamespace:
         Num(-0.5, 0.5, example=0.25),
         max_len=limits.MAX_GRID_STEPS,
     )
+    # a note's own feel (`Arrangement.note_feel`, notefeel.py): "<pitch>.
+    # <step>" -> [start, end, share], each clamped; a key on no note's start
+    # is dropped by the posts below (`clean_feel`)
+    note_feel = MapOf(
+        Leaf(_feel_key, example="A1.0"),
+        Leaf(_feel_value, example=[0.1, -0.2, 0.8]),
+        max_len=limits.MAX_FEEL_NOTES,
+    )
+
+    # the arp pattern (arppattern.py): up to 16 steps and the arp's own
+    # settings; every value clamped, a bad step its default, no step at all
+    # the default steps. An Arrangement's is ABSENT while unset
+    # (`ARR_OPTIONAL`): `arp_pattern_field` keeps {} as {}
+    from . import arppattern as ap
+
+    arp_step = Record(
+        {
+            "on": Bool(True),
+            "vel": Num(0.0, 1.0, ap.STEP_DEFAULT["vel"]),
+            "tr": Num(*ap.TR_RANGE, 0, integer=True),
+            "gate": Num(*ap.GATE_RANGE, ap.STEP_DEFAULT["gate"]),
+            "chance": Num(0.0, 1.0, 1.0),
+            "rep": Num(*ap.REP_RANGE, 1, integer=True),
+        }
+    )
+    arp_pattern = Record(
+        {
+            "steps": ListOf(
+                arp_step,
+                max_len=ap.STEPS_MAX,
+                min_len=1,
+                default=lambda: ap.default()["steps"],
+            ),
+            "rate": Choice(tuple(ap.RATES), "grid"),
+            "mode": Choice(ap.MODES, "up"),
+            "oct": Num(*ap.OCT_RANGE, 1, integer=True),
+            "retrig": Choice(ap.RETRIGS, "note"),
+        }
+    )
+
+    def _arp_pattern_or_none(x) -> dict:
+        if x in (None, {}):
+            return {}
+        out = arp_pattern.conform(x)
+        # a take's "the keys I held" (`held`, `swing`): absent unless set
+        if x.get("held") in ap.HELD:
+            out["held"] = x["held"]
+            try:
+                sw = float(x.get("swing", 0.0))
+            except (TypeError, ValueError):
+                sw = 0.0
+            if math.isfinite(sw) and sw > 0:
+                out["swing"] = round(min(ap.SWING_MAX, sw), 4)
+        return out
+
+    arp_pattern_field = Leaf(_arp_pattern_or_none, dict, example=ap.default())
 
     # (the chord track's nodes come before the Arrangement's: the loop has one too)
     from .song_model import CHORD_QUALITIES
@@ -876,7 +977,7 @@ def nodes() -> SimpleNamespace:
 
     arr_fields: dict[str, Node] = {
         "bpm": Num(*limits.BPM_RANGE),
-        "bars": grid_choice,
+        "bars": loop_choice,
         "steps_per_bar": spb_any,
         "root": Choice(ROOTS),
         "scale_name": Choice(SCALE_CHOICES),
@@ -886,6 +987,8 @@ def nodes() -> SimpleNamespace:
         # step, on a note's start step; absent when unset (`ARR_OPTIONAL`)
         "note_nudge": note_nudge,
         "note_chance": note_chance,
+        # a note's own feel: absent when unset (`ARR_OPTIONAL`)
+        "note_feel": note_feel,
         "drums": ListOf(
             Tuple(drum_voice, step), max_len=limits.MAX_DRUM_CELLS, unique=tuple
         ),
@@ -903,10 +1006,12 @@ def nodes() -> SimpleNamespace:
         ),
         "slides": ListOf(step, max_len=limits.MAX_GRID_STEPS, unique=int),
         "cuts": cells,
-        "arp_mode": Choice(("off", "up", "down", "updown")),
+        # "pattern": the lane's `arp_pattern` (appended: no saved value moves)
+        "arp_mode": Choice(("off", "up", "down", "updown", "pattern")),
         "arp_octaves": Num(1, 3, integer=True),
+        "arp_pattern": arp_pattern_field,
         "drum_bars": grid_choice,
-        "drum_steps": spb_any,
+        "drum_steps": drum_spb_any,
         "drum_swing": Num(0.0, 0.6),
         "drum_humanize": Num(0.0, 1.0),
         "drum_vel": step_values,
@@ -958,12 +1063,22 @@ def nodes() -> SimpleNamespace:
         if "drum_bars" not in raw:  # pre-split state: drums shared the synth clock
             out["drum_bars"], out["drum_steps"] = out["bars"], out["steps_per_bar"]
             out["drum_swing"] = out["swing"]
+            # (a note grid past the drum grid's 4 bars: a loop file's `arr`
+            # carries no drum clock, and its note lane may be 8 or 16 bars)
+            out["drum_bars"] = min(out["drum_bars"], max(limits.BAR_CHOICES))
         if out.get("drum_hits"):  # a hit's data needs its cell (the cuts rule)
             on = {f"{v}.{int(st)}" for v, st in out["drums"]}
             out["drum_hits"] = {k: v for k, v in out["drum_hits"].items() if k in on}
         if out.get("note_nudge"):  # a step's timing needs a note on it; 0 is none
             out["note_nudge"] = clean_nudge(out["note_nudge"], out["cells"])
+        if out.get("note_feel"):  # a note's feel needs its note's start
+            out["note_feel"] = clean_feel(out["note_feel"], out["cells"], out["cuts"])
         _fit_steps(out, out.get("meter", _meter.DEFAULT))
+        # 8 or 16 bars only while bars x steps fits the grid: past it, the
+        # longest that does (a 1-4 bar grid always fits: nothing moves)
+        fits = limits.loop_bar_choices(out["steps_per_bar"])
+        if out["bars"] not in fits:
+            out["bars"] = max(b for b in fits if b <= out["bars"])
         for k in ARR_OPTIONAL:  # absent when unset: no older file gains a key
             if arr_unset(k, out.get(k)):
                 out.pop(k, None)
@@ -1003,7 +1118,7 @@ def nodes() -> SimpleNamespace:
         return out
 
     def seq_post(out: dict) -> dict:
-        for k in ("strum", "note_nudge", "note_chance"):
+        for k in ("strum", "note_nudge", "note_chance", "arp_pattern", "note_feel"):
             if not out.get(k):
                 out.pop(k, None)
         return out
@@ -1036,6 +1151,8 @@ def nodes() -> SimpleNamespace:
                         "strum": Opt(arr_fields["strum"]),
                         "note_nudge": Opt(arr_fields["note_nudge"]),
                         "note_chance": Opt(arr_fields["note_chance"]),
+                        "arp_pattern": Opt(arr_fields["arp_pattern"]),
+                        "note_feel": Opt(arr_fields["note_feel"]),
                     },
                     post=lambda out, raw: seq_post(out),
                 )
@@ -1291,7 +1408,7 @@ def nodes() -> SimpleNamespace:
         if out.get("meter") in (None, _meter.DEFAULT):
             out.pop("meter", None)
         _fit_steps(out, out.get("meter", _meter.DEFAULT), ("steps_per_bar",))
-        if "steps" in out and out["steps"] not in _meter.step_choices(
+        if "steps" in out and out["steps"] not in _meter.straight_choices(
             out.get("meter", _meter.DEFAULT)
         ):
             out["steps"] = _meter.like(out.get("meter", _meter.DEFAULT), 16)
@@ -1307,10 +1424,14 @@ def nodes() -> SimpleNamespace:
             out["hits"] = {k: v for k, v in out["hits"].items() if k in on}
         if out.get("note_nudge"):  # a step's timing needs a note on it
             out["note_nudge"] = clean_nudge(out["note_nudge"], out["cells"])
+        if out.get("note_feel"):  # a note's feel needs its note's start
+            out["note_feel"] = clean_feel(
+                out["note_feel"], out["cells"], out.get("cuts")
+            )
         return _unset(
             out,
             *("gen", "fam", "var", "strum", "hits", "swing"),
-            *("note_nudge", "note_chance"),
+            *("note_nudge", "note_chance", "arp_pattern", "note_feel"),
         )
 
     def pattern_kind(kind: str, extra: dict[str, Node]) -> Node:
@@ -1338,7 +1459,7 @@ def nodes() -> SimpleNamespace:
     pattern_drums = pattern_kind(
         "drums",
         {
-            "steps": Choice(_meter.ALL_STEP_CHOICES, 16),
+            "steps": Choice(_meter.ALL_STRAIGHT_CHOICES, 16),
             "drums": arr_fields["drums"],
             "drum_vel": arr_fields["drum_vel"],
             "hits": drum_hits,
@@ -1361,6 +1482,10 @@ def nodes() -> SimpleNamespace:
             # from before them gains a key or moves its content hash
             "note_nudge": note_nudge,
             "note_chance": note_chance,
+            # a note's own feel (a take as played): absent when unset
+            "note_feel": note_feel,
+            # the arp pattern a loop's grid arp plays (absent when unset)
+            "arp_pattern": arr_fields["arp_pattern"],
         },
     )
     song_pattern = Tagged("kind", {"drums": pattern_drums, "notes": pattern_notes})
@@ -1758,8 +1883,9 @@ def nodes() -> SimpleNamespace:
         "layer_focus": Bool(),
         # the note grid's range (`state.pitch_rows`): 1 = the key's first six
         # tones (every grid before there was a choice), 2 = two octaves
-        # 3 = chromatic: the 24 semitones from the window's bottom
-        "grid_span": Num(1, 3, 1, integer=True),
+        # 3 = chromatic: the 24 semitones from the window's bottom; 4 =
+        # every row the notes use (`state.model.note_rows`)
+        "grid_span": Num(1, 4, 1, integer=True),
         "fx_master": fx,
         # the song arranger (v3). The legacy `scenes` + scene running order
         # it replaced are read only by the v2 -> v3 migration
@@ -1777,6 +1903,18 @@ def nodes() -> SimpleNamespace:
         # row holds anything: `_payload_post`), so no session saved before
         # it, nor one that never used it, gains a key
         "perform_slots": Opt(ListOf(slot_row, max_len=limits.MAX_SLOT_ROWS)),
+        # the arp pattern's 12 slots (arppattern.SLOTS): a pattern each or
+        # None. ABSENT WHEN UNSET (no slot holds one: `_payload_post`), as
+        # the launcher is
+        "arp_slots": Opt(
+            FixedList(
+                Opt(arp_pattern),
+                ap.SLOTS,
+                fill=lambda i: None,
+                default=lambda: [None] * ap.SLOTS,
+                strict=False,
+            )
+        ),
     }
 
     # one node per resettable key: what revert/reset (_scope_set) and a
@@ -1846,6 +1984,8 @@ def nodes() -> SimpleNamespace:
         DRUM_HITS=drum_hits,
         ROW_SWING=row_swing,
         STRUM=strum,
+        # the arp pattern (routes/arp.py conforms a post through it)
+        ARP_PATTERN=arp_pattern,
         JAM_EVENTS=ListOf(jam_event, max_len=limits.MAX_JAM_EVENTS),
         BASELINES=baselines,
         SCOPES=scopes,

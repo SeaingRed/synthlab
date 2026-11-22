@@ -62,6 +62,8 @@ eval(fs.readFileSync(process.argv[6], "utf8")); // eq-worklet.js: the same scope
 eval(fs.readFileSync(process.argv[3].replace("fx-worklet", "vox-worklet"), "utf8"));
 // fx2-worklet.js (the FX2 units): the same scope too
 eval(fs.readFileSync(process.argv[3].replace("fx-worklet", "fx2-worklet"), "utf8"));
+// band-worklet.js (a unit's band, the utility): the same scope too
+eval(fs.readFileSync(process.argv[3].replace("fx-worklet", "band-worklet"), "utf8"));
 const jobs = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
 const bin = fs.readFileSync(process.argv[5]);
 const hl = bin.readUInt32LE(0);
@@ -377,6 +379,32 @@ UNITS: dict[str, list[dict]] = {
             "params": {"attack": -0.8, "sustain": -1.0, "output": 4.0},
         }
     ],
+    # fx2-worklet.js: the multiband drive, every mode, a band left at 1
+    "mbdrive": [{"kind": "mbdrive", "params": {"low": 6.0, "mid": 2.0}}],
+    "mbdrive_hard": [
+        {"kind": "mbdrive", "params": {"mid": 9.0, "high": 4.0, "mode": 1, "mix": 0.7}}
+    ],
+    "mbdrive_fuzz": [
+        {
+            "kind": "mbdrive",
+            "params": {"low": 12.0, "mid": 1.0, "high": 8.0, "mode": 2, "mix": 0.6},
+        }
+    ],
+    "mbdrive_tube": [
+        {"kind": "mbdrive", "params": {"low": 3.0, "mid": 5.0, "high": 12.0, "mode": 3}}
+    ],
+    # at its defaults: the input itself, live as in the loop
+    "mbdrive_flat": [{"kind": "mbdrive", "params": {"mix": 0.5}}],
+    # stacked with its neighbours: a drive into it, an OTT and a limiter
+    # after it. (Pushed harder — low 5, the limiter +6 dB — it is 1.3e-6 of
+    # peak: the worklet's float32 between units, amplified; the engine with
+    # its input rounded to float32 between units is the live output exactly)
+    "stack_mbdrive": [
+        {"kind": "drive", "params": {"amount": 1.5, "mode": 3}},
+        {"kind": "mbdrive", "params": {"low": 3.0, "high": 2.0, "mode": 0, "mix": 0.8}},
+        {"kind": "ott", "params": {"depth": 0.4}},
+        {"kind": "limiter", "params": {"gain": 2.0}},
+    ],
     # the dynamics chains as they stack (Drum Punch's live units; Master Glue)
     "stack_dynamics": [
         {"kind": "transient", "params": {"attack": 0.6, "sustain": -0.2}},
@@ -386,6 +414,61 @@ UNITS: dict[str, list[dict]] = {
         {"kind": "limiter", "params": {"gain": 9.0}},
         {"kind": "autofilter", "params": {"env": 1.0, "sens": 12.0, "mode": 1.0}},
     ],
+    # a unit's band (band-worklet.js): each band, a memoryless unit, a
+    # stateful one, a stereo one on one channel, a clocked one, the OTT on
+    # the side, and a stack with bands and none
+    "band_drive_low": [
+        {"kind": "drive", "params": {"amount": 6.0, "mix": 0.9}, "band": "low"}
+    ],
+    "band_delay_mid": [
+        {"kind": "delay", "params": {"time": 0.13, "mix": 0.5}, "band": "mid"}
+    ],
+    "band_eq_high": [{"kind": "eq", "params": {"high": 9.0}, "band": "high"}],
+    # (the note is mono: a doubler spreads it first, so the side has a signal)
+    "band_chorus_side": [
+        {"kind": "doubler", "params": {"spread": 1.0}},
+        {"kind": "chorus", "params": {"depth": 6.0, "mix": 0.8}, "band": "ms_side"},
+    ],
+    "band_doubler_mid": [{"kind": "doubler", "params": {}, "band": "ms_mid"}],
+    "band_pump_low": [
+        {"kind": "pump", "params": {"depth": 0.9, "beats": 0.5}, "band": "low"}
+    ],
+    "band_ott_side": [
+        {"kind": "doubler", "params": {"spread": 0.8, "time": 0.04}},
+        {"kind": "ott", "params": {"depth": 1.0}, "band": "ms_side"},
+    ],
+    "band_drive_mix0": [{"kind": "drive", "params": {"mix": 0.0}, "band": "high"}],
+    "band_stack": [
+        {"kind": "tape", "params": {"drive": 9.0}, "band": "low"},
+        {"kind": "chorus", "params": {}},
+        {"kind": "width", "params": {"amount": 2.0}, "band": "high"},
+        {"kind": "transient", "params": {"attack": 1.0}, "band": "ms_mid"},
+    ],
+    # the utility (band-worklet.js): each tool, then all of them, banded too
+    "utility_gain_pan": [{"kind": "utility", "params": {"gain": -4.5, "pan": 0.6}}],
+    "utility_width": [
+        {"kind": "doubler", "params": {"spread": 1.0}},
+        {"kind": "utility", "params": {"width": 1.8}},
+    ],
+    "utility_bass_mono": [
+        {"kind": "doubler", "params": {"spread": 1.0}},
+        {"kind": "utility", "params": {"bass_mono": 300.0}},
+    ],
+    "utility_all": [
+        {"kind": "doubler", "params": {"spread": 0.7}},
+        {
+            "kind": "utility",
+            "params": {
+                "gain": 3.0,
+                "pan": -0.4,
+                "width": 0.3,
+                "bass_mono": 150.0,
+                "flip_l": 1.0,
+            },
+        },
+        {"kind": "utility", "params": {"flip_r": 1.0, "width": 2.0}, "band": "high"},
+    ],
+    "utility_rest": [{"kind": "utility", "params": {}}],
     "stack": [
         {"kind": "drive", "params": {"amount": 2.0}},
         {"kind": "chorus", "params": {}},
@@ -444,6 +527,7 @@ def test_livefx_sends_every_worklet_unit_to_the_worklet():
         "ott",
         "limiter",
         "transient",
+        "mbdrive",
     }
 
 

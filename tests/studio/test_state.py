@@ -962,7 +962,8 @@ def test_clean_grid_notes_keeps_cells_outside_the_current_grid(tmp_path):
     """Finding 5, the regression: a cell/velocity/slide outside the
     arrangement's *current* bars x steps_per_bar must survive cleaning —
     the live UI hides it on a shrunk grid rather than deleting it — but a
-    step past the largest grid the UI can ever produce (128) is garbage
+    step past the largest grid the UI can ever produce (256: 16 bars of 1/16)
+    is garbage
     and still gets dropped."""
     from synthlab.studio.state import _clean_arrangement
 
@@ -970,9 +971,9 @@ def test_clean_grid_notes_keeps_cells_outside_the_current_grid(tmp_path):
         {
             "bars": 1,
             "steps_per_bar": 4,  # current grid: 4 steps
-            "cells": [["A1", 12], ["A1", 200]],  # 12 fits in the max grid, 200 doesn't
-            "velocities": {"12": 0.5, "200": 0.5},
-            "slides": [12, 200],
+            "cells": [["A1", 12], ["A1", 300]],  # 12 fits in the max grid, 300 doesn't
+            "velocities": {"12": 0.5, "300": 0.5},
+            "slides": [12, 300],
         }
     )
     assert arr.cells == [["A1", 12]]

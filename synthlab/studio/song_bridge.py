@@ -27,7 +27,8 @@ import copy
 import logging
 import math
 
-from . import limits, schema
+from . import limits, notefeel, schema
+from . import meter as _meter
 from . import song_model as sm
 
 log = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ _NOTE_FIELDS = (
 # ... and what a pattern holds only when set (`schema` drops it at 0)
 # (timing inside a step and the chance lane too: a song pattern plays
 # exactly what its loop plays)
-_NOTE_OPTIONAL = ("strum", "note_nudge", "note_chance")
+_NOTE_OPTIONAL = ("strum", "note_nudge", "note_chance", "arp_pattern", "note_feel")
 SONG_WIDE = ("bpm", "root", "scale_name", "swing", "drum_swing", "drum_humanize")
 KIT = ("drum_params", "drum_mix", "drum_samples")
 # a lane's own sequencing: velocities, slides, arp (state.LAYER_SEQ_KEYS)
@@ -387,9 +388,12 @@ def lane_render(seq: dict, cells, main_vel: dict | None, total: int) -> dict:
       different lengths). A step it has no value for plays 0.9.
     - `slides`: the ones on its note steps (no others are heard).
     - `cuts`: the ones on its own cells (two notes side by side).
-    - `arp_mode`/`arp_octaves`: only when the arp is on.
+    - `arp_mode`/`arp_octaves`: only when the arp is on; `arp_pattern`
+      only when it plays one (arp_mode "pattern").
     - `strum`: only when set, and never under an arp (one note a step).
     - `note_chance`: on the steps it reads, only when any.
+    - `note_feel`: each of its notes' own feel (on a note's start among its
+      cells), only when any and never under an arp.
     """
     out: dict = {}
     arp_on = seq.get("arp_mode", "off") != "off"
@@ -415,6 +419,8 @@ def lane_render(seq: dict, cells, main_vel: dict | None, total: int) -> dict:
     if arp_on:
         out["arp_mode"] = seq["arp_mode"]
         out["arp_octaves"] = int(seq.get("arp_octaves", 1))
+        if seq["arp_mode"] == "pattern" and seq.get("arp_pattern"):
+            out["arp_pattern"] = copy.deepcopy(seq["arp_pattern"])
     elif seq.get("strum"):
         out["strum"] = float(seq["strum"])
     if not arp_on and (nudge := seq.get("note_nudge")):
@@ -422,6 +428,9 @@ def lane_render(seq: dict, cells, main_vel: dict | None, total: int) -> dict:
         mine = {str(x) for x in note_steps}
         if heard := {k: float(v) for k, v in nudge.items() if k in mine and v}:
             out["note_nudge"] = heard
+    if not arp_on and (feel := seq.get("note_feel")):
+        if felt := notefeel.clean(feel, cells, out.get("cuts")):
+            out["note_feel"] = felt
     # a step's chance: on the steps it reads (as its velocities), absent
     # when none (the working loop's own: no pattern carries one yet)
     chance = seq.get("note_chance") or {}
@@ -447,6 +456,9 @@ def pattern_seq(pat: dict, spb: int) -> dict:
         for x in _regrid_steps([k], b, s, spb):
             chance.setdefault(str(x), v)
     nudge = _regrid_nudge(pat, spb)
+    feel = notefeel.regrid(
+        pat.get("note_feel"), b, s, spb, pat.get("cells") or [], pat.get("cuts") or ()
+    )
     return {
         "velocities": moved if pat["velocities"] else None,
         "slides": sorted(set(_regrid_steps(pat["slides"], b, s, spb))),
@@ -454,10 +466,12 @@ def pattern_seq(pat: dict, spb: int) -> dict:
         "arp_mode": pat["arp_mode"],
         "arp_octaves": pat["arp_octaves"],
         **({"strum": pat["strum"]} if pat.get("strum") else {}),
+        **({"arp_pattern": pat["arp_pattern"]} if pat.get("arp_pattern") else {}),
         # timing inside a step and a step's chance: absent
         # when the pattern has none, so no lane's key gains them
         **({"note_nudge": nudge} if nudge else {}),
         **({"note_chance": chance} if chance else {}),
+        **({"note_feel": feel} if feel else {}),
     }
 
 
@@ -813,8 +827,8 @@ def _regrid_steps(steps, bars: int, spb: int, to: int) -> list[int]:
     to where its note starts)."""
     own = [int(x) for x in steps if 0 <= int(x) < max(1, bars) * spb]
     if spb <= to:
-        return [x * max(1, round(to / spb)) for x in own]
-    return list(dict.fromkeys(x // max(1, round(spb / to)) for x in own))
+        return [_meter.regrid_start(x, spb, to) for x in own]
+    return list(dict.fromkeys(_meter.regrid_start(x, spb, to) for x in own))
 
 
 def _lane_seq(pat: dict, spb: int, period: int, total: int, main_vel: dict) -> dict:
@@ -835,6 +849,7 @@ def _lane_seq(pat: dict, spb: int, period: int, total: int, main_vel: dict) -> d
         "arp_mode": seq["arp_mode"],
         "arp_octaves": seq["arp_octaves"],
         **({"strum": seq["strum"]} if seq.get("strum") else {}),
+        **({"arp_pattern": seq["arp_pattern"]} if seq.get("arp_pattern") else {}),
         # a slot's own timing inside a step and chance lane (absent unset)
         **(
             {"note_nudge": sm._tile_keys(seq["note_nudge"], period, total)}
@@ -844,6 +859,11 @@ def _lane_seq(pat: dict, spb: int, period: int, total: int, main_vel: dict) -> d
         **(
             {"note_chance": sm._tile_keys(seq["note_chance"], period, total)}
             if seq.get("note_chance")
+            else {}
+        ),
+        **(
+            {"note_feel": notefeel.tile(seq["note_feel"], period, total)}
+            if seq.get("note_feel")
             else {}
         ),
     }
@@ -856,7 +876,8 @@ def to_loop(song: dict, p: dict) -> None:
     - every lane on the main lane's grid over the whole cycle: a loop has
       one step grid, and renders a layer's cells on it. When a layer's
       pattern has other bars or steps than the main lane's, the loop grows
-      to the lcm of the lanes' bars (at most the grid's 4) with the main
+      to the lcm of the lanes' bars (at most the main lane's own bars, and
+      at least 4, on a length the grid has) with the main
       lane's notes, velocities, slides and curves tiled onto it, and each
       layer regridded (`song_model._regrid`) and tiled to its own length.
     - each layer's own `seq` (its pattern's velocities, slides, arp) and
@@ -865,10 +886,13 @@ def to_loop(song: dict, p: dict) -> None:
       by its own mute — `own_mute` keeps a round trip on its own track.
     """
     pool, arr = song["patterns"], p["arr"]
-    # the loop's grid stops at 4 bars: a longer pool pattern opens as its
-    # first four (the rest stays, hidden, past the grid's end)
-    for k in ("bars", "drum_bars"):
-        arr[k] = min(int(arr[k]), max(limits.BAR_CHOICES))
+    # the note grid holds the main pattern whole (8 or 16 bars while they
+    # fit its steps: `limits.loop_bar_choices`); the drum grid stops at 4 —
+    # a longer drum pattern opens as its first four (the rest stays,
+    # hidden, past the grid's end)
+    fits = limits.loop_bar_choices(arr["steps_per_bar"])
+    arr["bars"] = max(b for b in fits if b <= max(1, int(arr["bars"])))
+    arr["drum_bars"] = min(int(arr["drum_bars"]), max(limits.BAR_CHOICES))
     tracks = {t["id"]: t for t in song["tracks"]}
     pats = [pool[pid] for pid in p.get("lane_patterns", [])[1:]]
     tids = p.get("lane_tracks", [])[1:]
@@ -876,9 +900,12 @@ def to_loop(song: dict, p: dict) -> None:
     total = bars * spb
     if any((pat["bars"], pat["steps_per_bar"]) != (bars, spb) for pat in pats):
         loop = math.lcm(bars, *(max(1, pat["bars"]) for pat in pats))
-        if loop > max(limits.BAR_CHOICES):
+        # past the main lane's own bars (at least the 4 it always had) the
+        # loop is cut, onto a length the grid has
+        cap = max(max(limits.BAR_CHOICES), bars)
+        if loop > cap or loop not in fits:
             log.warning("to_loop: lanes realign every %d bars; the loop is cut", loop)
-            loop = max(limits.BAR_CHOICES)
+            loop = max(b for b in fits if b <= min(loop, cap))
         total = loop * spb
         period = bars * spb
         arr["cells"] = sm._tile(arr["cells"], period, total)
@@ -890,6 +917,8 @@ def to_loop(song: dict, p: dict) -> None:
         for k in ("note_nudge", "note_chance"):  # absent when the lane has none
             if arr.get(k):
                 arr[k] = sm._tile_keys(arr[k], period, total)
+        if arr.get("note_feel"):
+            arr["note_feel"] = notefeel.tile(arr["note_feel"], period, total)
         arr["bars"] = loop
         if p.get("curves"):
             p["curves"] = {

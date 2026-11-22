@@ -53,7 +53,7 @@ from ..labjobs import LabJobs
 from ..paramui import CONTINUOUS_CHOICES, MACRO_CHOICES, PARAM_GROUPS, spec_of
 from ..soundmeta import envelope_svg
 from ..state import RESET_SCOPES, RESET_VIEWS, StudioState
-from ..state.model import GRID_OCTAVES, grid_rows, materialise
+from ..state.model import SPAN_NOTES, grid_rows, materialise, octave_range
 from ..voice import panel_context, read_lab
 
 
@@ -569,7 +569,10 @@ class Contexts:
         return {
             "grid_span": s.grid_span,
             "grid_oct": s.grid_oct,
-            "oct_range": GRID_OCTAVES,
+            # span 4 is no window: its octave buttons stay where they are
+            "oct_range": (s.grid_oct, s.grid_oct)
+            if s.grid_span == SPAN_NOTES
+            else octave_range(s.arrangement.root),
             "gen_loop_kinds": gen_loop.KINDS,
             "lanes": lanes,
             "lane_room": s.free_slot() is not None,
@@ -589,7 +592,7 @@ class Contexts:
             "hidden_notes": sum(
                 1 for c in a.cells if c[0] not in shown or not 0 <= int(c[1]) < total
             ),
-            "can_double": a.bars * 2 in limits.BAR_CHOICES,
+            "can_double": a.bars * 2 in limits.loop_bar_choices(a.steps_per_bar),
             "can_double_drums": a.drum_bars * 2 in limits.BAR_CHOICES,
         }
 
