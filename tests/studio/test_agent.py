@@ -169,9 +169,11 @@ def test_the_catalogue_is_under_half_the_schema_it_replaced():
     # 2 / 3, the filter types, LFO shapes, route sources and targets —
     # 4,406 and 12,789 characters; the granular shape's eight fields (one
     # catalogue line, the curve, macro and route enums) took them to 4,462
-    # and 13,042
+    # and 13,042; oscillator 3 (three route targets, its level, detune and
+    # warp amount in the curve and macro enums — its fields are hand-made,
+    # out of the catalogue as the warps are) to 4,499 and 13,208
     assert sizes["set_params"] < 4_500
-    assert sum(sizes.values()) < 13_100
+    assert sum(sizes.values()) < 13_300
 
 
 def test_the_other_tools_are_generated_from_their_tables():
@@ -196,7 +198,7 @@ def test_the_other_tools_are_generated_from_their_tables():
     )
     # every declaration is plain JSON and every one has an implementation
     blob = json.dumps(atools.declarations())
-    assert len(blob) < 13_600  # the catalogue as it stands (above): 13,557
+    assert len(blob) < 13_800  # the catalogue as it stands (above): 13,732
     assert atools.TOOL_NAMES == tuple(atools.TOOLS)
 
 

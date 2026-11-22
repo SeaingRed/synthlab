@@ -48,6 +48,8 @@ from .params import (
     PITCH_ROUTE_ST,
     SYNC_CHOICES,
     SYNC_DIVISIONS,
+    osc3_on,
+    shapes_of,
     slot_active,
 )
 from .sampler import Settings as SamplerSettings
@@ -157,8 +159,8 @@ def drift_cutoff(seed: int, amount: float) -> float:
 
 
 def drift_phase(seed: int, slot: int, copy: int) -> float:
-    """Oscillator `slot`'s (0 osc1, 1 osc2) start phase for unison copy
-    `copy`."""
+    """Oscillator `slot`'s (0 osc1, 1 osc2, 2 osc3) start phase for unison
+    copy `copy`."""
     return drift_u(seed, _DRIFT_PHASE_KEY + 16 * slot + copy)
 
 
@@ -187,7 +189,7 @@ _DRIVEN = ("ladder", "diode")
 
 
 def warp_of(p, slot: int):
-    """Oscillator `slot`'s (1, 2) warp as `core.osc` takes it, or None:
+    """Oscillator `slot`'s (1, 2, 3) warp as `core.osc` takes it, or None:
     off, a shape it doesn't bend, or a synced osc2 (sync restarts it)."""
     mode = getattr(p, f"osc{slot}_warp")
     shape = getattr(p, f"osc{slot}")
@@ -494,6 +496,18 @@ class Patch:
     grain_shape: float = 0.0  # 0 a Hann window .. 1 flat with short fades
     grain_dir: str = "forward"  # | "reverse" | "both" (each grain its own)
     grain_scan: float = 0.0  # the position moving by itself: 1 = real time
+    # --- oscillator 3: a third waveform summed beside the first two, in
+    # every unison copy. Silent at level 0 (the default), which is the gate:
+    # nothing below is read until the level rises (a value, a curve or a
+    # route), so every older patch renders and keys as before. No sync and
+    # no cross FM: those stay osc2's ---
+    osc3: str = "saw"  # params.OSC3_SHAPES
+    osc3_level: float = 0.0
+    osc3_octave: int = 0
+    osc3_semi: int = 0  # semitones
+    osc3_detune: float = 0.0  # cents
+    osc3_warp: str = "off"
+    osc3_warp_amt: float = 0.0
 
     def tweak(self, **kw) -> Patch:
         """Return a copy with parameters changed: pad.tweak(cutoff=800)."""
@@ -1023,6 +1037,9 @@ class Synth:
         shapes = (p.osc1, p.osc2) if p.osc2 else (p.osc1,)
         if native is None or any(s not in _STACK_SHAPES for s in shapes):
             return None
+        # oscillator 3 is the Python loop's (the kernel sums two)
+        if osc3_on(p):
+            return None
         # the oscillator extras (hard sync, a drifting start
         # phase) are the Python loop's: measured cheap enough there
         if _synced(p) or _drift(p) > 0:
@@ -1112,6 +1129,8 @@ class Synth:
         if np.any(np.asarray(p.pwm_depth) > 0):
             width = 0.5 + lfo(p.pwm_rate, n, "sine", sr) * p.pwm_depth * 0.45
 
+        # the shapes playing: osc1, osc2, and osc3 while its level is up
+        playing = shapes_of(p)
         # kwargs only the "fm" / "pluck" shapes read; others ignore them
         shape_kw = {
             "ratio": p.fm_ratio,
@@ -1119,18 +1138,18 @@ class Synth:
             "index_decay": p.fm_decay,
             "damping": p.pluck_damping,
             "bright": p.pluck_bright,
-            "table": _wt_table(p) if "wavetable" in (p.osc1, p.osc2) else p.wt_table,
+            "table": _wt_table(p) if "wavetable" in playing else p.wt_table,
             "pos": p.wt_pos,
             # a "noise" oscillator shape is coloured like the noise layer
             "color": p.noise_color,
         }
-        if "sampler" in (p.osc1, p.osc2):
+        if "sampler" in playing:
             shape_kw["sampler"] = SamplerSettings.of(p, velocity, rr)
             shape_kw["key_hz"] = key_hz
-        if "granular" in (p.osc1, p.osc2):
+        if "granular" in playing:
             shape_kw["granular"] = GrainSettings.of(p)
             shape_kw["key_hz"] = key_hz
-        if "fm4" in (p.osc1, p.osc2):
+        if "fm4" in playing:
             shape_kw.update(
                 fm4_algo=p.fm4_algo,
                 fm4_ratios=[getattr(p, f"fm4_ratio{k}") for k in (1, 2, 3, 4)],
@@ -1188,6 +1207,10 @@ class Synth:
         if o2 is not None:
             out = _plus(out, _times(p.osc2_level, o2))
 
+        if osc3_on(p):
+            o3 = self._osc3(p, freq, n, seed, width, drift_seed, shape_kw)
+            out = _plus(out, _times(p.osc3_level, o3))
+
         if np.any(np.asarray(p.sub_level) > 0):
             out = _plus(out, _times(p.sub_level, osc("sine", freq * 0.5, n, sr)))
 
@@ -1200,6 +1223,32 @@ class Synth:
                 ),
             )
         return out
+
+    def _osc3(self, p: Patch, freq, n: int, seed: int, width, drift_seed, shape_kw):
+        """Oscillator 3 of unison copy `seed`: a plain layer (no sync, no
+        cross FM), at its own octave, semitones and cents, its noise and
+        bursts seeded apart from osc1's / osc2's (seed + 200), its drifting
+        start phase its own (slot 2). Only `_osc_stack` calls it, and only
+        while `osc3_on`."""
+        f3 = (
+            freq
+            * 2.0**p.osc3_octave
+            * 2 ** ((100 * p.osc3_semi + p.osc3_detune) / 1200)
+        )
+        kw3 = {}
+        if p.osc3 in _PHASED and drift_seed is not None:
+            kw3["phase0"] = drift_phase(drift_seed, 2, seed)
+        return osc(
+            p.osc3,
+            f3,
+            n,
+            self.sr,
+            width=width,
+            seed=seed + 200,
+            warp=warp_of(p, 3),
+            **kw3,
+            **shape_kw,
+        )
 
     # -- chords ------------------------------------------------------------
     def chord(

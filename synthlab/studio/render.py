@@ -395,6 +395,14 @@ KEY_ADDED_FIELDS = {
             "grain_shape grain_dir grain_scan"
         ).split()
     },
+    # oscillator 3: silent (and unread) at level 0, so at these every older
+    # key stays the key it was
+    **{
+        name: getattr(Patch(), name)
+        for name in (
+            "osc3 osc3_level osc3_octave osc3_semi osc3_detune osc3_warp osc3_warp_amt"
+        ).split()
+    },
 }
 
 

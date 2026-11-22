@@ -104,7 +104,7 @@
     {#- a row more than one shape reads (the sample: sampler and granular)
         hides only while none of them is picked -#}
     {% for shapes, deps in shape_rows.items() %}
-    #view{% for shape in shapes %}:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked)){% endfor %}
+    #view{% for shape in shapes %}:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked)):not(:has([name="osc3"][value="{{ shape }}"]:checked)){% endfor %}
       :is({% for d in deps %}#row-{{ d }}, #sub-{{ d }}{{ ", " if not loop.last }}{% endfor %}{% if shapes | length == 1 %}, .shape-{{ shapes[0] }}{% endif %}) { display: none; }
     {% endfor %}
     #view:not(:has([name="osc1"][value="sampler"]:checked)):not(:has([name="osc1"][value="granular"]:checked)) #sampler-panel { display: none; }
@@ -117,9 +117,10 @@
     {% endfor %}
     #view:has([name="filter2_route"][value="off"]:checked) .pb-jack[data-dst^="filter2_"]:not([data-on]),
     #view:has([name="osc2"][value=""]:checked) .pb-jack[data-dst="fm_amount"]:not([data-on]),
-    #view:has([name="osc2_sync"][value="off"]:checked) .pb-jack[data-dst="sync_pitch"]:not([data-on]) { display: none; }
+    #view:has([name="osc2_sync"][value="off"]:checked) .pb-jack[data-dst="sync_pitch"]:not([data-on]),
+    #view:has(#p-osc3_warp option[value="off"]:checked) .pb-jack[data-dst="osc3_warp_amt"]:not([data-on]) { display: none; }
     {% for shape, dsts in (("wavetable", ("wt_pos",)), ("fm", ("fm_index",)), ("fm4", ("fm4_level1", "fm4_level2", "fm4_level3", "fm4_level4")), ("granular", ("grain_pos",))) %}
-    #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked))
+    #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked)):not(:has([name="osc3"][value="{{ shape }}"]:checked))
       :is({% for d in dsts %}.pb-jack[data-dst="{{ d }}"]{{ ", " if not loop.last }}{% endfor %}):not([data-on]) { display: none; }
     {% endfor %}
     {#- the FM4 panel: the algorithm the select holds is the drawing lit, and
@@ -276,7 +277,7 @@
           inside their blocks: the FM4 panel, the sync block) -#}
       {% for spec in specs if spec.name not in route_fields
                               and not (spec.name[:4] == "fm4_" and spec.name != "fm4_algo") and spec.name != "sync_pitch"
-                              and spec.name not in ("osc1_warp_amt", "osc2_warp_amt")
+                              and spec.name not in ("osc1_warp_amt", "osc2_warp_amt", "osc3_warp_amt")
                               and not (spec.name[:8] == "filter2_" and spec.name != "filter2_route") %}
       {% if spec.name == "fm4_algo" %}
       {% include "fragments/fm4_panel.html" %}
@@ -300,7 +301,7 @@
         {% include "fragments/param_row.html" %}
         {% with spec = spec_of("sync_pitch") %}{% include "fragments/param_row.html" %}{% endwith %}
       </div>
-      {% elif spec.name in ("osc1_warp", "osc2_warp") %}
+      {% elif spec.name in ("osc1_warp", "osc2_warp", "osc3_warp") %}
       {#- an oscillator's phase warp as one block in its area — the
           mode's select (the deck and MIDI learn step it) and its amount's knob -#}
       <div class="warp-block module-well" role="group" aria-label="Oscillator {{ spec.name[3] }} warp">

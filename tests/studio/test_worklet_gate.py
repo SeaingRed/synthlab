@@ -156,3 +156,24 @@ def test_the_worklet_plays_the_engine_chain(change):
     """Admitted since the worklet runs the engine's own chain — each one
     measured against Synth.note by test_live_parity_corpus.py."""
     assert worklet.can_play(replace(Patch(), **change))
+
+
+def test_a_silent_osc3_plays_live_and_a_heard_one_takes_the_wav():
+    """Oscillator 3 is not in the live voice: while its level is up the keys
+    take the server-rendered WAV and `osc3_level` says why; at 0 nothing
+    else of it is heard, so nothing else of it blocks. A route onto its
+    level would lift a silent osc 3 into hearing: it blocks too."""
+    quiet = replace(Patch(), osc3="fm", osc3_semi=7, osc3_warp="pd", osc3_warp_amt=0.5)
+    assert worklet.can_play(quiet)
+    heard = replace(quiet, osc3_level=0.4)
+    assert "osc3_level" in worklet.blockers(heard)
+    assert set(worklet.blockers(heard)) <= {
+        "osc3",
+        "osc3_level",
+        "osc3_semi",
+        "osc3_warp",
+        "osc3_warp_amt",
+    }
+    assert worklet.blockers(replace(Patch(), osc3_level=0.4)) == ["osc3_level"]
+    routed = replace(Patch(), mod5_src="lfo", mod5_dst="osc3_level", mod5_amt=0.5)
+    assert worklet.blockers(routed) == ["mod5_src"]  # the slot's gate

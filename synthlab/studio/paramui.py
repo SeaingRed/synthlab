@@ -27,6 +27,7 @@ from ..params import (
     MOD_SLOTS,
     PARAMS,
     PITCH_ROUTE,
+    osc3_on,
     slot_active,
     uses_shape,
 )
@@ -206,6 +207,9 @@ def _cross_fm_ok(p) -> bool:
 # sources whose value later in a note the first sample cannot know: an LFO
 # (any of the three), and the wheels a player moves
 _LATE_SOURCES = frozenset({"lfo", "lfo2", "lfo3", "wheel", "aftertouch"})
+# route targets the live voice has no part for, and whose silence at the
+# patch's own value a route can break
+_WAV_TARGETS = frozenset({"osc3_level"})
 
 
 def _slot_gate(slot: str) -> Callable[[Any], bool]:
@@ -216,8 +220,10 @@ def _slot_gate(slot: str) -> Callable[[Any], bool]:
     post-filter clip switches on for the WHOLE note if any sample's drive
     exceeds 1, which an LFO that starts on the wrong side of zero only does
     later — the live voice can't know at the first sample whether it ever
-    will. And a route that moves the pitch of a formant-mode sampler
-    (`_FORMANT_UNSEEN`)."""
+    will. A route that moves the pitch of a formant-mode sampler
+    (`_FORMANT_UNSEEN`). And a route onto a field the voice does not play
+    whose value at 0 is silence (`_WAV_TARGETS`: osc 3's level — a route
+    there would lift a silent osc 3 into hearing)."""
 
     def ok(p) -> bool:
         if not slot_active(p, slot):
@@ -229,6 +235,8 @@ def _slot_gate(slot: str) -> Callable[[Any], bool]:
             and p.filter_type not in ("ladder", "diode")
             and p.drive <= 1.0
         )
+        if dst in _WAV_TARGETS:
+            return False
         return not late_clip and not (dst in _FORMANT_UNSEEN and _formant_sampler(p))
 
     return ok
@@ -249,6 +257,15 @@ def _sampler_gate(ok: Callable[[Any], bool]) -> Callable[[Any], bool]:
 
 def _osc2_ok(p) -> bool:
     return p.osc2 is None or p.osc2 in SHAPES
+
+
+def _osc3_gate(name: str) -> Callable[[Any], bool]:
+    """An oscillator-3 field's live rule: anything goes while osc 3 is
+    silent (the engine never reads it); while it plays, `osc3_level` (a
+    "default" field) already blocks, so this one only names itself when it
+    too is off its default."""
+    default = getattr(Patch(), name)
+    return lambda p: not osc3_on(p) or getattr(p, name) == default
 
 
 def _filter_ok(p) -> bool:
@@ -313,6 +330,31 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ("sync_pitch", _ui(_S, "Sync pitch", EXACT, 0.1, unit="st", mod_label="Sync pitch",
         hint="Hard sync: semitones oscillator 2 sits above. Sweep it (a route from "
              "the filter envelope, a curve) for the sync lead.")),
+    # oscillator 3 (synth._osc_stack): not in the live voice — while its
+    # level is up a sound's keys take the server-rendered WAV (the level is
+    # the field that says so); at 0 nothing else of it is heard, so nothing
+    # else of it blocks
+    ("osc3", _ui(_S, "Oscillator 3", _osc3_gate("osc3"), widget="pills",
+        subhead="Oscillator 3",
+        hint="A third waveform layered on the first two. Raise its level to hear "
+             "it.")),
+    ("osc3_level", _ui(_S, "Osc 3 level", DEFAULT, mod_label="Osc 3 level",
+        hint="How loud oscillator 3 is in the mix: 0 is off.")),
+    ("osc3_octave", _ui(_S, "Osc 3 octave", _osc3_gate("osc3_octave"),
+        hint="Shift oscillator 3 by whole octaves.")),
+    ("osc3_semi", _ui(_S, "Osc 3 semitones", _osc3_gate("osc3_semi"), unit="st",
+        hint="Shift oscillator 3 by semitones: 7 a fifth, 12 an octave.")),
+    ("osc3_detune", _ui(_S, "Osc 3 detune", _osc3_gate("osc3_detune"), 0.5, unit="ct",
+        mod_label="Osc 3 detune",
+        hint="Detune oscillator 3 in cents against the other two.")),
+    ("osc3_warp", _ui(_S, "Osc 3 warp", _osc3_gate("osc3_warp"), widget="select",
+        option_labels=WARP_LABELS,
+        hint="Bend oscillator 3's phase before its shape reads it (sine, saw, square, "
+             "triangle, wavetable).")),
+    ("osc3_warp_amt", _ui(_S, "Osc 3 warp amount", _osc3_gate("osc3_warp_amt"),
+        mod_label="Osc 3 warp",
+        hint="How far oscillator 3's warp bends. Draw it or route to it to sweep "
+             "the timbre.")),
     ("fm_ratio", _ui(_S, "FM ratio", EXACT, 0.5, subhead="FM shape",
         hint="FM shape: modulator pitch as a multiple of the note.")),
     ("fm_index", _ui(_S, "FM index", EXACT, 0.05,
@@ -869,6 +911,23 @@ _SHOWN = frozenset(spec.name for _, specs in PARAM_GROUPS for spec in specs)
 _IDLE_ASKED = tuple(
     n for n in GENES if n in _SHOWN and not (n.startswith("mod") and n[4:5] == "_")
 )
+# hand-made fields (no genes, so `params.live` never asks about them) that
+# are idle under a rule of their own: the rule says when they are heard
+_IDLE_HAND: tuple[tuple[tuple[str, ...], Callable[[Any], bool], str], ...] = (
+    (
+        (
+            "osc3",
+            "osc3_octave",
+            "osc3_semi",
+            "osc3_detune",
+            "osc3_warp",
+            "osc3_warp_amt",
+        ),
+        osc3_on,
+        "oscillator 3's level is 0",
+    ),
+)
+IDLE_WHY.update({n: why for names, _rule, why in _IDLE_HAND for n in names})
 GLIDE_WHY = "heard on slides — the riff phrase has them (the keys glide note to note)"
 
 
@@ -885,6 +944,9 @@ def idle(p: Patch, phrase_slides: bool = True) -> dict[str, str]:
         for n in _IDLE_ASKED
         if n not in heard
     }
+    for names, heard_by, why in _IDLE_HAND:
+        if not heard_by(p):
+            out.update({n: why for n in names if n in _SHOWN})
     if not phrase_slides and p.glide > 0 and "glide" in _SHOWN:
         out["glide"] = GLIDE_WHY
     return out
