@@ -81,7 +81,10 @@ def test_the_fields_are_appended_hand_made_and_out_of_older_keys():
     from synthlab.studio.render import KEY_ADDED_FIELDS, keyed_patch
 
     names = list(PARAMS)
-    assert names[-len(GRAIN_FIELDS) :] == GRAIN_FIELDS  # appended, in order
+    # appended as one run after the zone map, in order (oscillator 3's run
+    # was appended after it)
+    at = names.index("sampler_zones") + 1
+    assert names[at : at + len(GRAIN_FIELDS)] == GRAIN_FIELDS
     for name in GRAIN_FIELDS:
         assert PARAMS[name].gene is None and PARAMS[name].nogene
         assert KEY_ADDED_FIELDS[name] == getattr(Patch(), name)

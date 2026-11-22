@@ -156,3 +156,43 @@ def test_the_worklet_plays_the_engine_chain(change):
     """Admitted since the worklet runs the engine's own chain — each one
     measured against Synth.note by test_live_parity_corpus.py."""
     assert worklet.can_play(replace(Patch(), **change))
+
+
+def test_a_silent_osc3_plays_live_and_a_heard_one_takes_the_wav():
+    """Oscillator 3 is not in the live voice: while its level is up the keys
+    take the server-rendered WAV and `osc3_level` says why; at 0 nothing
+    else of it is heard, so nothing else of it blocks. A route onto its
+    level would lift a silent osc 3 into hearing: it blocks too."""
+    quiet = replace(Patch(), osc3="fm", osc3_semi=7, osc3_warp="pd", osc3_warp_amt=0.5)
+    assert worklet.can_play(quiet)
+    heard = replace(quiet, osc3_level=0.4)
+    assert "osc3_level" in worklet.blockers(heard)
+    assert set(worklet.blockers(heard)) <= {
+        "osc3",
+        "osc3_level",
+        "osc3_semi",
+        "osc3_warp",
+        "osc3_warp_amt",
+    }
+    assert worklet.blockers(replace(Patch(), osc3_level=0.4)) == ["osc3_level"]
+    routed = replace(Patch(), mod5_src="lfo", mod5_dst="osc3_level", mod5_amt=0.5)
+    assert worklet.blockers(routed) == ["mod5_src"]  # the slot's gate
+
+
+def test_a_second_warp_takes_the_wav_only_while_it_bends():
+    """The live voice has no second warp: one that bends sends the keys to
+    the WAV; one that is off, on a shape no warp bends, on a synced osc2 or
+    on a silent osc3 is unheard and blocks nothing."""
+    for k, extra in ((1, {}), (2, {"osc2": "saw"}), (3, {"osc3_level": 0.5})):
+        on = replace(
+            Patch(), **extra, **{f"osc{k}_warp2": "pd", f"osc{k}_warp2_amt": 0.4}
+        )
+        assert {f"osc{k}_warp2", f"osc{k}_warp2_amt"} <= set(worklet.blockers(on)), k
+    unheard = [
+        replace(Patch(), osc1_warp2_amt=0.7),
+        replace(Patch(), osc1="fm", osc1_warp2="pd"),
+        replace(Patch(), osc2="saw", osc2_sync="on", osc2_warp2="pd"),
+        replace(Patch(), osc3_warp2="mirror", osc3_warp2_amt=0.5),
+    ]
+    for p in unheard:
+        assert worklet.can_play(p), worklet.blockers(p)

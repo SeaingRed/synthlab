@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Two warps at once**: each oscillator's warp block gains a second
+  warp, bending the phase the first made (PD then mirror, a bend then
+  quantize...), band-limited as one warp is. Off by default, so no sound
+  changes; while it bends, the keys play from the server's render.
+- **A third oscillator**: Synths' oscillator area gains osc 3 — its
+  shape, level, octave, semitones, detune and its own warp — summed with
+  the first two in every unison voice. Off at level 0 (its section folds
+  away), so no sound changes; while it sounds, the keys play it from the
+  server's render, not the live voice.
 - **A granular oscillator**: osc 1's "granular" pill plays the sampler's
   sample as a cloud of grains — position (drawable, a route target),
   size, density (up to 256 sounding), position and pitch spray, window,

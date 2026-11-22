@@ -124,6 +124,14 @@ MOD_DESTINATIONS = (
     "formant_vowel",
     # the granular shape's position — no gene choice
     "grain_pos",
+    # oscillator 3's level, detune and warp amount — no gene choices
+    "osc3_level",
+    "osc3_detune",
+    "osc3_warp_amt",
+    # each oscillator's second warp amount — no gene choices
+    "osc1_warp2_amt",
+    "osc2_warp2_amt",
+    "osc3_warp2_amt",
     "pitch",
 )
 ROUND6_DESTINATIONS = MOD_DESTINATIONS[
@@ -200,6 +208,21 @@ OSC2_SHAPES = (None, "sine", "saw", "square", "triangle", "fm", "pluck", "waveta
 # rarely a sound, a sample is no number to breed, and a longer shape gene
 # would re-draw every seeded litter
 HAND_SHAPES = ("noise", "sampler", "fm4", "granular")
+# oscillator 3's shapes: every oscillator shape but the two that play a
+# recording (the sampler's panel, its live payload and the project's
+# sample bundling follow osc1 / osc2). It has no "off": its level is
+OSC3_SHAPES = (
+    "sine",
+    "saw",
+    "square",
+    "triangle",
+    "supersaw",
+    "fm",
+    "pluck",
+    "wavetable",
+    "noise",
+    "fm4",
+)
 FILTER_TYPES = ("ladder", "lowpass", "bandpass", "highpass", "notch", "none")
 # how many voices a patch plays at once (sequencer.mono_lines),
 # and when it glides
@@ -240,9 +263,25 @@ def _never(p) -> bool:
     return False
 
 
+def osc3_on(p) -> bool:
+    """Does oscillator 3 play? Its level above 0 anywhere — a value, a drawn
+    curve, or (in the patch after the mod matrix) a route lifting it. The
+    one gate: at 0 nothing reads its other fields."""
+    return bool(np.any(np.asarray(getattr(p, "osc3_level", 0.0)) > 0))
+
+
+def shapes_of(p) -> tuple:
+    """The shapes the oscillators play: osc1, osc2 (None while off), and
+    osc3 while its level is up."""
+    if osc3_on(p):
+        return (p.osc1, p.osc2, p.osc3)
+    return (p.osc1, p.osc2)
+
+
 @dataclass(frozen=True)
 class uses_shape:
-    """Live only while osc1 or osc2 plays `shape`. A class rather than a
+    """Live only while an oscillator plays `shape` (osc3 only while its
+    level is up: `shapes_of`). A class rather than a
     lambda so the studio can read *which* shape (paramui.SHAPE_DEPS dims
     the rows of an unused shape from these)."""
 
@@ -256,7 +295,8 @@ class uses_shape:
         return (self.shape, *self.also)
 
     def __call__(self, p) -> bool:
-        return any(s in (p.osc1, p.osc2) for s in self.shapes)
+        playing = shapes_of(p)
+        return any(s in playing for s in self.shapes)
 
 
 def slot_active(p, slot: str) -> bool:
@@ -404,6 +444,7 @@ _SAMPLE_READ = uses_shape("sampler", ("granular",))
 _GRAINING = uses_shape("granular")
 _GRAIN_WHY = "a granular setting: it plays a recording, not a bred sound"
 _WARP_WHY = "a hand-made phase warp: breeding never draws one"
+_OSC3_WHY = "a hand-made third oscillator: breeding never draws one"
 _VOICE_WHY = "how the keys and the loop play the sound, not the sound itself"
 _SAMPLE_WHY = "a sampler setting: it shapes a recording, not a bred sound"
 
@@ -716,6 +757,46 @@ _ALL: list[Param] = [
             ("grain_shape", "lin", (0.0, 1.0)),
             ("grain_dir", "cat", granular.DIRECTIONS),
             ("grain_scan", "lin", (-granular.SCAN, granular.SCAN)),
+        )
+    ],
+    # oscillator 3, appended as one run: never genes (new genes would
+    # re-draw every seeded litter, and a bred third layer is rarely a
+    # sound). Its level, detune and warp amount are drawable and routable
+    # as osc2's are
+    _p("osc3", "cat", cap=OSC3_SHAPES, nogene=_OSC3_WHY),
+    *[
+        _p(name, kind, cap=cap, curve=move, mod=move, nogene=_OSC3_WHY)
+        for name, kind, cap, move in (
+            ("osc3_level", "lin", (0.0, 1.0), True),
+            ("osc3_octave", "int", (-2, 2), False),
+            ("osc3_semi", "int", (-12, 12), False),
+            ("osc3_detune", "lin", (-50.0, 50.0), True),
+        )
+    ],
+    _p("osc3_warp", "cat", cap=WARP_MODES, nogene=_WARP_WHY),
+    _p(
+        "osc3_warp_amt",
+        "lin",
+        cap=(0.0, 1.0),
+        curve=True,
+        mod=True,
+        nogene=_WARP_WHY,
+    ),
+    # a second warp per oscillator, appended as one run (hand-made, as the
+    # first is): the same modes, applied to the first's phase
+    *[
+        param
+        for k in (1, 2, 3)
+        for param in (
+            _p(f"osc{k}_warp2", "cat", cap=WARP_MODES, nogene=_WARP_WHY),
+            _p(
+                f"osc{k}_warp2_amt",
+                "lin",
+                cap=(0.0, 1.0),
+                curve=True,
+                mod=True,
+                nogene=_WARP_WHY,
+            ),
         )
     ],
 ]
