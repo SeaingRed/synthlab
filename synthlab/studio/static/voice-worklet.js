@@ -119,7 +119,13 @@
 // own noise streams after the noise layer's) and a second warp on each
 // oscillator (core.warp_twice in warpBlock, warpEnd2, the mip x both slopes;
 // its amount in Y1..Y3) — on both engines (voice.ts stack / warpLane).
-// Budget: <= 1293 code lines.
+// 1293 -> 1309: the granular oscillator on osc1 or osc2 (granular.render:
+// grain-worklet.js's `cloud`, over the sample as stored — the payload's
+// `raw` source), its right side summed as a stereo sampler's (a cloud on
+// osc2 in OR2: the ring per channel, cross-FM by its mean), grain_pos
+// routed per sample (GP). JS on both engines, as the sampler's read is:
+// post() still runs in the module.
+// Budget: <= 1309 code lines.
 
 const D = { // Patch defaults for anything a message left out
   osc1: "saw", osc1_level: 0.8, osc1_octave: 0, osc1_detune: 0, osc2: null, osc2_level: 0.5,
@@ -271,6 +277,7 @@ const driftU = (seed, key) => {
   x ^= x >>> 16; x = Math.imul(x, 0x7feb352d) >>> 0; x ^= x >>> 15; x = Math.imul(x, 0x846ca68b) >>> 0; x ^= x >>> 16;
   return (x >>> 0) / 4294967296;
 };
+globalThis.synthlabHash = { crc32, driftU }; // the granular cloud's seeds and draws (grain-worklet.js)
 // a sync event's polyBLEP halves: x is the fraction of a sample since the step
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const naive = (shape, t, w) => shape === "saw" ? 2 * t - 1 : shape === "square" ? (t < w ? 1 : -1)
@@ -340,6 +347,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
     this.acc = new Float64Array(1); this.names = Object.keys(SMOOTH); this.SV = new Float64Array(16);
     for (const k of SCRATCH) this[k] = new Float64Array(BLOCK);
     this.OR = new Float64Array(BLOCK); // a stereo sampler's right channel (never the module's)
+    this.OR2 = new Float64Array(BLOCK); this.GP = new Float64Array(BLOCK); // a granular osc2's right; grain_pos routed
     this.O3 = new Float64Array(BLOCK); // osc3, on the JS stack
     this.port.onmessage = (e) => this.onMessage(e.data);
     if (opts?.processorOptions?.wasm) this.useWasm(opts.processorOptions.wasm);
@@ -756,6 +764,9 @@ class SynthlabVoice extends AudioWorkletProcessor {
       for (let j = 0; j < c; j++) out[j] = this.pluck(v, s, u, Fq[j]);
     } else if (shape === "noise") this.noise(v, (s === 2 ? 3 : s) * MAXU + u, out, c); // osc3: after the layer's
     else if (shape === "sampler") globalThis.synthlabSampler.read(this.smpNow(), this.T, v, s * MAXU + u, Fq, out, this.OR, c, this);
+    else if (shape === "granular") { // the cloud: seeded by the copy, osc2's + 100 (synth._osc_stack)
+      globalThis.synthlabGrains.cloud(this.smpNow(), this.T, v, s * MAXU + u, s ? 100 + u : u, Fq, out, s ? this.OR2 : this.OR, c, this);
+    }
     else out.fill(0, 0, c);
     ph[o] = p;
   }
@@ -1081,8 +1092,10 @@ class SynthlabVoice extends AudioWorkletProcessor {
     const T = this.T, U = Math.max(1, Math.min(MAXU, Math.round(T.unison) || 1));
     // per-block constants: unison detune factors and equal-power pan (fx.pan)
     const det = [], pl = [], pr = [];
-    // a sounding sampler makes the engine's raw stereo: fx.pan's stereo law, x sqrt 2
-    const smp = T.osc1 === "sampler" ? this.smpNow() : null, g = smp ? Math.SQRT2 : 1;
+    // a sounding sampler or grain cloud makes the engine's raw stereo: fx.pan's stereo law, x sqrt 2
+    const g1 = T.osc1 === "granular", g2 = !!T.osc2 && T.osc2 === "granular";
+    const m = T.osc1 === "sampler" || g1 || g2 ? this.smpNow() : null;
+    const smp = m && (T.osc1 === "sampler" || globalThis.synthlabGrains.sounds(m, T)) ? m : null, g = smp ? Math.SQRT2 : 1;
     for (let u = 0; u < U; u++) {
       const off = U === 1 ? 0 : (u - (U - 1) / 2) / ((U - 1) / 2);
       det.push(Math.pow(2, off * T.unison_detune / 1200));
@@ -1091,7 +1104,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
     }
     // smp2: a two-channel sample, whose sides differ even at unison 1
     const smp2 = !!smp?.stereo, ft = T.filter_type || "ladder";
-    const k = { U, det, pl, pr, smp2, stereo: U > 1 || smp2, sync: !!T.osc2 && T.osc2_sync === "on" && !!SYNCS[T.osc2] };
+    const k = { U, det, pl, pr, smp2, stereo: U > 1 || smp2, sync: !!T.osc2 && T.osc2_sync === "on" && !!SYNCS[T.osc2], g2 };
     // osc3 plays while its level is up or routed (params.osc3_on)
     k.o3 = this.flags.o3 = !!T.osc3 && on("osc3_level");
     // each oscillator's warps (synth.warp_of: a shape they bend; osc2 not
@@ -1405,7 +1418,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
     const old1 = sh1 === "sine" || sh1 === "triangle" || sh1 === "saw" || sh1 === "square" || sh1 === "noise";
     let p2 = v.p2, p3 = v.p3, p4 = v.p4, p5 = v.p5, p6 = v.p6;
     const iX1 = ix(wn[0][0]), iX2 = ix(wn[1][0]), iX3 = ix(wn[2][0]), iY1 = ix(wn[0][1]), iY2 = ix(wn[1][1]);
-    const iY3 = ix(wn[2][1]), iL3 = ix("osc3_level"), iD3 = ix("osc3_detune");
+    const iY3 = ix(wn[2][1]), iL3 = ix("osc3_level"), iD3 = ix("osc3_detune"), iGP = ix("grain_pos");
     // osc3's pitch multiplier (synth._osc3: octave, semitones and cents), fixed unless moved
     const oc3 = (+T.osc3_octave || 0), st3 = 100 * (+T.osc3_semi || 0);
     const m3 = iD3 < 0 && sd3[1] === 0 ? Math.pow(2, oc3 + (st3 + sd3[0]) / 1200) : 0;
@@ -1509,6 +1522,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
         if (iD1 >= 0) d1 = acc[iD1];
         if (iD2 >= 0) d2 = acc[iD2];
         if (iPT >= 0) bst += acc[iPT];
+        if (iGP >= 0) this.GP[n] = acc[iGP]; // the grain cloud's place (grain-worklet.js)
       }
       if (bs) {
         lfoF = this.at("filter_lfo_depth", x) > 0 || flfo ? this.lfo(T.filter_lfo_shape, pf, T.filter_lfo_rate, v.n) : 0;
@@ -1589,7 +1603,9 @@ class SynthlabVoice extends AudioWorkletProcessor {
           if (w2) this.warpBlock(T.osc2, v, 1, u, F2, O2, c, w2, b2); else this.oscBlock(T.osc2, v, 1, u, F2, O2, c);
         }
       }
-      for (let j = 0; j < c; j++) F1[j] = F[j] * du * M1[j] * (cross && FA[j] > 0 ? 1 + 0.9 * FA[j] * O2[j] : 1);
+      // a two-channel osc2 (a grain cloud) bends osc1 by its mean (synth._mono)
+      const m2 = k.smp2 && k.g2, R2 = this.OR2;
+      for (let j = 0; j < c; j++) F1[j] = F[j] * du * M1[j] * (cross && FA[j] > 0 ? 1 + 0.9 * FA[j] * (m2 ? 0.5 * (O2[j] + R2[j]) : O2[j]) : 1);
       if (T.osc1 === "wavetable") v.mip[u] = this.mipOf(F1, c, w1, X1, b1, Y1);
       if (w1) this.warpBlock(T.osc1, v, 0, u, F1, O1, c, w1, b1); else this.oscBlock(T.osc1, v, 0, u, F1, O1, c);
       if (o3) { // osc3 (synth._osc3): a plain layer at its own pitch, in F2 now osc2 is done
@@ -1599,7 +1615,15 @@ class SynthlabVoice extends AudioWorkletProcessor {
       }
       // a stereo sample: what its right side adds to the mix below (the
       // level and the ring are linear in osc1; the rest is the same on both)
-      if (k.smp2) for (let j = 0; j < c; j++) OR[j] = L1[j] * (OR[j] - O1[j]) * (ring && RG[j] > 0 ? 1 - RG[j] + O2[j] * RG[j] : 1);
+      // (osc1's right side is O1 when it is mono; a grain cloud on osc2 adds its own)
+      if (k.smp2 && !k.g2) for (let j = 0; j < c; j++) OR[j] = L1[j] * (OR[j] - O1[j]) * (ring && RG[j] > 0 ? 1 - RG[j] + O2[j] * RG[j] : 1);
+      else if (k.smp2) {
+        const s1 = T.osc1 === "granular";
+        for (let j = 0; j < c; j++) {
+          const r1 = s1 ? OR[j] : O1[j], rg = ring && RG[j] > 0 ? RG[j] : 0;
+          OR[j] = L1[j] * (rg ? r1 * (1 - rg + R2[j] * rg) - O1[j] * (1 - rg + O2[j] * rg) : r1 - O1[j]) + L2[j] * (R2[j] - O2[j]);
+        }
+      }
       if (nz) this.noise(v, 2 * MAXU + u, NZ, c);
       let qs = v.qs[u];
       const hs = du * 0.5 / sr; // the sub: an octave under the copy

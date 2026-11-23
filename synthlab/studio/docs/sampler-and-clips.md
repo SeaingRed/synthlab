@@ -915,7 +915,7 @@ the searches spread over the hop before each grain; not built.
 **Granular** (osc1's "granular" pill; the engine is the root
 `docs/engine.md`, "Granular oscillator"; `samplerview.cloud`,
 `tests/studio/test_sampler_studio.py`
-`test_the_granular_shape_plays_the_sample_on_the_wav_path`,
+`test_the_granular_shape_plays_the_sample_on_the_live_keys`,
 `tests/browser/test_sampler.py`
 `test_the_granular_pill_keeps_the_sample_and_draws_the_cloud`): a pill
 away from the sampler on a sound that already holds a sample. It plays
@@ -937,15 +937,15 @@ the position, spray and size, so a slider's post redraws it out of band
 as the start and end do. The chops and the zones are the sampler shape's
 and are not drawn (`context`'s `chops`); a granular sound plays neither,
 and the chop / zone routes still refuse a sound with no sampler
-oscillator. **The keys take the server WAV**: the voice worklet has no
-granular twin, so `/patch.json` names `osc1` (and every `grain_*` field
-off its default: "default") and carries no `sampler_live`; the grain
-fields left on a synth block nothing. A twin would be possible — every
-draw is `core.hash_u` of the grain's index and a crc32 seed, the
-schedule a function of the output clock — but it would have to read the
-key's pitch at each grain's first sample exactly as `Synth.note` builds
-it, and a route's or a curve's position likewise; not built, so not
-claimed.
+oscillator. **The keys play it live** (osc1 or osc2): `/patch.json`'s
+`sampler_live` is `/sampler/live/<id>.bin?raw=1` — the sample as stored,
+which is what `granular.render` reads (its span and loop are the grain
+schedule's, so one payload serves every setting) — and the voice lays the
+engine's cloud over it, grain for grain (`live-voice.md`, "The granular
+oscillator"). Past `paramui.LIVE_GRAINS` grains sounding at once in a
+voice (`grain_size` and `grain_density` name it), for a cloud on osc2
+beside osc1's sampler, and for one on osc2 ringing a mono osc1, the keys
+take the server WAV.
 
 ### The spectral shape: the same sample, time and pitch apart
 

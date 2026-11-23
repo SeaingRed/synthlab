@@ -490,13 +490,13 @@ def test_a_move_without_a_real_position_is_refused(tmp_path):
 # --- the granular shape: the same sample as a cloud ----------------------------
 
 
-def test_the_granular_shape_plays_the_sample_on_the_wav_path(tmp_path):
+def test_the_granular_shape_plays_the_sample_on_the_live_keys(tmp_path):
     """A pill away from the sampler: the same sample, its panel and its
     pitch tools stay, the cloud is drawn over the waveform, the chops and
-    zones go (the sampler shape's alone). Its keys take the server WAV
-    (`osc1` blocks, and every grain field off its default: "default"; off
-    the shape they block nothing),
-    and its render key carries the grain fields only when they move."""
+    zones go (the sampler shape's alone). Its keys play live — the voice
+    lays the engine's cloud (static/grain-worklet.js) over the sample as
+    stored, `sampler_live` with `raw=1` — and the WAV still answers; its
+    render key carries the grain fields only when they move."""
     client = _client(tmp_path)
     s = client.app.state.studio
     save_clip(tmp_path, "tone", _tone(220, 1.0))
@@ -516,9 +516,9 @@ def test_the_granular_shape_plays_the_sample_on_the_wav_path(tmp_path):
     audio = client.app.state.svc.render("editor").audio()
     assert np.abs(audio).max() > 0.02
     pj = client.get("/patch.json?view=editor").json()
-    assert pj["worklet_ok"] is False
-    assert pj["worklet_blockers"] == ["osc1", "grain_pos", "grain_spray"]
-    assert pj["sampler_live"] is None
+    assert pj["worklet_ok"] is True and pj["worklet_blockers"] == []
+    assert pj["sampler_live"] == f"/sampler/live/{s.patch.sampler_sample}.bin?raw=1"
+    assert client.get(pj["sampler_live"]).status_code == 200
     r = client.get("/note/A3.wav?view=editor")
     assert r.status_code == 200 and len(r.content) > 10_000
     # the grain fields left on a synth block nothing, and stay out of its key

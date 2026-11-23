@@ -1355,6 +1355,104 @@ CASES.update(
     }
 )
 
+# --- the granular oscillator: the engine's cloud in the voice
+# (grain-worklet.js `cloud`, over the sample as stored: sampler.live_url's
+# `raw=1`). Its draws are hashes, never a stream: held to the samples like
+# every deterministic case, on both engines.
+_GR = {"osc1": "granular", "sampler_sample": SAMPLE}
+_GRS = {"osc1": "granular", "sampler_sample": STEREO}
+CASES.update(
+    {
+        "granular": (Patch(**_GR), {}),
+        "granular_dense": (
+            Patch(
+                **_GRS,
+                grain_density=220.0,
+                grain_size=0.05,
+                grain_shape=0.6,
+                grain_spray=0.3,
+            ),
+            {},
+        ),  # fmt: skip
+        "granular_scan": (
+            Patch(**_GRS, grain_scan=1.0, grain_pos=0.1, sampler_root=55),
+            {},
+        ),
+        "granular_reverse": (Patch(**_GR, grain_dir="reverse", grain_pos=0.4), {}),
+        "granular_both": (
+            Patch(**_GRS, grain_dir="both", grain_spray=0.4, grain_size=0.12),
+            {},
+        ),
+        "granular_pitch_spray": (
+            Patch(**_GRS, grain_pitch_spray=5.0, grain_density=60.0),
+            {},
+        ),
+        "granular_loop": (
+            Patch(
+                **_GRS,
+                sampler_start=0.1,
+                sampler_loop="on",
+                sampler_loop_start=0.3,
+                sampler_loop_end=0.5,
+                grain_scan=1.5,
+                grain_size=0.2,
+            ),
+            {},
+        ),  # fmt: skip
+        "granular_keytrack": (
+            Patch(**_GR, sampler_keytrack="off", grain_density=40.0),
+            {"pitch": "C3"},
+        ),
+        # unison copies: each its own cloud (seeds 0, 1, 2), panned by the
+        # stereo law
+        "granular_unison": (
+            Patch(**_GRS, unison=3, unison_detune=14.0, grain_spray=0.2),
+            {},
+        ),
+        # osc2 a cloud under a saw: bending osc1 by its mean, the sub beside it
+        "granular_osc2": (
+            Patch(
+                sampler_sample=STEREO,
+                osc1="saw",
+                osc1_level=0.5,
+                osc2="granular",
+                osc2_octave=0,
+                osc2_level=0.8,
+                fm_amount=0.05,
+                sub_level=0.2,
+                grain_density=80.0,
+            ),
+            {},
+        ),  # fmt: skip
+        # both oscillators clouds (seeds 0 and 100), osc2 ringing osc1 per
+        # channel, a glide in
+        "granular_both_oscs": (
+            Patch(
+                **_GRS,
+                osc2="granular",
+                osc2_octave=0,
+                osc2_detune=0.0,
+                ring_mod=0.4,
+                grain_spray=0.5,
+                glide=0.08,
+            ),
+            {"from": -5},
+        ),  # fmt: skip
+        # the position on a route: an LFO sweeping where the grains read
+        "granular_route": (
+            Patch(
+                **_GRS,
+                mod1_src="lfo",
+                mod1_dst="grain_pos",
+                mod1_amt=0.6,
+                mod_lfo_rate=1.5,
+                grain_pos=0.4,
+            ),
+            {},
+        ),  # fmt: skip
+    }
+)
+
 # --- formant mode: the engine's grain train in the voice (grain-worklet.js)
 # A voice-like source for it: a sung "ah" on C4 — a pulse train (harmonics
 # 1/k) through three vowel resonances, with a 5.5 Hz vibrato of a third of
@@ -1790,6 +1888,14 @@ FIELD_CASES: dict[str, str] = {
     "sampler_mode": "sampler_formant_root",
     "sampler_stretch": "sampler_formant_stretch",
     "sampler_zones": "sampler_zones_xfade",
+    "grain_pos": "granular_scan",
+    "grain_size": "granular_dense",
+    "grain_density": "granular_dense",
+    "grain_spray": "granular_dense",
+    "grain_pitch_spray": "granular_pitch_spray",
+    "grain_shape": "granular_dense",
+    "grain_dir": "granular_both",
+    "grain_scan": "granular_scan",
     "osc2_sync": "sync_saw",
     "sync_pitch": "sync_saw",
     "drift": "drift",
@@ -2262,7 +2368,7 @@ def test_parity_errors_are_reported(rendered):
         stat_r = {k: round(float(v), 4) for k, v in stat.items()}
         print(f"{engine}: deterministic {det_r}  statistical {stat_r}")
         for (tag, _pitch), res in rendered.items():  # the live sampler, case by case
-            if tag.startswith("case:sampler"):
+            if tag.startswith(("case:sampler", "case:granular")):
                 got = {k: round(float(v), 4) for k, v in res[engine].items()}
                 print(f"{engine}: {tag} {got} js-wasm {res['js_wasm']:.1e}")
 
