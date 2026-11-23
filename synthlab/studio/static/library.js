@@ -24,8 +24,9 @@
 //    its Use if its keys moved into the dock).
 // 6. The selection said in attributes (the shelf's `data-active`, the
 //    dock keys' `data-sel`, the browser's `data-none`): style.css reads
-//    them instead of a :has() on the view. 75 -> 86.
-// Budget: <= 86 code lines.
+//    them instead of a :has() on the view. 75 -> 86. 86 -> 90: a ★ (the
+//    favourites filter, a sound on two shelves starred on both).
+// Budget: <= 90 code lines.
 
 (() => {
   "use strict";
@@ -45,7 +46,8 @@
     const chips = $$(".tagfilter[data-tag]").filter((b) => b.dataset.tag);
     const on = chips.filter((b) => b.getAttribute("aria-pressed") === "true").map((b) => b.dataset.tag);
     document.querySelector('.tagfilter[data-tag=""]')?.setAttribute("aria-pressed", String(!on.length)); // "all"
-    const rows = cards.map((c) => ({ c, tags: (c.dataset.tags || "").split(" "), words: !q || `${c.dataset.name} ${c.dataset.tags}`.toLowerCase().includes(q) }));
+    const fav = (c) => (c.querySelector(".lib-star")?.getAttribute("aria-pressed") === "true" ? ["★"] : []); // its ★ (sound_star.html)
+    const rows = cards.map((c) => ({ c, tags: [...(c.dataset.tags || "").split(" "), ...fav(c)], words: !q || `${c.dataset.name} ${c.dataset.tags}`.toLowerCase().includes(q) }));
     let shown = 0;
     for (const r of rows) { r.c.hidden = !(r.words && on.every((t) => r.tags.includes(t))); shown += !r.c.hidden; }
     for (const b of chips) {
@@ -76,7 +78,11 @@
   }
   document.addEventListener("click", (e) => { if (e.target.closest?.(".lib-card")) requestAnimationFrame(picked); }); // (audio.js moves .active)
   document.addEventListener("input", (e) => { if (e.target.id === "lib-search") apply(); });
-  document.addEventListener("htmx:after:settle", apply);
+  document.addEventListener("htmx:after:settle", (e) => { // a ★ just answered: the same sound's other card (Core and its family) too
+    const s = e.target?.closest?.(".lib-star");
+    if (s) for (const o of $$(".lib-star")) if (o.getAttribute("hx-vals") === s.getAttribute("hx-vals")) o.setAttribute("aria-pressed", s.getAttribute("aria-pressed"));
+  });
+  document.addEventListener("htmx:after:settle", apply); // (after it: the ★ filter reads the ★s)
   document.addEventListener("DOMContentLoaded", apply);
   document.addEventListener("click", (e) => {
     const view = e.target.closest?.("[data-lib-view]");

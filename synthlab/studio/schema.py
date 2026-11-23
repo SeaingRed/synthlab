@@ -1995,6 +1995,19 @@ def nodes() -> SimpleNamespace:
         CALIBRATION=Record(
             {"latency_ms": Num(0.0, limits.MAX_LATENCY_MS, default=0.0)}
         ),
+        # studio_data/favourites.json: the shipped sounds you ★ (sounds.py
+        # `favourites`), "<source>:<name>" each; your own sounds keep their
+        # ★ in their preset's meta, as they always did
+        FAVOURITES=Record(
+            {
+                "sounds": ListOf(
+                    Str(max_len=2 * limits.MAX_NAME_CHARS),
+                    max_len=limits.MAX_FAVOURITES,
+                    unique=str,
+                    keep="last",
+                )
+            }
+        ),
         AGENT_LOG=_agent_log(),
         # studio_data/loops/<name>.json (loops.py): a saved loop — its note
         # lane, tempo and key (an Arrangement's fields; the rest default)

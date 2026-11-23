@@ -355,6 +355,7 @@ class Page:
             # shelf (`core_cards`: by category, with what it lists besides)
             ctx["recipes"] = [c for c in recipe_cards() if "core" not in c["tags"]]
             ctx["core"] = core_cards()
+            ctx["sound_favs"] = sounds.favourites(s.data_dir)  # the cards' ★
             ctx["library_tags"] = library_tags() + [
                 t
                 for t in [cat for cat, _ in ctx["core"]] + recipe_tags()

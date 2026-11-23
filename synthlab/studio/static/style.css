@@ -2118,6 +2118,9 @@ html:not([data-typeto="pads"]) :is(.perform-pads .pad-key, .pfx kbd) { color: va
 .lib-card > .lib-acts { align-self: end; justify-self: end; z-index: 1; padding: 0 var(--s2) var(--s15) 0; }
 .lib-card > .lib-detail, .lib-acts i { display: none; }
 .lib-acts { display: flex; align-items: center; gap: 2px; }
+/* a shipped sound's ★ (fragments/sound_star.html): dim until it is one */
+.lib-star { color: var(--text-faint); }
+.lib-star[aria-pressed="true"] { color: var(--accent-text); }
 /* a key's label is its text and an <i> (the rest of it, in the dock): kept as
    written, spaces and all (pre), with no flex gap between the two */
 .lib-card .lib-acts > :is(.btn, .badge) { min-width: var(--h-s); padding: 0 var(--s15); justify-content: center;

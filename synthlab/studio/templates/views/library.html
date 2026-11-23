@@ -23,8 +23,10 @@
     sit in its detail, which the selected card's dock takes, so the card
     you had just clicked lost them. The dock's keys
     (.lib-d-acts, once a page, below) press the selected card's. -#}
+{% from "fragments/sound_star.html" import star %}
 {% macro acts(e, kind, base, here) %}
 <div class="lib-acts">
+{{ star(kind, e.name, (kind ~ ":" ~ e.name) in sound_favs | default([])) }}
 <button type="button" class="btn btn-s audition lib-mix" data-note="{{ base }}{{ e.name | urlencode }}/audition.wav?mix=1"
  data-menu="Hear in your mix"
  title="in your mix: what Use lands on Synths"
@@ -122,6 +124,8 @@ where the sound sits dark -> bright within its family #}
     <div class="lib-tags" role="group" aria-label="filter by tag" data-cmd-group="Filter">
       <button type="button" class="btn btn-s tagfilter tagfilter-all" data-tag="" aria-pressed="true"
               data-cmd="Show every sound in the library" title="every tag: clear the tag filters">all</button>
+      <button type="button" class="btn btn-s tagfilter" data-tag="★" aria-pressed="false"
+              data-cmd="Filter the library: your favourites" title="your favourites: the sounds you ★">★</button>
       {% for label, group in [("family", fams | select("in", library_tags) | list), ("tone", tones), ("genre", genres)] if group %}
       <span class="lib-tag-group"><span class="caps" aria-hidden="true">{{ label }}</span><span class="seg" role="group" aria-label="{{ label }}">
       {%- for t in group %}<button type="button" class="tagfilter" data-tag="{{ t }}" aria-pressed="false"

@@ -139,6 +139,18 @@ def preset_star(request: Request, form: RawForm, svc: Svc) -> Response:
     return preset_list_fragment(svc)
 
 
+@router.post("/fragment/sound/star")
+def sound_star(request: Request, form: RawForm, svc: Svc) -> Response:
+    """★ a shipped sound (factory, recipe, library) or take its ★ off
+    (`sounds.toggle_favourite`); the answer is the ★ itself
+    (fragments/sound_star.html), which swaps itself. A name no shipped
+    sound has changes nothing."""
+    source, name = str(form.get("source", "")), str(form.get("name", ""))
+    on = sounds.toggle_favourite(svc.state.data_dir, source, name)
+    star = svc.templates.get_template("fragments/sound_star.html").module.star
+    return HTMLResponse(str(star(source, name, on)))
+
+
 @router.get("/fragment/sound-menu")
 def sound_menu(request: Request, svc: Svc) -> Response:
     """The one sound menu again (`fragments/sound_menu.html`, base.html's

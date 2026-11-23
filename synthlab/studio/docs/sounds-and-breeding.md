@@ -153,6 +153,17 @@ primary — or "Reload on Synths", plain, when the sound on Synths is
 edited, or "✓ On Synths") press the selected card's own (library.js,
 `data-press`); what they read follows that card by the keys' `data-sel`
 (library.js; style.css 9b1), so nothing is drawn twice per card.
+**Favourites**: a card's ★ (`fragments/sound_star.html`, POST
+`/fragment/sound/star`, which answers with the ★ itself) keeps the shipped
+sound — factory, recipe, library — in `studio_data/favourites.json`
+(`sounds.favourites` / `toggle_favourite`, `schema.FAVOURITES`:
+"<source>:<name>" each, at most `limits.MAX_FAVOURITES`; a name no shipped
+sound has is refused). Not session state: a favourite is yours across
+projects and survives a reset. The one sound menu marks a ★ sound as it
+marks a ★ of your own (its ★ filter), and the Library's "★" chip filters
+to them (library.js reads each card's ★; a sound on two shelves — the
+Core and its family — is ★ on both). Your own sounds keep their ★ in their
+preset meta (POST `/fragment/preset/star`), as before.
 audio.js marks the card clicked `.active`, and that is the selection: the
 card's own `.lib-detail` — its name and chips, the spectrum large, meters
 for brightness and the spectrum's thirds, facts from the stored patch, how,
