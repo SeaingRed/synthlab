@@ -343,9 +343,9 @@ body { line-height: 1.35; }
      container (100cqh) made every layout inside the grid restyle all
      its cells mid-layout — 240 ms a pass on a 4-bar loop (frontend.md,
      "No container units on a grid's cells") */
-  :is(.perform-view, .drums-view) :is(.transport, .drum-grid) > .grid:not(.drum-grid-8) .gridrow:not(.sliderow) > .cell {
+  :is(.perform-view, .drums-view) :is(.transport, .drum-grid) > .grid .gridrow:not(.sliderow) > .cell {
     height: auto; }
-  :is(.perform-view, .drums-view) .drum-grid-8 .cell {
+  :is(.perform-view, .drums-view) .drum-grid-8 .gridrow {
     height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 30px); }
   :is(.perform-view, .drums-view) .grid:not(.drum-grid-8) .gridrow:not(.sliderow) {
     height: clamp(17px, calc((100cqh - 46px) / var(--rows, 6) - 2px), 30px); }
@@ -401,7 +401,7 @@ body { line-height: 1.35; }
    to 30 px (64 would draw 65 px squares in a 2560 x 1400 window, the
    grid sized for a giant screen) */
 @media (min-width: 1200px) and (min-height: 1200px) {
-  :is(.perform-view, .drums-view) .drum-grid-8 .cell {
+  :is(.perform-view, .drums-view) .drum-grid-8 .gridrow {
     height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 30px); }
   :is(.perform-view, .drums-view) .grid:not(.drum-grid-8) .gridrow:not(.sliderow) {
     height: clamp(17px, calc((100cqh - 46px) / var(--rows, 6) - 2px), 30px); }
@@ -469,7 +469,7 @@ body { line-height: 1.35; }
   .drums-view > :is(.view-head, #drum-transport) { grid-column: 1 / -1; }
   .drums-view > #drum-bank { grid-column: 1; grid-row: 3; }
   .drums-view .drum-grid { max-height: none; }
-  .drums-view .drum-grid-8 .cell {
+  .drums-view .drum-grid-8 .gridrow {
     height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 96px); }
   .drums-view > #drum-panels { grid-column: 2; grid-row: 3; overflow: auto;
     display: flex; flex-direction: column; }
@@ -916,7 +916,7 @@ body { line-height: 1.35; }
    (grid.js, html[data-rack]); here the drum grid's steps grow past 30 px
    to fill it. */
 @media (min-width: 1200px) {
-  html:not([data-density="comfy"])[data-rack="drums"] .perform-view .drum-grid-8 .cell {
+  html:not([data-density="comfy"])[data-rack="drums"] .perform-view .drum-grid-8 .gridrow {
     height: max(17px, calc((100cqh - 32px) / var(--rows, 8) - 2px)); }
 }
 

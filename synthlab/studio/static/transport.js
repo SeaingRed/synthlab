@@ -160,6 +160,9 @@
   const calm = () => window.synthlab.calm(); // the Motion setting (colours.js), never the OS's
   const q = (w, t) => (w.at == null ? 0 : Math.min(1, Math.max(0, (t - w.from) / Math.max(0.05, w.at - w.from))));
   // the things that wait (a queued pad, a launcher): their own ring and count
+  // the marked are remembered: a search of the page for [data-wait] each
+  // frame cost ~26 ms a second on Synths (12,000 elements)
+  let marked = new Set();
   function marks(t) {
     const seen = new Set();
     for (const w of waits.values()) {
@@ -171,7 +174,8 @@
         el.style.setProperty("--q", q(w, t).toFixed(3));
       }
     }
-    for (const el of document.querySelectorAll("[data-wait]")) if (!seen.has(el)) { delete el.dataset.wait; el.style.removeProperty("--q"); }
+    for (const el of marked) if (!seen.has(el)) { delete el.dataset.wait; el.style.removeProperty("--q"); }
+    marked = seen;
   }
   // stopped: what Space would play here
   function idle() {

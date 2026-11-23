@@ -3,7 +3,7 @@
 // rack / piano roll rather than a form of checkboxes. Owns:
 //   - the grids' playheads and step LEDs: each grid maps the loop's phase
 //     onto its OWN length (a 1-bar note grid inside a 2-bar mixed loop used
-//     to sweep at half speed), and the column under the playhead lights;
+//     to sweep at half speed), and the hits under the playhead light;
 //   - row labels you can play: press a pitch to hear it on the live voice
 //     (window.synthlab.piano), a drum name to hit that voice;
 //   - a lone right-click erases a step (a right-DRAG erases in audio.js's
@@ -40,9 +40,12 @@
   // Grids are cached per settle: each with its playhead, its bar count and
   // its cells by column. The song drawer's grid runs on the song's clock
   // (song.js), so it is left alone.
-  let grids = null, raf = 0;
-  const bpm = () => Number(document.querySelector("#perform-transport [name=bpm], #drum-transport [name=bpm]")?.value) || 0;
+  // the tempo input is found with the grids, once a settle: a search a frame
+  // walked the whole page (37 ms a second on Synths, where there is none)
+  let grids = null, raf = 0, tempo = null;
+  const bpm = () => Number(tempo?.value) || 0;
   function scan() {
+    tempo = document.querySelector("#perform-transport [name=bpm], #drum-transport [name=bpm]");
     grids = [...document.querySelectorAll(".grid")].filter((g) => !g.closest("#song-drawer")).map((g) => {
       const cols = [];
       for (const row of g.querySelectorAll(".gridrow:not(.sliderow)")) {
@@ -51,10 +54,13 @@
       return { g, head: g.querySelector(".playhead"), bars: Number(g.dataset.bars) || 0, cols, lit: -1 };
     });
   }
+  // only the hits light (a handful a step): the whole column was ~60 cells
+  // restyled a step, ~550 a second on a 4-bar loop; the playhead marks it
   function light(x, step) {
     if (step === x.lit) return;
-    for (const c of x.cols[x.lit] || []) c.classList.remove("now");
-    for (const c of x.cols[step] || []) c.classList.add("now");
+    for (const c of x.on || []) c.classList.remove("now");
+    x.on = (x.cols[step] || []).filter((c) => c.checked);
+    for (const c of x.on) c.classList.add("now");
     x.lit = step;
   }
   function tick(now) {
@@ -64,6 +70,7 @@
     raf = requestAnimationFrame(tick);
     if (document.hidden || !s.paced?.("grid", now)) return; // ~60 a second on any display (colours.js)
     if (!grids) scan();
+    if (!grids.length) return;
     const dur = s.loopDuration(), t = s.getCtx().currentTime - s.loopStart();
     const loopBars = bpm() ? Math.max(1, Math.round((dur * bpm()) / 240)) : 0;
     for (const x of grids) {

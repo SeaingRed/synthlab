@@ -193,7 +193,7 @@
   function drawHist(live) { // the short-term over 30 s, -48..0 LUFS, the target's line on it
     const cv = $("mm-hist"), target = Number($("song-loudness-target")?.selectedOptions[0]?.dataset.lufs);
     if (!cv || !S.visuals?.ink) return;
-    const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+    const dpr = devicePixelRatio || 1, [bw, bh] = boxOf(cv), w = Math.round(bw * dpr), h = Math.round(bh * dpr);
     if (!live && cv.width === w && cv.height === h && cv.dataset.target === String(target)) return; // at rest: drawn once
     Object.assign(cv, { width: w, height: h }); cv.dataset.target = String(target);
     const c = cv.getContext("2d"), ink = S.visuals.ink(), rgba = S.visuals.rgba, y = (l) => h * Math.min(1, Math.max(0, -l / 48));
@@ -209,8 +209,12 @@
   // at rest (a variation draws nothing then) each shows its empty face — the 1/3-octave's
   // 28 wells, the goniometer's diamond and its correlation line, where the variation puts them
   const SCOPES = [["mm-spec", "octave"], ["mm-gonio", "goniometer"]];
+  // a canvas's box from a ResizeObserver, never clientWidth: read each frame
+  // after the bars' writes it laid the page out (52 ms a second on Mix)
+  const boxes = new WeakMap(), ro = new ResizeObserver((es) => { for (const e of es) boxes.set(e.target, [e.contentRect.width, e.contentRect.height]); });
+  const boxOf = (cv) => boxes.get(cv) || (ro.observe(cv), boxes.set(cv, [cv.clientWidth, cv.clientHeight]).get(cv));
   function sized(cv) {
-    const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+    const dpr = devicePixelRatio || 1, [bw, bh] = boxOf(cv), w = Math.round(bw * dpr), h = Math.round(bh * dpr);
     if (cv.width !== w || cv.height !== h) { Object.assign(cv, { width: w, height: h }); delete cv.dataset.rest; }
     return w && h;
   }

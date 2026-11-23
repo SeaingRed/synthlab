@@ -7112,9 +7112,9 @@ ws-float > :is(#perform-pads, #drumxy-panel, #perf-fx, #perform-launch) { displa
      container (100cqh) made every layout inside the grid restyle all
      its cells mid-layout — 240 ms a pass on a 4-bar loop (frontend.md,
      "No container units on a grid's cells") */
-  .perform-view :is(.transport, .drum-grid) > .grid:not(.drum-grid-8) .gridrow:not(.sliderow) > .cell {
+  .perform-view :is(.transport, .drum-grid) > .grid .gridrow:not(.sliderow) > .cell {
     height: auto; }
-  .perform-view .drum-grid-8 .cell {
+  .perform-view .drum-grid-8 .gridrow {
     height: clamp(20px, calc((100cqh - 36px) / var(--rows, 8) - 2px), 34px); }
   .perform-view .grid:not(.drum-grid-8) .gridrow:not(.sliderow) {
     height: clamp(20px, calc((100cqh - 50px) / var(--rows, 6) - 2px), 34px); }
