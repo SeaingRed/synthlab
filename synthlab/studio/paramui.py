@@ -19,7 +19,7 @@ from typing import Any
 
 import numpy as np
 
-from .. import sampler
+from .. import granular, sampler
 from ..params import (
     ENV_SYNC_TIMES,
     FILTER_TYPES_ALL,
@@ -285,8 +285,32 @@ def _env_name(time: str) -> str:
 def _osc1_ok(p) -> bool:
     # the sampler plays live when sampler.live_ok says so: "resample" with no
     # stretch or "formant" (any scalar stretch), mono or stereo, within the
-    # payload cap (the fields below name which one refuses it)
-    return p.osc1 in SHAPES or (p.osc1 == "sampler" and sampler.live_ok(p))
+    # payload cap (the fields below name which one refuses it); the granular
+    # shape always (static/grain-worklet.js `cloud`, over the sample as stored)
+    return (
+        p.osc1 in SHAPES
+        or p.osc1 == "granular"
+        or (p.osc1 == "sampler" and sampler.live_ok(p))
+    )
+
+
+# The grain cloud's cost on the live keys: grains sounding at once in one
+# voice — each granular oscillator copy's overlap (density x size, the
+# engine's 256 cap included) x the unison copies x the granular
+# oscillators. Past it the keys take the WAV. Measured (16 voices, 48 kHz,
+# an i9-14900K, tools/bench_live_voice.py --granular): overlap 1.6 (the
+# defaults) 6.3 % of the audio thread, 10 11.3 %, 40 29.2 % — so 64 is
+# about half the budget for a full node.
+LIVE_GRAINS = 64
+
+
+def _grains_ok(p) -> bool:
+    clouds = sum(s == "granular" for s in (p.osc1, p.osc2))
+    if not clouds:
+        return True
+    g = granular.grain_length(p.grain_size)
+    overlap = granular.effective_density(p.grain_density, g) * g / granular.SR
+    return overlap * clouds * max(1, int(p.unison)) <= LIVE_GRAINS
 
 
 def _sampler_gate(ok: Callable[[Any], bool]) -> Callable[[Any], bool]:
@@ -296,7 +320,13 @@ def _sampler_gate(ok: Callable[[Any], bool]) -> Callable[[Any], bool]:
 
 
 def _osc2_ok(p) -> bool:
-    return p.osc2 is None or p.osc2 in SHAPES
+    # a grain cloud on osc2 reads the sample as stored; osc1's sampler reads
+    # it prepared, and the voice holds one payload: not the two at once. A
+    # cloud (stereo) ringing a mono osc1 is no sound the engine renders
+    # (synth._osc_stack's ring broadcasts one way only): not live either
+    ring = bool(np.any(np.asarray(p.ring_mod) > 0)) and p.osc1 != "granular"
+    granular = p.osc2 == "granular" and p.osc1 != "sampler" and not ring
+    return p.osc2 is None or p.osc2 in SHAPES or granular
 
 
 def _filter_ok(p) -> bool:
@@ -487,27 +517,27 @@ _ENTRIES: list[tuple[str, Ui]] = [
     ("sampler_xfade", _ui(_S, "Loop crossfade", EXACT, 0.001, unit="s",
         hint="Blend across the loop point so it doesn't click.")),
     # the granular shape (synthlab/granular.py): the sample above as a
-    # cloud of grains. Not in the live voice: a granular sound's keys take
-    # the server-rendered WAV (osc1 "granular" is no SHAPES entry), and
-    # these are "default" — and unheard, so blocking nothing, while no
-    # oscillator plays the shape
-    ("grain_pos", _ui(_S, "Grain position", DEFAULT, 0.001, subhead="Granular",
+    # cloud of grains, on osc1 or osc2. The live voice lays the engine's
+    # cloud grain for grain (static/grain-worklet.js `cloud`: the same
+    # onsets, hashed draws, window and gain), so every setting is exact —
+    # size and density up to LIVE_GRAINS sounding at once (`_grains_ok`)
+    ("grain_pos", _ui(_S, "Grain position", EXACT, 0.001, subhead="Granular",
         mod_label="Grain position",
         hint="Granular: where in the sample (or its loop) the grains are read. "
              "Draw it or route it to move the cloud.")),
-    ("grain_size", _ui(_S, "Grain size", DEFAULT, 0.001, unit="s",
+    ("grain_size", _ui(_S, "Grain size", _grains_ok, 0.001, unit="s",
         hint="How long each grain lasts: short is a buzz, long a smear.")),
-    ("grain_density", _ui(_S, "Grain density", DEFAULT, 0.5, unit="/s",
+    ("grain_density", _ui(_S, "Grain density", _grains_ok, 0.5, unit="/s",
         hint="Grains started a second (at most 256 sounding at once).")),
-    ("grain_spray", _ui(_S, "Position spray", DEFAULT,
+    ("grain_spray", _ui(_S, "Position spray", EXACT,
         hint="Scatters each grain's place around the position.")),
-    ("grain_pitch_spray", _ui(_S, "Pitch spray", DEFAULT, 0.1, unit="st",
+    ("grain_pitch_spray", _ui(_S, "Pitch spray", EXACT, 0.1, unit="st",
         hint="Detunes each grain by up to this many semitones either way.")),
-    ("grain_shape", _ui(_S, "Grain window", DEFAULT,
+    ("grain_shape", _ui(_S, "Grain window", EXACT,
         hint="0: soft grains (a Hann window); 1: flat grains with short fades.")),
-    ("grain_dir", _ui(_S, "Grain direction", DEFAULT, widget="pills",
+    ("grain_dir", _ui(_S, "Grain direction", EXACT, widget="pills",
         hint="Forward, reverse, or each grain either way.")),
-    ("grain_scan", _ui(_S, "Scan", DEFAULT, 0.01, unit="x",
+    ("grain_scan", _ui(_S, "Scan", EXACT, 0.01, unit="x",
         hint="The position moving by itself: 1 walks the sample at its own "
              "speed, negative backwards, 0 holds.")),
     # the spectral shape (synthlab/spectral.py): the sample above

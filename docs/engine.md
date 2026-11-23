@@ -762,14 +762,26 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   loop only (not a `_STACK_SHAPES` member, no native kernel): measured on
   an i9 desktop, 3.4 ms of CPU per second of audio per oscillator copy at
   the defaults (20 a second, 80 ms), 19 ms at 100 a second x 100 ms, 72
-  at 200 x 200 ms, 0.52 s at the 256-sounding ceiling of 1 s grains. **Not
-  live**: the voice worklet has no twin, so osc1 "granular" is no
-  `paramui.SHAPES` entry and the `grain_*` fields are "default" — a
-  granular sound's keys take the `/note` WAV. All eight fields are
+  at 200 x 200 ms, 0.52 s at the 256-sounding ceiling of 1 s grains. All
+  eight fields are
   `nogene`, appended at the end of `PARAMS`, and `KEY_ADDED_FIELDS`
   entries at their defaults; a render of a patch without the shape never
   reaches the module (`test_patches_without_the_shape_never_reach_it`):
-  no `RENDER_REV` bump.
+  no `RENDER_REV` bump. **Live** (osc1 or osc2): `EXACT` on both engines —
+  `static/grain-worklet.js`'s `cloud` lays this cloud grain for grain
+  (the same onsets, the hashed draws from the same crc32 seed, window,
+  read and gain, the position at each grain's first sample — routed per
+  sample) over the sample as stored (`sampler.live_url`'s `raw=1`
+  payload), JS on both engines. Held within 2e-6 of the peak on the
+  oscillator alone (`tests/studio/test_live_granular.py`) and at 0.000 dB
+  in the parity corpus (`granular_*`). Cost is the overlap: 16 voices at
+  48 kHz (i9) 6.3 % of the audio thread at the defaults (1.6 grains at
+  once), 11.3 % at 10, 29.2 % at 40; past 64 grains at once in a voice
+  (`studio/paramui.py` `LIVE_GRAINS`) the keys take the `/note` WAV
+  (`synthlab/studio/docs/live-voice.md`, "The granular oscillator").
+  A cloud on osc2 ringing a mono osc1 (`ring_mod` > 0) raises in
+  `_osc_stack` (`_times` of a mono and a stereo signal) — not rendered
+  by either side; the gate keeps it off the keys.
 - **Spectral oscillator** (`synthlab/spectral.py`, shape `"spectral"`,
   Patch `spectral_*`, `tests/test_spectral.py`): the sampler's sample
   (its span or loop — `spectral.region`, the granular rule — its root

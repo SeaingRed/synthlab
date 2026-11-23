@@ -42,8 +42,10 @@ note's own future, so the causal contract holds. Stereo out (n, 2): the
 sample's two channels, as the sampler's. Zeros (n,) when there is nothing
 to play (no sample, a region too short), as the sampler gives.
 
-Not live: the keys play a granular sound from the server's WAV (the
-studio's `paramui` classifies every `grain_*` field "default").
+Live: the studio's voice lays this cloud grain for grain
+(static/grain-worklet.js `cloud`, over the sample as stored — the live
+payload's `raw` source), held to `render` by
+tests/studio/test_live_granular.py and the parity corpus.
 """
 
 from __future__ import annotations

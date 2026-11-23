@@ -80,6 +80,10 @@ stays offline: its similarity search is 961 lags x 2208 products per grain
 at 48 kHz, a grain every 11.5 ms per unison copy — 1.5 ms of JS per grain
 done directly (most of a 2.67 ms render quantum for one voice), 0.18 ms by
 FFT, which sixteen voices struck together still spend in one quantum.
+The granular shape (synthlab/granular.py) reads the sample as stored, its
+span and loop applied by the grain schedule alone: `live_payload` with
+`raw` set sends exactly that (one source, the whole sample, nothing faded
+or crossfaded), and static/grain-worklet.js lays the engine's cloud over it.
 """
 
 from __future__ import annotations
@@ -865,6 +869,9 @@ class Settings:
     zones: str = ""
     velocity: float = 1.0
     rr: int = 0
+    # the live payload only (`live_payload`): the sample as stored, for the
+    # granular shape, which reads it unprepared. `render` never reads it
+    raw: bool = False
 
     @classmethod
     def of(cls, p, velocity: float = 1.0, rr: int = 0) -> Settings:
@@ -1259,6 +1266,12 @@ def live_stretch_ok(p) -> bool:
     return stretch_is_one(s)
 
 
+def _grains_read(p) -> bool:
+    """Does a granular oscillator read the sample (osc1 or osc2: osc3 never
+    plays a recording)?"""
+    return "granular" in (p.osc1, p.osc2)
+
+
 def live_ok(p) -> bool:
     """Can the live voice play this patch's sampler? "resample" mode with
     no stretch (the tape read) or "formant" mode at any scalar stretch
@@ -1270,6 +1283,13 @@ def live_ok(p) -> bool:
     if p.osc1 != "sampler":
         return True
     return live_stretch_ok(p) and live_size(p) <= LIVE_MAX_SAMPLES
+
+
+def raw_samples(sid) -> int:
+    """How many samples the granular shape's payload (`raw`) sends: the
+    whole sample, over every channel it sends."""
+    x = get(sid) if valid_id(sid) else None
+    return 0 if x is None else len(x) * live_channels(sid)
 
 
 def live_size(p) -> int:
@@ -1299,7 +1319,7 @@ def live_zone_samples(text) -> int:
 
 
 _LIVE_KEYS = ("start", "end", "loop", "loop_start", "loop_end", "xfade", "slices")
-_LIVE_KEYS += ("zones",)
+_LIVE_KEYS += ("zones", "raw")
 # The live buffers' total, in samples (32 MB of float32), both channels of
 # a true-stereo sample counted. Real chops are disjoint, but slices may
 # overlap: 32 full-length ones of a 30 s sample would be ~170 MB per
@@ -1352,7 +1372,13 @@ def live_url(p) -> str | None:
     """Where the live voice gets osc1's sampler buffers: content-addressed
     (the id is the audio, the query the rest), so cacheable for good.
     None when no live sampler plays. A zone map's URL is named by its
-    first zone's sample (the query names every one)."""
+    first zone's sample (the query names every one). A granular oscillator
+    (osc1 or osc2, osc1 no sampler) reads the sample as stored: its URL's
+    query is `raw=1` alone — its span and loop are the grain schedule's, so
+    one payload serves every setting."""
+    if p.osc1 != "sampler" and _grains_read(p):
+        sid = p.sampler_sample
+        return f"/sampler/live/{sid}.bin?raw=1" if valid_id(sid) else None
     if p.osc1 != "sampler" or not live_ok(p):
         return None
     sid = p.sampler_sample
@@ -1376,6 +1402,7 @@ def live_settings(query: dict) -> Settings:
         xfade=num("xfade", 0.01),
         slices=clean_slices(q["slices"] or ""),
         zones=clean_zones(q["zones"] or ""),
+        raw=q["raw"] == "1",
     )
 
 
@@ -1421,15 +1448,26 @@ def live_payload(sid: str, st: Settings) -> bytes:
     `pitch` — then each source's samples as little-endian float32, a
     channel at a time (`n` left, then `n` right when `ch` is 2), the
     header space-padded so they start 4-byte aligned. No source: nothing
-    to play (silence, as `render` gives). Raises ValueError past
-    LIVE_MAX_SAMPLES."""
-    zoned = bool(parse_zones(st.zones))
-    size = live_zone_samples(st.zones) if zoned else live_samples(sid, st.slices)
+    to play (silence, as `render` gives). `st.raw`: the sample as stored,
+    one source from 0 to its end, no loop (the granular shape's read; the
+    rest of `st` unread). Raises ValueError past LIVE_MAX_SAMPLES."""
+    zoned = bool(parse_zones(st.zones)) and not st.raw
+    if st.raw:
+        size = raw_samples(sid)
+    elif zoned:
+        size = live_zone_samples(st.zones)
+    else:
+        size = live_samples(sid, st.slices)
     if size > LIVE_MAX_SAMPLES:
         raise ValueError("live sampler buffers too large")
     sources: list[tuple[dict, np.ndarray]] = []
     zones: list[dict] = []
-    if zoned:
+    if st.raw:
+        x = get(sid) if valid_id(sid) else None
+        ch = live_channels(sid)
+        if x is not None and len(x) >= 4:
+            sources.append(({"s0": 0, "pitch": 0.0}, _Source(x, len(x))))
+    elif zoned:
         sources, zones, ch = _zone_sources(st)
     else:
         x = get(sid) if valid_id(sid) else None
@@ -1463,7 +1501,7 @@ def live_payload(sid: str, st: Settings) -> bytes:
         "sr": SR,
         "ch": ch,
         "sources": head,
-        "slices": not zoned and bool(parse_slices(st.slices)),
+        "slices": not zoned and not st.raw and bool(parse_slices(st.slices)),
     }
     if zoned:
         header["zones"] = zones

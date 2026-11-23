@@ -152,14 +152,15 @@ on a formant-mode sampler only, a route to `pitch` / `osc1_detune` /
 reads the pitch one root period ahead, which the voice can foresee for
 its own motion (`grain-worklet.js` `ahead`: the pitch terms of `ctl()`
 in closed form — **change one, change the other**) and not for those
-(`sampler-and-clips.md`, "Formant mode on the live keys"); and the
-granular oscillator, whole (osc1 "granular" is no `SHAPES` entry, its
-`grain_*` fields "default": `sampler-and-clips.md`, "The granular
-shape"); and the spectral oscillator, whole (osc1 "spectral" is no
+(`sampler-and-clips.md`, "Formant mode on the live keys"); a grain cloud
+past `paramui.LIVE_GRAINS` grains at once, on osc2 beside osc1's sampler,
+or on osc2 ringing a mono osc1 ("The granular oscillator" below); and the
+spectral oscillator, whole (osc1 "spectral" is no
 `SHAPES` entry, its `spectral_*` fields "default": a phase vocoder per
 256-sample frame is not in the worklet — `sampler-and-clips.md`, "The
 spectral shape"). Oscillator 3 and a second warp play live ("Oscillator
-3 and a second warp" below).
+3 and a second warp" below), as does the granular oscillator ("The
+granular oscillator" below).
 `loopDuration()` (used to decide the
 fallback loop length for the shortcut sheet and elsewhere) lives on
 `static/audio.js`, not piano.js — piano.js reads it off
@@ -674,6 +675,70 @@ osc3 square 6.7 / 4.7, + an osc3 wavetable 8.8 / 8.3; saw x4 8.7 / 5.8
 on both). The shipped sounds did not move (median 9.6 / 6.5 % before,
 the same rows within a run's noise after).
 
+## The granular oscillator
+
+The granular shape (the engine's side: the root `docs/engine.md`,
+"Granular oscillator") is live on osc1 and osc2: osc "granular" passes the
+gate (`paramui._osc1_ok` / `_osc2_ok`) and every `grain_*` field is
+`EXACT` — `grain_size` and `grain_density` a predicate, `_grains_ok`.
+Held sample for sample on the oscillator alone by
+`tests/studio/test_live_granular.py` (fourteen settings, mono and stereo,
+three keys and copies, a glide and a routed position, a 48 kHz context:
+within 2e-6 of the peak — the payload's float32) and in the voice by the
+corpus (`granular_*`: the defaults, dense, scan, reverse, both, pitch
+spray, a loop, key track off, unison 3, a cloud on osc2 under a saw with
+cross-FM, clouds on both oscillators ringing each other with a glide in,
+an LFO routed onto the position — every case 0.000 dB of level and
+harmonics, envelope p95 <= 0.003 dB, the module's output the JS voice's
+bit for bit).
+
+- **The source** is the sample as stored: `sampler.live_url` gives a
+  granular sound `/sampler/live/<id>.bin?raw=1` (`live_payload` with
+  `Settings.raw`: one source, the whole sample, nothing faded or
+  crossfaded — `granular.render` reads `sampler.get`'s audio, its span
+  and loop applied by the schedule). One URL whatever the span or loop;
+  the sampler's URLs did not move. livefx.js fetches it as any sampler
+  payload (a "sampler" message).
+- **The cloud** is `grain-worklet.js`'s `cloud`, one per oscillator copy
+  (`v.sp[slot]`): grain k starts at floor(k x sr / density) of the copy's
+  own clock; its draws are `hash_u(seed, 3k + i)` with the seed crc32 of
+  `"grain:<MIDI>:<copy>"` — the voice's own key, the unison copy, osc2's
+  + 100 — from voice-worklet.js's `crc32` / `driftU`
+  (`globalThis.synthlabHash`); its place (the position at its first
+  sample — `GP`, the control pass's per-sample route value, when
+  `grain_pos` is routed — plus scan x the seconds since the note began
+  over the region's seconds plus spray x a draw, wrapped round the
+  region), its rate (the pitch at its first sample over the root, or the
+  key with key track off, x `meta.sr / sr`, x the pitch spray) and its
+  direction are fixed then; it reads linearly, silent outside the
+  recording, under `granular.window` (one per size and shape, shared);
+  the grains are summed, then x the cloud's gain — the engine's order, so
+  a held setting is the engine's samples. Grains still sounding at a
+  block's end are kept. A density moved mid-note re-bases the grain count
+  so the cloud goes on as if the note had always had it; a size or window
+  moved applies to the grains that start after.
+- **The stereo sum**: the cloud is stereo (n, 2) whenever it sounds
+  (`synthlabGrains.sounds`: a payload with a region of 4 samples or more),
+  so the voice takes fx.pan's stereo law (x sqrt 2) as for a sampler; a
+  true-stereo sample's right side rides `OR` (osc1) / `OR2` (osc2) into the
+  stack's right channel — osc2's ringing osc1 per channel and bending it by
+  its mean (`synth._mono`). A cloud on osc2 ringing a mono osc1 is refused:
+  the engine's ring (`_times(o1, o2)`, mono times stereo) raises there, so
+  no render exists to match.
+- **Both engines run it in JS** (as the sampler's reads and pluck's loop):
+  the module has no granular shape, so a voice holding a cloud runs the JS
+  stack and post() in the module. No voice.ts change, no new module bytes.
+
+**Cost** (`tools/bench_live_voice.py --granular`, 16 voices from C2 over
+two octaves at 48 kHz, an i9-14900K, JS / WebAssembly): the defaults (20 a
+second x 80 ms, 1.6 grains at once) 6.3 / 5.6 %, on a stereo sample 6.7 /
+5.8, in unison 4 11.4 / 10.5, on osc2 under a saw 6.7 / 5.9; 100 x 100 ms
+(10 at once) 11.3 / 10.7; 200 x 200 ms (40) 29.2 / 29.3 — the grain loop's
+cost is the overlap. Hence `paramui.LIVE_GRAINS` = 64 grains at once in a
+voice (overlap x unison x clouds): about half the thread for a full node;
+past it the keys take the WAV. The shipped sounds did not move (median
+9.6 / 6.7 % before, 9.6 / 6.6 after; the rest within a run's noise).
+
 ## Filters and modulation
 
 The filter types, filter 2 and the modulation system (the root
@@ -831,8 +896,8 @@ DSP; so do voices started before the module arrived, voices past the 64
 state slots, and parts the module lacks: the control pass of a voice
 with mod routes, the wavetable and pluck oscillators (their JS loops
 write straight into the module's scratch arrays, post() still runs
-there; the sampler's read and its formant grain train are JS on both
-engines for the same reason). **Precision**: f64x2 — the JS voice's own float64 math in the
+there; the sampler's read, its formant grain train and the granular
+cloud are JS on both engines for the same reason). **Precision**: f64x2 — the JS voice's own float64 math in the
 same operation order, so the f32 output matches the JS voice (worst
 5.6e-8 of the peak over the corpus, most jobs bit-identical) and the
 corpus numbers are unchanged; f32x4 would have doubled the lanes but

@@ -34,7 +34,7 @@
       o += ch * m.n;
       return s;
     });
-    return { url, sources, slices: meta.slices, zones: meta.zones || null, stereo: ch > 1, ratio: meta.sr / sr };
+    return { url, sources, slices: meta.slices, zones: meta.zones || null, stereo: ch > 1, ratio: meta.sr / sr, sr: meta.sr };
   }
 
   // sampler.pick_zones, line for line: [[zone, weight], ...] for a key, a

@@ -540,7 +540,9 @@ def test_voice_worklet_served_within_budget_and_not_a_script_tag(tmp_path):
     # a second warp on each oscillator (warpBlock / mipOf, warpEnd2, its
     # amounts in the control pass) with their glue to voice.ts: the
     # oscillator loop and control pass they extend are this file's
-    assert len(_code_lines(WORKLET)) <= 1293
+    # 1293 -> 1309: the granular oscillator's glue (its right side in the
+    # stack's stereo sum, osc2's in OR2, grain_pos routed, the hashes)
+    assert len(_code_lines(WORKLET)) <= 1309
     sampler_js = WORKLET.with_name("sampler-worklet.js")
     assert client.get("/static/sampler-worklet.js").status_code == 200
     assert len(_code_lines(sampler_js)) <= 64  # + the zone map
@@ -551,11 +553,12 @@ def test_voice_worklet_served_within_budget_and_not_a_script_tag(tmp_path):
         encoding="utf-8"
     )
     # formant mode's grain train: a third module in the voice's scope
-    # (<= 60), which sampler-worklet.js's read hands a copy to
+    # (<= 60), which sampler-worklet.js's read hands a copy to; and the
+    # granular oscillator's cloud, which the voice calls (60 -> 121)
     grain_js = WORKLET.with_name("grain-worklet.js")
     assert client.get("/static/grain-worklet.js").status_code == 200
-    assert len(_code_lines(grain_js)) <= 60
-    assert "globalThis.synthlabGrains = { on, read }" in grain_js.read_text(
+    assert len(_code_lines(grain_js)) <= 121
+    assert "globalThis.synthlabGrains = { on, read, cloud" in grain_js.read_text(
         encoding="utf-8"
     )
     assert "globalThis.synthlabGrains" in sampler_js.read_text(encoding="utf-8")
