@@ -516,3 +516,24 @@ def test_every_range_input_draws_its_fill(tmp_path):
         if "--fill" not in t and 'id="space"' not in t and "colours-hue" not in t
     ]
     assert not bare, bare
+
+
+def test_no_grid_cell_takes_its_size_from_the_container():
+    """The note grid is a size container (`container: steps / size`) whose
+    rows share its height. A cell sized from it (`100cqh`) made every
+    layout inside the grid restyle the grid mid-layout: 230-260 ms a pass
+    in Chrome 158 on a 4-bar loop (2,400 elements), paid by every script
+    that read a size after an edit — the Loops page's freeze while a loop
+    played and was edited. The rows take the height (frontend.md, "No
+    container units on a grid's cells"). The drum machine's grid too: its
+    cells were laid out again on every step's restyle."""
+    unit = re.compile(r"\d(cq[whib]|cqmin|cqmax)\b")
+    bad = []
+    for name in ("style.css", "dense.css"):
+        css = Path(f"synthlab/studio/static/{name}").read_text(encoding="utf-8")
+        css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+        for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+            last = [s.split()[-1] for s in sel.split(",") if s.strip()]
+            if unit.search(body) and any(".cell" in s for s in last):
+                bad.append(f"{name}: {' '.join(sel.split())}")
+    assert bad == [], bad

@@ -35,7 +35,15 @@ a bounce's session byte for byte).
 
 Render pipeline (`render.py`): the loop renders as **stems** (main lane,
 each layer, drums), each cached in `StemCache` keyed by content hash — a
-live tweak re-renders only the section that changed. Per-layer FX chains
+live tweak re-renders only the section that changed. **The StemCache
+holds float32** (`RENDER_REV` 4; it holds a song section's
+master-processed cycle too): half float64's bytes, measured on a 480 s
+song where the stems were ~1.0 GB of a 2.5 GB peak. A stem is rounded
+once where it renders (`render.hold`), so a mix sums the same samples
+whether the stem was just made or cached, with or without a cache; every
+read (`get` / `peek`) is a read-only float64 copy, so the mixes, the FX
+and the native kernels never see float32. The rounding is ~6e-8 of full
+scale, under the 16-bit WAV's step. Per-layer FX chains
 bake into their stem; master FX apply to the sum; one normalization at the
 end. **A stem key carries everything its render reads**
 (`tests/studio/test_render_cache_keys.py`): a layer's includes the
@@ -131,7 +139,8 @@ what the same inputs render to**, and update the pinned literals
 (`tests/studio/test_render.py` x3, `test_song_routes.py` x1). It replaces
 a new salt per fix; the per-fix salts that exist (`layer_gain_v`,
 `_cycle_fixes`) stay. Rev 1 is the release rule: a gated
-note's release lasts the patch's release time. Stem keys, note keys and
+note's release lasts the patch's release time; rev 4 is float32 stems
+(above). Stem keys, note keys and
 the voice-take key do not carry it: they address in-memory caches and
 `no-store` responses (a voice take rides `/preview` under a key that
 holds the take's own content).

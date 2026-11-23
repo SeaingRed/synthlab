@@ -39,6 +39,7 @@ from ..render import (
     SectionJob,
     StemCache,
     fold_tail,
+    hold,
     result_of,
     section_pool,
 )
@@ -245,7 +246,7 @@ class SongRender:
         its loop, the next section's head (its tail) and the gain, and the
         export and the stems read it again: the master chain used to run
         two or three times per section per request, and never cached. The
-        arrays are shared, so they are made read-only (`fold_tail`
+        arrays are read-only copies of the float32 it holds (`fold_tail`
         copies)."""
         master = clean_chain(list(master_fx))
         blob = json.dumps({"own": own_key, "master": master}, sort_keys=True)
@@ -255,11 +256,7 @@ class SongRender:
             audio = section_master_audio(
                 parts, master, stem_cache=self.stems, clip_root=self.state.data_dir
             )
-            audio.base.flags.writeable = False
-            audio.tail.flags.writeable = False
-            if audio.out is not None:
-                audio.out.flags.writeable = False
-            self.stems.put(key, audio)
+            audio = hold(self.stems, key, audio)  # read-only float64 copies
             self._keep_levels(own_key, parts, audio)
         return audio
 

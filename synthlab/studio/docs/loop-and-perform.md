@@ -507,7 +507,10 @@ inside keeps its tail (section chunks rely on it). The transport shows
 
 **grid.js** (island 15): per-grid playheads — each grid maps the loop's
 phase onto its own `data-bars` (audio.js writes only the loopbar's;
-the song drawer's grid stays song.js's) — and step LEDs (`.cell.now`);
+the song drawer's grid stays song.js's) — and step LEDs (`.cell.now`,
+on the hits under the playhead alone: lighting the whole column
+restyled ~60 cells a step, ~550 a second on a 4-bar loop, and the
+playhead already marks it);
 playable row labels (a pitch through `window.synthlab.piano`, a drum
 through its `.hit-pad`'s URL); a lone right-click erases (a right-drag
 erases in audio.js's stroke: `paintVal` false for button 2, the pen's

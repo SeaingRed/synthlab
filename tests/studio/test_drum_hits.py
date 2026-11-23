@@ -742,7 +742,7 @@ def test_a_native_section_is_its_loop_wrap_tiled(monkeypatch):
     )
     folded = audio.base.copy()
     folded[: len(audio.tail)] += audio.tail
-    np.testing.assert_allclose(folded, stem, atol=1e-9)
+    np.testing.assert_allclose(folded, stem, atol=render.STEM_ATOL)
     assert np.max(np.abs(audio.tail)) > 0.01
 
 

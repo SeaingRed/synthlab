@@ -119,7 +119,7 @@ def test_a_section_without_either_is_the_section_it_was():
     assert not parts.flat
     assert "note_nudge" not in arr_dict(parts.arr)
     assert "note_chance" not in arr_dict(parts.arr)
-    assert render.RENDER_REV == 3
+    assert render.RENDER_REV == 4  # 4: float32 stems, not this feature
 
 
 def test_a_nudged_pattern_plays_the_loops_onsets_in_every_pass():

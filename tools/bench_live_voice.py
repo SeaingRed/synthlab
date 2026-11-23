@@ -4,7 +4,7 @@ fallback) and the WebAssembly one (static/voice-dsp.wasm posted to each
 voice node, as livefx.js does).
 
     uv run python tools/bench_live_voice.py [--voices 16] [--layers 3]
-        [--engine js wasm] [--only NAME ...] [--round6] [--osc3]
+        [--engine js wasm] [--only NAME ...] [--round6] [--osc3] [--granular]
 
 Runs the shipped worklet files at 48 kHz (a browser's usual rate) with the
 engine's tables and reports time per 128-sample render quantum as a share
@@ -28,7 +28,8 @@ of its realtime budget (128 / 48000 s = 2.67 ms):
    keys from the root to two octaves over it — the tape read
    (sampler-worklet.js), and formant mode (grain-worklet.js: 2 x the
    pitch ratio grains sounding per voice, so 2 at the root and 8 two
-   octaves up), each also as a true-stereo sample.
+   octaves up), each also as a true-stereo sample; with `--granular`, the
+   granular oscillator on the same tone by grain overlap (`GRANULAR`).
 
 Node's V8 is the same engine as Chrome's AudioWorklet thread (its
 WebAssembly and SIMD included), so the shares carry over to a desktop
@@ -63,6 +64,16 @@ WebAssembly (the sampler's loops are JS on both; the module runs post()):
                 formant    mono 7.8% -> 7.2%, stereo 7.9% -> 7.6%
                 (the same run: median sound 7.1% -> 4.6%, worst 17.8% ->
                 10.4%, 3 layers all live 43.7% -> 25.0%)
+
+`--granular` (the granular oscillator, grain-worklet.js `cloud`: JS on both
+engines, post() in the module), i9-14900K, node 24, 16 keys:
+
+    20/s x 80 ms (1.6 grains at once)   6.3% -> 5.6%  (stereo 6.7% -> 5.8%,
+                                        unison 4 11.4% -> 10.5%, on osc2
+                                        under a saw 6.7% -> 5.9%)
+    100/s x 100 ms (10 at once)        11.3% -> 10.7%
+    200/s x 200 ms (40 at once)        29.2% -> 29.3%
+    (the same run: median sound 9.6% -> 6.6%, as before the cloud)
 """
 
 from __future__ import annotations
@@ -259,6 +270,52 @@ def _samplers(tmp: Path, extra: dict) -> dict:
     return out
 
 
+# `--granular`: the granular oscillator (grain-worklet.js `cloud`) on the
+# same tone as case 4, by how many grains overlap (density x size): the
+# defaults (20 a second x 80 ms: 1.6), 100 x 100 ms (10), 200 x 200 ms (40);
+# the defaults in unison 4, on a stereo sample, and on osc2 under a saw
+GRANULAR = {
+    "granular 20/s x 80 ms": ("mono", {}),
+    "granular 100/s x 100 ms": ("mono", {"grain_density": 100.0, "grain_size": 0.1}),
+    "granular 200/s x 200 ms": ("mono", {"grain_density": 200.0, "grain_size": 0.2}),
+    "granular 20/s x 80 ms, unison 4": ("mono", {"unison": 4}),
+    "granular 20/s x 80 ms, stereo": ("stereo", {}),
+    "granular on osc2, under a saw": (
+        "mono",
+        {"osc1": "saw", "osc2": "granular", "osc2_octave": 0},
+    ),
+}
+
+
+def _granular(tmp: Path, extra: dict) -> dict:
+    """`--granular`'s sounds, as `_samplers` hands case 4's over."""
+    t = np.arange(2 * sampler.SR) / sampler.SR
+    tone = sum(np.sin(2 * np.pi * 65.406 * k * t) / k for k in range(1, 30)) * 0.2
+    ids = {
+        "mono": sampler.register(tone),
+        "stereo": sampler.register(np.column_stack([tone, np.roll(tone, 200)])),
+    }
+    out = {}
+    for i, (name, (kind, kw)) in enumerate(GRANULAR.items()):
+        p = Patch(
+            **{"osc1": "granular", **kw},
+            sampler_sample=ids[kind],
+            sampler_root=36,
+            filter_type="none",
+        )
+        url = sampler.live_url(p)
+        query = dict(parse_qsl(url.split("?", 1)[1]))
+        path = tmp / f"granular-{i}.smp"
+        path.write_bytes(sampler.live_payload(ids[kind], sampler.live_settings(query)))
+        out[name] = {
+            **p.to_json(),
+            **extra,
+            "sampler_live": url,
+            "sampler_bin": str(path),
+        }
+    return out
+
+
 # the three heaviest sounds on the JS engine (16 voices), layered by case 2
 # (the results recorded above call them by earlier names: "Slate Ray",
 # "Deep Beam" and "Fathom Depth")
@@ -333,6 +390,11 @@ def main() -> None:
         action="store_true",
         help="add oscillator 3 and second-warp sounds beside their twins",
     )
+    ap.add_argument(
+        "--granular",
+        action="store_true",
+        help="add granular sounds (by grain overlap) beside the live sampler",
+    )
     args = ap.parse_args()
     rows = [(e["name"], get_factory(e["name"])) for e in FACTORY]
     rows += [(e["name"], get_library(e["name"])) for e in LIBRARY]
@@ -360,6 +422,8 @@ def main() -> None:
         "fx": FX_CHAIN,
         "samplers": _samplers(tmp, extra),
     }
+    if args.granular:
+        spec["samplers"].update(_granular(tmp, extra))
     (tmp / "spec.json").write_text(json.dumps(spec), encoding="utf-8")
     (tmp / "tables.bin").write_bytes(voicetables.payload())
     runs = {engine: _run(tmp, engine) for engine in args.engine}

@@ -7,6 +7,7 @@ from synthlab.core import SR
 from synthlab.effects import to_stereo
 from synthlab.studio.arrange import build_song, loop_seconds
 from synthlab.studio.render import (
+    STEM_ATOL,
     RenderInputs,
     StemCache,
     _stem_key,
@@ -54,7 +55,7 @@ def test_stem_render_matches_monolithic():
     patch = preset("bass_reese")
     got = render_audio(RenderInputs(patch=patch, arr=ARR, layers=[LAYER]))
     want = _monolithic(patch, ARR, layers=[LAYER])
-    np.testing.assert_allclose(got, want, atol=1e-9)
+    np.testing.assert_allclose(got, want, atol=STEM_ATOL)
 
 
 def test_stem_cache_reuses_unchanged_sections():

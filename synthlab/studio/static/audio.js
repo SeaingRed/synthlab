@@ -346,7 +346,9 @@
   // ---- the clock every take and launch reads: S.tempo, S.heardTime,
   // S.nextBar — one definition of each, not one an island -----------------
   // The page's tempo: the sound bar's (#t-bpm), else the page's bpm field; 0: none.
-  const tempo = () => Number((document.getElementById("t-bpm") || document.querySelector("[name='bpm']"))?.value) || 0;
+  // (getElementsByName: a list the browser keeps; a querySelector walked the
+  // whole page on every call, several a frame where no field is named bpm)
+  const tempo = () => Number((document.getElementById("t-bpm") || document.getElementsByName("bpm")[0])?.value) || 0;
   // The output latency, and the context's time as the speakers are at it:
   // a take is cut, and a playhead drawn, in heard time.
   const outLatency = () => (ctx ? ctx.outputLatency || ctx.baseLatency || 0 : 0);

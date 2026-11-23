@@ -339,9 +339,15 @@ body { line-height: 1.35; }
     flex-direction: column; flex: 1 1 0; min-height: 0; }
   :is(.perform-view, .drums-view) :is(.transport, .drum-grid) > .grid {
     flex: 1 1 0; min-height: 0; container: steps / size; overflow: auto; align-content: start; }
-  :is(.perform-view, .drums-view) .drum-grid-8 .cell {
+  /* the row, not the cell, takes the pane's height: a cell sized by the
+     container (100cqh) made every layout inside the grid restyle all
+     its cells mid-layout — 240 ms a pass on a 4-bar loop (frontend.md,
+     "No container units on a grid's cells") */
+  :is(.perform-view, .drums-view) :is(.transport, .drum-grid) > .grid .gridrow:not(.sliderow) > .cell {
+    height: auto; }
+  :is(.perform-view, .drums-view) .drum-grid-8 .gridrow {
     height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 30px); }
-  :is(.perform-view, .drums-view) .grid:not(.drum-grid-8) .gridrow:not(.sliderow) > .cell {
+  :is(.perform-view, .drums-view) .grid:not(.drum-grid-8) .gridrow:not(.sliderow) {
     height: clamp(17px, calc((100cqh - 46px) / var(--rows, 6) - 2px), 30px); }
 
   /* --- Perform (the Loops page): the Loops panel
@@ -395,9 +401,9 @@ body { line-height: 1.35; }
    to 30 px (64 would draw 65 px squares in a 2560 x 1400 window, the
    grid sized for a giant screen) */
 @media (min-width: 1200px) and (min-height: 1200px) {
-  :is(.perform-view, .drums-view) .drum-grid-8 .cell {
+  :is(.perform-view, .drums-view) .drum-grid-8 .gridrow {
     height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 30px); }
-  :is(.perform-view, .drums-view) .grid:not(.drum-grid-8) .gridrow:not(.sliderow) > .cell {
+  :is(.perform-view, .drums-view) .grid:not(.drum-grid-8) .gridrow:not(.sliderow) {
     height: clamp(17px, calc((100cqh - 46px) / var(--rows, 6) - 2px), 30px); }
 }
 /* a dragged height for the open editor: the playlist keeps 45 % of the
@@ -463,7 +469,7 @@ body { line-height: 1.35; }
   .drums-view > :is(.view-head, #drum-transport) { grid-column: 1 / -1; }
   .drums-view > #drum-bank { grid-column: 1; grid-row: 3; }
   .drums-view .drum-grid { max-height: none; }
-  .drums-view .drum-grid-8 .cell {
+  .drums-view .drum-grid-8 .gridrow {
     height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 96px); }
   .drums-view > #drum-panels { grid-column: 2; grid-row: 3; overflow: auto;
     display: flex; flex-direction: column; }
@@ -658,11 +664,11 @@ body { line-height: 1.35; }
 .lane-seg button { max-width: 11em; }
 @media (min-width: 1200px) {
   /* the roll's rows share the pane's height less the ruler, the slide row and the lane */
-  .perform-view .grid.roll .gridrow:not(.sliderow) > .cell {
+  .perform-view .grid.roll .gridrow:not(.sliderow) {
     height: clamp(17px, calc((100cqh - 58px) / var(--rows, 6) - 2px), 30px); }
 }
 @media (min-width: 1200px) and (min-height: 1200px) {
-  .perform-view .grid.roll .gridrow:not(.sliderow) > .cell {
+  .perform-view .grid.roll .gridrow:not(.sliderow) {
     height: clamp(17px, calc((100cqh - 58px) / var(--rows, 6) - 2px), 30px); }
 }
 @media (min-width: 1200px) {
@@ -672,7 +678,7 @@ body { line-height: 1.35; }
      pane is scrolled. The lane's
      height is the pane's own: rows that can fit (17 px and up) end above
      it, and rows that cannot scroll, the last one clear of it */
-  .perform-view .grid.roll:has(> .chordrow) .gridrow:not(.sliderow) > .cell {
+  .perform-view .grid.roll:has(> .chordrow) .gridrow:not(.sliderow) {
     height: clamp(17px, calc((100cqh - 80px) / var(--rows, 6) - 2px), 30px); }
 }
 
@@ -910,7 +916,7 @@ body { line-height: 1.35; }
    (grid.js, html[data-rack]); here the drum grid's steps grow past 30 px
    to fill it. */
 @media (min-width: 1200px) {
-  html:not([data-density="comfy"])[data-rack="drums"] .perform-view .drum-grid-8 .cell {
+  html:not([data-density="comfy"])[data-rack="drums"] .perform-view .drum-grid-8 .gridrow {
     height: max(17px, calc((100cqh - 32px) / var(--rows, 8) - 2px)); }
 }
 

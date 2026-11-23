@@ -187,7 +187,7 @@ def test_a_return_is_its_chain_on_the_senders_stem_times_the_send():
     full = fx.chain(x, build_chain(ECHO, arr))
     direct = fx._delay(x, time=0.25, feedback=0.0, mix=1.0, ping_pong=False)
     want = full - direct
-    assert np.max(np.abs(got - want[: len(got)])) < 1e-9
+    assert np.max(np.abs(got - want[: len(got)])) < render.STEM_ATOL
     assert len(got) == 2 * n  # the echoes ring one cycle past the end, no more
     # an echo, not the note: nothing sounds before the delay time
     d = int(0.25 * SR)
@@ -229,8 +229,8 @@ def test_two_senders_superpose_and_the_send_scales_the_return():
         return render._pad_trim(stem, 2 * n)
 
     both, lead, pad = ret(0.5, 0.25), ret(0.5, 0.0), ret(0.0, 0.25)
-    assert np.max(np.abs(both - (lead + pad))) < 1e-9
-    assert np.max(np.abs(ret(1.0, 0.0) - 2 * lead)) < 1e-9
+    assert np.max(np.abs(both - (lead + pad))) < render.STEM_ATOL
+    assert np.max(np.abs(ret(1.0, 0.0) - 2 * lead)) < render.STEM_ATOL
 
 
 def test_a_return_reads_the_stem_past_its_fader_and_pan():
@@ -276,7 +276,7 @@ def test_a_looped_section_folds_its_return_exactly():
     sm.set_lane(long, sid, ids["pad"], "cutoff", [[0.0, 0.0], [1.0, 1.0]])
     three = section_audio(_parts(long, sid))
     assert len(three.base) == 3 * n
-    assert np.max(np.abs(three.base[n : 2 * n] - looped)) < 1e-9
+    assert np.max(np.abs(three.base[n : 2 * n] - looped)) < render.STEM_ATOL
 
 
 def _native() -> tuple[dict, str, dict]:

@@ -104,7 +104,7 @@ def test_with_no_chance_the_field_is_written_nowhere_and_no_key_moves():
 
 
 def test_render_rev_did_not_move():
-    assert render.RENDER_REV == 3
+    assert render.RENDER_REV == 4  # 4: float32 stems, not this feature
 
 
 def test_with_no_chance_the_schedule_and_the_audio_are_the_old_ones():

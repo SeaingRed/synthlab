@@ -186,9 +186,9 @@ def test_a_song_whose_audio_tracks_have_no_rack_keeps_its_keys_and_audio(tmp_pat
         parts = sm.section_arrangement(s, sec)
         assert parts.takes == () and "clips" in parts.tracks
         keys[sec["id"]] = section_key(parts, tmp_path)
-    # RENDER_REV 3 (the booth's spliced pitch shifter) moved every key:
+    # RENDER_REV 4 (stems held as float32) moved every key:
     # these are the keys at that rev
-    assert keys == {"s1": "c3def15f33ec1721", "s2": "db35d4e315545d64"}
+    assert keys == {"s1": "23148a22bc7f1153", "s2": "c5dfba6c8466be9c"}
     # a stored empty rack saves as the track always did
     assert sm._track(s, "ta")["fx"] == []
 
