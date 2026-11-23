@@ -94,7 +94,12 @@ where the sound sits dark -> bright within its family #}
 {#- a family's head strip: its name, how many, and which way it runs -#}
 {% macro head(id, name, count, note) %}<h2 id="shelf-{{ id }}" class="module-head shelf-title" title="{{ note }}">{{ name }} <small>{{ count }}</small><span class="lib-legend" aria-hidden="true">dark<b></b>bright</span></h2>{% endmacro %}
 {% set total = library | map(attribute=1) | map('length') | sum %}
+{#- the selected card (the sound on Synths): its shelf and the dock's keys say
+    so as attributes (library.js keeps them), never a :has() on the view -#}
 {% set ns = namespace(n=0) %}
+{% set on = [] %}{% set on_synths = patch.name if patch is defined else none %}{% for cat, members in core | default([]) %}{% if members | selectattr("name", "equalto", on_synths) | list %}{% set _ = on.append("core-" ~ cat) %}{% endif %}{% endfor %}
+{% if recipes | selectattr("name", "equalto", on_synths) | list %}{% set _ = on.append("recipes") %}{% endif %}
+{% for family, members in library %}{% if members | selectattr("name", "equalto", on_synths) | list %}{% set _ = on.append(family) %}{% endif %}{% endfor %}
 {#- three kinds of tag: the families, the tone (dark / mid / bright), the genres -#}
 {% set fams = library | map(attribute=0) | list %}
 {#- the Core shelf's categories are families too: mallets, orchestral -#}
@@ -136,7 +141,7 @@ where the sound sits dark -> bright within its family #}
      recipes, and the genre recipes and factory sounds it lists besides —
      first, as the sounds ready to go; each card Uses its own source. #}
   {% for cat, members in core | default([]) %}
-  <section class="shelf shelf-core module" aria-labelledby="shelf-core-{{ cat }}" data-module="library.core-{{ cat }}">
+  <section class="shelf shelf-core module" aria-labelledby="shelf-core-{{ cat }}" data-module="library.core-{{ cat }}"{% if "core-" ~ cat in on %} data-active{% endif %}>
     {{ head("core-" ~ cat, "core · " ~ cat, members | length, "the core library's " ~ cat ~ ", named for what they are · dark → bright") }}
     <div class="lib-grid">
       {% for e in members %}{% set ns.n = ns.n + 1 %}{{ card(e, ns.n, e.kind, cat, patch.name == e.name, genres) }}{% endfor %}
@@ -147,7 +152,7 @@ where the sound sits dark -> bright within its family #}
      sometimes a following layer — so ▶ plays the recipe's own chain and Use
      brings it all (the "recipes" source, a format-2 load). #}
   {% if recipes %}
-  <section class="shelf shelf-recipes module" aria-labelledby="shelf-recipes" data-module="library.recipes">
+  <section class="shelf shelf-recipes module" aria-labelledby="shelf-recipes" data-module="library.recipes"{% if "recipes" in on %} data-active{% endif %}>
     {{ head("recipes", "recipes", recipes | length, "filter house, garage, melodic techno, trance and more, with their FX · dark → bright") }}
     <div class="lib-grid">
       {% for e in recipes %}{% set ns.n = ns.n + 1 %}{{ card(e, ns.n, "recipes", "recipes", patch.name == e.name, genres) }}{% endfor %}
@@ -155,7 +160,7 @@ where the sound sits dark -> bright within its family #}
   </section>
   {% endif %}
   {% for family, members in library %}
-  <section class="shelf module" aria-labelledby="shelf-{{ family }}" data-module="library.{{ family }}">
+  <section class="shelf module" aria-labelledby="shelf-{{ family }}" data-module="library.{{ family }}"{% if family in on %} data-active{% endif %}>
     {{ head(family, family, members | length, "dark → bright") }}
     <div class="lib-grid">
       {% for e in members %}{% set ns.n = ns.n + 1 %}{{ card(e, ns.n, "library", family, patch.name == e.name, genres) }}{% endfor %}
@@ -174,7 +179,7 @@ where the sound sits dark -> bright within its family #}
       detail: each presses that card's own key (library.js), so the card
       keeps its keys and nothing is drawn twice per card. What they read
       follows the selection (style.css 9b1: Use, Reload or ✓ On Synths) -#}
-  <div class="lib-d-acts" role="group" aria-label="the selected sound">
+  <div class="lib-d-acts" role="group" aria-label="the selected sound"{% if on %} data-sel="{{ 'reload' if sound_dirty else 'here' }}"{% endif %}>
     <button type="button" class="btn btn-s" data-press="lib-mix" title="in your mix: what Use lands on Synths">▶ in your mix</button>
     <button type="button" class="btn btn-s" data-press="lib-layer" title="a new layer on Synths, following the main sound">+ Layer</button>
     <button type="button" class="btn btn-s btn-primary lib-d-use" data-press="lib-use">Use on Synths</button>

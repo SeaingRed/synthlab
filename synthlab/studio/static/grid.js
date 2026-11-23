@@ -57,12 +57,12 @@
     for (const c of x.cols[step] || []) c.classList.add("now");
     x.lit = step;
   }
-  function tick() {
+  function tick(now) {
     raf = 0;
     const s = S();
     if (!s.isPlaying?.() || s.loopStart?.() == null) return rest();
     raf = requestAnimationFrame(tick);
-    if (document.hidden) return;
+    if (document.hidden || !s.paced?.("grid", now)) return; // ~60 a second on any display (colours.js)
     if (!grids) scan();
     const dur = s.loopDuration(), t = s.getCtx().currentTime - s.loopStart();
     const loopBars = bpm() ? Math.max(1, Math.round((dur * bpm()) / 240)) : 0;

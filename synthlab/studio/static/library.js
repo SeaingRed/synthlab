@@ -22,7 +22,10 @@
 //    + Layer, Use — so a card keeps its keys while it is the selection and
 //    nothing is drawn twice per card (the card just clicked would lose
 //    its Use if its keys moved into the dock).
-// Budget: <= 75 code lines.
+// 6. The selection said in attributes (the shelf's `data-active`, the
+//    dock keys' `data-sel`, the browser's `data-none`): style.css reads
+//    them instead of a :has() on the view. 75 -> 86.
+// Budget: <= 86 code lines.
 
 (() => {
   "use strict";
@@ -58,8 +61,20 @@
     }
     const count = document.getElementById("lib-count");
     if (count) count.textContent = filtering ? `${shown} of ${cards.length}` : ""; // the recipes too
+    document.querySelector(".library-view .lib-browser")?.toggleAttribute("data-none", !!cards.length && !shown);
     for (const b of $$("[data-lib-view]")) b.setAttribute("aria-pressed", String((root.dataset.libView || "") === b.dataset.libView));
+    picked();
   }
+  // the selection, said where style.css reads it (never a :has() on the
+  // view: frontend.md, "Page weight"): its shelf, and the dock's keys —
+  // ✓ On Synths, Reload (edited there) or Use
+  function picked() {
+    const a = document.querySelector(".library-view .lib-card.active"), keys = document.querySelector(".library-view .lib-d-acts");
+    for (const s of $$(".library-view .shelf")) s.toggleAttribute("data-active", !!a && s.contains(a));
+    const sel = !a ? null : a.querySelector(".lib-here") ? "here" : a.querySelector('.lib-use[data-menu^="Reload"]') ? "reload" : "use";
+    if (keys && keys.dataset.sel !== sel) { if (sel) keys.dataset.sel = sel; else delete keys.dataset.sel; }
+  }
+  document.addEventListener("click", (e) => { if (e.target.closest?.(".lib-card")) requestAnimationFrame(picked); }); // (audio.js moves .active)
   document.addEventListener("input", (e) => { if (e.target.id === "lib-search") apply(); });
   document.addEventListener("htmx:after:settle", apply);
   document.addEventListener("DOMContentLoaded", apply);

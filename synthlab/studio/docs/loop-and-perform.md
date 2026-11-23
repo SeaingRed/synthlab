@@ -114,7 +114,7 @@ selection" below: `.ed-head`, in the `transport` region's watch).
 **✦ Coach is the inspector's other tab** (Lane | ✦ Coach in its head,
 `data-coach-toggle="close" | "open"`, `data-coach-tab`; coach.js sets
 their `aria-selected`): `#coach-dock` stands in the inspector's body and,
-open, hides the lane (`.inspector:has(#coach-dock:not([hidden]))`) — the
+open, hides the lane (`#coach-dock:not([hidden]) ~ #lane-inspector`) — the
 two never fight for the column. The head's ✦ Coach and **Alt+K** still
 toggle it (an inspector folded to its head opens with it); the coach's
 own head hides there (the tabs are its head). It is a module still: it

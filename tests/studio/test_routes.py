@@ -38,7 +38,8 @@ def test_patch_post_returns_analysis_and_trigger(tmp_path):
         "/fragment/patch", data={"cutoff": "500", "cell.A1.0": "on", "bpm": "124"}
     )
     assert r.status_code == 200
-    assert 'id="analysis"' in r.text and "hx-swap-oob" in r.text
+    # its contents swap, never the element (a child of #view's grid)
+    assert 'id="analysis"' in r.text and 'hx-swap-oob="innerHTML"' in r.text
     trigger = json.loads(r.headers["HX-Trigger"])
     url = trigger["preview-ready"]["url"]
     wav = client.get(url)

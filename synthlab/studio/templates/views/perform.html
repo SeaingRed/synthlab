@@ -294,7 +294,6 @@
         </div>
       </header>
       <div class="insp-body fold-body">
-        {% include "fragments/lane_inspector.html" %}
         {#- ✦ Coach (loopcoach.py, loopchat.py, routes/coach.py):
             the inspector's other tab (closed it is `hidden`
             and the lane shows). Its own module still — it folds, pops out
@@ -326,6 +325,10 @@
             <span class="coach-busy dim" aria-hidden="true">✦ thinking…</span>
           </form>
         </section>
+        {#- the lane, after the coach: an open coach hides it with a sibling
+            selector (`#coach-dock:not([hidden]) ~ #lane-inspector`), never
+            a :has() on the inspector (frontend.md, "Page weight") -#}
+        {% include "fragments/lane_inspector.html" %}
       </div>
     </section>
   </div>

@@ -238,6 +238,7 @@
   const soon = (f) => (document.hidden ? setTimeout(() => f(performance.now()), MOTION.s) : requestAnimationFrame(f));
   function tick(now) {
     ticking = false;
+    if (!document.hidden && !window.synthlab.paced?.("deckui", now)) { ticking = true; soon(tick); return; } // ~60 a second (colours.js)
     paint(now);
     hid?.motion(); // the device's motion too (its pump throttles it)
     if ((open || hid) && A.busy(now)) { ticking = true; soon(tick); }

@@ -72,8 +72,10 @@ def test_non_editor_views_have_a_hidden_analysis_stub(tmp_path):
     client = make_client(tmp_path)
     for view in ["breed", "map", "bass"]:
         html = client.get(f"/view/{view}").text
-        assert html.count('id="analysis"') == 1  # exactly one, hidden
-        assert 'id="analysis" class="readouts" hidden' in html
+        assert html.count('id="analysis"') == 1  # exactly one
+        # hidden; Bass's shows once a render fills it (:not(:empty))
+        stub = "" if view == "bass" else " hidden"
+        assert f'id="analysis" class="readouts"{stub}>' in html
     # editor's own visible #analysis must not be duplicated
     assert client.get("/view/editor").text.count('id="analysis"') == 1
 

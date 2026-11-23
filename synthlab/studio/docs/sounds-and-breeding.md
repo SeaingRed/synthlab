@@ -151,8 +151,8 @@ key, and the sound on Synths shows a badge, ✓, where its Use would be.
 the detail: "▶ in your mix", "+ Layer", "Use on Synths" — the page's one
 primary — or "Reload on Synths", plain, when the sound on Synths is
 edited, or "✓ On Synths") press the selected card's own (library.js,
-`data-press`); what they read follows that card by `:has()` (style.css
-9b1), so nothing is drawn twice per card.
+`data-press`); what they read follows that card by the keys' `data-sel`
+(library.js; style.css 9b1), so nothing is drawn twice per card.
 audio.js marks the card clicked `.active`, and that is the selection: the
 card's own `.lib-detail` — its name and chips, the spectrum large, meters
 for brightness and the spectrum's thirds, facts from the stored patch, how,
@@ -1173,7 +1173,7 @@ semitones / detune knobs, then its warp block (both warps). Its fields are hand-
 own for them (`_IDLE_HAND`): at level 0 every other row of it is idle
 ("oscillator 3's level is 0"), the level a dial at 0, and bench.js folds
 the section to its heading. A shape row it plays shows for it (the
-generated `:has()` rules read `osc3`'s radios too, whatever its level);
+generated rules read `data-p-osc3` too, whatever its level);
 its warp amount's target jack hides while its warp is off.
 
 Four demo factory sounds (`factory.py`, 26): *PD Resonant Sine* (one sine,

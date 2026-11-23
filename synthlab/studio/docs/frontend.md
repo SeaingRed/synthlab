@@ -874,7 +874,8 @@ session state; **the server's markup is always the default order**, and
     dense.css spell `#patch X` as `:is(#patch, .patch-panel) X` (`#patch
     .panel` as `:is(#patch .panel, #view .patch-panel)`) — the same
     specificity, so nothing at home moved; the shape rows' rules
-    (`views/editor.html`) read `#view:has(…)`; bench.js's fields, audio.js's
+    (`views/editor.html`) read #view's `data-p-*` switches (bench.js keeps
+    them; "Page weight"); bench.js's fields, audio.js's
     idle rows and tweak.js's reset ask the same.
   The one thing that may not happen is a page module going *into*
   the Panels form (its controls would join every patch post): the Panels
@@ -1079,6 +1080,44 @@ budget).
 "the browser: a section a family"): ~50 shelves, ~900 cards — but never
 the shelf holding the active card, whose detail is placed in the view's
 grid (containment would make the shelf its containing block).
+
+**No `:has()` on a big container.** Chromium keeps one invalidation set
+for every `:has()` rule on the page, and a DOM change (a node in or out,
+a text node replaced) under an element some `:has()` rule tests schedules
+that whole set there: every descendant matching any feature any `:has()`
+rule names — `input`, `select`, `.btn`, `.cell`… — restyles. A rule whose
+tail has no feature at all (`X:has(> .a) > :not(.a)`) made it the whole
+subtree. On Loops that was `.cockpit:has(.dock)` (`#view`) and
+`.deck:has(#jam-rec…)` (the deck): the deck's bar readout, rewritten each
+bar, restyled ~2,850 elements — a 100-120 ms stall a bar while a loop
+played (i9 desktop), the stutter and the lag. Synths (`#view:has()` on
+the osc radios: ~1,500 controls a change) and the Library
+(`.library-view:has(.lib-card…)`: ~1,100) paid the same on every edit. So
+a `:has()` tests a small element (`.deck-rec`, a `.route`, a `.param`, a
+panel), and where the container is the anchor the page says it instead:
+the template (`.cockpit[data-view="editor"]`, `.song-arranger.has-jam`,
+`.grid.roll[data-chance]`), a sibling selector
+(`#coach-dock:not([hidden]) ~ #lane-inspector`), or attributes an island
+keeps — Synths' switches (`#view[data-p-osc1="fm"]`, the fields #view's
+`data-switches` names: drawn by the server, kept by bench.js in the
+capture phase so every other listener reads the rows as they show) and
+the Library's selection (library.js: a shelf's `data-active`, the dock
+keys' `data-sel`, the browser's `data-none`). The Song page's drawer and
+dock rules (`.song-view:has(> .song-drawer[hidden])`) stay: ~125
+elements, ~1 ms, and they follow swapped regions. A number a frame or a
+bar writes its text node's `data`, never `textContent` (loopdeck.js's
+readout). `tests/browser/test_style_cost.py` holds it: the readout, the
+roll, a Synths panel and a Library shelf restyle tens of elements, not
+thousands.
+
+**No node in or out of `#view` itself** on a routine response. `#view` is
+each page's grid: a child added or removed lays the whole page out again
+(~115 ms in Chrome on the Loops page at 2560 px). Every render answered
+`#analysis` (a hidden stub, a direct child of `#view` on most pages) out
+of band as a whole element — a freeze on every ▶ and every edit; it swaps
+its contents now (`hx-swap-oob="innerHTML"`, `fragments/analysis.html`;
+Bass shows it by `:not(:empty)`). A new out-of-band target that is a
+child of `#view` swaps the same way, or morphs.
 
 **Page weight**: the chord poster (~500 buttons) is fetched from
 `/fragment/chordlib` on first open, not rendered into every page; all four
@@ -1542,6 +1581,23 @@ says**:
   block, no island `matchMedia` for it); `tests/browser/test_alive.py` —
   with Chromium emulating `reduce` and the default setting the entrance
   animates, the energy is written and the LED pulses; with calm, none of it.
+- **Full motion has a pace: ~60 frames a second on any display.** Every
+  loop that draws itself each frame while something plays — motion.js
+  (the scope, the spectrum, the meter, the energy), grid.js (the
+  playheads, the step LEDs), transport.js (the now-playing read-out),
+  loopdeck.js (the deck's meter, the launcher's rings), deckui.js (the
+  virtual deck), mixer.js (the meters) — asks `synthlab.paced(key, now)`
+  (colours.js) and draws only when it says so: once per 1/64 s slot, the
+  same slots for all of them, so they draw on the same frames and the
+  ones between are free. On a 240 Hz screen they drew 240 times a second,
+  re-rasterising the page each time — the Loops page's lag (measured on
+  the owner's 2560 x 1300 display: ~241 frames a second at rest). The
+  per-frame decays (the meter's peak, the kick, the level's smoothing)
+  were written for 60 Hz and are again. The song's player (song.js) and
+  the jam (jam.js) keep every frame: they schedule audio there. **A CSS
+  transition of a painted property** (a box-shadow, a background) runs at
+  the display's rate whatever the script does: the step LEDs' cooling
+  glow is `steps(8)` — 16 repaints a cell in its half second, not 120.
 
 ### The energy
 

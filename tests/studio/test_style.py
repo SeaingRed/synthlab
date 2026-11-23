@@ -336,10 +336,12 @@ def test_dockless_view_children_can_shrink(tmp_path):
 def test_dead_shape_controls_are_dimmed(tmp_path):
     """FM/pluck/wavetable rows rendered identically whether or not any osc
     used the shape — live and dead sliders looked the same.
-    A generated :has() style block dims them, read from the shape rules
-    in synthlab.params (the breeder's own liveness)."""
+    A generated style block dims them, read from the shape rules in
+    synthlab.params (the breeder's own liveness), on #view's `data-p-*`
+    switches (bench.js keeps them; never a :has() on #view)."""
     html = TestClient(create_app(data_dir=tmp_path)).get("/").text
-    assert ":not(:has(" in html
+    assert ':not([data-p-osc1="fm"]' in html
+    assert "#view:has(" not in html and "#view:not(:has(" not in html
     assert "#row-fm_ratio" in html and "#row-pluck_damping" in html
     from synthlab.studio.paramui import SHAPE_DEPS
 
@@ -355,12 +357,12 @@ def test_dead_shape_controls_are_dimmed(tmp_path):
     assert "#row-sampler_root" in html and "#row-grain_pos" in html
     assert "#row-spectral_pos" in html
     # the sample's rows show for any shape that plays it: hidden only
-    # while none is picked (one rule, every shape's :not(:has()))
+    # while none is picked (one rule, every shape's :not([data-p-…]))
     both = [line for line in html.splitlines() if "#row-sampler_start" in line]
     assert len(both) == 1
     rule = html[: html.index(both[0])].rsplit("#view", 1)[1]
-    assert '[value="sampler"]' in rule and '[value="granular"]' in rule
-    assert '[value="spectral"]' in rule
+    assert '[data-p-osc1="sampler"]' in rule and '[data-p-osc2="granular"]' in rule
+    assert '[data-p-osc3="spectral"]' in rule
     assert "#row-sampler_stretch" not in both[0]  # the sampler's alone
 
 
