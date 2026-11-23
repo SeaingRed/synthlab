@@ -9,10 +9,13 @@ algorithmically (Euclidean rhythms, scales, chord progressions).
 
 from __future__ import annotations
 
+import contextvars
 import os
+import threading
 import zlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import lru_cache, partial
 
@@ -122,6 +125,47 @@ def euclid(hits: int, steps: int, rotate: int = 0) -> str:
 MAX_NOTE_TAIL = 4.0
 
 
+# Set by a render someone is waiting on (the studio's loop render behind an
+# edit): its notes go to a pool of their own, never behind a whole song's
+# that a background render put on the shared one. The stem threads such a
+# render starts are named "live-…" (studio/render.py) and count too.
+LIVE = contextvars.ContextVar("synthlab_live_render", default=False)
+# ...and while one runs, a background render's next note or stem waits for
+# it (`yield_to_live`): a pool of its own was not enough — some 30 song
+# threads still took turns on the GIL with it (a knob 0.6-1.0 s, not 60 ms).
+_live = {"n": 0}
+_live_cv = threading.Condition()
+LIVE_YIELD_S = 2.0  # the longest a background job waits: never starved
+
+
+def is_live() -> bool:
+    return LIVE.get() or threading.current_thread().name.startswith("live-")
+
+
+@contextmanager
+def live():
+    """A render someone waits on: its notes take `_live_note_pool`, and the
+    background renders' jobs hold back until it is done."""
+    with _live_cv:
+        _live["n"] += 1
+    token = LIVE.set(True)
+    try:
+        yield
+    finally:
+        LIVE.reset(token)
+        with _live_cv:
+            _live["n"] -= 1
+            _live_cv.notify_all()
+
+
+def yield_to_live() -> None:
+    """A background job about to start: wait while a live render runs (at
+    most `LIVE_YIELD_S`). A live render's own jobs never wait."""
+    if _live["n"] and not is_live():
+        with _live_cv:
+            _live_cv.wait_for(lambda: not _live["n"], LIVE_YIELD_S)
+
+
 def render_each(thunks: list) -> list:
     """`[f() for f in thunks]`, on the note pool when there's more than one.
 
@@ -131,7 +175,9 @@ def render_each(thunks: list) -> list:
     keep their order; the first exception propagates as from the loop."""
     if len(thunks) < 2:
         return [f() for f in thunks]
-    return list(_note_pool().map(lambda f: f(), thunks))
+    if is_live():
+        return list(_live_note_pool().map(lambda f: f(), thunks))
+    return list(_note_pool().map(lambda f: (yield_to_live(), f())[1], thunks))
 
 
 @lru_cache(maxsize=1)
@@ -140,6 +186,16 @@ def _note_pool() -> ThreadPoolExecutor:
     # waits on its notes, which must never queue behind that same stem.
     return ThreadPoolExecutor(
         max_workers=min(8, os.cpu_count() or 2), thread_name_prefix="note"
+    )
+
+
+@lru_cache(maxsize=1)
+def _live_note_pool() -> ThreadPoolExecutor:
+    # `LIVE`'s: a loop's notes after an edit. Measured: a knob posted while
+    # a song's plan rendered took up to 1.3-1.65 s (54-84 ms otherwise),
+    # its notes queued behind the song's on the one pool.
+    return ThreadPoolExecutor(
+        max_workers=min(8, os.cpu_count() or 2), thread_name_prefix="live-note"
     )
 
 

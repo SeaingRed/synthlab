@@ -181,7 +181,11 @@ class Page:
     ) -> dict:
         """The template context for `view`. The cheap values are always
         there; each expensive section (see SECTIONS) only when `need`
-        names it."""
+        names it. The voice panel is the Voice page's alone: built for any
+        other view it cost 16.6 ms under the studio lock (a WAV read and its
+        FFT) on every page load and swap."""
+        if view != "voice":
+            need = need - {"voice"}
         s = self.state
         patch_values = {
             spec.name: getattr(s.patch, spec.name)

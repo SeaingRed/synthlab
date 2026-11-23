@@ -47,6 +47,7 @@ from ..render import (
     RenderResult,
     SectionJob,
     StemCache,
+    live_render,
     preview_url,
     result_of,
 )
@@ -380,8 +381,9 @@ class LoopRender:
             t0 = time.perf_counter()
             if isinstance(inp, SectionJob):
                 result = inp.make(self.stems)
-            else:
-                result = render_loop(inp, stem_cache=self.stems)
+            else:  # an edit's loop: its own pools, never behind a song
+                with live_render():
+                    result = render_loop(inp, stem_cache=self.stems)
             ms = (time.perf_counter() - t0) * 1000
             self.perf.record_render(ms)
             log.debug("render %s %.1fms", key[:12], ms)

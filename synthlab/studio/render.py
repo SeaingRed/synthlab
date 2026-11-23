@@ -29,7 +29,7 @@ from ..effects import limit as fx_limit
 from ..effects import pan as fx_pan
 from ..effects import to_stereo
 from ..params import ENV_SYNC_TIMES, MOD_SLOTS
-from ..sequencer import Song
+from ..sequencer import Song, is_live, live, yield_to_live
 from ..synth import Patch, Synth
 from . import notefeel
 from .arrange import (
@@ -942,7 +942,9 @@ def _each(fn: Callable, items: list) -> list:
     first exception propagates as it would from the loop."""
     if len(items) < 2:
         return [fn(x) for x in items]
-    return list(_stem_pool().map(fn, items))
+    if is_live():
+        return list(_live_stem_pool().map(fn, items))
+    return list(_stem_pool().map(lambda x: (yield_to_live(), fn(x))[1], items))
 
 
 @lru_cache(maxsize=1)
@@ -955,6 +957,23 @@ def _stem_pool() -> ThreadPoolExecutor:
     return ThreadPoolExecutor(
         max_workers=max(min(6, cores), cores // 2), thread_name_prefix="stem"
     )
+
+
+@lru_cache(maxsize=1)
+def _live_stem_pool() -> ThreadPoolExecutor:
+    """The stems of a render someone waits on (`live_render`): never queued
+    behind a song's on `_stem_pool`. Its threads are named "live-…", so
+    their notes take the live note pool too (`sequencer.is_live`)."""
+    return ThreadPoolExecutor(
+        max_workers=min(6, os.cpu_count() or 2), thread_name_prefix="live-stem"
+    )
+
+
+def live_render():
+    """Mark the renders inside as ones someone waits on (an edit's loop):
+    their stems and notes take pools of their own, and background renders
+    hold back meanwhile (`sequencer.live`)."""
+    return live()
 
 
 _INFLIGHT: dict[str, threading.Lock] = {}
