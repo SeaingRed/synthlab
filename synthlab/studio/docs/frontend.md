@@ -1119,6 +1119,21 @@ its contents now (`hx-swap-oob="innerHTML"`, `fragments/analysis.html`;
 Bass shows it by `:not(:empty)`). A new out-of-band target that is a
 child of `#view` swaps the same way, or morphs.
 
+**No container units on a grid's cells.** The Loops page's note grid is
+a size container (`container: steps / size`) whose rows share its
+height. Its 1,920 cells each took their height from it (`100cqh`), and in
+Chrome 158 every layout inside the grid then restyled the grid
+mid-layout: 230-260 ms a pass on a 4-bar loop (~2,400 elements, at
+2560 px), the same with every cell hidden, 0.1 ms with the grid no
+container. Every script that read a size after an edit paid it —
+keysbar.js, motion.js, shell.js, GSAP, htmx's swap, 250-290 ms each — so
+a loop edited while it played froze for a second at a time. The rows take
+the height now and the cells fill them (`height: auto`): 1.2-1.4 ms, the
+whole page 7.7. Chromium 153 (the browser tests') never paid it, so
+`tests/studio/test_style.py` holds the stylesheets instead: no cell rule
+uses a container unit, but the drum machine's 8-row grid's
+(`.drum-grid-8`: no `:has()` cell rules, measured 0 ms).
+
 **Page weight**: the chord poster (~500 buttons) is fetched from
 `/fragment/chordlib` on first open, not rendered into every page; all four
 pad blocks are `<details>` that start collapsed (`chords.js` remembers each

@@ -7108,11 +7108,17 @@ ws-float > :is(#perform-pads, #drumxy-panel, #perf-fx, #perform-launch) { displa
   .perform-view .drum-grid { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
   .perform-view :is(.transport, .drum-grid) > .grid {
     flex: 1 1 0; min-height: 0; container: steps / size; overflow: auto; align-content: start; }
+  /* the row, not the cell, takes the pane's height: a cell sized by the
+     container (100cqh) made every layout inside the grid restyle all
+     its cells mid-layout — 240 ms a pass on a 4-bar loop (frontend.md,
+     "No container units on a grid's cells") */
+  .perform-view :is(.transport, .drum-grid) > .grid:not(.drum-grid-8) .gridrow:not(.sliderow) > .cell {
+    height: auto; }
   .perform-view .drum-grid-8 .cell {
     height: clamp(20px, calc((100cqh - 36px) / var(--rows, 8) - 2px), 34px); }
-  .perform-view .grid:not(.drum-grid-8) .gridrow:not(.sliderow) > .cell {
+  .perform-view .grid:not(.drum-grid-8) .gridrow:not(.sliderow) {
     height: clamp(20px, calc((100cqh - 50px) / var(--rows, 6) - 2px), 34px); }
-  .perform-view .grid.roll:has(> .chordrow) .gridrow:not(.sliderow) > .cell {
+  .perform-view .grid.roll:has(> .chordrow) .gridrow:not(.sliderow) {
     height: clamp(20px, calc((100cqh - 86px) / var(--rows, 6) - 2px), 34px); }
   /* the velocity lanes stay in sight while the rows scroll under them */
   .perform-view .drum-grid > .lane-bar { flex: none; }
