@@ -4,7 +4,7 @@ fallback) and the WebAssembly one (static/voice-dsp.wasm posted to each
 voice node, as livefx.js does).
 
     uv run python tools/bench_live_voice.py [--voices 16] [--layers 3]
-        [--engine js wasm] [--only NAME ...]
+        [--engine js wasm] [--only NAME ...] [--round6] [--osc3]
 
 Runs the shipped worklet files at 48 kHz (a browser's usual rate) with the
 engine's tables and reports time per 128-sample render quantum as a share
@@ -279,6 +279,31 @@ ROUND6 = {
     for warp in ("", "bend_pos")
 }
 
+# `--osc3`: oscillator 3 and a second warp, each against its twin without
+# it — a saw plus an osc3 (square, wavetable), a warped saw / wavetable
+# plus a second warp (PD then mirror), at unison 1 and 4
+_PD = {"osc1_warp": "pd", "osc1_warp_amt": 0.6}
+OSC3 = {
+    f"o3 {base}{' x4' if u > 1 else ''}{', ' + extra if extra else ''}": Patch(
+        unison=u, **kw, **more
+    )
+    for base, kw in (
+        ("saw", {}),
+        ("saw pd", _PD),
+        ("wavetable pd", {"osc1": "wavetable", **_PD}),
+    )
+    for u in (1, 4)
+    for extra, more in (
+        ("", {}),
+        *(
+            (("+ osc3 square", {"osc3": "square", "osc3_level": 0.5}),
+             ("+ osc3 wavetable", {"osc3": "wavetable", "osc3_level": 0.5}))
+            if base == "saw" else
+            (("then mirror", {"osc1_warp2": "mirror", "osc1_warp2_amt": 0.4}),)
+        ),
+    )
+}  # fmt: skip
+
 
 def _run(tmp: Path, engine: str) -> dict:
     cmd = ["node", str(tmp / "bench.cjs")]
@@ -303,6 +328,11 @@ def main() -> None:
         action="store_true",
         help="add the warp pairs: an oscillator plain and warped",
     )
+    ap.add_argument(
+        "--osc3",
+        action="store_true",
+        help="add oscillator 3 and second-warp sounds beside their twins",
+    )
     args = ap.parse_args()
     rows = [(e["name"], get_factory(e["name"])) for e in FACTORY]
     rows += [(e["name"], get_library(e["name"])) for e in LIBRARY]
@@ -317,6 +347,8 @@ def main() -> None:
     }
     if args.round6:
         sounds.update({n: {**p.to_json(), **extra} for n, p in ROUND6.items()})
+    if args.osc3:
+        sounds.update({n: {**p.to_json(), **extra} for n, p in OSC3.items()})
     tails = {n: {**p.to_json(), **extra} for n, p in TAILS.items()}
     tmp = Path(tempfile.mkdtemp())
     (tmp / "bench.cjs").write_text(BENCH, encoding="utf-8")
@@ -376,6 +408,10 @@ def main() -> None:
     if args.round6:
         print("phase warp, off -> on:")
         for name in ROUND6:
+            row(name, [runs[e]["res"][name]["share"] for e in engines])
+    if args.osc3:
+        print("oscillator 3 and a second warp, against their twins:")
+        for name in OSC3:
             row(name, [runs[e]["res"][name]["share"] for e in engines])
     print(f"the live sampler, {v} keys from the root to two octaves over it:")
     for name in spec["samplers"]:
