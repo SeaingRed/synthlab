@@ -535,7 +535,12 @@ def test_voice_worklet_served_within_budget_and_not_a_script_tag(tmp_path):
     # the RK4 step it repeats from core.attractor_step)
     # 1213 -> 1223: LFOs 4-6 (their phases, defaults and sources)
     # 1223 -> 1224: a synced envelope stage's dead time slider ("mod")
-    assert len(_code_lines(WORKLET)) <= 1224
+    # 1224 -> 1293: oscillator 3 (slot 2 of the phase state, its level and
+    # pitch per sample, its seeds and supersaw phases, the stack's mix) and
+    # a second warp on each oscillator (warpBlock / mipOf, warpEnd2, its
+    # amounts in the control pass) with their glue to voice.ts: the
+    # oscillator loop and control pass they extend are this file's
+    assert len(_code_lines(WORKLET)) <= 1293
     sampler_js = WORKLET.with_name("sampler-worklet.js")
     assert client.get("/static/sampler-worklet.js").status_code == 200
     assert len(_code_lines(sampler_js)) <= 64  # + the zone map

@@ -458,7 +458,7 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   quantised wave are not odd functions); `crush` is a quantised,
   sample-held wave taken through the FFT to its harmonics, so the crush
   is in the spectrum and the mips still band-limit it. The payload the
-  page fetches is 3.81 MB (1.45 with the first four tables alone;
+  page fetches is 3.94 MB (1.45 with the first four tables alone;
   cached immutable by its hash).
 - **Hard sync** (`core.sync`, Patch `osc2_sync`
   / `sync_pitch`, `tests/test_osc_sync_fm4_drift.py`): osc2 (saw, square,
@@ -562,10 +562,13 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   CURVABLE and route targets (not gene choices); the six fields are
   `nogene`, appended last, `KEY_ADDED_FIELDS` at "off" / 0, and a render
   without a second warp never reaches `warp_twice` / `warp_end_twice`:
-  no `RENDER_REV` bump. **Not live**: the voice worklet plays one warp,
-  so the six fields are "default" and a second warp that bends sends the
-  keys to the `/note` WAV (one that is off or bends nothing — `warp_of`'s
-  rule — is unheard: `paramui._UNHEARD`).
+  no `RENDER_REV` bump. **Live**: `EXACT` on both engines — the voice
+  composes the two in `warpBlock` / voice.ts `warpLane` on the first's
+  oversampled path, the wrap's step from `warpEnd2` (`warp_end_twice`
+  line for line) and a wavetable's mip by both slopes; the second alone is
+  one warp, its amount read as the first's (the corpus's `warp2_*` cases:
+  `synthlab/studio/docs/live-voice.md`, "Oscillator 3 and a second
+  warp").
 - **Oscillator 3** (Patch `osc3`, `osc3_level`, `osc3_octave`,
   `osc3_semi`, `osc3_detune`, `osc3_warp` / `osc3_warp_amt`;
   `Synth._osc3`, `tests/test_osc3_warp2.py`): a third waveform summed
@@ -593,11 +596,13 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   The native stack hands an osc3 patch to the Python loop. Measured (i9
   desktop, a 1 s note, saw + square): 2.0 ms native -> 2.8 with an osc3
   saw (the whole stack now in the loop), 5.5 at unison 4 (2.9 without).
-  **Not live**: the voice worklet has no third oscillator, so
-  its fields are "default" — the others unheard while the level is 0
-  (`paramui._UNHEARD`), so a silent osc3 blocks nothing — and a route
-  onto `osc3_level` is refused by the slot gate (`_WAV_TARGETS`): while
-  osc3 sounds, a sound's keys take the `/note` WAV.
+  **Live**: `EXACT` on both engines — slot 2 of the voice's
+  oscillators (every shape `OSC3_SHAPES` admits, its seeds + 200: pluck's
+  bursts and supersaw's phases ride the tables, its noise streams follow
+  the noise layer's), its level and pitch multiplier per sample from the
+  control pass, so a route onto `osc3_level` lifts it live as in the loop
+  (the corpus's `osc3_*` cases: `synthlab/studio/docs/live-voice.md`,
+  "Oscillator 3 and a second warp").
 - **Your own wavetables** (`synthlab/wavetables.py`, Patch
   `wt_custom`): a clip or a sample sliced into 4-64 single cycles (equal
   slices, or one period of its YIN pitch at each point) or up to four

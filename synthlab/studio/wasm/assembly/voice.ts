@@ -10,8 +10,8 @@
 // the mod matrix and the filter coefficients stay in JS:
 //   control(): the control pass of a voice with no mod route (envelopes,
 //              LFOs, vibrato/pitch env/glide, amp) into a scratch set;
-//   stack():   the unison stack (osc2, cross-FM into osc1, osc1, the noise
-//              layer, ring, levels, sub, equal-power pan) into A/B;
+//   stack():   the unison stack (osc2, cross-FM into osc1, osc1, osc3, the
+//              noise layer, ring, levels, sub, equal-power pan) into A/B;
 //   post():    dc_block, filter (ladder = SVF -> soft_clip -> SVF, or one
 //              SVF), vowel tract, amp and post drive, added into the f32
 //              output.
@@ -21,8 +21,8 @@
 // scratch set) — most sounds are unison 1, where the second lane would
 // otherwise idle. Oscillator shapes here: saw/square/sine/triangle/supersaw/
 // fm/noise/fm4, and osc2 hard-synced (syncLane); a warped
-// saw/square/sine/triangle (warpLane); wavetable and pluck run
-// in JS and fill A/B for post().
+// saw/square/sine/triangle, once or twice (warpLane); wavetable and pluck
+// run in JS and fill A/B for post().
 // No allocation: init() lays out a fixed arena (two scratch sets, pair
 // buffers, constants, voice-state slots) past __heap_base; JS keeps typed
 // views on it.
@@ -34,26 +34,34 @@
 import { vexp, vexp2, vsin, vtanh } from "./vmath";
 
 const MAXU = 8;
-const SLOT: usize = 10912; // bytes of one voice's state (see slot layout)
+const SLOT: usize = 16000; // bytes of one voice's state (see slot layout)
 const TAU = 2 * Math.PI;
 const NOISE_LEVEL = 0.3;
 
 // scratch arrays, in voice-worklet.js's SCRATCH order, 64 f64 each; set 1
 // (a paired voice's) follows set 0
 const F = 0, W = 1, G = 2, L1 = 3, L2 = 4, LS = 5, LN = 6, M1 = 7, M2 = 8, DR = 9, IX = 10,
-  FA = 11, RG = 12, WP = 13, A = 19, B = 20, E1 = 21, X1 = 25, X2 = 26;
-const NSCR = 27; // E1..E4: the fm4 operators' level x decay; X1, X2: the warps' amounts
+  FA = 11, RG = 12, WP = 13, A = 19, B = 20, E1 = 21, X1 = 25, L3 = 28, M3 = 29, Y1 = 30;
+// E1..E4: the fm4 operators' level x decay; X1, X2 and X3 (27): each
+// oscillator's (first) warp amount, Y1..Y3 its second warp's; L3, M3:
+// osc3's level and pitch multiplier
+const NSCR = 33;
 
-// slot layout (bytes): ph 128 f64 | qs 8 | dc 4 (x, y as L/R pairs) | s 8
-// (filter: stage-1 s0, s1, stage-2 s0, s1 as L/R pairs) | fs 12 (tract:
-// per band s0, s1 as L/R pairs) | cs 168 (noise filters) | rs 24 u32 |
-// wr 1024 (a warped oscillator's history, WRING per slot x copy)
-const QS: usize = 1024, DC: usize = 1088, SV: usize = 1120, FS: usize = 1184, CS: usize = 1280,
-  RS: usize = 2624, WR: usize = 2720;
+// slot layout (bytes): ph 192 f64 (8 per oscillator x copy: osc1, osc2,
+// osc3) | qs 8 | dc 4 (x, y as L/R pairs) | s 8 (filter: stage-1 s0, s1,
+// stage-2 s0, s1 as L/R pairs) | fs 12 (tract: per band s0, s1 as L/R
+// pairs) | cs 224 (noise filters, 7 a stream: osc1's, osc2's, the noise
+// layer's, osc3's copies) | rs 32 u32 | wr 1536 (a warped oscillator's
+// history, WRING per oscillator x copy)
+const QS: usize = 1536, DC: usize = 1600, SV: usize = 1632, FS: usize = 1696, CS: usize = 1792,
+  RS: usize = 3584, WR: usize = 3712;
 // constants (f64 index into konst); K_CO: the filter coefficients a1 a2 a3
 // b1 b2 b3 kk, each as a lane pair
 const K_SSDET = 0, K_DET = 8, K_PL = 16, K_PR = 24, K_FMT = 32, K_MAKEUP = 47,
   K_PINK = 48, K_POLES = 51, K_TAPS = 57, K_BROWN = 63, K_CO = 66, K_FM4 = 80, K_WARP = 86, K_NTAP = 88;
+// osc3's warp code (osc1's and osc2's: K_WARP, K_WARP + 1), and the three
+// oscillators' second warps' (K_WARPB .. + 2; 0: one warp)
+const K_WARP3 = 89, K_WARPB = 121;
 // core.warped: WARP_OS, WARP_RING, WARP_BEND (the FIR's taps sit at wtaps)
 const WOS = 4, WRING = 64, WBEND = 15.0;
 // xpost's numbers (voice-worklet.js xk), after
@@ -85,7 +93,7 @@ const C_N = 0, C_REL = 1, C_RELN = 2, C_RELLV = 3, C_FRELLV = 4, C_A0 = 5, C_FE 
   C_PP = 8, C_PT = 9, C_PF = 10, C_PM = 11, C_FREQ = 12, C_GLN = 13, C_GLR = 14, C_TGT = 15,
   C_FADE = 16, C_FADEN = 17, C_VEL = 18, C_DW0 = 19, C_DW1 = 20, C_KST = 21;
 
-let scr: usize = 0, pfq: usize = 0, po1: usize = 0, po2: usize = 0, pnz: usize = 0;
+let scr: usize = 0, pfq: usize = 0, po1: usize = 0, po2: usize = 0, pnz: usize = 0, po3: usize = 0;
 let outL: usize = 0, outR: usize = 0, konst: usize = 0, par: usize = 0, ctl: usize = 0;
 let slots: usize = 0, dummy: usize = 0, wtaps: usize = 0, xslots: usize = 0;
 let pdOut: i32 = 0, pk1Out: f64 = 0, bpv: f64 = 0;
@@ -93,7 +101,7 @@ let pdOut: i32 = 0, pk1Out: f64 = 0, bpv: f64 = 0;
 export function init(nslots: i32): usize {
   const base = (__heap_base + 15) & ~(<usize>15);
   scr = base; pfq = scr + 2 * NSCR * 512; po1 = pfq + 1024; po2 = po1 + 1024; pnz = po2 + 1024;
-  outL = pnz + 1024; outR = outL + 512; konst = outR + 512; par = konst + 1024; ctl = par + 1024;
+  po3 = pnz + 1024; outL = po3 + 1024; outR = outL + 512; konst = outR + 512; par = konst + 1024; ctl = par + 1024;
   wtaps = ctl + 256; slots = wtaps + 512;
   dummy = slots + <usize>nslots * SLOT; // one more slot: a mono voice's unused R lane state
   xslots = dummy + SLOT;
@@ -102,7 +110,7 @@ export function init(nslots: i32): usize {
   if (need > 0) memory.grow(need);
   return base;
 }
-// scratch array i (0..24 set 0, 25..49 set 1)
+// scratch array i (0..NSCR - 1 set 0, then set 1)
 export function scratch(i: i32): usize { return scr + <usize>i * 512; }
 export function out(ch: i32): usize { return ch ? outR : outL; }
 export function konstAt(): usize { return konst; }
@@ -270,7 +278,7 @@ function noise(sl: usize, j: i32, out: usize, n: i32, kind: i32): void {
   store<f64>(cs, c4, 32); store<f64>(cs, c5, 40); store<f64>(cs, c6, 48);
 }
 
-// One block of oscillator slot s (0 osc1, 1 osc2) at the frequencies in
+// One block of oscillator slot s (0 osc1, 1 osc2, 2 osc3) at the frequencies in
 // pfq, into the pair buffer `out`: lane 0 is copy ua of slot la (scratch
 // set sa: W, IX), lane 1 copy ub of slot lb (set sb) when `both`.
 // shape: 0 none, 1 saw, 2 square, 3 sine, 4 triangle, 5 supersaw, 6 fm,
@@ -279,9 +287,10 @@ function osc(shape: i32, s: i32, la: usize, ua: i32, lb: usize, ub: i32, both: b
   sb: usize, out: usize, c: i32, isr: f64, fmr: f64, nkind: i32): void {
   const o0 = la + (<usize>((s * MAXU + ua) * 8) << 3), o1 = lb + (<usize>((s * MAXU + ub) * 8) << 3);
   const visr = sp(isr), vtau = sp(TAU);
-  if (shape == 7) {
-    noise(la, s * MAXU + ua, out, c, nkind);
-    if (both) noise(lb, s * MAXU + ub, out + 8, c, nkind);
+  if (shape == 7) { // osc3's streams follow the noise layer's (2 x MAXU)
+    const ns = s == 2 ? 3 : s;
+    noise(la, ns * MAXU + ua, out, c, nkind);
+    if (both) noise(lb, ns * MAXU + ub, out + 8, c, nkind);
     return;
   }
   if (shape == 5) { // core.supersaw: 7 saws, +-18 cents, / sqrt(7)
@@ -423,7 +432,7 @@ function warpPhase(m: i32, t: f64, a: f64): f64 {
   if (m == 2) return k * t / (1 + (k - 1) * t);
   if (m == 3) { if (t < 0.5) return 0.5 * bend(2 * t, k); const h = 2 * t - 1; return 0.5 + 0.5 * (k * h / (1 + (k - 1) * h)); }
   if (m == 4) { const d = 0.5 - 0.49 * a; return t < d ? 0.5 * t / d : 0.5 + 0.5 * (t - d) / (1 - d); }
-  if (m == 5) { const c = 1 - 0.5 * a; return t < c ? t / c : (1 - t) / Math.max(1 - c, 1e-9); }
+  if (m == 5) { const c = 1 - 0.5 * a; return t <= c ? t / c : (1 - t) / Math.max(1 - c, 1e-9); }
   if (m == 6) return t < 0.5 ? 0.5 * bend(2 * t, k) : t;
   if (m == 7) { const q = 1 - a, n = 2 + Math.floor(254 * q * q * q); return Math.floor(t * n) / n; }
   return m == 8 ? Math.min(t / (1 - 0.95 * a), 1) : t;
@@ -433,6 +442,12 @@ function warpEnd(m: i32, a: f64): f64 {
   if (m == 7) { const q = 1 - a, n = 2 + Math.floor(254 * q * q * q); return (n - 1) / n; }
   return 1;
 }
+// core.warp_end_twice: the first warp's end, held there (or pwm's hold at
+// 1), read by the second; else the second's own left limit
+function warpEnd2(m: i32, a: f64, m2: i32, a2: f64): f64 {
+  const first = warpEnd(m, a);
+  return first < 1 || (m == 8 && a > 0) ? warpPhase(m2, first, a2) : warpEnd(m2, a2);
+}
 @inline function blep1(t: f64, dt: f64): f64 {
   if (t < dt) { const x = t / dt; return x + x - x * x - 1; }
   if (t > 1 - dt) { const x = (t - 1) / dt; return x * x + x + x + 1; }
@@ -440,23 +455,31 @@ function warpEnd(m: i32, a: f64): f64 {
 }
 
 // core.warped on one lane (voice-worklet.js warpBlock): copy u of oscillator
-// s (shape 1..4, warp mode wm) in slot `sl`, scratch set base `sbase` (its
-// W and X1 / X2), frequencies on lane `lane` of pfq, out on that lane of
-// `out`. WOS sub-samples a sample into the copy's ring (its write index at
-// ph o+7), out the FIR over it. `isr`: 1 / (sr x WOS).
-function warpLane(shape: i32, wm: i32, sl: usize, s: i32, u: i32, sbase: usize, lane: usize, out: usize,
-  c: i32, isr: f64): void {
+// s (shape 1..4, warp mode wm, then wm2 on the phase it made — 0: one warp)
+// in slot `sl`, scratch set base `sbase` (its W, X1..X3 and Y1..Y3),
+// frequencies on lane `lane` of pfq, out on that lane of `out`. WOS
+// sub-samples a sample into the copy's ring (its write index at ph o+7),
+// out the FIR over it. `isr`: 1 / (sr x WOS).
+function warpLane(shape: i32, wm: i32, wm2: i32, sl: usize, s: i32, u: i32, sbase: usize, lane: usize,
+  out: usize, c: i32, isr: f64): void {
   const o = sl + (<usize>((s * MAXU + u) * 8) << 3), rb = sl + WR + (<usize>((s * MAXU + u) * WRING) << 3);
-  const xs = s ? X2 : X1, nh = <i32>K(K_NTAP);
+  const xs = X1 + s, ys = Y1 + s, nh = <i32>K(K_NTAP);
   let p = load<f64>(o), at = <i32>load<f64>(o, 56);
   for (let j = 0; j < c; j++) {
     const jo = (<usize>j << 4) + lane;
     const d = load<f64>(pfq + jo) * isr, a = Math.min(1, Math.max(0, Sb(sbase, xs, j))), w = Sb(sbase, W, j);
+    const a2 = wm2 != 0 ? Math.min(1, Math.max(0, Sb(sbase, ys, j))) : 0;
     for (let q = 0; q < WOS; q++) {
       const x = p + d;
       p = x - Math.floor(x);
-      let y = naive(shape, warpPhase(wm, p, a), w);
-      if (p < d || p > 1 - d) y += (naive(shape, 0, w) - naive(shape, warpEnd(wm, a), w)) / 2 * blep1(p, d);
+      let y: f64;
+      if (wm2 == 0) {
+        y = naive(shape, warpPhase(wm, p, a), w);
+        if (p < d || p > 1 - d) y += (naive(shape, 0, w) - naive(shape, warpEnd(wm, a), w)) / 2 * blep1(p, d);
+      } else { // core.warp_twice, its wrap's step from warp_end_twice
+        y = naive(shape, warpPhase(wm2, warpPhase(wm, p, a), a2), w);
+        if (p < d || p > 1 - d) y += (naive(shape, 0, w) - naive(shape, warpEnd2(wm, a, wm2, a2), w)) / 2 * blep1(p, d);
+      }
       at = (at + 1) & (WRING - 1);
       store<f64>(rb + (<usize>at << 3), y);
     }
@@ -517,15 +540,20 @@ function syncLane(shape: i32, sl: usize, u: i32, sbase: usize, lane: usize, out:
 // (scratch set seta) copies u, u + 1 of U; or, with `paired`, unison 1 of
 // voice la (set seta) and voice lb (set setb), each into its own set's A/B.
 // flags: 1 osc2, 2 ring, 4 cross-FM, 8 sub, 16 noise layer, 32 osc2
-// hard-synced to osc1 (its master frequencies through po1). Per-copy
+// hard-synced to osc1 (its master frequencies through po1), 64 osc3
+// (shape sh3 at F x M3, level L3: synth._osc3). Per-copy
 // detune and pan come from konst (K_DET/K_PL/K_PR), written once per
 // render.
 export function stack(la: usize, lb: usize, seta: i32, setb_: i32, paired: bool, U: i32, sh1: i32,
-  sh2: i32, flags: i32, c: i32, sr: f64, fmr: f64, nkind: i32): void {
+  sh2: i32, sh3: i32, flags: i32, c: i32, sr: f64, fmr: f64, nkind: i32): void {
   const isr = 1 / sr, has2 = (flags & 1) != 0, ring = (flags & 2) != 0, cross = (flags & 4) != 0;
   const sub = (flags & 8) != 0, nz = (flags & 16) != 0, sync = (flags & 32) != 0, vtau = sp(TAU);
-  // each oscillator's warp (0: none), on the shapes warpLane reads
+  const has3 = (flags & 64) != 0;
+  // each oscillator's warp (0: none) and second warp, on the shapes warpLane reads
   const wm1 = sh1 >= 1 && sh1 <= 4 ? <i32>K(K_WARP) : 0, wm2 = sh2 >= 1 && sh2 <= 4 ? <i32>K(K_WARP + 1) : 0;
+  const wm3 = has3 && sh3 >= 1 && sh3 <= 4 ? <i32>K(K_WARP3) : 0;
+  const wb1 = wm1 != 0 ? <i32>K(K_WARPB) : 0, wb2 = wm2 != 0 ? <i32>K(K_WARPB + 1) : 0;
+  const wb3 = wm3 != 0 ? <i32>K(K_WARPB + 2) : 0;
   const isr4 = isr / WOS;
   const sa = setb(seta), sb = paired ? setb(setb_) : sa, lB = paired ? lb : la;
   const aA = sa + (<usize>A << 9), aB = sa + (<usize>B << 9);
@@ -547,8 +575,8 @@ export function stack(la: usize, lb: usize, seta: i32, setb_: i32, paired: bool,
         syncLane(sh2, la, u, sa, 0, po2, c, isr);
         if (both) syncLane(sh2, lB, ub, sb, 8, po2, c, isr);
       } else if (wm2 != 0) {
-        warpLane(sh2, wm2, la, 1, u, sa, 0, po2, c, isr4);
-        if (both) warpLane(sh2, wm2, lB, 1, ub, sb, 8, po2, c, isr4);
+        warpLane(sh2, wm2, wb2, la, 1, u, sa, 0, po2, c, isr4);
+        if (both) warpLane(sh2, wm2, wb2, lB, 1, ub, sb, 8, po2, c, isr4);
       } else osc(sh2, 1, la, u, lB, ub, both, sa, sb, po2, c, isr, fmr, nkind);
     }
     for (let j = 0; j < c; j++) {
@@ -561,9 +589,18 @@ export function stack(la: usize, lb: usize, seta: i32, setb_: i32, paired: bool,
       v128.store(pfq + (<usize>j << 4), f);
     }
     if (wm1 != 0) {
-      warpLane(sh1, wm1, la, 0, u, sa, 0, po1, c, isr4);
-      if (both) warpLane(sh1, wm1, lB, 0, ub, sb, 8, po1, c, isr4);
+      warpLane(sh1, wm1, wb1, la, 0, u, sa, 0, po1, c, isr4);
+      if (both) warpLane(sh1, wm1, wb1, lB, 0, ub, sb, 8, po1, c, isr4);
     } else osc(sh1, 0, la, u, lB, ub, both, sa, sb, po1, c, isr, fmr, nkind);
+    if (has3) { // osc3: a plain layer at its own pitch (no sync, no cross-FM)
+      for (let j = 0; j < c; j++) {
+        v128.store(pfq + (<usize>j << 4), f64x2.mul(f64x2.mul(Sp(sa, sb, F, j), du), Sp(sa, sb, M3, j)));
+      }
+      if (wm3 != 0) {
+        warpLane(sh3, wm3, wb3, la, 2, u, sa, 0, po3, c, isr4);
+        if (both) warpLane(sh3, wm3, wb3, lB, 2, ub, sb, 8, po3, c, isr4);
+      } else osc(sh3, 2, la, u, lB, ub, both, sa, sb, po3, c, isr, fmr, nkind);
+    }
     if (nz) {
       noise(la, 2 * MAXU + u, pnz, c, nkind);
       if (both) noise(lB, 2 * MAXU + ub, pnz + 8, c, nkind);
@@ -585,6 +622,7 @@ export function stack(la: usize, lb: usize, seta: i32, setb_: i32, paired: bool,
         }
         y = f64x2.add(f64x2.mul(Sp(sa, sb, L1, j), o1), f64x2.mul(Sp(sa, sb, L2, j), o2));
       } else y = f64x2.mul(Sp(sa, sb, L1, j), o1);
+      if (has3) y = f64x2.add(y, f64x2.mul(Sp(sa, sb, L3, j), v128.load(po3 + jo)));
       if (sub) {
         qs = vfrac(f64x2.add(qs, f64x2.mul(Sp(sa, sb, F, j), hs)));
         y = f64x2.add(y, f64x2.mul(Sp(sa, sb, LS, j), vsin(f64x2.mul(vtau, qs))));

@@ -333,8 +333,10 @@ def live_payload(tid) -> bytes | None:
 def live_url(p) -> str | None:
     """Where the live voice gets the patch's own table (None: no wavetable
     oscillator reads one, or this machine doesn't hold it — the voice then
-    reads "basic", as the engine does)."""
-    if "wavetable" not in (p.osc1, p.osc2) or not valid_id(p.wt_custom):
+    reads "basic", as the engine does): osc3's too while it sounds."""
+    from .params import shapes_of
+
+    if "wavetable" not in shapes_of(p) or not valid_id(p.wt_custom):
         return None
     return (
         f"/wavetable/live/{p.wt_custom}.bin" if stack(p.wt_custom) is not None else None
