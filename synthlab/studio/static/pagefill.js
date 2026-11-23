@@ -148,7 +148,7 @@
     if (!o) return;
     counting.get(o)?.kill();
     if (!Number.isFinite(v)) { if (o.textContent !== "—") o.textContent = "—"; delete o.dataset.v; return; }
-    const from = Number(o.dataset.v), g = G(), say = (x) => { o.textContent = x.toFixed(digits).replace("-", "−"); };
+    const from = Number(o.dataset.v), g = G(), say = (x) => { const t = x.toFixed(digits).replace("-", "−"), n = o.firstChild; if (n?.nodeType !== 3) o.textContent = t; else if (n.data !== t) n.data = t; }; // the text node's data: a new node each tick laid the page out
     o.dataset.v = String(v);
     if (!g || !Number.isFinite(from) || Math.abs(from - v) < 10 ** -digits) { say(v); return; }
     const t = { x: from };

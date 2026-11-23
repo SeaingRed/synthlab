@@ -18,7 +18,7 @@ import numpy as np
 from ..audio import load as load_wav
 from ..audio import save as save_wav
 from ..core import SR
-from .files import free_name, rename_file, safe_name
+from .files import dir_sig, free_name, rename_file, safe_name
 from .limits import (
     MAX_CLIP_SECONDS,  # re-exported: existing importers unchanged
     MAX_STORED_CLIP_SECONDS,
@@ -261,7 +261,21 @@ def clean_meta(meta) -> dict:
     return out
 
 
+# the listing by the folder's signature (`files.dir_sig`: names, mtimes,
+# sizes): it opened every clip's meta and WAV header on each call — 102 +
+# 102 files, 2-3 times a page, under the studio lock (8-11 ms a call)
+_LISTS: LRU[tuple] = LRU(8)
+
+
 def list_clips(data_dir: Path) -> list[dict]:
+    """Every clip: its meta, its name and its length (a fresh dict each, so
+    a caller may change what it gets)."""
+    folder = clip_dir(data_dir)
+    held = _LISTS.by_sig(str(folder), dir_sig(folder), lambda: _list_clips(data_dir))
+    return [dict(c) for c in held]
+
+
+def _list_clips(data_dir: Path) -> list[dict]:
     out = []
     for p in sorted(clip_dir(data_dir).glob("*.wav")):
         meta_path = p.with_suffix("").with_name(p.stem + ".meta.json")

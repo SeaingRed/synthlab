@@ -33,10 +33,11 @@
 // (each keeps its own Space). In the keys' letters layout (letters.js) a
 // held Space is a chord's modifier: a tap with no letter in it calls
 // `space` on its keyup.
-// Budget: <= 200 code lines (190 + Perform's cue naming its parts and length:
+// Budget: <= 202 code lines (190 + Perform's cue naming its parts and length:
 // "the loop · notes + drums · 2 bars"; Synths' "beat only"
 // phrase naming the beat; Space handed to the letters layout
-// while it is a modifier).
+// while it is a modifier; 202: the read-out's values written where they
+// are read, when they move).
 (() => {
   "use strict";
   const S = (window.synthlab ??= {});
@@ -125,6 +126,7 @@
   // ---- the read-out ------------------------------------------------------------
   // the one it names: a player before a layer, the newest layer otherwise
   const main = () => { const all = [...on.values()]; return all.find((e) => !e.layer) || all.at(-1); };
+  const prop = (el, k, v) => { if (el && el.style.getPropertyValue(k) !== v) el.style.setProperty(k, v); };
   const put = (box, sel, text) => { const el = box.querySelector(sel); if (el && el.textContent !== text) el.textContent = text; };
   const left = (w, t) => (w.at == null ? "loading…" : plural(Math.max(0, Math.ceil((w.at - t) / (w.beat || 0.5) - 1e-6)), "beat"));
   function frame(ts) {
@@ -143,10 +145,12 @@
       put(box, ".np-next", e && w ? `next: ${val(w.label)} · ${left(w, t)}` : "");
       const also = [...on.values()].filter((x) => x !== e).map((x) => `${x.kind} · ${val(x.label)}`).join(", ");
       put(box, ".np-also", also && `+ ${also}`);
-      box.style.setProperty("--np-at", Math.min(1, Math.max(0, p?.frac || 0)).toFixed(3)); // a scale: a width laid the page out every frame
+      // each on the element that reads it, rounded, written when it moves:
+      // all three on .np each frame restyled its dozen children 60x a second
+      prop(box.querySelector(".np-bar > i"), "--np-at", Math.min(1, Math.max(0, p?.frac || 0)).toFixed(2)); // a scale: a width laid the page out every frame
       const ring = state === "count-in" ? 1 - ahead / Math.max(ahead, e.lead || ahead) : w ? q(w, t) : 0;
-      box.style.setProperty("--q", ring.toFixed(3));
-      box.style.setProperty("--np-pulse", p?.beat != null && !calm() ? Math.max(0, 1 - p.beat * 3).toFixed(2) : "0");
+      prop(box.querySelector(".np-led"), "--q", ring.toFixed(2));
+      prop(box, "--np-pulse", p?.beat != null && !calm() ? (Math.round(Math.max(0, 1 - p.beat * 3) * 20) / 20).toFixed(2) : "0"); // the LED and .np::after
       // written only when they move: an attribute set to the same value each
       // frame still restyles its element
       const set = (id, k, v) => { const el = $(id); if (el && el[k] !== v) el[k] = v; };

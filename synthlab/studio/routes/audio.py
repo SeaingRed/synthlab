@@ -18,7 +18,7 @@ from fastapi.responses import RedirectResponse
 from ... import sampler
 from ...core import SR, note_to_hz
 from ...effects import convolve_ir, plate_ir, reverb_ir, spring_ir, to_stereo
-from ...sequencer import midi
+from ...sequencer import midi, yield_to_live
 from ...synth import Patch, Synth, at_bpm
 from ...wavetables import live_url as wt_live_url
 from .. import fxlive, voicetables, worklet
@@ -229,6 +229,9 @@ def note(
             result = svc.notes.peek(key)
             if result is None:
                 with NOTE_RENDERS:
+                    # the keys' warm-up (~63 a sound) waits while an edit's
+                    # loop renders: it took turns on the GIL with it
+                    yield_to_live()
                     result = make()
                 svc.notes.put(result)
         return _note_response(result)

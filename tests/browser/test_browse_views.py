@@ -281,6 +281,7 @@ def test_a_right_click_opens_the_things_own_actions_as_a_menu(chromium, seeded):
         page.locator(".lib-card .lib-name").nth(3).click(button="right")
         assert page.locator("#ctx-menu .menu-item").all_inner_texts() == [
             "Hear on its own",
+            "Favourite",  # its ★ (sound_star.html)
             "Hear in your mix",
             "Add as a layer on Synths",
             "Use on Synths",

@@ -323,8 +323,9 @@ def test_bench_island_is_served_and_draws_only_on_change(client):
         and 'addEventListener("htmx:after:settle", settle)' in js
     )
     assert (
-        "setInterval" not in js and js.count("requestAnimationFrame") == 1
-    )  # the coalesced redraw
+        "setInterval" not in js and js.count("requestAnimationFrame") == 2
+    )  # one-shots, never a loop: the coalesced redraw and the coalesced
+    # rest() (a settle per region each forced a layout)
     assert (
         "S.tweak" in js and "hx-post" not in js and "/fragment/" not in js
     )  # it moves controls, it posts nothing

@@ -1194,8 +1194,8 @@ def test_songline_island_is_served_budgeted_and_loads_after_song_js(tmp_path):
     # has no room for them
     # 300 -> 306: the follow tells a scroll from a click, and looks again
     # 306 -> 312: stopped, the ledger reads the marker; fit fills the lanes
-    assert len(_code_lines(SONGLINE)) <= 326
-    assert "Budget: <= 326 code lines" in js
+    assert len(_code_lines(SONGLINE)) <= 328  # 328: a stored zoom set with nothing read
+    assert "Budget: <= 328 code lines" in js
     html = client.get("/").text
     # after song.js: it reads the player's clock (songClock) and the
     # playhead song.js draws

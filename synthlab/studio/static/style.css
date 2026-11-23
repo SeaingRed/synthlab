@@ -576,8 +576,9 @@ html[data-motion="calm"] .views .view.active::after { display: none; }
 .view.disabled { opacity: 0.4; }
 #audio-led { width: 8px; height: 8px; border-radius: 50%;
   background: color-mix(in oklch, var(--signal), transparent calc(100% - var(--live-eff) * 90% - 10%));
-  box-shadow: 0 0 calc(2px + var(--live-eff) * 10px) color-mix(in oklch, var(--signal), transparent 40%);
-  transition: background .3s; }
+  box-shadow: 0 0 calc(2px + var(--live-eff) * 10px) color-mix(in oklch, var(--signal), transparent 40%); }
+  /* (no transition: --live is smoothed in motion.js, and one restarted on
+     every write ran a main-thread animation the whole time a loop played) */
 #audio-led[data-state="off"] { background: var(--line); box-shadow: none; }
 /* request in flight: amber pulse; network error: solid red until the next
    response arrives (audio.js htmx:error / before:response) */
@@ -3881,7 +3882,7 @@ html[data-motion="calm"] {
   -webkit-mask: repeating-linear-gradient(90deg, var(--black) 0 calc(var(--seg) - 1px), transparent 0 var(--seg));
   mask: repeating-linear-gradient(90deg, var(--black) 0 calc(var(--seg) - 1px), transparent 0 var(--seg)); }
 .meter i { position: absolute; inset: 0; display: block; width: auto; height: auto;
-  clip-path: inset(0 calc(100% - var(--level)) 0 0); transition: clip-path .05s linear;
+  clip-path: inset(0 calc(100% - var(--level)) 0 0); /* no transition: the level is smoothed in JS */
   background: linear-gradient(90deg, var(--signal) 0 70%, var(--accent) 70% 90%, var(--danger) 90%); }
 .meter b { position: absolute; inset: 0 0 0 auto; width: calc(var(--seg) * 2);
   background: transparent; border: 0; border-radius: 0; }
@@ -7419,7 +7420,8 @@ button.mm-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 
 /* the short-term's bar (−48..0 LUFS) and the correlation's needle (−1..+1) */
 .mm-bar, .mm-corr-bar { grid-column: 1 / -1; position: relative; height: 4px; margin-top: var(--s1);
   background: color-mix(in oklab, var(--line), transparent 30%); border-radius: 1px; }
-.mm-bar > i { position: absolute; inset: 0 auto 0 0; width: calc(var(--v, 0) * 100%); background: var(--signal);
+/* a scale, never a width: written each frame, a width laid the page out */
+.mm-bar > i { position: absolute; inset: 0; scale: var(--v, 0) 1; transform-origin: left; background: var(--signal);
   border-radius: 1px; }
 .mm-corr-bar::before { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--text-faint); }
 .mm-corr-bar > i { position: absolute; top: -3px; bottom: -3px; left: calc((var(--v, 0) + 1) * 50%); width: 3px;

@@ -5,15 +5,17 @@ the stems zip, the loop as MIDI, and the project file. (A MIDI file comes
 from __future__ import annotations
 
 import datetime as _dt
-import io
 import json
 import logging
+import os
+import tempfile
 import zipfile
 from typing import Annotated
 
 import numpy as np
 from fastapi import Query, Request, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from starlette.background import BackgroundTask
 
 from ... import midifile
 from ...audio import EXPORT_FORMATS, CodecUnavailable, codec, encode
@@ -266,24 +268,37 @@ def export_stems(svc: Svc, format: str = "wav") -> Response | OutsideLock:
     ext = EXPORT_FORMATS[format][1]
 
     def run() -> Response:
-        buf = io.BytesIO()
-        with svc.events.task("Exporting stems") as task:  # a step per stem
-            stems = svc.song_stems(song, master, task)
-            if not stems:
-                return Response(status_code=404)
-            # stored, not deflated: 16-bit PCM barely compresses and
-            # deflating it was half the export's time (1.85 s of 3.5 s).
-            # `zip_write`: no wall clock in the entries, so the same song
-            # is the same zip whenever it is exported
-            with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
-                for name, stem in stems:
-                    entry = name if format == "wav" else f"{name[:-4]}.{ext}"
-                    zip_write(z, entry, _encoded(stem, format))
+        # a stem at a time, into a zip on disk, served from there and
+        # deleted after: all the stems in memory and the zip built in a
+        # BytesIO (then copied) took a 384 s song's export up 3.1 GB
+        tmp = tempfile.NamedTemporaryFile(
+            prefix="synthlab-stems-", suffix=".zip", delete=False
+        )
+        n = 0
+        try:
+            with svc.events.task("Exporting stems") as task:  # a step per stem
+                # stored, not deflated: 16-bit PCM barely compresses and
+                # deflating it was half the export's time (1.85 s of 3.5 s).
+                # `zip_write`: no wall clock in the entries, so the same
+                # song is the same zip whenever it is exported
+                with tmp, zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as z:
+                    for name, stem in svc.iter_song_stems(song, master, task):
+                        entry = name if format == "wav" else f"{name[:-4]}.{ext}"
+                        zip_write(z, entry, _encoded(stem, format))
+                        del stem
+                        n += 1
+        except BaseException:
+            os.unlink(tmp.name)
+            raise
+        if not n:
+            os.unlink(tmp.name)
+            return Response(status_code=404)
         zip_name = "synthlab-stems" if format == "wav" else f"synthlab-stems-{ext}"
-        return Response(
-            buf.getvalue(),
+        return FileResponse(
+            tmp.name,
             media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="{zip_name}.zip"'},
+            filename=f"{zip_name}.zip",
+            background=BackgroundTask(os.unlink, tmp.name),
         )
 
     return OutsideLock(run)
