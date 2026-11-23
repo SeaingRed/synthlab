@@ -48,7 +48,7 @@ import pytest
 
 from synthlab import core, sampler, wavetables
 from synthlab.core import SR, note_to_hz
-from synthlab.params import MOD_SLOTS, slot_active
+from synthlab.params import MOD_SLOTS, shapes_of, slot_active
 from synthlab.studio import voicetables, worklet
 from synthlab.studio.factory import FACTORY, get_factory
 from synthlab.studio.library import LIBRARY, get_library
@@ -714,6 +714,152 @@ CASES.update(
             {},
         ),
         "voice_mono": (Patch(voice_mode="mono", glide=0.05), {}),
+    }
+)
+
+# --- oscillator 3 (synth._osc3) and a second warp (core.warp_twice)
+CASES.update(
+    {
+        "osc3_saw": (
+            Patch(osc3_level=0.6, osc3_octave=1, osc3_semi=7, osc3_detune=10.0),
+            {},
+        ),
+        # pwm on its width, beside osc2, over a unison spread
+        "osc3_square_unison": (
+            Patch(
+                osc2="sine",
+                osc3="square",
+                osc3_level=0.5,
+                osc3_semi=-5,
+                pwm_depth=0.3,
+                unison=3,
+            ),
+            {},
+        ),  # fmt: skip
+        "osc3_supersaw": (Patch(osc3="supersaw", osc3_level=0.5, unison=2), {}),
+        "osc3_fm": (
+            Patch(osc1="sine", osc3="fm", osc3_level=0.7, fm_index=3.0, fm_decay=0.4),
+            {},
+        ),
+        "osc3_fm4": (
+            Patch(osc3="fm4", osc3_level=0.7, fm4_level2=0.5, fm4_decay2=0.3),
+            {},
+        ),
+        "osc3_pluck": (
+            Patch(osc3="pluck", osc3_level=0.7, osc3_octave=-1, unison=2),
+            {},
+        ),
+        "osc3_wavetable_warp": (
+            Patch(
+                osc3="wavetable",
+                wt_table="vocal",
+                wt_pos=0.3,
+                osc3_level=0.6,
+                osc3_warp="pd",
+                osc3_warp_amt=0.5,
+            ),
+            {},
+        ),  # fmt: skip
+        "osc3_noise": (Patch(osc3="noise", osc3_level=0.4), {}),
+        "osc3_drift": (
+            Patch(osc3="triangle", osc3_level=0.6, osc3_semi=12, drift=0.6),
+            {},
+        ),
+        # routes lift a silent osc3 and move its detune and warp (the JS
+        # control pass)
+        "osc3_routed": (
+            Patch(
+                osc3="sine",
+                osc3_warp="bend_pos",
+                mod1_src="lfo",
+                mod1_dst="osc3_level",
+                mod1_amt=0.6,
+                mod_lfo_rate=3.0,
+                mod2_src="fenv",
+                mod2_dst="osc3_detune",
+                mod2_amt=0.5,
+                mod3_src="aenv",
+                mod3_dst="osc3_warp_amt",
+                mod3_amt=0.7,
+            ),
+            {},
+        ),  # fmt: skip
+        "warp2_osc1_saw": (
+            Patch(
+                osc1_warp="pd",
+                osc1_warp_amt=0.6,
+                osc1_warp2="mirror",
+                osc1_warp2_amt=0.5,
+            ),
+            {},
+        ),  # fmt: skip
+        # the second alone: one warp, its amount the second's
+        "warp2_alone": (
+            Patch(
+                osc1="sine",
+                osc1_warp2="bend_pos",
+                osc1_warp2_amt=0.7,
+                filter_type="none",
+            ),
+            {},
+        ),  # fmt: skip
+        # pwm's hold at 1 read by quantize, under a route (the JS control pass)
+        "warp2_osc2": (
+            Patch(
+                osc2="square",
+                osc2_octave=0,
+                osc2_warp="pwm",
+                osc2_warp_amt=0.5,
+                osc2_warp2="quantize",
+                osc2_warp2_amt=0.6,
+                mod1_src="lfo",
+                mod1_dst="osc2_warp2_amt",
+                mod1_amt=0.3,
+                mod_lfo_rate=2.0,
+            ),
+            {},
+        ),  # fmt: skip
+        # a wavetable's mip x both slopes (the engine's own example)
+        "warp2_wavetable_osc3": (
+            Patch(
+                osc1="sine",
+                osc3="wavetable",
+                osc3_level=0.7,
+                osc3_warp="bend_pos",
+                osc3_warp_amt=0.7,
+                osc3_warp2="bend_pos",
+                osc3_warp2_amt=0.5,
+            ),
+            {},
+        ),  # fmt: skip
+        "warp2_wavetable_osc1": (
+            Patch(
+                osc1="wavetable",
+                wt_table="scan",
+                wt_pos=0.5,
+                osc1_warp="asym",
+                osc1_warp_amt=0.4,
+                osc1_warp2="pd",
+                osc1_warp2_amt=0.6,
+            ),
+            {},
+        ),  # fmt: skip
+        "warp2_unison": (
+            Patch(
+                unison=4,
+                osc1_warp="bend_neg",
+                osc1_warp_amt=0.3,
+                osc1_warp2="asym",
+                osc1_warp2_amt=0.6,
+                osc3="triangle",
+                osc3_level=0.4,
+                osc3_warp="mirror",
+                osc3_warp_amt=0.5,
+                osc3_warp2="mirror",
+                osc3_warp2_amt=0.3,
+            ),
+            {},
+        ),  # fmt: skip
     }
 )
 
@@ -1651,6 +1797,19 @@ FIELD_CASES: dict[str, str] = {
     "osc1_warp_amt": "warp_saw_bend",
     "osc2_warp": "warp_osc2",
     "osc2_warp_amt": "warp_osc2",
+    "osc3": "osc3_square_unison",
+    "osc3_level": "osc3_saw",
+    "osc3_octave": "osc3_saw",
+    "osc3_semi": "osc3_saw",
+    "osc3_detune": "osc3_saw",
+    "osc3_warp": "osc3_wavetable_warp",
+    "osc3_warp_amt": "osc3_wavetable_warp",
+    "osc1_warp2": "warp2_osc1_saw",
+    "osc1_warp2_amt": "warp2_osc1_saw",
+    "osc2_warp2": "warp2_osc2",
+    "osc2_warp2_amt": "warp2_osc2",
+    "osc3_warp2": "warp2_wavetable_osc3",
+    "osc3_warp2_amt": "warp2_wavetable_osc3",
     "wt_custom": "wt_custom",
     "voice_mode": "voice_legato",
     "glide_mode": "voice_legato",
@@ -1724,7 +1883,7 @@ def is_random(p: Patch) -> bool:
     noisy_route = any(
         slot_active(p, s) and getattr(p, f"{s}_dst") == "noise_level" for s in MOD_SLOTS
     )
-    return p.noise_level > 0 or "noise" in (p.osc1, p.osc2) or noisy_route
+    return p.noise_level > 0 or "noise" in shapes_of(p) or noisy_route
 
 
 def strip(p: Patch) -> Patch | None:
@@ -1735,6 +1894,15 @@ def strip(p: Patch) -> Patch | None:
             kw[f"{s}_amt"] = 0.0
     if p.osc2 == "noise":
         kw.update(osc2=None, fm_amount=0.0, ring_mod=0.0)
+    if "noise" in shapes_of(p)[2:]:  # osc3 sounding noise
+        kw["osc3_level"] = 0.0
+        kw.update(
+            {
+                f"{s}_amt": 0.0
+                for s in MOD_SLOTS
+                if getattr(p, f"{s}_dst") == "osc3_level"
+            }
+        )
     if p.osc1 == "noise":
         if kw.get("osc2", p.osc2) is None and p.sub_level <= 0:
             return None
@@ -2141,12 +2309,13 @@ def _default_only(field: str) -> bool:
 
 def test_supersaw_phase_table():
     """The worklet's supersaw starts its saws where core.supersaw's seeded
-    RNG does: seeds 0..7 (osc1, per unison copy) and 100..107 (osc2)."""
+    RNG does: seeds 0..7 (osc1, per unison copy), 100..107 (osc2) and
+    200..207 (osc3)."""
     js = WORKLET.read_text(encoding="utf-8")
     body = js[js.index("const SUPERSAW_PHASE = [") :]
     body = body[len("const SUPERSAW_PHASE = ") : body.index("];") + 1]
     table = np.array(json.loads(body.replace(",\n]", "]")))
-    seeds = [*range(worklet.MAX_UNISON), *range(100, 100 + worklet.MAX_UNISON)]
+    seeds = [o + u for o in (0, 100, 200) for u in range(worklet.MAX_UNISON)]
     want = np.array([np.random.default_rng(s).random(7) for s in seeds])
     np.testing.assert_allclose(table, want, atol=1e-6)
 
