@@ -424,8 +424,8 @@ band followers' release, 10..250 ms; attack stays 5 ms) and
 **sibilance** (`noise`, 0..1: the consonant path — seeded noise through
 the same bands where the take is unvoiced). The carrier's own rows
 (notes + step, snap + octave, the clip's name) are shown by a CSS
-`:has()` on the option the kind's `<select>` holds, as the editor's
-shape rows are; no script.
+`:has()` on the option the kind's `<select>` holds (anchored on the
+carrier's own box, never the page); no script.
 The result is peak-normalised to 0.89; there is no level control.
 
 ### The render (`POST /voice/render`, `@render_outside_lock`)
@@ -704,7 +704,7 @@ neighbour follows) are patch edits
 answered by `do_render`; the panel comes back OOB by its watch
 (`samplerview.watch`). The panel is buttons only (the `#patch` form posts
 on every input inside it), hidden unless an osc is "sampler" (the
-`hidden` attribute + an editor.html `:has()` rule on the osc1 pills, like
+`hidden` attribute + an editor.html rule on #view's `data-p-osc1`, like
 the shape rows).
 
 **A clip chopped onto the keys in one move** is the clip hub's **→ Chop
@@ -921,7 +921,7 @@ the searches spread over the hop before each grain; not built.
 away from the sampler on a sound that already holds a sample. It plays
 `sampler_sample` — its span, or the loop inside it while the loop is on —
 at `sampler_root` with `sampler_keytrack`, so those rows show for either
-shape (one `:has()` rule names both: `paramui.SHAPE_ROWS`), while the
+shape (one rule names both: `paramui.SHAPE_ROWS`), while the
 sampler's alone (pitch mode, stretch, crossfade) hide. Under the
 **Granular** subhead: position, size, density, position spray, pitch
 spray, window, direction (pills) and scan — plain sliders from the
@@ -958,7 +958,7 @@ claimed.
 pill on a sound that holds a sample. It plays `sampler_sample` — its
 span, or the loop inside it while the loop is on — at `sampler_root` with
 `sampler_keytrack`, so those rows show for it as for the sampler and the
-granular shape (one `:has()` rule names all three: `paramui.SHAPE_ROWS`),
+granular shape (one rule names all three: `paramui.SHAPE_ROWS`),
 while the sampler's own (pitch mode, stretch, crossfade) and the grain
 rows hide. Under the **Spectral** subhead: position (drawable, a route
 target — its patch-bay jack shows while an oscillator is spectral), scan,

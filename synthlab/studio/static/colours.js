@@ -33,14 +33,17 @@
 //     "Motion: full or calm"); calm is `data-motion` on <html> before the
 //     first paint, `synthlab.calm()` for the islands, and a toggle says so
 //     (`synthlab-motion` on document).
+//   - The pace (`synthlab.paced`): every self-drawing loop draws at ~60 a
+//     second on the same frames, whatever the display's refresh rate.
 // 60 -> 70: the 2× toggle. 70 -> 82: the themes —
 // applied before the first paint, picked from a swatch, kept with the hues.
 //   - The workspace's first paint (workspace.js is deferred): a page with a
 //     saved layout ("synthlab.ws": a record keyed by the view, `editor@2`)
 //     hides #view (`data-ws-wait`) until workspace.js has laid it out.
 // 82 -> 96: Motion, full or calm. 96 -> 101: the
-// workspace's wait, so workspace.js need not block the parser.
-// Budget: <= 101 code lines.
+// workspace's wait, so workspace.js need not block the parser. 101 -> 104:
+// the pace.
+// Budget: <= 104 code lines.
 
 (() => {
   "use strict";
@@ -82,6 +85,13 @@
   // and `synthlab.calm()`, which every island that moves asks
   const MOTION = "synthlab.motion", calm = () => root.dataset.motion === "calm";
   (window.synthlab ??= {}).calm = calm;
+  // the pace of what draws itself every frame (the scope, the meters, the
+  // playheads, the step LEDs): ~60 a second on any display, all on the
+  // same frames — `paced(key, now)` is true once per 1/64 s slot. On a
+  // 240 Hz screen they drew 4x as often, re-rasterising the page each
+  // time (frontend.md, "Motion: full or calm")
+  const slots = new Map(), PACE = 1000 / 64;
+  window.synthlab.paced = (key, now) => { const s = Math.floor(now / PACE); return slots.get(key) !== s && !!slots.set(key, s); };
   try { if (localStorage.getItem(MOTION) === "calm") root.dataset.motion = "calm"; } catch { /* storage refused */ }
   const showMotion = () => { for (const b of document.querySelectorAll("[data-set-motion]")) b.setAttribute("aria-pressed", String((b.dataset.setMotion === "calm") === calm())); };
   document.addEventListener("DOMContentLoaded", showMotion);

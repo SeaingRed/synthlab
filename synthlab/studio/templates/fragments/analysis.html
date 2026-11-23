@@ -1,5 +1,9 @@
 {# synthlab/studio/templates/fragments/analysis.html #}
-<div id="analysis" class="readouts" hx-swap-oob="true" title="level, sub weight and brightness of the last render">
+{#- its CONTENTS swap (innerHTML): the page's #analysis stays put. Replaced
+    whole, a child of #view's grid on most pages, it laid the whole page out
+    again on every render — ~115 ms in Chrome at 2560 px, on every ▶ and
+    every edit (frontend.md, "Page weight") -#}
+<div id="analysis" class="readouts" hx-swap-oob="innerHTML" title="level, sub weight and brightness of the last render">
   <span><b>{{ analysis.peak_db }}</b> dB peak</span>
   <span><b>{{ analysis.rms_db }}</b> dB rms</span>
   <span><b>{{ analysis.sub_pct }}</b>% sub</span>

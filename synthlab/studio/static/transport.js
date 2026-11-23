@@ -127,8 +127,9 @@
   const main = () => { const all = [...on.values()]; return all.find((e) => !e.layer) || all.at(-1); };
   const put = (box, sel, text) => { const el = box.querySelector(sel); if (el && el.textContent !== text) el.textContent = text; };
   const left = (w, t) => (w.at == null ? "loading…" : plural(Math.max(0, Math.ceil((w.at - t) / (w.beat || 0.5) - 1e-6)), "beat"));
-  function frame() {
+  function frame(ts) {
     raf = 0;
+    if (ts && !S.paced?.("transport", ts)) { raf = requestAnimationFrame(frame); return; } // ~60 a second (colours.js)
     const box = $("now-playing"), t = now(), e = main();
     const w = [...waits.values()].sort((a, b) => (a.at ?? -1) - (b.at ?? -1))[0];
     const p = e?.state === "playing" ? val(e.pos) : null, ahead = e?.at != null ? e.at - t : 0;

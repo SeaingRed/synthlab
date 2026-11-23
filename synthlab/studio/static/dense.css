@@ -796,7 +796,7 @@ body { line-height: 1.35; }
 .song-view.jam-on .song-arranger > .jam { gap: var(--s1); }
 @media (min-width: 901px) {
   /* the launcher takes the playlist's whole pane and scrolls inside it */
-  .song-view.jam-on .song-arranger:has(> .jam) { grid-template-rows: minmax(0, 1fr); }
+  .song-view.jam-on .song-arranger.has-jam { grid-template-rows: minmax(0, 1fr); }
   /* few tracks: the pads grow into the pane (a pad is a target, not a line) */
   .jam-scroll { container: jam / size; }
   .jam-grid { --pad-h: clamp(40px, calc((100cqh - 56px) / var(--rows, 4) - 3px), 72px); }
@@ -995,7 +995,7 @@ html:not([data-density="comfy"]) {
     .mix-master .mm-cell > :is(.mm-bar, .mm-corr-bar, .mm-sub) { grid-row: 3; }
     /* the empty master rack: one line where the column has the room (2560),
        its jacks and "No effects" under its head where it has not (1920) */
-    .mix-master fieldset:has(> .fx-units > .fx-none) > .fx-units { flex-basis: auto; }
+    .mix-master fieldset.fx-scope:has(> .fx-units > .fx-none) > .fx-units { flex-basis: auto; }
     /* a strip, now as wide as its share: the fader's travel printed beside
        it, a tick every tenth, as on a desk's faceplate (the meter and the
        fader stand in the gap the mask leaves) */

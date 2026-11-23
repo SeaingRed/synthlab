@@ -200,10 +200,7 @@ def test_osc3_is_its_own_area_and_rests_while_silent(client):
     )
     assert set(idle) == {"osc3", "osc3_octave", "osc3_semi", "osc3_detune", "osc3_warp",
                          "osc3_warp_amt", "osc3_warp2", "osc3_warp2_amt"}  # fmt: skip
-    assert (
-        "#row-wt_pos" in html
-        and ':not(:has([name="osc3"][value="wavetable"]:checked))' in html
-    )
+    assert "#row-wt_pos" in html and '[data-p-osc3="wavetable"]' in html
 
 
 def test_a_heard_osc3_is_not_idle(client):
@@ -230,6 +227,6 @@ def test_each_warp_block_holds_its_second_warp(client):
         assert f'class="param param-knob" id="row-osc{k}_warp2_amt"' in block
         assert f'<select id="p-osc{k}_warp2" name="osc{k}_warp2">' in block
         assert (
-            f'#view:has(#p-osc{k}_warp2 option[value="off"]:checked) '
+            f'#view[data-p-osc{k}_warp2="off"] '
             f'.pb-jack[data-dst="osc{k}_warp2_amt"]' in html
         )

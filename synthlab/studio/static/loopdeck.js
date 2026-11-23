@@ -147,8 +147,9 @@
       c.style.setProperty("--ring", (on && mine ? ((((now - t0) % len) + len) % len) / len : 0).toFixed(3));
     }
   }
-  function frame() {
+  function frame(ts) {
     raf = 0;
+    if (ts && !S.paced?.("loopdeck", ts)) { raf = requestAnimationFrame(frame); return; } // ~60 a second (colours.js)
     const d = deck();
     if (!d) return;
     const now = S.getCtx?.()?.currentTime ?? 0, list = T()?.list() || [];
@@ -164,8 +165,10 @@
       const v = count ? (i < count ? "count" : "off") : i >= n ? "off" : i < at ? "past" : i === at ? "now" : "";
       if ((l.dataset.s || "") !== v) { if (v) l.dataset.s = v; else delete l.dataset.s; }
     });
+    // its text node's data, never textContent: a new text node is a DOM change
+    // the page's :has() rules see (frontend.md, "Page weight")
     const pos = d.querySelector(".deck-pos");
-    if (pos && pos.textContent !== text) pos.textContent = text;
+    if (pos && pos.textContent !== text) { if (pos.firstChild?.nodeType === 3) pos.firstChild.data = text; else pos.textContent = text; }
     rings(now);
     if (rec || main) raf = requestAnimationFrame(frame);
   }

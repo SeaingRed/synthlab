@@ -212,7 +212,7 @@
   });
   function frame(now) {
     requestAnimationFrame(frame);
-    if (document.hidden) return;
+    if (document.hidden || !S().paced?.("motion", now)) return; // ~60 a second on any display (colours.js)
     const an = S().getAnalyser?.();
     let rms = 0, pk = 0;
     if (an) {

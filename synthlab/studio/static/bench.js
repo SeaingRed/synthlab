@@ -45,7 +45,10 @@
 // 146 -> 188: the sections at rest.
 // 188 -> 190: a route's switch — a bypassed route's lead is drawn faint,
 // and a lead dropped into a bypassed free slot switches it on.
-// Budget: <= 190 code lines.
+// 5. The patch's switches on #view (`data-p-osc1` …): what Synths' shape
+//    rows and jacks read, instead of a :has() on #view (frontend.md, "Page
+//    weight"). 190 -> 200.
+// Budget: <= 200 code lines.
 
 (() => {
   "use strict";
@@ -247,4 +250,19 @@
   document.addEventListener("htmx:after:settle", settle);
   document.addEventListener("DOMContentLoaded", settle);
   for (const t of ["htmx:after:settle", "DOMContentLoaded"]) document.addEventListener(t, rest);
+
+  // ---- 5. the switches on #view --------------------------------------------
+  // `data-p-<field>` for each field #view names in `data-switches` (the
+  // server draws them; editor.html's shape rows and jacks read them): kept
+  // as the controls move, in the capture phase so every other island's
+  // listener already reads the rows as they now show
+  function switches() {
+    const v = document.querySelector("#view[data-switches]");
+    for (const n of v ? v.dataset.switches.split(" ") : []) {
+      const c = v.querySelector(`select[name="${n}"], [name="${n}"]:checked`);
+      if (c && v.getAttribute(`data-p-${n}`) !== c.value) v.setAttribute(`data-p-${n}`, c.value);
+    }
+  }
+  for (const t of ["input", "change"]) document.addEventListener(t, switches, true);
+  for (const t of ["htmx:after:settle", "DOMContentLoaded"]) document.addEventListener(t, switches);
 })();

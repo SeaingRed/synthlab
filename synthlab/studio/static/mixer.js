@@ -138,6 +138,7 @@
   }
   function frame(now) {
     requestAnimationFrame(frame);
+    if (!S.paced?.("mixer", now)) return; // ~60 a second on any display (colours.js)
     const outs = [$("mix-out-l"), $("mix-out-r")], ac = S.getCtx?.(), m = S.getMaster?.();
     if (!outs[0] || !ac || !m) return;
     const s = sides(ac, m);

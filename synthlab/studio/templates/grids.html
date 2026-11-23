@@ -30,7 +30,7 @@
 {#- each note's own feel (`note_feel`, a take as played): drawn on the cells
     it already has (notefeel.marks: classes and custom properties) -#}
 {%- set fmarks = feel_marks(feel, cells, cuts) if feel else none -%}
-<div class="grid roll" aria-label="Note grid" data-zoom="{{ zoom }}"{% if steps_per_bar %} data-bars="{{ total_steps // steps_per_bar }}" data-spb="{{ steps_per_bar }}"{% endif %}{% if span %} data-span="{{ span }}" data-oct="{{ oct }}"{% endif %} style="--steps: {{ total_steps }}; --rows: {{ pitch_rows | length }}; --step-w: var(--zoom-{{ zoom }})">
+<div class="grid roll" aria-label="Note grid" data-zoom="{{ zoom }}"{% if chance is not none %} data-chance{% endif %}{% if steps_per_bar %} data-bars="{{ total_steps // steps_per_bar }}" data-spb="{{ steps_per_bar }}"{% endif %}{% if span %} data-span="{{ span }}" data-oct="{{ oct }}"{% endif %} style="--steps: {{ total_steps }}; --rows: {{ pitch_rows | length }}; --step-w: var(--zoom-{{ zoom }})">
     <i class="playhead" aria-hidden="true" style="grid-row: 1 / span {{ (pitch_rows | length) + (3 if steps_per_bar else 2) + (1 if chords is not none else 0) }}"></i>
     {% if steps_per_bar %}
     <div class="ruler" aria-hidden="true">

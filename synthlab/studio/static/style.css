@@ -486,7 +486,7 @@ input[type="number"] { field-sizing: content; min-width: 6ch; }
 /* the keyboard dock is the page frame's (base.html, after #view): Synths'
    `keys` area is its place, an empty slot keysbar.js measures it by */
 .keys-slot { grid-area: keys; min-width: 0; }
-.cockpit:has(.dock) .view-head { grid-area: head; }
+.cockpit[data-view="editor"] .view-head { grid-area: head; }
 /* anchors from the chain bar land below the sticky top dock */
 .cockpit .panel, #fx-rack { scroll-margin-top: calc(var(--top-h) + 10px); }
 
@@ -648,8 +648,11 @@ html[data-motion="calm"] #audio-led.busy { animation: none; opacity: 0.7; }
 .panel-preset-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .pp-none { padding: var(--s1) var(--s2); font-size: var(--fs-xs); color: var(--text-dim); }
 /* signal glow on the section being adjusted (a stale `@property --glow`, a
-   percentage nothing read, stood here: --glow is section 1's colour now) */
-.panel:has(input:active) { border-color: var(--accent);
+   percentage nothing read, stood here: --glow is section 1's colour now):
+   while it is pressed — `:active`, never `:has(input:active)`, which made
+   every DOM change in a panel restyle its ~800 controls (frontend.md,
+   "Page weight") */
+.panel:active { border-color: var(--accent);
   box-shadow: 0 0 18px -8px var(--accent); }
 .panels > .panel > .param { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1;
   align-items: center; gap: 6px; padding: 3px 0; }
@@ -1550,8 +1553,11 @@ html[data-motion="calm"] .grid .playhead { display: none !important; }
 /* a lit step the playhead strikes flares like a filament
    in the theme's glow and cools after it passes: its glow is the one
    transition, and only on a lit step (a handful a column), so a step
-   painted by hand still lands at once */
-.cell:checked:not(.now) { transition: box-shadow .5s cubic-bezier(.2, .7, .2, 1); }
+   painted by hand still lands at once. It cools in 8 steps: a box-shadow
+   repaints its cell on every display frame it moves (240 a second on a
+   240 Hz screen, ~25 cells cooling at once on a busy loop); stepped, 16
+   (frontend.md, "Motion: full or calm") */
+.cell:checked:not(.now) { transition: box-shadow .5s steps(8, end); }
 .cell.now:checked { background: color-mix(in oklch, var(--accent), var(--white) 30%);
   box-shadow: 0 0 12px 1px oklch(from var(--glow) l c h / calc(0.7 * var(--a-halo))), 0 0 10px -3px var(--accent); }
 html[data-motion="calm"] .cell.now { outline: none; }
@@ -1598,8 +1604,8 @@ html[data-motion="calm"] .cell.now { outline: none; }
   grid-template-columns: 1fr; grid-template-areas: none;
   grid-template-rows: none;
   align-content: start; }
-/* non-editor views host a hidden #analysis stub as an OOB target; the
-   arriving fragment isn't [hidden], so hide it structurally instead */
+/* non-editor views host a hidden #analysis stub as an OOB target (its
+   contents swap, so it stays [hidden]); hidden structurally as well */
 .breed-view #analysis, .map-view #analysis, .bass-view #analysis,
 .drums-view #analysis, .voice-view #analysis, .lab-view #analysis { display: none; }
 /* editor-only area names (.panels -> panels, #fx-rack -> fx ...) must not
@@ -1757,7 +1763,7 @@ html[data-loops="pinned"] .perform-view { --loops-col: var(--loops-w); }
 /* "make it a song": the Song source's, shown while it is the source */
 .deck:not([data-src="song"]) #deck-arrange { display: none; }
 .deck-rec-more { min-width: 1.6em; padding: 0 var(--s0); }
-.deck:has(#jam-rec[aria-pressed="true"]) .deck-rec-more { color: var(--danger-text); border-color: var(--danger); }
+.deck-rec:has(#jam-rec[aria-pressed="true"]) > .deck-rec-more { color: var(--danger-text); border-color: var(--danger); }
 .deck-rec-menu { min-width: 250px; gap: var(--s1); padding: var(--s2); }
 .deck-rec-menu > .menu-cap { font-size: var(--fs-2xs); color: var(--text-dim); }
 .deck-rec-menu > .seg { justify-self: start; }
@@ -2039,7 +2045,7 @@ html:not([data-typeto="pads"]) :is(.perform-pads .pad-key, .pfx kbd) { color: va
 /* a shelf out of sight is neither laid out nor painted until it
    nears the view (~50 shelves, ~900 cards) — but never the active card's:
    containment would make that shelf its detail's containing block (above) */
-.shelf:not(:has(.lib-card.active)) { content-visibility: auto; contain-intrinsic-size: auto 480px; }
+.shelf:not([data-active]) { content-visibility: auto; contain-intrinsic-size: auto 480px; }
 .shelf-title { gap: var(--s2); padding: 0 var(--s2); margin-bottom: var(--s15); color: var(--text);
   background: var(--ah-solid); border-bottom: 1px solid var(--line); border-radius: var(--r-s) var(--r-s) 0 0; }
 .shelf-title small { font-size: var(--fs-2xs); color: var(--text-dim); font-variant-numeric: tabular-nums; }
@@ -2132,7 +2138,7 @@ html:not([data-typeto="pads"]) :is(.perform-pads .pad-key, .pfx kbd) { color: va
   width: var(--s3); height: 2px; background: var(--signal); }
 .lib-chain > .ly { border-style: dashed; color: var(--text-dim); }
 .lib-dock, .lib-d-acts, .lib-browser > .lib-none { display: none; }
-.library-view:has(.lib-card):not(:has(.lib-card:not([hidden]))) .lib-none { display: grid; }
+.lib-browser[data-none] > .lib-none { display: grid; }
 
 /* rows (the ☰ toggle, per browser): one line a sound, to scan all of them */
 html[data-lib-view="rows"] .library-view {
@@ -2171,14 +2177,13 @@ html[data-lib-view="rows"] .library-view {
        foot, over the detail, while a card is selected; the detail leaves
        them room. Use, Reload (edited on Synths) or ✓, as that card says */
     .lib-card.active > .lib-detail { padding-bottom: calc(var(--h-s) + var(--h-m) + var(--s1) + var(--s3) * 2); }
-    &:has(.lib-card.active) > .lib-d-acts { grid-area: dock; align-self: end; position: relative; z-index: 4;
+    > .lib-d-acts[data-sel] { grid-area: dock; align-self: end; position: relative; z-index: 4;
       display: grid; grid-template-columns: 1fr 1fr; gap: var(--s1); padding: var(--s3); background: var(--ah-tile); }
     .lib-d-acts > :is(.lib-d-use, .lib-d-reload, .lib-d-here) { grid-column: 1 / -1; min-height: var(--h-m); justify-content: center; }
     .lib-d-here, .lib-d-reload,
-    &:has(.lib-card.active .lib-here) .lib-d-use,
-    &:has(.lib-card.active .lib-use[data-menu^="Reload"]) .lib-d-use { display: none; }
-    &:has(.lib-card.active .lib-here) .lib-d-here,
-    &:has(.lib-card.active .lib-use[data-menu^="Reload"]) .lib-d-reload { display: inline-flex; }
+    .lib-d-acts:is([data-sel="here"], [data-sel="reload"]) .lib-d-use { display: none; }
+    .lib-d-acts[data-sel="here"] .lib-d-here,
+    .lib-d-acts[data-sel="reload"] .lib-d-reload { display: inline-flex; }
     .lib-card.active .lib-d-spark { display: block; width: 100%; height: auto; aspect-ratio: 3 / 1; max-height: 220px; }
     .lib-browser > .lib-none { grid-area: auto; place-self: center; margin-top: var(--s6); }
   }
@@ -4692,11 +4697,11 @@ h4.subhead[data-rest="folded"]::before, legend[data-rest="folded"] > .panel-name
 /* an empty rack is one line (not a 110-120 px dashed box): its head — the name, + add…, + add chain… —
    then the in jack, "No effects" and the one-click suggestion (＋ Reverb
    ▶), the out jack at the line's end. The full rack once a unit is in it */
-fieldset:has(> .fx-units > .fx-none) { display: flex; flex-wrap: wrap; align-items: center;
+fieldset.fx-scope:has(> .fx-units > .fx-none) { display: flex; flex-wrap: wrap; align-items: center;
   column-gap: var(--s2); row-gap: var(--s1); }
-fieldset:has(> .fx-units > .fx-none) > legend { float: left; width: auto; margin: 0; padding: 0;
+fieldset.fx-scope:has(> .fx-units > .fx-none) > legend { float: left; width: auto; margin: 0; padding: 0;
   border-bottom: 0; }
-fieldset:has(> .fx-units > .fx-none) > .fx-units { flex: 1 1 10em; min-width: 0; flex-wrap: nowrap;
+fieldset.fx-scope:has(> .fx-units > .fx-none) > .fx-units { flex: 1 1 10em; min-width: 0; flex-wrap: nowrap;
   gap: 0 var(--s15); padding-inline-start: 0; }
 .fx-units > .fx-none { display: flex; flex: 0 1 auto; flex-wrap: nowrap; align-items: center; justify-content: flex-start; white-space: nowrap;
   gap: var(--s1) var(--s2); padding: 0; border: 0; border-radius: 0; text-align: start;
@@ -4791,8 +4796,8 @@ fieldset:has(> .fx-units > .fx-none) > .fx-units { flex: 1 1 10em; min-width: 0;
   #view[data-view="bass"] :is(.bass-keys, .bass-read) { display: grid; gap: var(--s2); align-content: start;
     padding: var(--s2); min-width: 0; }
   #view[data-view="bass"] :is(.bass-read, .bp-mono, .bp-phone) { border-left: 1px solid var(--line); }
-  #view[data-view="bass"] #analysis:not([hidden]) { display: flex; }
-  #view[data-view="bass"] #analysis:not([hidden]) ~ .ro-empty { display: none; }
+  #view[data-view="bass"] #analysis:not(:empty) { display: flex; }
+  #view[data-view="bass"] #analysis:not(:empty) ~ .ro-empty { display: none; }
   #view[data-view="bass"] .sub-spectrum-wrap { height: 100%; }
   #view[data-view="bass"] .sub-plot { height: 100%; aspect-ratio: auto; }
   #view[data-view="bass"] > #bass-panels > .skel { grid-area: chart; }
@@ -4881,7 +4886,7 @@ fieldset:has(> .fx-units > .fx-none) > .fx-units { flex: 1 1 10em; min-width: 0;
   /* an empty rack there is its head and the one-press suggestion: one line */
   #view[data-view="editor"] > #fx-rack .fx-units:has(> .fx-none) > .fx-io { display: none; }
   #view[data-view="editor"] > #fx-rack .fx-units > .fx-none { font-size: 0; }
-  #view[data-view="editor"] > #fx-rack fieldset:has(> .fx-units > .fx-none) > .fx-units { flex: 0 1 auto; }
+  #view[data-view="editor"] > #fx-rack fieldset.fx-scope:has(> .fx-units > .fx-none) > .fx-units { flex: 0 1 auto; }
   /* (a half-rack unit's head: its name gives way, and the two move keys
      show under the hand — the unit's right click lists them too) */
   #view[data-view="editor"] > #fx-rack .fx-units[data-wired] > .fx-unit > header { gap: var(--s0); }
@@ -5964,7 +5969,7 @@ input[type="range"].knob.fader { width: 22px; height: auto; min-height: 56px; al
    playlist's place: same pane, the tools, lanes and foot put away. Only
    where there is a launcher — an empty song keeps its starter sheet. */
 .jam { display: none; }
-.song-view.jam-on .song-arranger:has(> .jam) > :not(.jam) { display: none; }
+.song-view.jam-on .song-arranger.has-jam > :not(.jam) { display: none; }
 .song-view.jam-on .song-arranger > .jam { display: grid; gap: var(--s2); min-width: 0; min-height: 0;
   grid-template-rows: auto minmax(0, 1fr); }
 #jam-toggle[aria-pressed="true"] { background: var(--signal); border-color: var(--signal); color: var(--on-signal); }
@@ -6981,7 +6986,7 @@ html[data-loops="over"][data-lp-drag] .loops-panel { opacity: 0.25; pointer-even
 .inspector.folded { flex: none; }
 .insp-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: auto;
   scrollbar-width: thin; }
-.inspector:has(#coach-dock:not([hidden])) #lane-inspector { display: none; }
+#coach-dock:not([hidden]) ~ #lane-inspector { display: none; }
 /* the coach in the inspector: its tabs are its head */
 .inspector .coach-head { display: none; }
 .insp-lane { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2); min-width: 0; }
@@ -7166,9 +7171,11 @@ ws-float > :is(#perform-pads, #drumxy-panel, #perf-fx, #perform-launch) { displa
    as the drum grid's lane switch: one lane row at a time, so the rows keep
    their height (two octaves still fit Perform's Both at 1920). Which one is
    `html[data-roll-lane]` (roll.js: the row's label, PageDown / PageUp in a
-   lane), so a morph of the roll keeps it. */
+   lane), so a morph of the roll keeps it. A roll that has the row says
+   so (`data-chance`, grids.html): no :has() on the grid, whose every DOM
+   change would restyle its ~1,500 cells (frontend.md, "Page weight"). */
 .grid.roll > .chancerow,
-html[data-roll-lane="chance"] .grid.roll:has(> .chancerow) > .velrow:not(.chancerow) { display: none; }
+html[data-roll-lane="chance"] .grid.roll[data-chance] > .velrow:not(.chancerow) { display: none; }
 html[data-roll-lane="chance"] .grid.roll > .chancerow { display: grid; }
 .rowlabel.lane-flip { border: 0; padding: 0 3px; background: none; font: inherit; font-size: var(--fs-xs);
   color: var(--text-dim); cursor: pointer; border-radius: var(--r-s); justify-self: start; }

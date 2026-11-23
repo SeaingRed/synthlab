@@ -17,7 +17,14 @@
    songdrag.js (drags onto a lane) and songline.js (zoom, the ruler's start
    marker, the edges). #}
 {% set nsec = song.sections | length %}
-<section id="song-arranger" class="song-arranger module" data-module="song.playlist" aria-label="Arranger"
+{#- a block to launch: the jam's launcher is here (below), and `has-jam`
+    says so to style.css — a class, never `:has(> .jam)`: a :has() whose
+    rule ends in `> :not(.jam)` made every DOM change under any element a
+    :has() rule tests restyle that element's whole subtree (frontend.md,
+    "Page weight") -#}
+{% set pads = namespace(n=0) %}
+{% for sec in song.sections %}{% for pid in sec.cells.values() if pid and pid in song.patterns %}{% set pads.n = pads.n + 1 %}{% endfor %}{% endfor %}
+<section id="song-arranger" class="song-arranger module{% if pads.n %} has-jam{% endif %}" data-module="song.playlist" aria-label="Arranger"
          data-sections="{{ nsec }}" data-song-bars="{{ song_ruler.width if song_time else song_bars }}" data-max-range="{{ limits.MAX_RANGE_CELLS }}"
          style="--tracks: {{ [song.tracks | length, 1] | max }}"
          {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
@@ -821,9 +828,7 @@
   </section>
   {% endif %}
   {#- the jam: the launcher that stands here while Jam is on;
-      only when there is a block to launch -#}
-  {% set pads = namespace(n=0) %}
-  {% for sec in song.sections %}{% for pid in sec.cells.values() if pid and pid in song.patterns %}{% set pads.n = pads.n + 1 %}{% endfor %}{% endfor %}
+      only when there is a block to launch (`pads`, counted above) -#}
   {% if pads.n %}{% include "fragments/jam_bar.html" %}{% endif %}
   {% if not song.sections %}
   {#- an empty song: the starter sheet (one click lays down a whole song

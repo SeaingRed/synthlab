@@ -8,7 +8,13 @@
    them, stuck to the bottom of the screen, carrying the play tools and the
    monitor controls that are not part of the sound. DOM order
    follows that visual order so tab order doesn't jump. #}
-<main class="cockpit" id="view" hx-history-elt data-view="editor" data-ws-dock="synths">
+{#- the switches the shape rows and jacks below read, as attributes
+    (bench.js keeps them as the controls move): a :has() on #view made
+    every DOM change on the page restyle ~1,500 of its controls
+    (frontend.md, "Page weight") -#}
+{% set switches = ["osc1", "osc2", "osc3", "filter2_route", "osc2_sync", "osc3_warp", "osc1_warp2", "osc2_warp2", "osc3_warp2", "lfo_shape", "lfo2_shape", "lfo3_shape", "lfo4_shape", "lfo5_shape", "lfo6_shape"] %}
+<main class="cockpit" id="view" hx-history-elt data-view="editor" data-ws-dock="synths"
+      data-switches="{{ switches | join(' ') }}"{% for n in switches %} data-p-{{ n }}="{{ patch[n] }}"{% endfor %}>
 
   <header class="view-head">
     {#- the folded sound list's way back, at the top beside the title (the
@@ -99,33 +105,35 @@
   {% include "fragments/chain.html" %}
 
   {# Shape-specific rows (FM, pluck, wavetable) are hidden unless an
-     oscillator uses that shape — pure CSS :has() on the osc radios, so it
-     tracks pill clicks instantly even though patch posts are
-     hx-swap="none". The rows stay in the DOM (morphs and preset loads keep
-     working); they just don't take half the Source panel. #}
+     oscillator uses that shape — CSS on #view's `data-p-*` switches
+     (above; bench.js moves them with the controls, before any other
+     island's listener), so it tracks pill clicks instantly even though
+     patch posts are hx-swap="none". The rows stay in the DOM (morphs and
+     preset loads keep working); they just don't take half the Source
+     panel. #}
   <style>
     {#- a row more than one shape reads (the sample: sampler, granular and
         spectral) hides only while none of them is picked -#}
     {% for shapes, deps in shape_rows.items() %}
-    #view{% for shape in shapes %}:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked)):not(:has([name="osc3"][value="{{ shape }}"]:checked)){% endfor %}
+    #view{% for shape in shapes %}:not([data-p-osc1="{{ shape }}"], [data-p-osc2="{{ shape }}"], [data-p-osc3="{{ shape }}"]){% endfor %}
       :is({% for d in deps %}#row-{{ d }}, #sub-{{ d }}{{ ", " if not loop.last }}{% endfor %}{% if shapes | length == 1 %}, .shape-{{ shapes[0] }}{% endif %}) { display: none; }
     {% endfor %}
-    #view:not(:has([name="osc1"][value="sampler"]:checked)):not(:has([name="osc1"][value="granular"]:checked)):not(:has([name="osc1"][value="spectral"]:checked)) #sampler-panel { display: none; }
+    #view:not([data-p-osc1="sampler"], [data-p-osc1="granular"], [data-p-osc1="spectral"]) #sampler-panel { display: none; }
     {#- filter 2's rows while it plays; a drawn LFO's drawing while
         its shape is "drawn"; a target jack while its module can be heard
         (or a lead is plugged into it) -#}
-    #view:has([name="filter2_route"][value="off"]:checked) .f2-block > .param:not(#row-filter2_route) { display: none; }
+    #view[data-p-filter2_route="off"] .f2-block > .param:not(#row-filter2_route) { display: none; }
     {% for k in ("lfo", "lfo2", "lfo3", "lfo4", "lfo5", "lfo6") %}
-    #view:not(:has(#p-{{ k }}_shape option[value="drawn"]:checked)) #draw-{{ k }} { display: none; }
+    #view:not([data-p-{{ k }}_shape="drawn"]) #draw-{{ k }} { display: none; }
     {% endfor %}
-    #view:has([name="filter2_route"][value="off"]:checked) .pb-jack[data-dst^="filter2_"]:not([data-on]),
-    #view:has([name="osc2"][value=""]:checked) .pb-jack[data-dst="fm_amount"]:not([data-on]),
-    #view:has([name="osc2_sync"][value="off"]:checked) .pb-jack[data-dst="sync_pitch"]:not([data-on]),
-    #view:has(#p-osc3_warp option[value="off"]:checked) .pb-jack[data-dst="osc3_warp_amt"]:not([data-on]),
-    {% for k in (1, 2, 3) %}#view:has(#p-osc{{ k }}_warp2 option[value="off"]:checked) .pb-jack[data-dst="osc{{ k }}_warp2_amt"]:not([data-on]){{ "," if not loop.last }}
+    #view[data-p-filter2_route="off"] .pb-jack[data-dst^="filter2_"]:not([data-on]),
+    #view[data-p-osc2=""] .pb-jack[data-dst="fm_amount"]:not([data-on]),
+    #view[data-p-osc2_sync="off"] .pb-jack[data-dst="sync_pitch"]:not([data-on]),
+    #view[data-p-osc3_warp="off"] .pb-jack[data-dst="osc3_warp_amt"]:not([data-on]),
+    {% for k in (1, 2, 3) %}#view[data-p-osc{{ k }}_warp2="off"] .pb-jack[data-dst="osc{{ k }}_warp2_amt"]:not([data-on]){{ "," if not loop.last }}
     {% endfor %}{ display: none; }
     {% for shape, dsts in (("wavetable", ("wt_pos",)), ("fm", ("fm_index",)), ("fm4", ("fm4_level1", "fm4_level2", "fm4_level3", "fm4_level4")), ("granular", ("grain_pos",)), ("spectral", ("spectral_pos",))) %}
-    #view:not(:has([name="osc1"][value="{{ shape }}"]:checked)):not(:has([name="osc2"][value="{{ shape }}"]:checked)):not(:has([name="osc3"][value="{{ shape }}"]:checked))
+    #view:not([data-p-osc1="{{ shape }}"], [data-p-osc2="{{ shape }}"], [data-p-osc3="{{ shape }}"])
       :is({% for d in dsts %}.pb-jack[data-dst="{{ d }}"]{{ ", " if not loop.last }}{% endfor %}):not([data-on]) { display: none; }
     {% endfor %}
     {#- the FM4 panel: the algorithm the select holds is the drawing lit, and
