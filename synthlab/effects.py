@@ -135,10 +135,15 @@ def _clip(x, drive=6.0, ceiling=-1.0, soft=0.3, mix=1.0):
     if k <= 0.0:
         wet = np.clip(u, -c, c)
     else:
+        # the knee only where it bends (a few samples): tanh, abs, sign
+        # and where over every sample made it 3.4x the drive unit. The same
+        # samples: sign(u) * over is copysign(over, u) where |u| > t > 0
         t, room = c * (1 - k), c * k
-        mag = np.abs(u)
-        over = t + room * np.tanh((mag - t) / room)
-        wet = np.where(mag > t, np.sign(u) * over, u)
+        bent = np.abs(u) > t
+        wet = u  # its own buffer (x times the gain)
+        if bent.any():
+            v = u[bent]
+            wet[bent] = np.copysign(t + room * np.tanh((np.abs(v) - t) / room), v)
     return x * (1 - mix) + wet * mix
 
 
