@@ -147,9 +147,10 @@
       let pk = 0;
       for (const v of s.buf) pk = Math.max(pk, Math.abs(v));
       s.pk[i] = Math.max(pk, s.pk[i] * 0.9);
+      if (s.pk[i] < 1e-3) s.pk[i] = 0; // settles at rest (motion.js's meter's rule)
       if (s.pk[i] >= s.held[i] || now - s.at[i] > 1200) { s.held[i] = s.pk[i]; s.at[i] = now; } // the held tick
-      outs[i].style.setProperty("--level", `${Math.min(1, s.pk[i]) * 100}%`);
-      outs[i].style.setProperty("--peak", `${Math.min(1, s.held[i]) * 100}%`);
+      S.meterPut(outs[i], "--level", s.pk[i]);
+      S.meterPut(outs[i], "--peak", s.held[i]);
       if (pk >= 0.99) s.clip[i] = now;
       outs[i].classList.toggle("clipped", now - s.clip[i] < 2000); // a clip lamp lit for 2 s
     });

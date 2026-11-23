@@ -31,6 +31,18 @@ parts heard instead of `view_parts`), with the loop's sound as `patch` /
 `chain`. Neither override touches the session (`test_key_takes.py` holds
 a bounce's session byte for byte).
 
+**An edit's render goes first.** `_ensure` renders a loop under
+`sequencer.live()` (`render.live_render`): its stems take `live-stem`
+threads and its notes `live-note` threads, pools of their own, and while
+one runs a background job about to start — a song section's stem or note
+on the shared pools, a key's `/note` warm-up — waits for it
+(`yield_to_live`, at most `LIVE_YIELD_S`, 2 s: never starved). On the
+shared pools an edit's stems queued behind a whole song's, and ~30 song
+threads took turns on the GIL with it: a knob posted while
+`/song/plan.json` rendered took up to 1.3-1.65 s (54-84 ms otherwise),
+now 0.40-0.51 s at worst. A job already running is not stopped: the rest
+of that wait is it.
+
 ## Render pipeline (`render.py`): stems and their keys
 
 Render pipeline (`render.py`): the loop renders as **stems** (main lane,

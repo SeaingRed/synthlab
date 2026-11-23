@@ -70,7 +70,8 @@
 // 306 -> 312: stopped, the ledger's "bar n / N · Section" is the marker's
 // (not bar 1 while the marker and the cue say bar 41); fit fills the
 // lanes exactly, not to the step under it (a fifth of a wide window empty).
-// Budget: <= 326 code lines (312 -> 326: the time-true axis).
+// Budget: <= 328 code lines (312 -> 326: the time-true axis; 328: a stored
+// zoom set on arrival with nothing read).
 
 (() => {
   "use strict";
@@ -129,7 +130,13 @@
     let w = 0;
     try { w = Number(localStorage.getItem(KEY)); } catch {}
     const bars = Number($("song-arranger")?.dataset.songBars) || 0;
-    setZoom(STEPS.includes(w) ? w : Math.max(16, fit(lanes(), bars || 16, coarse())));
+    if (!STEPS.includes(w)) return setZoom(Math.max(16, fit(lanes(), bars || 16, coarse()))); // "fit" must measure
+    // a stored zoom on a page just arrived (scrolled to 0): set, nothing read —
+    // setZoom's reads forced a layout and a restyle of ~10k elements (344 ms)
+    // before the page's first; this lands in that first style pass instead
+    v.style.setProperty("--bar-w", `${w}px`);
+    v.dataset.barW = String(stepOf(w));
+    dispatchEvent(new Event("synthlab-geometry")); // song.js measures the playhead's column again
   }
   function zoom(how, keep) {
     const bars = Number($("song-arranger")?.dataset.songBars) || 16;

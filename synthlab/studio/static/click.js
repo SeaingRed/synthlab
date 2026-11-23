@@ -102,9 +102,13 @@
     if (on) { S()?.ensureCtx?.(); own = null; was = ""; } // a gesture: the context may start; bar 1 is now
     try { localStorage.setItem(KEY, on ? "1" : "0"); } catch { /* private mode */ }
     paint();
+    run();
   });
   document.addEventListener("loop-clock", () => { last = -1; });
   document.addEventListener("htmx:after:settle", paint);
   paint();
-  setInterval(pass, 25);
+  // the scheduler runs while the metronome is on: off, it woke the page 40x a second
+  let timer = 0;
+  function run() { if (on && !timer) timer = setInterval(pass, 25); else if (!on && timer) { clearInterval(timer); timer = 0; } }
+  run();
 })();

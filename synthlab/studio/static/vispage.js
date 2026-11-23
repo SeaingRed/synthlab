@@ -133,7 +133,9 @@
     if (!g || now - popAt < 150) return;
     popAt = now;
     const lit = document.querySelectorAll('.btn-play[aria-pressed="true"], #vis-demo[aria-pressed="true"]');
-    if (lit.length) g.fromTo(lit, { scale: 1.08 }, { scale: 1, duration: 0.3, ease: "power2.out", overwrite: true, clearProps: "transform" });
+    // a Web Animation (composited, nothing read back): GSAP's clearProps re-parsed
+    // the transform through getComputedStyle on every kick (11 ms a second on Kit)
+    for (const el of lit) el.animate([{ scale: 1.08 }, { scale: 1 }], { duration: 300, easing: "cubic-bezier(.5, 1, .89, 1)" }); // power2.out
   }
 
   // ---- the demo signal: a 2-bar test pattern, looped, quiet ---------------------------

@@ -248,14 +248,18 @@
     S().visuals?.render(F, scope, spec);
   }
   let held = 0, heldAt = 0;
+  // a level in whole percent, written only when it moves: each write restyles
+  const put = (el, k, v) => { const t = `${Math.round(Math.min(1, v) * 100)}%`; if (el.style.getPropertyValue(k) !== t) el.style.setProperty(k, t); };
+  (window.synthlab ??= {}).meterPut = put; // mixer.js's L / R meters too
   function meter(pk) {
     const m = document.getElementById("meter");
     if (!m) return;
     meterPeak = Math.max(pk, meterPeak * 0.9);
-    m.style.setProperty("--level", `${Math.min(1, meterPeak) * 100}%`);
+    if (meterPeak < 1e-3) meterPeak = 0; // at rest it settles: 0.9x never reached 0, a write a frame for minutes
+    put(m, "--level", meterPeak);
     // the held tick (style.css .meter::after): the loudest of the last 1.2 s
     const at = performance.now();
-    if (meterPeak >= held || at - heldAt > 1200) { held = meterPeak; heldAt = at; m.style.setProperty("--peak", `${Math.min(1, held) * 100}%`); }
+    if (meterPeak >= held || at - heldAt > 1200) { held = meterPeak; heldAt = at; put(m, "--peak", held); }
     if (pk >= 0.99) m.classList.add("clipped");
   }
   document.addEventListener("click", (e) => e.target.closest?.("#meter")?.classList.remove("clipped"));

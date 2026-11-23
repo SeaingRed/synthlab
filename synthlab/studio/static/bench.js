@@ -249,7 +249,11 @@
   document.addEventListener("patch-idle", () => queueMicrotask(rest)); // (after audio.js has moved the idle marks)
   document.addEventListener("htmx:after:settle", settle);
   document.addEventListener("DOMContentLoaded", settle);
-  for (const t of ["htmx:after:settle", "DOMContentLoaded"]) document.addEventListener(t, rest);
+  // once a frame, not once a settle: htmx settles once per region, and each
+  // rest() forces a layout (7 on a page switch, 282 ms; 33 ms of a knob's)
+  let restQ = 0;
+  const restSoon = () => { restQ ||= requestAnimationFrame(() => { restQ = 0; rest(); }); };
+  for (const t of ["htmx:after:settle", "DOMContentLoaded"]) document.addEventListener(t, restSoon);
 
   // ---- 5. the switches on #view --------------------------------------------
   // `data-p-<field>` for each field #view names in `data-switches` (the

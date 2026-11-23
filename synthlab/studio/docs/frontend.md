@@ -1614,6 +1614,21 @@ says**:
   transition of a painted property** (a box-shadow, a background) runs at
   the display's rate whatever the script does: the step LEDs' cooling
   glow is `steps(8)` — 16 repaints a cell in its half second, not 120.
+- **A value a frame writes is written where it is read, rounded, and only
+  when it moves.** Any style change in a frame costs a style pass and a
+  re-layerize of the page's 60-90 layers, so a frame with no change in it
+  is the saving: transport.js's `--np-at` on the bar's fill, `--q` on the
+  LED, `--np-pulse` on `.np` only while the beat's pulse decays (all three
+  on `.np` each frame restyled its dozen children 60 times a second); the
+  meters (`synthlab.meterPut`: whole percent, and a peak that settles to
+  0 — 0.9x a frame never reached it, a write a frame for minutes after a
+  stop); a readout's text node's `data`, never a new node. No CSS
+  transition on a value a script already smooths (the meter's clip-path,
+  the audio LED's background): it restarted on every write and ran a
+  main-thread animation the whole time a loop played. A one-off pop is a
+  Web Animation (`el.animate`), not a GSAP tween with `clearProps`, which
+  reads the transform back on every run. A frame's scheduler runs while
+  it has work (the metronome's 25 ms timer only while it is on).
 
 ### The energy
 
