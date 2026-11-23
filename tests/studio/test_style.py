@@ -525,8 +525,8 @@ def test_no_grid_cell_takes_its_size_from_the_container():
     in Chrome 158 on a 4-bar loop (2,400 elements), paid by every script
     that read a size after an edit — the Loops page's freeze while a loop
     played and was edited. The rows take the height (frontend.md, "No
-    container units on a grid's cells"). The drum machine's 8-row grid
-    (`.drum-grid-8`) keeps its cells' rule: it measured 0 ms."""
+    container units on a grid's cells"). The drum machine's grid too: its
+    cells were laid out again on every step's restyle."""
     unit = re.compile(r"\d(cq[whib]|cqmin|cqmax)\b")
     bad = []
     for name in ("style.css", "dense.css"):
@@ -535,6 +535,5 @@ def test_no_grid_cell_takes_its_size_from_the_container():
         for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
             last = [s.split()[-1] for s in sel.split(",") if s.strip()]
             if unit.search(body) and any(".cell" in s for s in last):
-                if not re.search(r"(?<!:not\()\.drum-grid-8", sel):
-                    bad.append(f"{name}: {' '.join(sel.split())}")
+                bad.append(f"{name}: {' '.join(sel.split())}")
     assert bad == [], bad

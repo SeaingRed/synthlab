@@ -1131,8 +1131,9 @@ a loop edited while it played froze for a second at a time. The rows take
 the height now and the cells fill them (`height: auto`): 1.2-1.4 ms, the
 whole page 7.7. Chromium 153 (the browser tests') never paid it, so
 `tests/studio/test_style.py` holds the stylesheets instead: no cell rule
-uses a container unit, but the drum machine's 8-row grid's
-(`.drum-grid-8`: no `:has()` cell rules, measured 0 ms).
+uses a container unit. The drum machine's grid follows it too: it never
+froze (no `:has()` cell rules), but its cells were laid out again on every
+step's restyle while a loop played.
 
 **Page weight**: the chord poster (~500 buttons) is fetched from
 `/fragment/chordlib` on first open, not rendered into every page; all four
