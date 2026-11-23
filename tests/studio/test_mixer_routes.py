@@ -17,6 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from synthlab.studio import limits, mixer, schema
+from synthlab.studio.render import STEM_ATOL
 from synthlab.studio.server import create_app
 from tests.studio.test_song_routes import (
     HX,
@@ -429,6 +430,6 @@ def test_the_stems_sum_to_the_mix_with_a_pan_and_a_return(client):
     assert [name for name, _a in stems] == ["drums.wav", "synth-1.wav", "synth-2.wav"]
     total = sum(a for _n, a in stems)
     assert total.shape == mix.shape
-    assert np.max(np.abs(total - mix)) < 1e-9
+    assert np.max(np.abs(total - mix)) < STEM_ATOL
     # and the export is the plan, as ever
     assert np.max(np.abs(mix)) > 0.1

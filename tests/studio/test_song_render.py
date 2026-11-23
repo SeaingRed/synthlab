@@ -266,7 +266,7 @@ def test_a_tiled_pattern_attacks_again_on_every_repeat():
     flat = parts.flatten()
     assert flat.flat and flat.breaks == (4, 8, 12)
     looped, tiled = section_audio(parts), section_audio(flat)
-    np.testing.assert_allclose(tiled.base, looped.base, atol=1e-9)
+    np.testing.assert_allclose(tiled.base, looped.base, atol=render.STEM_ATOL)
 
 
 # --- a layer track's own sequencing -------------------------------------------------
@@ -329,7 +329,7 @@ def test_a_layer_track_plays_its_own_patterns_sequencing(seq, main_bars):
     song["tracks"][sm.track_index(song, pad)]["mute"] = False
     alone = np.tile(_looped(song, solo), (main_bars, 1))
     assert np.max(np.abs(alone)) > 0.05
-    np.testing.assert_allclose(layer, alone, atol=1e-9)
+    np.testing.assert_allclose(layer, alone, atol=render.STEM_ATOL)
 
 
 def test_a_chunked_layer_arp_plays_the_whole_patterns_arp(monkeypatch):
@@ -394,7 +394,7 @@ def test_a_looped_section_folds_onto_itself_as_a_loop_does():
     parts = sm.section_arrangement(song, _sec(song, sa))
     looped = render_section(parts, prev_tail=None, stem_cache=None, clip_root=None)
     legacy = sum(stem for _n, stem in render_stems(parts.inputs()))
-    np.testing.assert_allclose(looped, legacy, atol=1e-12)
+    np.testing.assert_allclose(looped, legacy, atol=render.STEM_ATOL)
 
 
 def test_a_migrated_scene_loops_as_the_scene_did(tmp_path):
@@ -407,7 +407,9 @@ def test_a_migrated_scene_loops_as_the_scene_did(tmp_path):
             parts, prev_tail=None, stem_cache=None, clip_root=tmp_path
         )
         stems = render_stems(parts.inputs(clip_root=tmp_path))
-        np.testing.assert_allclose(looped, sum(x for _n, x in stems), atol=1e-12)
+        np.testing.assert_allclose(
+            looped, sum(x for _n, x in stems), atol=render.STEM_ATOL
+        )
 
 
 # --- the studio's cache ------------------------------------------------------------

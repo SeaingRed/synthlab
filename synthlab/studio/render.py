@@ -305,7 +305,9 @@ class RenderInputs:
 #   1  a gated note's release lasts the patch's release time
 #   2  a sidechain / pump duck falls over 6 ms, not one sample
 #   3  the pitch unit splices each grain in phase with the last
-RENDER_REV = 3
+#   4  stems are held as float32 (`StemCache`): every stem a mix sums is
+#      rounded to float32 first, cached or not
+RENDER_REV = 4
 
 
 def _layer_gain(lay) -> float:
@@ -498,9 +500,10 @@ def _stem_cache_bytes() -> int:
     """StemCache's byte budget: an eighth of the machine's RAM, at least
     256 MB and at most 4 GB (`SYNTHLAB_STEM_CACHE_MB` sets it outright).
 
-    It was a flat 256 MB, sized for loops (a loop stem is at most ~7 MB:
-    10 s, float64 stereo). A song section's stems run to a whole cycle plus
-    its tail (a 48 s cycle is ~68 MB a stem), and a song is only quick to
+    It was a flat 256 MB, sized for loops (a loop stem was at most ~7 MB:
+    10 s, float64 stereo; float32 now, half that). A song section's stems
+    run to a whole cycle plus its tail (a 48 s cycle was ~68 MB a stem in
+    float64, ~34 MB now), and a song is only quick to
     edit while ALL its stems are held: measured on a 283 s, 6-track song
     (750 MB of stems), 256 MB evicted 29 of every 30, so a fader move
     re-rendered the whole song (16 s) where a cache that holds it renders
@@ -527,6 +530,59 @@ class StemCache(LRU["np.ndarray | SectionAudio | _LaneStem"]):
         self, max_entries: int = 1024, max_bytes: int | None = STEM_CACHE_BYTES
     ):
         super().__init__(max_entries, max_bytes, sizeof=lambda a: a.nbytes)
+
+    # Held as float32, half float64's bytes (RENDER_REV 4): measured on a
+    # 480 s song, the stems were ~1.0 GB of a 2.5 GB peak. A stem is
+    # rounded once, where it is rendered (`hold`), so the samples a mix sums
+    # are the same whether the stem was just made or came from here; every
+    # read is a float64 copy, so nothing downstream sees float32.
+    def get(self, key: str):
+        return _widen(super().get(key))
+
+    def peek(self, key: str):
+        return _widen(super().peek(key))
+
+    def put(self, key: str, value) -> None:
+        super().put(key, _narrow(value))
+
+
+def _narrow(v):
+    """A stem (an array, a `_LaneStem`, a `SectionAudio`) as float32."""
+    if v is None or isinstance(v, np.ndarray):
+        return None if v is None else np.asarray(v, dtype=np.float32)
+    if isinstance(v, _LaneStem):
+        return _LaneStem(_narrow(v.stem), _narrow(v.out))
+    return dc_replace(v, base=_narrow(v.base), tail=_narrow(v.tail), out=_narrow(v.out))
+
+
+def _widen(v):
+    """`_narrow`'s inverse: float64 copies, read-only (a shared stem was
+    read-only before: `fold_tail` and the mixes copy)."""
+    if v is None:
+        return None
+    if isinstance(v, np.ndarray):
+        out = v.astype(np.float64)
+        out.flags.writeable = False
+        return out
+    if isinstance(v, _LaneStem):
+        return _LaneStem(_widen(v.stem), _widen(v.out))
+    return dc_replace(v, base=_widen(v.base), tail=_widen(v.tail), out=_widen(v.out))
+
+
+# What float32 stems leave between two routes to the same audio that are
+# exact in float64 (a cut against the uncut song, a return against its
+# senders, chunks against one piece): a few float32 steps of full scale,
+# ~60x under a 16-bit WAV's step. The tests that pin those routes use it.
+STEM_ATOL = 5e-7
+
+
+def hold(cache: StemCache | None, key: str, value):
+    """`value` rounded as the StemCache holds it, and put there when there
+    is one: what every stem render returns, so a fresh stem and a cached
+    one are the same samples."""
+    if cache is not None:
+        cache.put(key, value)
+    return _widen(_narrow(value))
 
 
 def _lane_hashes(arr: Arrangement, clip_root) -> list[str]:
@@ -959,9 +1015,7 @@ def render_stems(
 
     missing = [i for i, stem in enumerate(stems) if stem is None]
     for i, stem in zip(missing, _each(render, missing), strict=True):
-        stems[i] = stem
-        if cache is not None:
-            cache.put(keys[i], stem)
+        stems[i] = hold(cache, keys[i], stem)
     return [(job.name, stem) for job, stem in zip(jobs, stems, strict=True)]
 
 
@@ -992,9 +1046,7 @@ def render_stems_raw(
 
     missing = [i for i, raw in enumerate(raws) if raw is None]
     for i, raw in zip(missing, _each(render, missing), strict=True):
-        raws[i] = raw
-        if cache is not None:
-            cache.put(keys[i], raw)
+        raws[i] = hold(cache, keys[i], raw)
     return [
         (job.name, own, raw) for job, own, raw in zip(jobs, owns, raws, strict=True)
     ]
@@ -1320,12 +1372,11 @@ def _cycle_stems(parts, n: int, cache: StemCache | None, clip_root) -> list:
         the same stem (the same pattern over the same bars) — the second
         waits for the first's and takes it from the cache."""
         if cache is None:
-            return render(i)
+            return hold(None, keys[i], render(i))
         with _one_at_a_time(keys[i]):
             held = cache.peek(keys[i])
             if held is None:
-                held = render(i)
-                cache.put(keys[i], held)
+                held = hold(cache, keys[i], render(i))
             return held
 
     missing = [i for i, stem in enumerate(stems) if stem is None]
@@ -1425,8 +1476,7 @@ def _take_stems(flat, n: int, cache: StemCache | None, clip_root) -> list:
                 ring = ring[:keep].copy()
                 _check_finite(ring)
                 got = _LaneStem(got, ring)
-            if cache is not None:
-                cache.put(key, got)
+            got = hold(cache, key, got)
         stem, ring = (got.stem, got.out) if isinstance(got, _LaneStem) else (got, None)
         points = flat.gains.get(name)
         if points and ring is not None:
@@ -1473,9 +1523,7 @@ def _return_stems(flat, feeds: list, n: int, cache: StemCache | None) -> list:
         )
         got = cache.get(key) if cache is not None else None
         if got is None:
-            got = _render_return(ins, units, ret["gain"], flat.arr, n)
-            if cache is not None:
-                cache.put(key, got)
+            got = hold(cache, key, _render_return(ins, units, ret["gain"], flat.arr, n))
         if isinstance(got, _LaneStem):
             out.append((f"return:{rid}", got.stem, got.out))
         else:

@@ -20,9 +20,9 @@ from synthlab.synth import Patch, preset
 # the pitch unit's splice). Every
 # existing cache identity must survive the RenderInputs refactor, so these
 # are pinned literals, not recomputed values.
-LEGACY_KEY = "ce54acbfa2e4"  # default Patch/Arrangement, parts=("synth","drums")
-LEGACY_PERFORM_KEY = "6d59e1b11bfa"  # layers + main/master/drums fx + clip_root
-LEGACY_DRUMS_KEY = "c2a085923a94"  # drums-only
+LEGACY_KEY = "83725fa7522a"  # default Patch/Arrangement, parts=("synth","drums")
+LEGACY_PERFORM_KEY = "60f2172c2e47"  # layers + main/master/drums fx + clip_root
+LEGACY_DRUMS_KEY = "bd8dc56c6ff3"  # drums-only
 
 
 def test_render_returns_valid_wav_of_loop_length():

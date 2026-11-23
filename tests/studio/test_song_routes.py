@@ -1343,7 +1343,7 @@ def test_a_layer_gain_loop_gets_a_new_preview_key():
     heard must not reuse its pre-fix key. Before the layer-gain fix the
     gain-1.0 loop's key was "e02c2cc063a1" (the fix kept it), and every
     key then moved once with `render.RENDER_REV` 1 (the release rule)."""
-    assert _loop_inputs(1.0).key() == "0743efba58a5"  # RENDER_REV 3
+    assert _loop_inputs(1.0).key() == "7509783cd0eb"  # RENDER_REV 4
     assert _loop_inputs(1.0).key() != "e02c2cc063a1"  # the old release's audio
     assert _loop_inputs(0.5).key() != "fe477644e6b6"  # the pre-fix audio's key
 

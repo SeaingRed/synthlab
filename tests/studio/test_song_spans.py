@@ -31,7 +31,12 @@ from fastapi.testclient import TestClient
 from synthlab.core import SR
 from synthlab.studio import limits, midi_bridge, render, schema, song_play
 from synthlab.studio import song_model as sm
-from synthlab.studio.render import section_audio, section_key, section_windows
+from synthlab.studio.render import (
+    STEM_ATOL,
+    section_audio,
+    section_key,
+    section_windows,
+)
 from synthlab.studio.server import create_app
 from synthlab.synth import Patch
 from tests.studio.test_song_routes import HX, song_dict, use_song
@@ -40,7 +45,7 @@ SHORT = Patch(name="short", release=0.05).to_json()
 RING = Patch(name="ring", osc1="saw", release=0.7).to_json()  # rings past a bar
 REVERB = [{"kind": "reverb", "params": {"decay": 1.2, "mix": 0.4}}]
 BAR = sm.bar_sample(1, 120.0)  # 88200: a bar is a whole number of samples
-ATOL = 1e-9  # test_song_render.py's: chunked against one piece
+ATOL = STEM_ATOL  # chunked against one piece: float32 stems' rounding
 
 
 def clean(song: dict) -> dict:

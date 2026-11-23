@@ -32,6 +32,7 @@ from synthlab.audio import wav_bytes
 from synthlab.core import SR
 from synthlab.studio import limits, longaudio, schema, song_play, sources
 from synthlab.studio import song_model as sm
+from synthlab.studio.render import STEM_ATOL
 from synthlab.studio.server import create_app
 from tests.studio.test_song_routes import HX, song_dict, use_song
 
@@ -368,7 +369,7 @@ def test_the_stems_export_holds_it_and_the_master_chain_sees_it(client, tmp_path
     assert np.max(np.abs(by_name["audio-1.wav"][body] - src[body] * gain)) < 1e-12
     # the stems add up to the mix (no master chain)
     total = sum(by_name.values())
-    assert np.max(np.abs(total - svc.song_mixdown(song))) < 1e-9
+    assert np.max(np.abs(total - svc.song_mixdown(song))) < STEM_ATOL
     # a muted item's track no longer sounds
     sm.set_long(song, song["long"][0]["id"], mute=True)
     assert not song_play._sounds(song, song["tracks"][3])

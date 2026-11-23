@@ -64,7 +64,7 @@ def test_stem_cache_counts_hits_misses_evictions():
     c.put("c", np.zeros(4))  # evicts "a"
     s = c.stats()
     # byte-bounded like RenderCache, so it reports its bytes too
-    assert s == {"hits": 1, "misses": 1, "evictions": 1, "entries": 2, "bytes": 64}
+    assert s == {"hits": 1, "misses": 1, "evictions": 1, "entries": 2, "bytes": 32}
 
 
 def test_render_cache_counts_hits_and_misses():
