@@ -9,7 +9,7 @@ voice cannot drift from `core.py`:
   Rendering them in the browser would mean ~37M sines at startup.
 - `uniform`: the first values of `np.random.default_rng(seed).uniform(-1,
   1)` for the seeds the engine draws them from — `core.pluck`'s burst
-  (seed = unison copy, +100 for osc2) and `core.sample_hold`, the "noise"
+  (seed = unison copy, +100 for osc2, +200 for osc3) and `core.sample_hold`, the "noise"
   LFO (seed 0). Both read a prefix of that stream, so a prefix is exact:
   a live pluck or stepped LFO is the rendered one, value for value.
 - `formant`: `core.formant_makeup_table` (vowel x tract size).
@@ -33,8 +33,11 @@ from .. import core
 from .paramui import MAX_UNISON
 
 # the seeds whose uniform streams the engine reads: pluck's burst per unison
-# copy (osc1 u, osc2 100 + u) — seed 0 doubles as sample_hold's stream
-SEEDS = (*range(MAX_UNISON), *range(100, 100 + MAX_UNISON))
+# copy (osc1 u, osc2 100 + u, osc3 200 + u) — seed 0 doubles as
+# sample_hold's stream
+SEEDS = tuple(range(MAX_UNISON)) + tuple(
+    o + u for o in (100, 200) for u in range(MAX_UNISON)
+)
 # a pluck's burst is floor(sr / 20 Hz) + 1 values: 2206 at 44.1 kHz, 2401 at
 # 48; a stepped LFO reads one value per step (341 s at 12 Hz before it wraps)
 UNIFORM = 4096

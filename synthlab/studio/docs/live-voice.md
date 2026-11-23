@@ -52,7 +52,7 @@ engine's via a shifted `core.noise` seed). White noise is statistical
 because numpy's PCG64 + ziggurat isn't realtime; everything else seeded
 (pluck bursts, `sample_hold`) reads its exact stream prefix from **`GET
 /wavetables.bin`** (`voicetables.py`: mip stacks, uniform streams for
-seeds 0..7/100..107, formant makeup, pink/brown filters, vowel table; a
+seeds 0..7/100..107/200..207, formant makeup, pink/brown filters, vowel table; a
 u32 header length, JSON header, float32 arrays). `/patch.json` names its
 content-hashed URL (`tables`, cached immutable), plus `mod_slots`,
 `mod_sources` and `mod_ranges` — the worklet's route rule is
@@ -158,14 +158,8 @@ granular oscillator, whole (osc1 "granular" is no `SHAPES` entry, its
 shape"); and the spectral oscillator, whole (osc1 "spectral" is no
 `SHAPES` entry, its `spectral_*` fields "default": a phase vocoder per
 256-sample frame is not in the worklet — `sampler-and-clips.md`, "The
-spectral shape"); and oscillator 3 while it sounds (its fields "default", the
-others than `osc3_level` unheard while the level is 0 — `paramui._UNHEARD`,
-which `_unheard` reads beside the shape rules — and a route onto
-`osc3_level` refused by `_slot_gate`, since it would lift a silent osc 3
-into hearing: `docs/engine.md`, "Oscillator 3"); and a second warp that
-bends (`osc*_warp2` / `_amt` "default", unheard while off or bending
-nothing: the voice's `warpBlock` reads one warp — `docs/engine.md`, "Two
-warps at once").
+spectral shape"). Oscillator 3 and a second warp play live ("Oscillator
+3 and a second warp" below).
 `loopDuration()` (used to decide the
 fallback loop length for the shortcut sheet and elsewhere) lives on
 `static/audio.js`, not piano.js — piano.js reads it off
@@ -553,7 +547,7 @@ output equals the JS voice's to the last f32 bit on every one of them).
   feedback and algorithm per render (konst `K_FM4`). The module runs it on
   both lanes (`fm4()`: vsin, the JS order of operations).
 - **The tables** need nothing in the voice: `/wavetables.bin` carries every
-  `WAVETABLE_NAMES` stack and the voice finds a table by name — 3.81 MB
+  `WAVETABLE_NAMES` stack and the voice finds a table by name — 3.94 MB
   (cached immutable, fetched once per version).
 - **Drift** — `driftInit` draws the note's seed from the key's own pitch
   (crc32 of `"drift:<MIDI>"`, the same bits as `synth.drift_seed`), its
@@ -618,13 +612,67 @@ module's f32 output the JS voice's to the bit) and, for a phrase, by
   is held. A retarget moves `v.target`, so the filter's key tracking
   follows it — as the engine's line does (`Synth.note(path=)`).
 
-The arena: 27 scratch arrays a set (two of them the warps' amounts), a
+The arena then (now 33 and 16000: "Oscillator 3 and a second warp"): 27
+scratch arrays a set (two of them the warps' amounts), a
 slot 10912 bytes (2720 without the warp's rings), 64 f64 of taps. Cost, 16
 voices at 48 kHz on an x86-64 desktop (`tools/bench_live_voice.py
 --round6`), JS / WebAssembly, off -> on (bend +, 0.6): saw 4.8 / 3.1 % ->
 10.5 / 5.5 %; saw x4 unison 6.6 / 4.6 -> 29.0 / 14.1; sine 5.1 / 3.3 ->
 11.5 / 8.4; sine x4 8.7 / 5.6 -> 34.3 / 25.5; wavetable 6.0 / 5.7 -> 14.9 /
 15.5; wavetable x4 12.1 / 11.9 -> 46.4 / 46.4 (its loop is JS on both).
+
+## Oscillator 3 and a second warp
+
+Oscillator 3 and each oscillator's second warp (the engine's side: the
+root `docs/engine.md`, "Oscillator 3", "Two warps at once") are `EXACT`
+in `paramui.py` on both engines — no `_UNHEARD` rule or slot gate is
+left for them, and a route onto `osc3_level` plays live. Held by the
+corpus (`osc3_*`: saw with octave / semitones / cents, square under pwm
+and unison 3 beside osc2, supersaw, fm, fm4, pluck, a warped wavetable,
+noise (statistical), drift, and routes onto its level, detune and warp;
+`warp2_*`: PD then mirror, the second alone, pwm then quantize under a
+route, a wavetable's mip by both slopes on osc1 and osc3, unison 4 —
+every case 0.000 dB of level and harmonics, envelope p95 <= 0.003 dB,
+the module's output the JS voice's to the bit) and by
+`test_voice_wasm.py`'s scenarios (`osc3_warp2_pair`: paired voices;
+`osc3_fm4_unison`; `osc3_noise_pair`).
+
+- **Oscillator 3** is slot 2 of the voice's oscillators: phases at
+  `ph[(2 x MAXU + u) x 8]`, its wavetable mip at `v.mip[2 x MAXU + u]`,
+  its warp ring after osc2's. It plays while `osc3_level` is up or
+  routed (`render()`'s `k.o3`, `params.osc3_on`'s rule). The control
+  pass writes `L3` (its level, smoothed / routed) and `M3` (2^(octave +
+  (100 semitones + cents) / 1200), the cents smoothed / routed) per
+  sample — after the module's control pass JS fills them, as it fills
+  the warp amounts. The stack sums it after osc1 and osc2, before the
+  sub, as `_osc_stack` does; no sync, no cross-FM. Its seeds are the
+  engine's + 200: pluck's bursts read `/wavetables.bin`'s streams
+  200..207, supersaw's start phases are `SUPERSAW_PHASE`'s last eight
+  rows, its noise streams sit after the noise layer's (`3 x MAXU + u`),
+  a drifting note starts it at `drift_phase(seed, 2, copy)`. The module
+  takes `sh3` and stack flag 64; its output buffer is `po3`.
+- **A second warp** — `render()` works out each oscillator's warps as
+  `synth.warp_of` does: the first that is on (code `k.w1..w3`) and the
+  second (`k.b1..b3`, 0: one warp); a second alone is one warp, its
+  amount read as the first's (`this.wn` names the field each of
+  `X1..X3` / `Y1..Y3` follows). `warpBlock` / `warpLane` compose
+  `warpPhase(b, warpPhase(w, t, a), a2)` on the same oversampled path,
+  the wrap's step from `warpEnd2` (`core.warp_end_twice`); a wavetable's
+  mip is darker by both slopes (`mipOf`). The mirror reads `t <= c` (the
+  engine's: a first warp's output reaches 1). Codes ride konst
+  `K_WARP3` (89) and `K_WARPB` (121-123).
+
+The arena: 33 scratch arrays a set (`X3`, `L3`, `M3`, `Y1..Y3` appended),
+a slot 16000 bytes (`ph` 192 f64, `cs` 224, `rs` 32 u32, `wr` 1536 f64),
+and `/wavetables.bin` 3.94 MB (osc3's pluck streams). Cost, 16 voices at
+48 kHz on an i9-14900K (`tools/bench_live_voice.py --osc3`), JS /
+WebAssembly, each against its twin without it: saw 6.2 / 4.2 % -> + an
+osc3 square 6.7 / 4.7, + an osc3 wavetable 8.8 / 8.3; saw x4 8.7 / 5.8
+-> 10.7 / 6.9 and 18.1 / 16.7; saw PD 12.8 / 7.3 -> then mirror 14.9 /
+7.9; saw PD x4 33.6 / 17.1 -> 41.2 / 19.0; wavetable PD 20.1 / 19.3 ->
+22.3 / 21.7; wavetable PD x4 62.5 / 60.6 -> 70.1 / 69.0 (its loop is JS
+on both). The shipped sounds did not move (median 9.6 / 6.5 % before,
+the same rows within a run's noise after).
 
 ## Filters and modulation
 
@@ -794,7 +842,7 @@ dc/filter/tract chain, and at unison 1 two voices at once (`pair()`:
 neighbours in `this.voices`, block-aligned, drive not routed — voice
 B's control pass writes scratch set 1), since most sounds are unison 1.
 Memory: one fixed arena per node (two scratch sets, pair buffers,
-constants, 64 + 1 voice-state slots of 2720 B; a voice's `ph`/`qs`/
+constants, 64 + 1 voice-state slots of 16000 B; a voice's `ph`/`qs`/
 `dc`/`s`/`fs`/`cs`/`rs` are typed views into its slot, so the JS loops
 and the module share state; the slot layout is `LAYOUT` in the worklet
 and the header of voice.ts). JS stays the reference: change the DSP in

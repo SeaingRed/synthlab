@@ -237,6 +237,32 @@ SCENARIO_PATCHES = {
     "glide_highpass": Patch(
         filter_type="highpass", glide=0.1, drive=2.5, osc1="square"
     ),
+    # oscillator 3 and second warps: paired voices (unison 1), then a spread
+    "osc3_warp2_pair": Patch(
+        osc1_warp="pd",
+        osc1_warp_amt=0.5,
+        osc1_warp2="mirror",
+        osc1_warp2_amt=0.4,
+        osc3="square",
+        osc3_level=0.5,
+        osc3_semi=7,
+        osc3_warp2="bend_pos",
+        osc3_warp2_amt=0.6,
+        pwm_depth=0.3,
+    ),  # fmt: skip
+    "osc3_fm4_unison": Patch(
+        osc2="saw",
+        osc2_warp="pwm",
+        osc2_warp_amt=0.4,
+        osc2_warp2="quantize",
+        osc2_warp2_amt=0.5,
+        osc3="fm4",
+        osc3_level=0.6,
+        osc3_octave=-1,
+        fm4_level2=0.4,
+        unison=2,
+    ),  # fmt: skip
+    "osc3_noise_pair": Patch(osc3="noise", osc3_level=0.3, noise_level=0.2),
 }
 
 

@@ -114,7 +114,12 @@
 // shapes / rates / drawings read in wire(), lfoG for any of 2-6).
 // 1223 -> 1224: an envelope stage given as a division arrives as seconds
 // (at_bpm), so a drag on its time is dead while it is synced ("mod").
-// Budget: <= 1224 code lines.
+// 1224 -> 1293: oscillator 3 (synth._osc3: slot 2 of the phase state, its
+// level L3 and pitch multiplier M3 from the control pass, seeds + 200, its
+// own noise streams after the noise layer's) and a second warp on each
+// oscillator (core.warp_twice in warpBlock, warpEnd2, the mip x both slopes;
+// its amount in Y1..Y3) — on both engines (voice.ts stack / warpLane).
+// Budget: <= 1293 code lines.
 
 const D = { // Patch defaults for anything a message left out
   osc1: "saw", osc1_level: 0.8, osc1_octave: 0, osc1_detune: 0, osc2: null, osc2_level: 0.5,
@@ -132,6 +137,9 @@ const D = { // Patch defaults for anything a message left out
   fm4_ratio1: 1, fm4_ratio2: 2, fm4_ratio3: 1, fm4_ratio4: 1, fm4_level1: 1, fm4_level2: 0.3,
   fm4_level3: 0, fm4_level4: 0, fm4_decay1: 0, fm4_decay2: 0, fm4_decay3: 0, fm4_decay4: 0,
   fm4_feedback: 0, drift: 0, osc1_warp: "off", osc1_warp_amt: 0, osc2_warp: "off", osc2_warp_amt: 0,
+  osc3: "saw", osc3_level: 0, osc3_octave: 0, osc3_semi: 0, osc3_detune: 0, osc3_warp: "off",
+  osc3_warp_amt: 0, osc1_warp2: "off", osc1_warp2_amt: 0, osc2_warp2: "off", osc2_warp2_amt: 0,
+  osc3_warp2: "off", osc3_warp2_amt: 0,
   wt_custom: "", voice_mode: "poly", glide_mode: "always", glide: 0, filter2_route: "off",
   filter2_type: "lowpass", filter2_cutoff: 1200,
   filter2_resonance: 0.2, filter2_key_track: 0, filter2_env: 0, env3_attack: 0.01, env3_decay: 0.3,
@@ -150,7 +158,8 @@ const SMOOTH = { osc1_level: 0, osc2_level: 0, sub_level: 0, noise_level: 0, cut
   osc2_detune: 0, wt_pos: 0, formant_amount: 0, formant_vowel: 0, formant_size: 1,
   pitch_bend: 0, bend_range: 0, wheel_st: 0, sync_pitch: 0, osc1_warp_amt: 0, osc2_warp_amt: 0,
   filter2_cutoff: 1, filter2_resonance: 0, filter2_key_track: 0, filter2_env: 0, mod_wheel: 0,
-  aftertouch: 0, wheel_cc: 0, at_cc: 0 };
+  aftertouch: 0, wheel_cc: 0, at_cc: 0, osc3_level: 0, osc3_detune: 0, osc3_warp_amt: 0,
+  osc1_warp2_amt: 0, osc2_warp2_amt: 0, osc3_warp2_amt: 0 };
 // route targets the filter reads once per block (core.biquad samples its
 // cutoff/q every 64); every other target is applied per sample
 const BLOCK_RATE = { cutoff: 1, resonance: 1, filter_env: 1, filter_lfo_depth: 1, filter2_cutoff: 1,
@@ -204,7 +213,7 @@ const QUIET = 1e-6, CULL = 256;
 const clock = globalThis.performance?.now ? () => globalThis.performance.now() : Date.now;
 const LOAD_EVERY = 64;
 // core.supersaw's start phases: np.random.default_rng(seed).random(7) for
-// osc1's seeds 0..7 (the unison copy) and osc2's 100..107. Pinned against
+// osc1's seeds 0..7 (the unison copy), osc2's 100..107 and osc3's 200..207. Pinned against
 // numpy by test_live_parity_corpus.py::test_supersaw_phase_table.
 const SUPERSAW_PHASE = [
   [0.636962, 0.269787, 0.040974, 0.016528, 0.81327, 0.912756, 0.606636],
@@ -223,11 +232,20 @@ const SUPERSAW_PHASE = [
   [0.638195, 0.99146, 0.096729, 0.506704, 0.396439, 0.206016, 0.883369],
   [0.982408, 0.0404, 0.122787, 0.464265, 0.964442, 0.138799, 0.325605],
   [0.648536, 0.477689, 0.502737, 0.734784, 0.491173, 0.076533, 0.415603],
+  [0.646834, 0.66392, 0.029902, 0.177831, 0.573497, 0.551164, 0.52692],
+  [0.990734, 0.536633, 0.488341, 0.591974, 0.684073, 0.519704, 0.151388],
+  [0.346287, 0.443656, 0.815755, 0.687492, 0.300426, 0.440142, 0.563511],
+  [0.780943, 0.344308, 0.087445, 0.230979, 0.317007, 0.862127, 0.618249],
+  [0.536435, 0.811975, 0.618595, 0.224688, 0.010344, 0.201698, 0.058843],
+  [0.908186, 0.22806, 0.823085, 0.190391, 0.418806, 0.135218, 0.46259],
+  [0.862009, 0.388437, 0.997079, 0.321853, 0.891422, 0.106925, 0.848053],
+  [0.276257, 0.494824, 0.883875, 0.575438, 0.811195, 0.479516, 0.841827],
 ];
 const SUPERSAW_DET = [0, 1, 2, 3, 4, 5, 6].map((j) => Math.pow(2, (j - 3) / 3 * 18 / 1200));
 const TAU = 2 * Math.PI;
 const SCRATCH = ["F", "W", "G", "L1", "L2", "LS", "LN", "M1", "M2", "DR", "IX", "FA", "RG", "WP",
-  "O1", "O2", "NZ", "F1", "F2", "A", "B", "E1", "E2", "E3", "E4", "X1", "X2"]; // voice.ts indexes these in this order
+  "O1", "O2", "NZ", "F1", "F2", "A", "B", "E1", "E2", "E3", "E4", "X1", "X2", "X3", "L3", "M3", "Y1", "Y2",
+  "Y3"]; // voice.ts indexes these in this order
 // the WebAssembly engine (wasm/assembly/voice.ts): its shape and filter
 // codes, voice-state slots, and each slot's byte layout
 const SHAPES = { saw: 1, square: 2, sine: 3, triangle: 4, supersaw: 5, fm: 6, noise: 7, fm4: 8 };
@@ -259,8 +277,10 @@ const naive = (shape, t, w) => shape === "saw" ? 2 * t - 1 : shape === "square" 
   : shape === "triangle" ? 4 * Math.abs(t - 0.5) - 1 : Math.sin(TAU * t);
 const FTYPES = { ladder: 0, lowpass: 1, highpass: 2, bandpass: 3, notch: 4, none: 5 };
 const NSLOT = 64;
-const LAYOUT = { ph: [0, 128], qs: [1024, 8], dc: [1088, 4], s: [1120, 8], fs: [1184, 12], cs: [1280, 168],
-  wr: [2720, 2 * MAXU * 64] };
+// (phases 8 per oscillator x copy: osc1, osc2, osc3; noise filters and
+// streams for osc1, osc2, the noise layer and osc3, rs at 3584)
+const LAYOUT = { ph: [0, 192], qs: [1536, 8], dc: [1600, 4], s: [1632, 8], fs: [1696, 12], cs: [1792, 224],
+  wr: [3712, 3 * MAXU * 64] };
 // core.WARP_MODES (voice.ts reads the code), the shapes a warp
 // bends, WARP_OS and the history a warped oscillator keeps (WARP_RING)
 const WARP = { bend_pos: 1, bend_neg: 2, bend_both: 3, pd: 4, mirror: 5, asym: 6, quantize: 7, pwm: 8 };
@@ -274,7 +294,7 @@ const warpPhase = (m, t, a) => {
   if (m === 2) return k * t / (1 + (k - 1) * t);
   if (m === 3) { if (t < 0.5) return 0.5 * bend(2 * t, k); const h = 2 * t - 1; return 0.5 + 0.5 * (k * h / (1 + (k - 1) * h)); }
   if (m === 4) { const d = 0.5 - 0.49 * a; return t < d ? 0.5 * t / d : 0.5 + 0.5 * (t - d) / (1 - d); }
-  if (m === 5) { const c = 1 - 0.5 * a; return t < c ? t / c : (1 - t) / Math.max(1 - c, 1e-9); }
+  if (m === 5) { const c = 1 - 0.5 * a; return t <= c ? t / c : (1 - t) / Math.max(1 - c, 1e-9); }
   if (m === 6) return t < 0.5 ? 0.5 * bend(2 * t, k) : t;
   if (m === 7) { const q = 1 - a, n = 2 + Math.floor(254 * q * q * q); return Math.floor(t * n) / n; }
   return m === 8 ? Math.min(t / (1 - 0.95 * a), 1) : t;
@@ -283,6 +303,11 @@ const warpEnd = (m, a) => {
   if (m === 5) return a > 0 ? 0 : 1;
   if (m === 7) { const q = 1 - a, n = 2 + Math.floor(254 * q * q * q); return (n - 1) / n; }
   return 1;
+};
+// core.warp_end_twice: the first's end, held (or pwm's hold), read by the second; else the second's own
+const warpEnd2 = (m, a, m2, a2) => {
+  const first = warpEnd(m, a);
+  return first < 1 || (m === 8 && a > 0) ? warpPhase(m2, first, a2) : warpEnd(m2, a2);
 };
 const warpSlope = (m, a) => {
   const s = m === 1 || m === 2 || m === 3 || m === 6 ? 1 + WBEND * a : m === 4 ? 0.5 / (0.5 - 0.49 * a)
@@ -315,6 +340,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
     this.acc = new Float64Array(1); this.names = Object.keys(SMOOTH); this.SV = new Float64Array(16);
     for (const k of SCRATCH) this[k] = new Float64Array(BLOCK);
     this.OR = new Float64Array(BLOCK); // a stereo sampler's right channel (never the module's)
+    this.O3 = new Float64Array(BLOCK); // osc3, on the JS stack
     this.port.onmessage = (e) => this.onMessage(e.data);
     if (opts?.processorOptions?.wasm) this.useWasm(opts.processorOptions.wasm);
   }
@@ -417,7 +443,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
       p2: 0, p3: 0, p4: 0, p5: 0, p6: 0, e30: 0, e40: 0, e3R: 0, e4R: 0, // LFOs 2-6, env 3/4
       lx: [null, {}, {}, {}, {}, {}, {}], // lfoX's steps, LFOs 1-6
       dcInit: false, c: null, fc: null, // filter, vowel tract coefficients
-      ks: [], mip: new Int32Array(2 * MAXU), sp: [], // pluck strings, wavetable mips, sampler reads
+      ks: [], mip: new Int32Array(3 * MAXU), sp: [], // pluck strings, wavetable mips, sampler reads
       rr: m.rr ?? this.strike(m.freq), zp: null, acc: {}, // a zone map's strike of this key, its pick
       // oscillator phases, sub phases, dc/filter/tract state, noise filters and
       // streams: in a WebAssembly slot when there is one, else plain arrays
@@ -516,11 +542,11 @@ class SynthlabVoice extends AudioWorkletProcessor {
       for (sl = 0; sl < NSLOT && used.has(sl); sl++);
     }
     if (sl < 0 || sl >= NSLOT) {
-      const st = { w: -1, rs: new Uint32Array(3 * MAXU) };
+      const st = { w: -1, rs: new Uint32Array(4 * MAXU) };
       for (const [k, [, n]] of Object.entries(LAYOUT)) st[k] = new Float64Array(n);
       return st;
     }
-    const at = w.ex.slot(sl), st = { w: sl, at, rs: new Uint32Array(w.buf, at + 2624, 3 * MAXU) };
+    const at = w.ex.slot(sl), st = { w: sl, at, rs: new Uint32Array(w.buf, at + 3584, 4 * MAXU) };
     for (const [k, [o, n]] of Object.entries(LAYOUT)) st[k] = new Float64Array(w.buf, at + o, n).fill(0);
     return st;
   }
@@ -540,8 +566,8 @@ class SynthlabVoice extends AudioWorkletProcessor {
     v.rnd = 2 * driftU(v.dseed, RANDOM_KEY) - 1;
     if (fresh) for (const k of LFOS) v[`p${k}`] = (+T[`lfo${k}_phase`] || 0) + (T[`lfo${k}_mode`] === "free" ? driftU(v.dseed, FREE_KEY + k) : 0);
     if (!fresh || !(T.drift > 0)) return;
-    for (let s = 0; s < 2; s++) {
-      const shape = s ? T.osc2 : T.osc1, sync = s && T.osc2_sync === "on" && SYNCS[shape];
+    for (let s = 0; s < 3; s++) {
+      const shape = [T.osc1, T.osc2, T.osc3][s], sync = s === 1 && T.osc2_sync === "on" && SYNCS[shape];
       for (let u = 0; u < MAXU && (PHASED[shape] || sync); u++) {
         const o = (s * MAXU + u) * 8;
         v.ph[o] = driftU(v.dseed, PHASE_KEY + 16 * s + u);
@@ -668,17 +694,17 @@ class SynthlabVoice extends AudioWorkletProcessor {
     return this.lfoX(v, k, shape, acc);
   }
 
-  // Phase state per oscillator slot (osc1, osc2) x unison copy, 8 each: [0]
+  // Phase state per oscillator slot (osc1, osc2, osc3) x unison copy, 8 each: [0]
   // the phase (fm: the carrier's, [1] its modulator's), or supersaw's seven
   // saws, which start where core.supersaw's seeded RNG puts them.
   phases(ph) {
-    for (let s = 0; s < 2; s++) {
-      if ((s ? this.T.osc2 : this.T.osc1) !== "supersaw") continue;
+    for (let s = 0; s < 3; s++) {
+      if ([this.T.osc1, this.T.osc2, this.T.osc3][s] !== "supersaw") continue;
       for (let u = 0; u < MAXU; u++) ph.set(SUPERSAW_PHASE[s * MAXU + u], (s * MAXU + u) * 8);
     }
   }
 
-  // One block of oscillator slot s (0 osc1, 1 osc2), unison copy u, at the
+  // One block of oscillator slot s (0 osc1, 1 osc2, 2 osc3), unison copy u, at the
   // frequencies Fq (Hz) into out, advancing its state (increment, then
   // read: core._phase is a cumsum). A tight loop per shape: dispatching per
   // sample was most of a voice's cost.
@@ -728,7 +754,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
       }
     } else if (shape === "pluck") {
       for (let j = 0; j < c; j++) out[j] = this.pluck(v, s, u, Fq[j]);
-    } else if (shape === "noise") this.noise(v, s * MAXU + u, out, c);
+    } else if (shape === "noise") this.noise(v, (s === 2 ? 3 : s) * MAXU + u, out, c); // osc3: after the layer's
     else if (shape === "sampler") globalThis.synthlabSampler.read(this.smpNow(), this.T, v, s * MAXU + u, Fq, out, this.OR, c, this);
     else out.fill(0, 0, c);
     ph[o] = p;
@@ -816,11 +842,13 @@ class SynthlabVoice extends AudioWorkletProcessor {
   }
 
   // core.warped, copy u of slot s: WOS sub-samples a sample, each phase
-  // warped (amount X1 / X2, clipped 0..1) and read by the shape, the wrap
-  // polyBLEP'd with the step the warp leaves there; history in v.wr (WRING
-  // a copy, its write index in ph[o+7]) and out the tables' FIR (warp_taps)
-  warpBlock(shape, v, s, u, Fq, out, c, wm) {
-    const ph = v.ph, o = (s * MAXU + u) * 8, isr = 1 / (sampleRate * WOS), X = s ? this.X2 : this.X1;
+  // warped (amount X1..X3, clipped 0..1; then by wm2 at Y1..Y3, core.warp_twice)
+  // and read by the shape, the wrap polyBLEP'd with the step the warps leave
+  // there; history in v.wr (WRING a copy, its write index in ph[o+7]) and
+  // out the tables' FIR (warp_taps)
+  warpBlock(shape, v, s, u, Fq, out, c, wm, wm2) {
+    const ph = v.ph, o = (s * MAXU + u) * 8, isr = 1 / (sampleRate * WOS), X = [this.X1, this.X2, this.X3][s];
+    const Y = [this.Y1, this.Y2, this.Y3][s];
     const { W, WP } = this, H = this.tab.warp, nh = H.length, R = v.wr, rb = (s * MAXU + u) * WRING;
     const mip = v.mip[s * MAXU + u], read = (x, w, pos) => shape === "sine" ? Math.sin(TAU * x)
       : shape === "saw" ? 2 * x - 1 : shape === "square" ? (x < w ? 1 : -1)
@@ -828,11 +856,18 @@ class SynthlabVoice extends AudioWorkletProcessor {
     let p = ph[o], at = ph[o + 7] | 0;
     for (let j = 0; j < c; j++) {
       const d = Fq[j] * isr, a = Math.min(1, Math.max(0, X[j])), w = W[j], pos = WP[j];
+      const a2 = wm2 ? Math.min(1, Math.max(0, Y[j])) : 0;
       for (let q = 0; q < WOS; q++) {
         const x = p + d;
         p = x - Math.floor(x);
-        let y = read(warpPhase(wm, p, a), w, pos);
-        if (p < d || p > 1 - d) y += (read(0, w, pos) - read(warpEnd(wm, a), w, pos)) / 2 * blep(p, d);
+        let y;
+        if (!wm2) {
+          y = read(warpPhase(wm, p, a), w, pos);
+          if (p < d || p > 1 - d) y += (read(0, w, pos) - read(warpEnd(wm, a), w, pos)) / 2 * blep(p, d);
+        } else {
+          y = read(warpPhase(wm2, warpPhase(wm, p, a), a2), w, pos);
+          if (p < d || p > 1 - d) y += (read(0, w, pos) - read(warpEnd2(wm, a, wm2, a2), w, pos)) / 2 * blep(p, d);
+        }
         at = (at + 1) & (WRING - 1); R[rb + at] = y;
       }
       let acc = 0;
@@ -859,10 +894,17 @@ class SynthlabVoice extends AudioWorkletProcessor {
   // core._wt_mip_index: the brightest harmonic cap under Nyquist at the
   // block's highest pitch (the first c of Fq); warped (mode wm, amounts X):
   // at WOS x the rate, that many times darker as the warp's steepest slope
-  mipOf(Fq, c, wm = 0, X = null) {
-    let f = 0, a = 0;
-    for (let j = 0; j < c; j++) { f = Math.max(f, Math.abs(Fq[j])); if (wm) a = Math.max(a, X[j]); }
-    const allowed = sampleRate * (wm ? WOS : 1) * 0.5 / Math.max(wm ? f * warpSlope(wm, Math.min(1, Math.max(0, a))) : f, 1e-6);
+  // (and a second warp's, wm2 at Y: x its slope too)
+  mipOf(Fq, c, wm = 0, X = null, wm2 = 0, Y = null) {
+    let f = 0, a = 0, a2 = 0;
+    for (let j = 0; j < c; j++) {
+      f = Math.max(f, Math.abs(Fq[j]));
+      if (wm) a = Math.max(a, X[j]);
+      if (wm2) a2 = Math.max(a2, Y[j]);
+    }
+    let pk = wm ? f * warpSlope(wm, Math.min(1, Math.max(0, a))) : f;
+    if (wm2) pk *= warpSlope(wm2, Math.min(1, Math.max(0, a2)));
+    const allowed = sampleRate * (wm ? WOS : 1) * 0.5 / Math.max(pk, 1e-6);
     let i = 0;
     for (const cap of this.tab?.mips || []) if (cap > allowed) i++;
     return Math.min(i, (this.tab?.nm || 1) - 1);
@@ -887,7 +929,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
   pluckInit(s, u, f) {
     const T = this.T, sr = sampleRate, tb = this.tab;
     const period = sr / Math.max(20, Math.min(f, sr / 4)), L = Math.floor(period), frac = period - L;
-    const seed = tb ? tb.seeds.indexOf(s ? 100 + u : u) : -1;
+    const seed = tb ? tb.seeds.indexOf(100 * s + u) : -1; // osc2 + 100, osc3 + 200
     const b = new Float64Array(L + 1);
     for (let i = 0; i <= L; i++) b[i] = seed >= 0 && i < tb.un ? tb.uniform[seed * tb.un + i] : Math.random() * 2 - 1;
     const a = 1 - 0.97 * (1 - T.pluck_bright);
@@ -1050,21 +1092,32 @@ class SynthlabVoice extends AudioWorkletProcessor {
     // smp2: a two-channel sample, whose sides differ even at unison 1
     const smp2 = !!smp?.stereo, ft = T.filter_type || "ladder";
     const k = { U, det, pl, pr, smp2, stereo: U > 1 || smp2, sync: !!T.osc2 && T.osc2_sync === "on" && !!SYNCS[T.osc2] };
-    // each oscillator's warp code (synth.warp_of: a shape it bends; osc2 not synced)
-    k.w1 = this.tab && WARPS[T.osc1] ? WARP[T.osc1_warp] || 0 : 0;
-    k.w2 = this.tab && T.osc2 && WARPS[T.osc2] && !k.sync ? WARP[T.osc2_warp] || 0 : 0;
-    this.flags.warp = !!(k.w1 || k.w2);
+    // osc3 plays while its level is up or routed (params.osc3_on)
+    k.o3 = this.flags.o3 = !!T.osc3 && on("osc3_level");
+    // each oscillator's warps (synth.warp_of: a shape they bend; osc2 not
+    // synced; osc3 sounding): the first that is on, then the second
+    // (0: one warp). The second alone is one warp: its amount is read as
+    // the first's (this.wn: the fields X1..X3 / Y1..Y3 follow)
+    this.wn = [1, 2, 3].map((s) => {
+      const ok = this.tab && WARPS[T[`osc${s}`]] && (s !== 2 || (T.osc2 && !k.sync)) && (s !== 3 || k.o3);
+      const a = ok ? WARP[T[`osc${s}_warp`]] || 0 : 0, b = ok ? WARP[T[`osc${s}_warp2`]] || 0 : 0;
+      k[`w${s}`] = a || b; k[`b${s}`] = a ? b : 0;
+      return [`osc${s}_warp${a ? "" : "2"}_amt`, `osc${s}_warp2_amt`];
+    });
+    this.flags.warp = !!(k.w1 || k.w2 || k.w3); this.flags.warp2 = !!(k.b1 || k.b2 || k.b3);
     const w = this.wasm, has2 = !!T.osc2, sh1 = SHAPES[T.osc1], sh2 = has2 ? SHAPES[T.osc2] : 0;
+    const sh3 = k.o3 ? SHAPES[T.osc3] : 0;
     if (w) { // the module's per-render inputs: unison detune/pan, the stack's shapes and switches
       w.K.set(det, 8); w.K.set(pl, 16); w.K.set(pr, 24); w.stale = true;
       const tb = this.tab, col = T.noise_color, sr = S.ring_mod, sf = S.fm_amount;
-      w.shapes = !!sh1 && sh2 !== undefined; w.sh1 = sh1; w.sh2 = sh2;
+      w.shapes = !!sh1 && sh2 !== undefined && sh3 !== undefined; w.sh1 = sh1; w.sh2 = sh2; w.sh3 = sh3;
       w.nk = !tb ? 0 : col === "pink" ? 1 : col === "brown" ? 2 : 0;
       w.sw = has2 | (has2 && (sr[0] > 0 || sr[1] !== 0)) << 1 | (has2 && (sf[0] > 0 || sf[1] !== 0 || this.routed.has("fm_amount"))) << 2 |
-        this.flags.sub << 3 | this.flags.nz << 4 | k.sync << 5;
+        this.flags.sub << 3 | this.flags.nz << 4 | k.sync << 5 | k.o3 << 6;
       // fm4's ratios, feedback (radians) and algorithm (voice.ts K_FM4)
       w.K.set([+T.fm4_ratio1, +T.fm4_ratio2, +T.fm4_ratio3, +T.fm4_ratio4,
         (+T.fm4_feedback || 0) * FM4_FB, FM4[T.fm4_algo] ?? 0, k.w1, k.w2], 80); // + the warps (voice.ts K_WARP)
+      w.K[89] = k.w3; w.K.set([k.b1, k.b2, k.b3], 121); // voice.ts K_WARP3, K_WARPB
     }
     // the general chain (a newer type, filter 2) runs xpost, never paired
     const f2 = (T.filter2_route === "serial" || T.filter2_route === "parallel") && (T.filter2_type || "lowpass") !== "none";
@@ -1114,7 +1167,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
         return;
       }
       const fc = this.flags.fmt ? a.fc : null, [faa, fad] = this.S.formant_amount;
-      ex.stack(a.at, b.at, 0, 1, true, 1, w.sh1, w.sh2, w.sw, c, sampleRate, this.T.fm_ratio, w.nk);
+      ex.stack(a.at, b.at, 0, 1, true, 1, w.sh1, w.sh2, w.sh3, w.sw, c, sampleRate, this.T.fm_ratio, w.nk);
       this.coef(K, 0, a.c); this.coef(K, 1, b.c);
       if (fc) { fc.bands.forEach((x, j) => K.set(x, 32 + 5 * j)); K[47] = fc.makeup; }
       const pk = ex.post(a.at, b.at, 0, 1, 2, i, c, N, FTYPES[a.c.type], this.routed.has("drive") | a.dcInit << 1 |
@@ -1332,11 +1385,14 @@ class SynthlabVoice extends AudioWorkletProcessor {
     const T = this.T, sr = sampleRate, curve = T.env_curve || 1, relN = Math.round(T.release * sr);
     const rt = this.routed, nr = this.routes.length, S = this.S;
     const { fmt } = this.flags, needLfo = this.needLfo, needFe = this.needFe;
-    const { F, W, G, L1, L2, LS, LN, M1, M2, DR, IX, FA, RG, WP, E1, E2, E3, E4, X1, X2 } = set ? this.set1 : this;
+    const { F, W, G, L1, L2, LS, LN, M1, M2, DR, IX, FA, RG, WP, E1, E2, E3, E4, X1, X2, X3, Y1, Y2, Y3, L3, M3 } =
+      set ? this.set1 : this;
     const sl1 = S.osc1_level, sl2 = S.osc2_level, sls = S.sub_level, sln = S.noise_level;
     const svd = S.vibrato_depth, spw = S.pwm_depth, std = S.tremolo_depth, sfm = S.fm_amount;
     const srg = S.ring_mod, sd1 = S.osc1_detune, sd2 = S.osc2_detune, sdr = S.drive, swp = S.wt_pos;
-    const sx1 = S.osc1_warp_amt, sx2 = S.osc2_warp_amt, warp = this.flags.warp; // the warps' amounts
+    // the warps' amounts (render()'s this.wn: which field each reads) and osc3's level and detune
+    const { warp, warp2, o3 } = this.flags, wn = this.wn, sl3 = S.osc3_level, sd3 = S.osc3_detune;
+    const sx1 = S[wn[0][0]], sx2 = S[wn[1][0]], sx3 = S[wn[2][0]], sy1 = S[wn[0][1]], sy2 = S[wn[1][1]], sy3 = S[wn[2][1]];
     // where each per-sample route target lands in this.acc (-1: not routed)
     const I = this.idx, acc = this.acc, ix = (name) => (name in I ? I[name] : -1);
     const iL1 = ix("osc1_level"), iL2 = ix("osc2_level"), iLS = ix("sub_level"), iLN = ix("noise_level");
@@ -1348,7 +1404,11 @@ class SynthlabVoice extends AudioWorkletProcessor {
     const dl4 = T.lfo4_rate / sr, dl5 = T.lfo5_rate / sr, dl6 = T.lfo6_rate / sr;
     const old1 = sh1 === "sine" || sh1 === "triangle" || sh1 === "saw" || sh1 === "square" || sh1 === "noise";
     let p2 = v.p2, p3 = v.p3, p4 = v.p4, p5 = v.p5, p6 = v.p6;
-    const iX1 = ix("osc1_warp_amt"), iX2 = ix("osc2_warp_amt");
+    const iX1 = ix(wn[0][0]), iX2 = ix(wn[1][0]), iX3 = ix(wn[2][0]), iY1 = ix(wn[0][1]), iY2 = ix(wn[1][1]);
+    const iY3 = ix(wn[2][1]), iL3 = ix("osc3_level"), iD3 = ix("osc3_detune");
+    // osc3's pitch multiplier (synth._osc3: octave, semitones and cents), fixed unless moved
+    const oc3 = (+T.osc3_octave || 0), st3 = 100 * (+T.osc3_semi || 0);
+    const m3 = iD3 < 0 && sd3[1] === 0 ? Math.pow(2, oc3 + (st3 + sd3[0]) / 1200) : 0;
     // hard sync: osc2's pitch also carries sync_pitch semitones (synth._osc_stack)
     const sync = T.osc2_sync === "on" && !!SYNCS[T.osc2], iSP = sync ? ix("sync_pitch") : -1, ssp = S.sync_pitch;
     // the oscillators' pitch multipliers: fixed unless a route or a drag moves them
@@ -1356,12 +1416,12 @@ class SynthlabVoice extends AudioWorkletProcessor {
     const m2 = iD2 < 0 && sd2[1] === 0 && (!sync || (iSP < 0 && ssp[1] === 0))
       ? Math.pow(2, T.osc2_octave + sd2[0] / 1200 + (sync ? ssp[0] / 12 : 0)) : 0;
     // the fm4 operators' levels and decays (core.fm4: level x exp(-t / decay))
-    const fm4 = T.osc1 === "fm4" || T.osc2 === "fm4", E = [E1, E2, E3, E4];
+    const fm4 = T.osc1 === "fm4" || T.osc2 === "fm4" || (o3 && T.osc3 === "fm4"), E = [E1, E2, E3, E4];
     const lv4 = [1, 2, 3, 4].map((k) => +T[`fm4_level${k}`] || 0);
     const kd4 = [1, 2, 3, 4].map((k) => (T[`fm4_decay${k}`] > 0 ? -1 / (T[`fm4_decay${k}`] * sr) : 0));
     // analog drift: cents at drift 1 x the amount, the knot length (synth.drift_knot)
     const dc = T.drift > 0 ? T.drift * DRIFT_CENTS : 0, kn = BLOCK * Math.max(1, Math.floor(0.5 * sr / BLOCK + 0.5));
-    const fmIx = T.osc1 === "fm" || T.osc2 === "fm", ixd = T.fm_decay > 0 ? -1 / (T.fm_decay * sr) : 0;
+    const fmIx = T.osc1 === "fm" || T.osc2 === "fm" || (o3 && T.osc3 === "fm"), ixd = T.fm_decay > 0 ? -1 / (T.fm_decay * sr) : 0;
     const { attack, decay, sustain, filter_attack: fa, filter_decay: fd, filter_sustain: fs } = T;
     const pe = T.pitch_env, pk = -5 / (Math.max(T.pitch_env_decay, 1e-3) * sr), vdl = T.vibrato_delay;
     const dv = T.vibrato_rate / sr, dp = T.pwm_rate / sr, dtr = T.tremolo_rate / sr, dfl = T.filter_lfo_rate / sr;
@@ -1391,7 +1451,14 @@ class SynthlabVoice extends AudioWorkletProcessor {
       if (dc) { this.knots(v, kn); C[19] = v.dw0; C[20] = v.dw1; C[21] = v.dk * kn; }
       n = w.ex.control(off, c, N, set);
       v.n = C[0]; v.relN = C[2]; fe = C[6]; pv = C[7]; pp = C[8]; pt = C[9]; pf = C[10]; pm = C[11];
-      if (warp) for (let j = 0; j < n; j++) { const x = (off + j) * iN; X1[j] = sx1[0] + sx1[1] * x; X2[j] = sx2[0] + sx2[1] * x; }
+      if (warp || o3) {
+        for (let j = 0; j < n; j++) {
+          const x = (off + j) * iN;
+          if (warp) { X1[j] = sx1[0] + sx1[1] * x; X2[j] = sx2[0] + sx2[1] * x; X3[j] = sx3[0] + sx3[1] * x; }
+          if (warp2) { Y1[j] = sy1[0] + sy1[1] * x; Y2[j] = sy2[0] + sy2[1] * x; Y3[j] = sy3[0] + sy3[1] * x; }
+          if (o3) { L3[j] = sl3[0] + sl3[1] * x; M3[j] = m3 || Math.pow(2, oc3 + (st3 + sd3[0] + sd3[1] * x) / 1200); }
+        }
+      }
       v.freq = C[12]; v.glideN = C[13]; v.fade = C[16];
     }
     // -- control pass: envelopes, LFOs, routes -> per-sample arrays
@@ -1476,7 +1543,18 @@ class SynthlabVoice extends AudioWorkletProcessor {
       }
       FA[n] = iFA >= 0 ? acc[iFA] : sfm[0] + sfm[1] * x; RG[n] = srg[0] + srg[1] * x;
       WP[n] = iWP >= 0 ? acc[iWP] : swp[0] + swp[1] * x;
-      if (warp) { X1[n] = iX1 >= 0 ? acc[iX1] : sx1[0] + sx1[1] * x; X2[n] = iX2 >= 0 ? acc[iX2] : sx2[0] + sx2[1] * x; }
+      if (warp) {
+        X1[n] = iX1 >= 0 ? acc[iX1] : sx1[0] + sx1[1] * x; X2[n] = iX2 >= 0 ? acc[iX2] : sx2[0] + sx2[1] * x;
+        X3[n] = iX3 >= 0 ? acc[iX3] : sx3[0] + sx3[1] * x;
+      }
+      if (warp2) {
+        Y1[n] = iY1 >= 0 ? acc[iY1] : sy1[0] + sy1[1] * x; Y2[n] = iY2 >= 0 ? acc[iY2] : sy2[0] + sy2[1] * x;
+        Y3[n] = iY3 >= 0 ? acc[iY3] : sy3[0] + sy3[1] * x;
+      }
+      if (o3) {
+        L3[n] = iL3 >= 0 ? acc[iL3] : sl3[0] + sl3[1] * x;
+        M3[n] = m3 || Math.pow(2, oc3 + (st3 + (iD3 >= 0 ? acc[iD3] : sd3[0] + sd3[1] * x)) / 1200);
+      }
       v.n++;
       if (v.glideN > 0) { v.freq *= v.glideR; if (--v.glideN === 0) v.freq = v.target; }
     }
@@ -1491,11 +1569,12 @@ class SynthlabVoice extends AudioWorkletProcessor {
     const T = this.T, sr = sampleRate, has2 = !!T.osc2, S = this.S, w = this.wasm;
     const { sub, nz } = this.flags, srg = S.ring_mod, sfm = S.fm_amount;
     if (v.w >= 0 && w.shapes) { // the WebAssembly stack: two copies per f64x2
-      w.ex.stack(v.at, v.at, set, set, false, k.U, w.sh1, w.sh2, w.sw, c, sr, T.fm_ratio, w.nk);
+      w.ex.stack(v.at, v.at, set, set, false, k.U, w.sh1, w.sh2, w.sh3, w.sw, c, sr, T.fm_ratio, w.nk);
       this.post(v, k, L, R, off, c, N, set);
       return;
     }
-    const { F, M1, M2, FA, RG, L1, L2, LS, LN, O1, O2, NZ, F1, F2, A, B, OR, X1, X2 } = this, { w1, w2 } = k;
+    const { F, M1, M2, FA, RG, L1, L2, LS, LN, O1, O2, NZ, F1, F2, A, B, OR, X1, X2, X3, Y1, Y2, Y3, L3, M3, O3 } = this;
+    const { w1, w2, w3, b1, b2, b3, o3 } = k;
     const ring = has2 && (srg[0] > 0 || srg[1] !== 0), cross = has2 && (sfm[0] > 0 || sfm[1] !== 0 || this.routed.has("fm_amount"));
     A.fill(0, 0, c); B.fill(0, 0, c);
     for (let u = 0; u < k.U; u++) {
@@ -1506,13 +1585,18 @@ class SynthlabVoice extends AudioWorkletProcessor {
           for (let j = 0; j < c; j++) F1[j] = F[j] * du * M1[j];
           this.syncBlock(T.osc2, v, u, F1, F2, O2, c);
         } else {
-          if (T.osc2 === "wavetable") v.mip[MAXU + u] = this.mipOf(F2, c, w2, X2);
-          if (w2) this.warpBlock(T.osc2, v, 1, u, F2, O2, c, w2); else this.oscBlock(T.osc2, v, 1, u, F2, O2, c);
+          if (T.osc2 === "wavetable") v.mip[MAXU + u] = this.mipOf(F2, c, w2, X2, b2, Y2);
+          if (w2) this.warpBlock(T.osc2, v, 1, u, F2, O2, c, w2, b2); else this.oscBlock(T.osc2, v, 1, u, F2, O2, c);
         }
       }
       for (let j = 0; j < c; j++) F1[j] = F[j] * du * M1[j] * (cross && FA[j] > 0 ? 1 + 0.9 * FA[j] * O2[j] : 1);
-      if (T.osc1 === "wavetable") v.mip[u] = this.mipOf(F1, c, w1, X1);
-      if (w1) this.warpBlock(T.osc1, v, 0, u, F1, O1, c, w1); else this.oscBlock(T.osc1, v, 0, u, F1, O1, c);
+      if (T.osc1 === "wavetable") v.mip[u] = this.mipOf(F1, c, w1, X1, b1, Y1);
+      if (w1) this.warpBlock(T.osc1, v, 0, u, F1, O1, c, w1, b1); else this.oscBlock(T.osc1, v, 0, u, F1, O1, c);
+      if (o3) { // osc3 (synth._osc3): a plain layer at its own pitch, in F2 now osc2 is done
+        for (let j = 0; j < c; j++) F2[j] = F[j] * du * M3[j];
+        if (T.osc3 === "wavetable") v.mip[2 * MAXU + u] = this.mipOf(F2, c, w3, X3, b3, Y3);
+        if (w3) this.warpBlock(T.osc3, v, 2, u, F2, O3, c, w3, b3); else this.oscBlock(T.osc3, v, 2, u, F2, O3, c);
+      }
       // a stereo sample: what its right side adds to the mix below (the
       // level and the ring are linear in osc1; the rest is the same on both)
       if (k.smp2) for (let j = 0; j < c; j++) OR[j] = L1[j] * (OR[j] - O1[j]) * (ring && RG[j] > 0 ? 1 - RG[j] + O2[j] * RG[j] : 1);
@@ -1526,6 +1610,7 @@ class SynthlabVoice extends AudioWorkletProcessor {
           if (ring && RG[j] > 0) o1 = o1 * (1 - RG[j]) + o1 * o2 * RG[j];
           y = L1[j] * o1 + L2[j] * o2;
         } else y = L1[j] * o1;
+        if (o3) y += L3[j] * O3[j];
         if (sub) {
           const q = qs + F[j] * hs;
           qs = q - Math.floor(q);
