@@ -538,6 +538,7 @@ EXPECTED_ROUTES = [
     (["POST"], "/fragment/sampler/zone/add"),
     (["POST"], "/fragment/sampler/zones"),
     (["POST"], "/fragment/sampler/zones/map"),
+    (["POST"], "/fragment/sound/star"),  # a shipped sound's ★ (sounds.favourites)
     (["POST"], "/fragment/undo"),
     # your own wavetable, from a clip or drawn (routes/wavetable.py)
     (["POST"], "/fragment/wavetable/clip"),

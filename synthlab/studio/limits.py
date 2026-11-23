@@ -12,6 +12,9 @@ MAX_NOTATION_DEPTH = 4
 MAX_LANE_CLIPS = 16
 MAX_SCENES = 16  # a v2 file's scenes, as the v2 -> v3 migration reads them
 MAX_STARRED = 64
+# ★ on a shipped sound (studio_data/favourites.json, sounds.favourites):
+# "<source>:<name>" each — more than every shipped sound there is
+MAX_FAVOURITES = 1000
 # open GET /events streams (studio/events.py): one per visible page — a few
 # tabs and a phone. Past it the route answers 503 and that page goes without
 MAX_EVENT_STREAMS = 12

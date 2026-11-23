@@ -934,6 +934,11 @@ CASES: list[Case] = [
     C("/fragment/preset/load", "editor", {"name": "zap"}, _preset),
     C("/fragment/preset/delete", "editor", {"name": "zap"}, _preset),
     C("/fragment/preset/star", "editor", {"name": "zap"}, _preset),
+    C(
+        "/fragment/sound/star",
+        "library",
+        {"source": "factory", "name": FACTORY[2]["name"]},
+    ),
     C("/fragment/factory/load", "editor", {"name": FACTORY[2]["name"]}),
     C("/fragment/restore_prev", "editor", setup=_loaded),
     C("/fragment/panel/preset/save", "editor", {"group": "Filter", "name": "f1"}),

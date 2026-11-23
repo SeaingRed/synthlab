@@ -184,6 +184,36 @@ def find(svc: StudioService, source: str, ident: str) -> Sound | None:
 # brings layers of its own (Load then asks what it replaces); a ★ of yours.
 
 MenuItem = tuple[str, str, bool, bool]
+FAVOURITES = "favourites.json"  # in the data dir (schema.FAVOURITES)
+
+
+def favourites(data_dir: Path) -> set[str]:
+    """The shipped sounds you ★, "<source>:<name>" each (a file missing or
+    hostile reads as none). Your own sounds' ★ is their preset meta's."""
+    try:
+        raw = json.loads((Path(data_dir) / FAVOURITES).read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return set()
+    return set(schema.conform(raw, schema.nodes().FAVOURITES)["sounds"])
+
+
+def shipped_keys() -> set[str]:
+    """Every shipped sound's "<source>:<name>": what may be ★."""
+    return {f"{src}:{name}" for _, items in _shipped() for src, name, _, _ in items}
+
+
+def toggle_favourite(data_dir: Path, source: str, name: str) -> bool:
+    """★ a shipped sound, or take its ★ off; whether it is ★ now. A name no
+    shipped sound has changes nothing."""
+    key = f"{source}:{name}"
+    if key not in shipped_keys():
+        return False
+    favs = favourites(data_dir)
+    on = key not in favs
+    favs = favs | {key} if on else favs - {key}
+    clean = schema.conform({"sounds": sorted(favs)}, schema.nodes().FAVOURITES)
+    (Path(data_dir) / FAVOURITES).write_text(json.dumps(clean), encoding="utf-8")
+    return on
 
 
 @functools.lru_cache(maxsize=1)
@@ -248,10 +278,16 @@ def yours(state) -> list[dict]:
 
 def menu(state, saved: list[dict] | None = None) -> list[tuple[str, list[MenuItem]]]:
     """(group label, items): yours (`saved`, else read: `yours`), then the
-    shipped groups (`_shipped`); an empty group is left out."""
+    shipped groups (`_shipped`), a shipped sound you ★ (`favourites`)
+    marked as yours are; an empty group is left out."""
     mine = [
         ("preset", m["name"], m["layered"], m["starred"])
         for m in (yours(state) if saved is None else saved)
     ]
-    groups = [("Yours", mine), *((label, list(items)) for label, items in _shipped())]
+    favs = favourites(state.data_dir)
+    shipped = (
+        (label, [(s, n, lay, f"{s}:{n}" in favs) for s, n, lay, _ in items])
+        for label, items in _shipped()
+    )
+    groups = [("Yours", mine), *shipped]
     return [(label, items) for label, items in groups if items]

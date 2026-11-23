@@ -1,0 +1,8 @@
+{# synthlab/studio/templates/fragments/sound_star.html #}
+{#- A shipped sound's ★ (sounds.favourites, studio_data/favourites.json):
+    the Library's cards draw it, POST /fragment/sound/star answers with it
+    (it swaps itself: htmx's target is the element by default). A ★ sound
+    is ★ in the one sound menu too — its ★ filter — and under the Library's
+    ★ chip (library.js). Your own sounds keep their ★ on Synths' list (POST
+    /fragment/preset/star). Kept small: ~300 cards draw one. -#}
+{% macro star(source, name, on) %}<button type="button" class="btn btn-ghost btn-icon btn-s lib-star" hx-post="/fragment/sound/star" hx-vals='{{ {"source": source, "name": name} | tojson }}' hx-swap="outerHTML" aria-pressed="{{ 'true' if on else 'false' }}" data-menu="Favourite" title="favourite" aria-label="favourite {{ name }}">★</button>{% endmacro %}

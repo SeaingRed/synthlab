@@ -242,7 +242,11 @@ def test_page_weight_did_not_grow_with_the_denser_library(tmp_path):
     assert rows >= 108 and html.count("<rect") == 0
     # + DOCK: the keyboard dock is every page's (base.html), a fixed
     # 50.7 KB raw / 8.5 KB gzipped that is no row's
-    assert len(html.encode()) < rows * 354_645 // 108 + DOCK_RAW + MENU_RAW + ARP_RAW
+    # + a ★ a card (fragments/sound_star.html, ~250 bytes / ~30 gzipped)
+    assert (
+        len(html.encode())
+        < rows * (354_645 // 108 + 260) + DOCK_RAW + MENU_RAW + ARP_RAW
+    )
     # 32,400 a row: what the shell every page carries adds, not a row —
     # the islands' script tags, the rail, the Colours popover (its early
     # script, the themes' swatches, contrast and black-level rows), the
@@ -254,7 +258,7 @@ def test_page_weight_did_not_grow_with_the_denser_library(tmp_path):
     # with longer fx chains and `how` notes; 100,264 against 99,962 at 290
     # rows
     gz = len(gzip.compress(html.encode()))
-    assert gz < rows * 32_400 // 108 + DOCK_GZ + MENU_GZ + ARP_GZ
+    assert gz < rows * (32_400 // 108 + 30) + DOCK_GZ + MENU_GZ + ARP_GZ
 
 
 def test_the_shelves_render_rows_with_nothing_measured(tmp_path):
