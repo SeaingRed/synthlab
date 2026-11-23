@@ -666,13 +666,20 @@ class SongRender:
         playing, at the mix's song-wide gain and without master FX (a stem
         is for mixing elsewhere). Refuses an over-long song before
         rendering."""
+        return list(self.iter_song_stems(song, master_fx, task))
+
+    def iter_song_stems(self, song: dict, master_fx=(), task: Task = QUIET):
+        """`song_stems` one at a time: the export writes each stem and drops
+        it before the next renders. Holding all of them (a 384 s, 8-track
+        song: ~270 MB of float64 each) took the export's peak up 3.1 GB."""
         solos = song_play.stem_songs(song)
         task.plan(1 + len(solos))  # the mix's gain, then a step per stem
         gain = self.song_gain(song, master_fx)
         task.step()
-        out = []
         for name, solo in solos:
             raw = self._song_raw(solo)
-            out.append((name, raw * gain if gain != 1.0 else raw))
+            if gain != 1.0:
+                raw *= gain  # its own buffer: nothing else holds it
+            yield name, raw
+            del raw  # dropped before the next renders
             task.step()
-        return out
