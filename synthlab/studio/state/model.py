@@ -62,6 +62,31 @@ ARTICULATIONS: dict[str, tuple[str, ...]] = {
 # a beat's sound source (`Arrangement.drum_kit`): "" the electronic voices,
 # "naked" the downloadable acoustic kit (synthlab/kits)
 DRUM_KITS: tuple[str, ...] = ("", "naked")
+# the rows the acoustic kit shows besides its own while they hold cells:
+# `ohat` (its hits play as the hat's "open"), `clap` and `rim` (electronic)
+_ACOUSTIC_EXTRAS: tuple[str, ...] = ("ohat", "clap", "rim")
+
+
+def kit_rows(kit: str, drums) -> list[str]:
+    """The rows a grid draws for a beat on `kit` holding `drums` (cells):
+    an electronic kit's eight (`DRUM_ROWS`), or the acoustic kit's
+    (`ACOUSTIC_ROWS`) and, after them, `ohat` / `clap` / `rim` while they
+    hold cells. A row a grid does not draw keeps its cells on a post
+    (`drumops.keep_hidden`)."""
+    if kit != "naked":
+        return list(DRUM_ROWS)
+    held = {c[0] for c in drums or ()}
+    return ACOUSTIC_ROWS + [r for r in _ACOUSTIC_EXTRAS if r in held]
+
+
+def held_rows(drums) -> list[str]:
+    """Today's eight rows and, after them, every further row that holds a
+    cell (`NEW_DRUM_ROWS` order): what a beat's sparkline or thumbnail draws,
+    so a ride or a tom 3 is never left off the picture."""
+    held = {c[0] for c in drums or ()}
+    return DRUM_ROWS + [r for r in NEW_DRUM_ROWS if r in held]
+
+
 # Every key: each semitone from A0 to E3. Sharps, as `name_of` spells.
 BASS_ROOTS: list[str] = ["A0", "E1", "A1", "E2", "A2", "E3"]  # Bass Lab's keys
 ROOTS: list[str] = [name_of(m) for m in range(midi("A0"), midi("E3") + 1)]

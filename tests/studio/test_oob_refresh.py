@@ -487,6 +487,21 @@ def _beat(client) -> None:
     client.post("/fragment/drums/bank/load/0", headers=_hx("drums"))
 
 
+def _acoustic(client) -> None:
+    """A beat on the acoustic kit (not on this machine: its rows play the
+    electronic voices)."""
+    _beat(client)
+    client.post(
+        "/fragment/drums/source", data={"source": "naked"}, headers=_hx("drums")
+    )
+
+
+def _acoustic_here(client) -> None:
+    """... and the kit already here: a Download starts nothing."""
+    _acoustic(client)
+    client.app.state.svc.kits.availability = lambda: {"ready": True}
+
+
 def _loop_chords(client) -> None:
     """The working loop with a chord track of its own (Perform's chord lane)."""
     client.post(
@@ -1087,7 +1102,7 @@ CASES: list[Case] = [
         "/fragment/drums",
         "drums",
         {f"kick.{_KICK}": "0.4", "kick.level": "0.8"},
-        suppressed={"drum-bank"},
+        suppressed={"drum-bank", "drum-panels"},
     ),
     C(
         "/fragment/drums/preset",
@@ -1143,6 +1158,21 @@ CASES: list[Case] = [
     C("/fragment/drums/randomise", "drums", {"style": "techno", "seed": "7"}),
     C("/fragment/drums/randomise", "drums", {"style": "garage-rim", "seed": "7"}),
     C("/fragment/drums/kit", "drums", {"kit": "Garage Rim"}),
+    # the acoustic kit (drums.md, "The Kit page"): its sound — the whole
+    # page — its mics (a fader is not redrawn under the hand, a mute is),
+    # its download (here already: nothing runs) and the cancel
+    C("/fragment/drums/source", "drums", {"source": "naked"}, _beat),
+    C("/fragment/drums/source", "drums", {"source": ""}, _acoustic),
+    C(
+        "/fragment/drums/mics",
+        "drums",
+        {"hats": "-3"},
+        _acoustic,
+        suppressed={"drum-panels"},
+    ),
+    C("/fragment/drums/mics", "drums", {"hats": "off", "preset": "room"}, _acoustic),
+    C("/fragment/drums/kit/download", "drums", {}, _acoustic_here),
+    C("/fragment/drums/kit/cancel", "drums", {}, _acoustic),
     # --- the beat workflow: per-hit data, the rows' own
     # swing, Euclid a row, the kit under the beat, variations, generators ---
     C(

@@ -10,6 +10,7 @@
 // pad comes without `data-drawn`) and after the kit's post for a knob of
 // that voice has landed — never per frame. A click still auditions it
 // (piano.js); this adds the hit flash (`.hit`, as Perform's pads).
+// The acoustic kit's pads (drum_mics.html, `.kit-pads`) are drawn the same way.
 // Budget: <= 70 code lines.
 (() => {
   "use strict";
@@ -51,7 +52,7 @@
   }
   // once a frame, in the frame (a response settles once a region; a pad's visibility forces a layout)
   let queued = 0;
-  const all = () => { queued ||= requestAnimationFrame(() => { queued = 0; document.querySelectorAll("#drumkit .hit-pad").forEach(draw); }); };
+  const all = () => { queued ||= requestAnimationFrame(() => { queued = 0; document.querySelectorAll("#drumkit .hit-pad, .kit-pads .hit-pad").forEach(draw); }); };
   document.addEventListener("DOMContentLoaded", all);
   document.addEventListener("htmx:after:settle", all);
   for (const ev of ["resize", "synthlab-geometry"]) addEventListener(ev, all); // (shown from 2200 px: a window made wider draws them)
@@ -71,7 +72,7 @@
   });
   // the hit flash when a pad is played (piano.js plays it)
   document.addEventListener("click", (e) => {
-    const pad = e.target.closest?.("#drumkit .hit-pad");
+    const pad = e.target.closest?.("#drumkit .hit-pad, .kit-pads .hit-pad");
     if (!pad) return;
     pad.classList.add("hit");
     setTimeout(() => pad.classList.remove("hit"), 120);

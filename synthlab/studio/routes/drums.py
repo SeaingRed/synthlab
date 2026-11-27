@@ -9,11 +9,24 @@ import math
 import random
 from dataclasses import asdict, replace
 
+import numpy as np
 from fastapi import Request, Response
 from fastapi.responses import HTMLResponse
 
 from ... import drums, percussion
-from .. import beatgen, beatpick, drumops, limits, loops, meter, notation, song_bridge
+from ...kits import play as kit_play
+from ...kits.fetch import KitError
+from .. import (
+    arrange,
+    beatgen,
+    beatpick,
+    drumops,
+    limits,
+    loops,
+    meter,
+    notation,
+    song_bridge,
+)
 from .. import patternops as po
 from .. import song_model as sm
 from ..arrange import _voice_sample, arrangement_from_form, clean_hits
@@ -22,9 +35,26 @@ from ..drumfactory import DRUM_KITS
 from ..drumlab import DRUM_PARAMS, DRUM_VOICES, defaults_of, preset_of
 from ..gen import drums as gd
 from ..render import RenderError, RenderResult, _to_wav_bytes, loop_refusal
-from ..routing import StrForm, Svc, pattern_edit, studio_router
+from ..routing import (
+    OutsideLock,
+    StrForm,
+    Svc,
+    lock_free,
+    pattern_edit,
+    render_outside_lock,
+    studio_router,
+)
+from ..schema import _mics as clean_mics
 from ..service import StudioService
-from ..state import ALL_DRUM_ROWS, StudioState, drum_grid, lane_fields
+from ..state import (
+    ALL_DRUM_ROWS,
+    ARTICULATIONS,
+    StudioState,
+    drum_grid,
+    kit_rows,
+    lane_fields,
+)
+from ..state import DRUM_KITS as DRUM_SOURCES
 
 router = studio_router()
 
@@ -61,7 +91,7 @@ def fragment_drums(request: Request, form: StrForm, svc: Svc) -> Response:
             s.arrangement = replace(s.arrangement, drum_mix=mix)
     # a row head's level knob shows this too: steps.js moves it with the
     # strip's (the grid is never redrawn for a kit tweak)
-    svc.suppress("drum-bank", "perform-drums")
+    svc.suppress("drum-bank", "perform-drums", "drum-panels")
     return svc.do_render(request)
 
 
@@ -121,15 +151,25 @@ def _drums_from_form(svc: StudioService, form: dict) -> None:
             except ValueError:
                 pass
     arr = s.arrangement
+    # the per-hit table (the grid's hidden `hits`, or `hit.*` fields); a hit
+    # without a cell is dropped. The rows the grid does not draw (the other
+    # kit's: `kit_rows`) keep their cells and hits
+    drums, hits = drumops.keep_hidden(
+        parsed.drums,
+        drumops.hits_from_form(form, parsed.drums, arr.drum_hits),
+        arr.drums,
+        arr.drum_hits,
+        kit_rows(arr.drum_kit, arr.drums),
+        form,
+    )
     s.arrangement = replace(
         arr,
-        drums=parsed.drums,
+        drums=drums,
         drum_bars=parsed.bars,
         drum_steps=parsed.steps_per_bar,
         drum_vel=vel,
-        # the per-hit table (the grid's hidden `hits`, or `hit.*` fields)
-        # and the rows' own swing; a hit without a cell is dropped
-        drum_hits=drumops.hits_from_form(form, parsed.drums, arr.drum_hits),
+        drum_hits=hits,
+        # the rows' own swing
         drum_row_swing=drumops.row_swing_from_form(
             form, arr.drum_row_swing, arr.drum_swing
         ),
@@ -706,22 +746,169 @@ def fragment_drums_lib_delete(request: Request, form: StrForm, svc: Svc) -> Resp
 
 @router.get("/drum/{voice}/hit.wav")
 def drum_hit(voice: str, svc: Svc) -> Response:
-    if voice not in drums.KIT:
+    """A row's one-shot, what its pad and its name play: the row's clip
+    when it has one (on the pads as in the loop), on the acoustic kit its
+    default articulation struck hard (`_acoustic_pad`), else its
+    electronic voice — a further row's stand-in (`arrange._electronic`)."""
+    if voice not in ALL_DRUM_ROWS:
         return Response(status_code=404)
-    # a row assigned a clip plays that clip, on the pads as in the loop
-    # (they used to always play the synthesized hit)
-    key = "drum-hit:" + voice + ":" + svc.drum_voice_hash(voice)
+    key = "drum-hit:" + voice + ":" + svc.drum_pad_hash(voice)
     result = svc.notes.get(key)
     if result is None:
         s = svc.state
         audio = _voice_sample(s.arrangement, voice, s.data_dir)
-        if audio is None:
+        if audio is None and svc.drum_pad_acoustic(voice):
+            audio = _acoustic_pad(s.arrangement, voice)
+        if audio is None and voice in drums.KIT:
             audio = drums.hit(voice, **svc.drum_voice_values(voice))
+        if audio is None:
+            base, params = arrange._electronic(s.arrangement, voice)
+            audio = drums.hit(base, **params)
         result = RenderResult(key=key, wav=_to_wav_bytes(audio), analysis={})
         svc.notes.put(result)
     return Response(
         result.wav, media_type="audio/wav", headers={"Cache-Control": "no-store"}
     )
+
+
+PAD_VELOCITY = 0.9  # how hard a pad strikes the acoustic kit
+
+
+def _acoustic_pad(arr, voice: str):
+    """`voice`'s default articulation on the acoustic kit (`ARTICULATIONS`'
+    first, "hit" for a row with none) at `PAD_VELOCITY`, its first round
+    robin, through the beat's mic mix and `arrange.KIT_GAIN` — as the loop
+    plays it, held under full scale (a one-shot WAV has no headroom to
+    give). None when the kit cannot play it (the electronic voice then)."""
+    kit = arrange.acoustic_kit(arr)
+    if kit is None:
+        return None
+    art = ARTICULATIONS.get(voice, ("hit",))[0]
+    q = round(PAD_VELOCITY * 127) / 127
+    try:
+        audio = kit_play.render_hit(
+            kit[0], kit[1], voice, art, q, 0, kit_play.levels(arr.drum_mics)
+        )
+    except KitError:
+        return None
+    if not len(audio):
+        return None
+    audio = audio * arrange.KIT_GAIN
+    peak = float(np.max(np.abs(audio)))
+    return audio * (0.99 / peak) if peak > 0.99 else audio
+
+
+# --- the kit's sound: electronic or the acoustic kit ---------------------------------
+
+
+@router.post("/fragment/drums/source")
+@pattern_edit
+def fragment_drums_source(request: Request, form: StrForm, svc: Svc) -> Response:
+    """The beat's kit sound (`Arrangement.drum_kit`): "" the electronic
+    voices, "naked" the acoustic kit. The rows the page draws change, so
+    the page comes back whole (with its preview). Choosing the acoustic
+    kit puts the open hats on the hat row, played "open"
+    (`drumops.open_hats_to_hat`); going back puts them on the open hat's
+    row again (`drumops.hat_to_open_hats`) — either way one pattern undo
+    step with the kit."""
+    s: StudioState = svc.state
+    src = form.get("source", "")
+    if src not in DRUM_SOURCES:
+        return svc.toast("No such kit sound.")
+    a = s.arrangement
+    if src != a.drum_kit:
+        if src == "naked":
+            moved = drumops.open_hats_to_hat(a)
+        else:
+            moved = drumops.hat_to_open_hats(a)
+        s.arrangement = replace(a, drum_kit=src, **moved)
+        s.save()
+    return svc.full_page_with_preview(request)
+
+
+@router.post("/fragment/drums/mics")
+def fragment_drums_mics(request: Request, form: StrForm, svc: Svc) -> Response:
+    """The acoustic kit's mic mixer (`Arrangement.drum_mics`): `preset`
+    puts every mic at its levels (the overrides go), `<mic>=<dB>` sets one
+    (held to `limits.MIC_DB_RANGE`), `<mic>=off` mutes it. What equals the
+    preset is not written down (`schema`'s cleaner). A fader's own post is
+    not drawn again under the hand; a mute or a preset redraws the mixer."""
+    s: StudioState = svc.state
+    mics = dict(s.arrangement.drum_mics or {})
+    redraw = False
+    if "preset" in form:
+        if form["preset"] not in kit_play.MIC_PRESETS:
+            return svc.toast("No such mic preset.")
+        mics, redraw = {"preset": form["preset"]}, True
+    was = kit_play.levels(mics)
+    for mic in kit_play.MICS:
+        raw = form.get(mic, "").strip()
+        if raw == "off":
+            mics[mic], redraw = None, True
+        elif raw:
+            try:
+                x = float(raw)
+            except ValueError:
+                continue
+            if math.isfinite(x):
+                redraw |= was.get(mic) is None  # a fader lifts a mic out of mute
+                mics[mic] = x
+    s.arrangement = replace(s.arrangement, drum_mics=clean_mics(mics))
+    if not redraw:
+        svc.suppress("drum-panels")
+    return svc.do_render(request)
+
+
+def _kit_source(svc: StudioService, **extra) -> str:
+    """The kit-source region's HTML (in place, not out of band)."""
+    kit = svc.kit_context() | extra
+    tpl = svc.templates.get_template("fragments/drum_kit_source.html")
+    return tpl.render(kit=kit, oob=False)
+
+
+@router.post("/fragment/drums/kit/download")
+@render_outside_lock
+def fragment_kit_download(request: Request, svc: Svc) -> Response | OutsideLock:
+    """Fetch the acoustic kit (`kitjobs`: one at a time, its own thread,
+    every file checked). Asking whether it is already here stats each of
+    its files, so that runs with the lock released; the answer is the kit
+    line, polling the job."""
+
+    def run() -> Response:
+        problem = svc.kits.start()
+        if problem == "busy":
+            return svc.toast("The kit is already downloading.")
+        with svc.state.lock:
+            here = svc.kits.state() is None
+            return HTMLResponse(_kit_source(svc, just_ready=here))
+
+    return OutsideLock(run)
+
+
+@router.post("/fragment/drums/kit/cancel")
+def fragment_kit_cancel(request: Request, svc: Svc) -> Response:
+    """Stop the kit's download: the files that landed stay (the next
+    Download carries on); the line keeps polling until the job has ended."""
+    svc.kits.cancel()
+    return HTMLResponse(_kit_source(svc))
+
+
+@router.get("/fragment/drums/kit/job")
+@lock_free
+def fragment_kit_job(request: Request) -> Response:
+    """The kit line, polled once a second while the download runs: it reads
+    the job's own state and the beat's kit without the studio lock (as the
+    Lab's `/fragment/lab/job`). The one answer that finds the job ended
+    (`watch=1`) takes the lock to draw the kit's panel too (its pads are
+    the kit's now) and, when the kit is here, asks the page for its loop
+    again."""
+    svc: StudioService = request.app.state.svc
+    if not (request.query_params.get("watch") == "1" and not svc.kits.busy()):
+        return HTMLResponse(_kit_source(svc))
+    with svc.state.lock:
+        html = _kit_source(svc, just_ready=not svc.kits.last_error())
+        html += svc.oob_regions(request, "drum-panels", view="drums")
+    return HTMLResponse(html)
 
 
 @router.get("/song/track/{track_id}/hit/{voice}.wav")

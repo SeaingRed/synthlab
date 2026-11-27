@@ -336,3 +336,88 @@ def swap_kit(lane: dict, kit: dict, samples: Mapping | None = None) -> dict:
         "samples": dict(samples or {}),
         "unshaped": sorted(played - set(kit["params"]), key=ALL_DRUM_ROWS.index),
     }
+
+
+# --- the rows a grid draws ----------------------------------------------------------
+
+
+def keep_hidden(
+    drums, hits: Mapping, was_drums, was_hits: Mapping, drawn: Collection[str], form
+) -> tuple[list, dict]:
+    """A grid post's cells and hits with the rows its grid did not draw
+    kept as they were. A grid draws the rows of its beat's kit
+    (`state.kit_rows`): the electronic kits' eight, the acoustic kit's own
+    — so a post replaces `drums` whole only for those rows, and a row
+    neither drawn nor posted (`drum.<voice>.<step>`) keeps its cells and
+    their hits (steps.js prunes the table to the steps it draws)."""
+    posted = {
+        k.split(".")[1] for k in form if k.startswith("drum.") and k.count(".") == 2
+    }
+    mine = set(drawn) | posted
+    kept = [list(c) for c in was_drums if c[0] not in mine]
+    cells = [list(c) for c in drums if c[0] in mine] + kept
+    out = {k: dict(v) for k, v in hits.items() if k.split(".")[0] in mine}
+    out |= {
+        k: dict(v) for k, v in (was_hits or {}).items() if k.split(".")[0] not in mine
+    }
+    return sorted(cells, key=lambda c: (c[0], int(c[1]))), clean_hits(out, cells)
+
+
+def open_hats_to_hat(arr) -> dict:
+    """What choosing the acoustic kit does to a beat (the Kit sound select):
+    its `ohat` cells become hat hits played "open" (`a`), so the open hats
+    are on the one hat row the kit has. A hit keeps its own data; the
+    `ohat` row's chance goes onto its hits (times their own), its level
+    onto their velocity (over the hat row's, held to 0.05..1) and its mute
+    to a chance of 0 — so the beat plays what it played. A step the hat
+    already strikes becomes the open hit. The `ohat` row's mix entry goes.
+    Arrangement fields to `replace`; {} when there is no open hat."""
+    opens = [int(s) for v, s in arr.drums if v == "ohat"]
+    if not opens:
+        return {}
+    mix = dict(arr.drum_mix or {})
+    om, hm = mix.pop("ohat", {}) or {}, mix.get("hat", {}) or {}
+    ratio = float(om.get("level", 1.0)) / max(1e-6, float(hm.get("level", 1.0)))
+    prob = 0.0 if om.get("mute") else float(om.get("prob", 1.0))
+    hits = {
+        k: dict(v)
+        for k, v in (arr.drum_hits or {}).items()
+        if not k.startswith("ohat.")
+    }
+    for s in opens:
+        h = dict((arr.drum_hits or {}).get(f"ohat.{s}") or {})
+        if abs(ratio - 1.0) > 1e-9:
+            v = float(h.get("v", (arr.drum_vel or {}).get(str(s), 1.0)))
+            h["v"] = round(min(1.0, max(0.05, v * ratio)), 3)
+        if prob < 1.0:
+            h["p"] = round(float(h.get("p", 1.0)) * prob, 3)
+        h["a"] = "open"
+        hits[f"hat.{s}"] = h
+    cells = {(v, int(s)) for v, s in arr.drums if v != "ohat"} | {
+        ("hat", s) for s in opens
+    }
+    drums = sorted([list(c) for c in cells], key=lambda c: (c[0], c[1]))
+    return {"drums": drums, "drum_hits": clean_hits(hits, drums), "drum_mix": mix}
+
+
+def hat_to_open_hats(arr) -> dict:
+    """The way back (an electronic kit chosen): a hat hit played "half" or
+    "open" goes onto the open hat's row (`ohat`, the electronic kits' open
+    hat), keeping its own data but the articulation. Arrangement fields to
+    `replace`; {} when the hat has no open hit."""
+    hits = dict(arr.drum_hits or {})
+    opens = sorted(
+        int(k.split(".")[1])
+        for k, h in hits.items()
+        if k.startswith("hat.") and h.get("a") in ("half", "open")
+    )
+    if not opens:
+        return {}
+    for s in opens:
+        h = {f: x for f, x in hits.pop(f"hat.{s}").items() if f != "a"}
+        hits[f"ohat.{s}"] = h
+    moved = set(opens)
+    cells = {(v, int(s)) for v, s in arr.drums if not (v == "hat" and int(s) in moved)}
+    cells |= {("ohat", s) for s in opens}
+    drums = sorted([list(c) for c in cells], key=lambda c: (c[0], c[1]))
+    return {"drums": drums, "drum_hits": clean_hits(hits, drums)}

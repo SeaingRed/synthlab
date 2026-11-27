@@ -3133,7 +3133,19 @@
       </select></label>
       <button type="submit" class="btn btn-s" data-cmd="Load the genre kit" title="load the kit's pattern, swing, velocities and voice shaping">Load kit</button>
       <button type="submit" class="btn btn-s" name="keep" value="pattern" data-cmd="Swap the kit, keep the beat" title="only the kit's voices: the beat on the grid, its swing, velocities, hit data and the rows' samples stay">Swap kit, keep beat</button>
-    </form><form class="bank-save" aria-label="Save the beat" hx-post="/loop/beat/keep" hx-swap="none" hx-sync="this:drop">
+    </form>
+<div id="kit-source" class="kit-source" role="group" aria-label="Kit sound"
+     
+     >
+  <form class="bank-source" aria-label="The kit's sound" hx-post="/fragment/drums/source" hx-trigger="change"
+        hx-sync="this:queue last" hx-target="body" hx-swap="innerMorph">
+    <label>kit sound <select class="field field-s" name="source"
+                             title="the beat's sound: the eight synthesised voices, or a multi-sampled acoustic kit (its own rows, articulations and mics)">
+      <option value="" selected>Electronic</option>
+      <option value="naked" >Acoustic (Naked Drums)</option>
+    </select></label>
+  </form>
+</div><form class="bank-save" aria-label="Save the beat" hx-post="/loop/beat/keep" hx-swap="none" hx-sync="this:drop">
       <label>name <input class="field field-s" name="name" maxlength="40" autocomplete="off" placeholder="Four on the floor beat…"
                          title="its name in the Loops (blank: named from what it is — style, tempo, bars)"></label>
       <button type="submit" class="btn btn-s" data-cmd="Save the beat to the Loops" data-cmd-group="Beats"

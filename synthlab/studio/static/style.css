@@ -7443,3 +7443,53 @@ button.mm-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 
 .drawer-place { display: none; }
 .drawer-place > .btn[aria-selected="true"] { color: var(--accent-text); border-color: var(--accent); }
 .roll-ghost { position: absolute; z-index: 0; pointer-events: none; }
+
+
+/* ---------- 49. The acoustic kit (Kit: its sound, mic mixer, articulations) ----------
+   The beat's kit sound beside the genre kit (drum_kit_source.html), the
+   acoustic kit's pads and mic mixer in place of the eight strips
+   (drum_mics.html: the Mix view's `.knob.fader`, section 28) and its
+   credit, and the articulation of a hit: a glyph on its step and in the
+   sixth hit lane (`.artrow`, drumgrid.html). (Its dense half is dense.css D49.) */
+.kit-source { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); }
+.kit-source progress { width: 120px; }
+.kit-missing { color: var(--text); font-size: var(--fs-xs); }
+.kit-note, .kit-job { color: var(--text-dim); font-size: var(--fs-xs); }
+.kit-error { color: var(--danger-text); font-size: var(--fs-xs); }
+.kit-credit { margin: var(--s1) 0 0; font-size: var(--fs-2xs); color: var(--text-dim); }
+.kit-credit a { color: var(--accent-text); }
+
+.mic-mixer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s2); min-width: 0; }
+.mic-strips { grid-column: 1 / -1; }
+.kit-pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: var(--s1); }
+.kit-pads .hit-pad { width: 100%; height: 32px; position: relative; overflow: hidden; }
+.mic-head { display: flex; align-items: center; gap: var(--s2); color: var(--text-dim); }
+.mic-strips { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--s1); min-width: 0; }
+.mic-strip { display: grid; grid-template-rows: minmax(56px, 1fr) auto auto auto; justify-items: center;
+  gap: 2px; padding: var(--s1) 2px; border-radius: var(--r-s); background: var(--bg-inset); min-width: 0; }
+.mic-strip .fader { min-height: 56px; }
+.mic-strip.muted .fader, .mic-strip.muted .mic-val { opacity: 0.55; }
+.mic-val { font-size: var(--fs-2xs); color: var(--text); font-variant-numeric: tabular-nums; }
+.mic-name { font-size: var(--fs-2xs); color: var(--text-dim); text-align: center; line-height: 1.15;
+  overflow-wrap: anywhere; }
+
+/* an articulation as a glyph: on its lit step and in the lane (the
+   row's default — closed, centre, bow, edge, a plain hit — a quiet dot) */
+.drumrow .cell { position: relative; }
+.drumrow .cell:checked[data-art]::after, .art-cell[data-art]::after { content: "•";
+  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+  color: var(--signal-text); font-size: var(--fs-m); line-height: 1; }
+:is(.drumrow .cell:checked, .art-cell)[data-art="open"]::after { content: "◐"; }
+:is(.drumrow .cell:checked, .art-cell)[data-art="half"]::after { content: "◑"; }
+:is(.drumrow .cell:checked, .art-cell)[data-art="pedal"]::after { content: "▁"; }
+:is(.drumrow .cell:checked, .art-cell)[data-art="tight"]::after { content: "·"; font-size: var(--fs-xl); }
+:is(.drumrow .cell:checked, .art-cell)[data-art="bell"]::after { content: "◆"; }
+:is(.drumrow .cell:checked, .art-cell)[data-art="side"]::after { content: "×"; }
+:is(.drumrow .cell:checked, .art-cell)[data-art="choke"]::after { content: "⊘"; }
+.art-cell { position: relative; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 3px;
+  background: var(--bg-inset); cursor: pointer; min-width: 0; }
+.art-cell:not(.idle):hover { border-color: var(--accent); }
+.art-cell.idle { cursor: default; opacity: 0.4; }
+.art-cell:not([data-art])::after { content: none; }
+.artrow .lane-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-2xs); color: var(--text-dim); }

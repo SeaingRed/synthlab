@@ -52,6 +52,7 @@ from .routes import ROUTERS
 from .routing import StudioRoute, mount
 from .service import StudioService
 from .sigdraw import sig_box, sig_path, smooth_path
+from .state import ARTICULATIONS, kit_rows
 from .views import view_link
 from .words import hz, plural
 
@@ -184,6 +185,10 @@ def make_templates() -> Jinja2Templates:
     # a drum row's "Percussion" choices (synthlab/percussion.py)
     templates.env.globals["perc_kinds"] = percussion.KINDS
     templates.env.globals["perc_clips"] = {f"perc-{k}" for k in percussion.KINDS}
+    # the rows a drum grid draws for its beat's kit, and the acoustic kit's
+    # articulations a row's hits may take (drums.md, "The Kit page")
+    templates.env.globals["kit_rows"] = kit_rows
+    templates.env.globals["articulations"] = ARTICULATIONS
     # the mod matrix's one-move mixes (modmixes.py): (id, label, what you hear)
     templates.env.globals["mod_mixes"] = [
         (k, m[0], m[1]) for k, m in modmixes.MIXES.items()

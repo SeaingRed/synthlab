@@ -99,6 +99,7 @@ from ..drumlab import DRUM_PARAMS, DRUM_VOICES, VOICE_PRESETS, defaults_of, spec
 from ..events import ORIGIN_HEADER, QUIET, EventBus, Task
 from ..factory import FACTORY
 from ..fxrack import CHAIN_PRESETS, FX_UNITS, clean_chain
+from ..kitjobs import KitJobs
 from ..labjobs import LabJobs
 from ..library import by_family as library_by_family
 from ..library import tags as library_tags
@@ -271,6 +272,8 @@ OWNERS: dict[str, tuple[str, ...]] = {
     "_space": ("contexts",),
     # the Sample Lab's job and its store's directory (`lab_context`)
     "lab": ("contexts",),
+    # the Kit page's download of the acoustic kit (`kit_context`)
+    "kits": ("contexts",),
     "data_dir": ("contexts",),
     # the agent drawer's session, drawn by `page_context`
     "agent": ("page",),
@@ -340,5 +343,7 @@ class StudioService(
         # the Sample Lab's separation job (one at a time, its own thread);
         # opening it sweeps what a crash left in the source store
         self.lab = LabJobs(self.data_dir, self.events)
+        # the acoustic kit's download (one at a time, its own thread)
+        self.kits = KitJobs(self.events)
         # the clip hub's undo steps (an Apply, an Update of a clip): runtime
         self.hub = HubSession()

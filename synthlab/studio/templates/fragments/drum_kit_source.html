@@ -1,0 +1,44 @@
+{# synthlab/studio/templates/fragments/drum_kit_source.html
+   The beat's kit sound, beside the genre kit (drum_bank.html): Electronic
+   (the eight synthesised voices) or the acoustic kit (Naked Drums,
+   downloaded on first use: `kitjobs.py`). A region inside #drum-bank
+   (`kit-source`, `kit_context`). The sound lives on the beat
+   (`Arrangement.drum_kit`): a genre kit, a factory beat, the Lab's or the
+   clip hub's beat are electronic, and this select says so when they land.
+   While the acoustic kit is not on this machine its rows play electronic
+   voices and the line says why; while it downloads, this region polls
+   itself (`GET /fragment/drums/kit/job`, as the Lab's separation line) and
+   the answer that finds the job ended carries the kit's panel too. #}
+<div id="kit-source" class="kit-source" role="group" aria-label="Kit sound"
+     {% if oob %}hx-swap-oob="outerMorph"{% endif %}
+     {% if kit.job %}hx-get="/fragment/drums/kit/job?watch=1" hx-trigger="every 1s" hx-swap="outerMorph"{% endif %}>
+  <form class="bank-source" aria-label="The kit's sound" hx-post="/fragment/drums/source" hx-trigger="change"
+        hx-sync="this:queue last" hx-target="body" hx-swap="innerMorph">
+    <label>kit sound <select class="field field-s" name="source"
+                             title="the beat's sound: the eight synthesised voices, or a multi-sampled acoustic kit (its own rows, articulations and mics)">
+      <option value="" {% if not kit.acoustic %}selected{% endif %}>Electronic</option>
+      <option value="naked" {% if kit.acoustic %}selected{% endif %}>Acoustic (Naked Drums)</option>
+    </select></label>
+  </form>
+  {%- if kit.job %}
+  <span class="led" data-on="armed" aria-hidden="true"></span>
+  <progress value="{{ kit.job.done }}" max="{{ kit.job.total }}" aria-label="the kit's download"></progress>
+  <span class="kit-job" role="status" aria-live="polite">{{ kit.job.label }} — {{ kit.job.done }}/{{ kit.job.total }} MB</span>
+  <button type="button" class="btn btn-s" hx-post="/fragment/drums/kit/cancel" hx-target="#kit-source" hx-swap="outerMorph"
+          data-cmd="Cancel the kit's download" data-cmd-group="Kit"
+          title="stop the download: what has landed stays, and the next Download carries on from there">cancel</button>
+  {%- elif kit.acoustic and not kit.ready %}
+  <span class="kit-missing">Download Naked Drums ({{ kit.size }})</span>
+  <button type="button" class="btn btn-s btn-primary" hx-post="/fragment/drums/kit/download" hx-target="#kit-source" hx-swap="outerMorph"
+          data-cmd="Download the acoustic kit" data-cmd-group="Kit"
+          title="fetch Naked Drums ({{ kit.size }}, CC-BY 4.0) into this machine's kit folder — once; every file is checked against its pinned SHA-256">Download</button>
+  <span class="kit-note" title="the kit's rows play the electronic voices until the kit is here">electronic until it lands</span>
+  {%- if kit.error %}
+  <span class="kit-error" role="alert">{{ kit.error }}</span>
+  {%- endif %}
+  {%- endif %}
+  {%- if kit.just_ready %}
+  {#- the kit landed: render this page's loop again, now with the kit -#}
+  <i hidden hx-post="/fragment/preview" hx-vals='{"view": "drums"}' hx-trigger="load" hx-swap="none"></i>
+  {%- endif %}
+</div>

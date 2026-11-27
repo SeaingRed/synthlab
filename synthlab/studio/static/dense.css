@@ -987,7 +987,8 @@ html:not([data-density="comfy"]) {
       grid-template-areas: "h h h" "lvl read read" "spec spec spec" "gonio gonio gonio" "hist hist hist" "loud loud loud" "fx fx fx";
       align-content: stretch; gap: var(--s2); padding: var(--s2); }
     .mix-master > h2 { grid-area: h; }
-    .mix-master > .mix-master-level { grid-area: lvl; min-height: 0; grid-template-rows: minmax(0, 1fr) auto auto; }
+    .mix-master > .mix-master-level { grid-area: lvl; min-height: 0; grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto auto; align-items: stretch; }
     .mix-master > .mm-read { grid-area: read; grid-auto-rows: minmax(0, 1fr); }
     .mix-master > .mm-spec { grid-area: spec; }
     .mix-master > .mm-gonio { grid-area: gonio; }
@@ -1050,5 +1051,41 @@ html:not([data-density="comfy"]) {
   html:not([data-density="comfy"]) {
     /* under | beside: the editor's place, from 2200 px where both fit */
     .drawer-place { display: inline-flex; }
+  }
+}
+
+/* ---------- D49. The acoustic kit (style.css 49) ----------
+   The articulation lane is one more row under the grid: the steps' share
+   gives it its height (`--lanes-h`), and it scrolls with the rows (only
+   the velocity's lane stays in sight in a short window). From 2200 px the
+   kit's column holds its pads over the mic mixer, the faders taking the
+   height. */
+html:not([data-density="comfy"]) {
+  .drum-grid-8 .artrow { position: static; margin-block: 0; padding-block: 1px; background: none; }
+  .drum-grid-8 .art-cell { height: 18px; }
+  .drums-view:has(.artrow) { --lanes-h: 54px; }
+  .kit-pads .hit-pad { width: 100%; height: 32px; } /* (over the dense pad's 52 px square) */
+}
+@media (min-width: 1200px) and (min-height: 1000px) {
+  html:not([data-density="comfy"]) {
+    .drums-view:has(.artrow) { --lanes-h: 166px; }
+  }
+}
+@media (min-width: 2200px) {
+  html:not([data-density="comfy"]) {
+    /* the pads take what the faders leave: a block to play, as the strips' */
+    .drums-view > #drum-panels.kit-acoustic > .mic-mixer { flex: 1 1 auto; grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto auto; align-items: stretch; }
+    .drums-view > #drum-panels.kit-acoustic .kit-pads { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-rows: minmax(56px, 1fr); }
+    .drums-view > #drum-panels.kit-acoustic .kit-pads .hit-pad { height: auto; }
+    .drums-view > #drum-panels.kit-acoustic .mic-strip { grid-template-rows: clamp(160px, 28dvh, 360px) auto auto auto; }
+    .drums-view > #drum-panels.kit-acoustic .hit-pad .pad-wave { display: block; position: absolute;
+      inset: var(--s5) var(--s15); width: auto; height: auto; pointer-events: none; }
+    .drums-view > #drum-panels.kit-acoustic .hit-pad .pad-name { position: absolute; left: var(--s15); top: var(--s1); }
+  }
+}
+@media (min-width: 2200px) and (min-height: 1000px) {
+  html:not([data-density="comfy"]) {
+    #view.drums-view:has(.artrow) { --lanes-h: 226px; }
   }
 }

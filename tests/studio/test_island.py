@@ -234,7 +234,7 @@ def test_every_island_states_a_budget_and_keeps_it():
     stubs = {
         "roll.js": 290,
         "zoom.js": 70,
-        "steps.js": 295,  # 270 + Kit's stacked hit lanes
+        "steps.js": 325,  # 270 + Kit's stacked hit lanes + the articulation lane
         "songsel.js": 120,
         "jam.js": 250,  # 240 + the transport's hooks
     }

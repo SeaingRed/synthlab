@@ -15,6 +15,10 @@ to another machine rendered silence. The bundle carries them:
     clips/<name>.meta.json    keeps it, and its meta when it has one
     takenotes/<name>.json     a keys take's notes, when it is one
                               (`keytakes.py`: the clip's sidecar)
+    NOTES.txt                 what the project plays that the bundle does
+                              not carry: the acoustic kit (its credit and
+                              licence, CC-BY 4.0), when a beat uses it.
+                              Read back as nothing
 
 Reading one (`read`) is strict, and refuses the whole bundle before
 anything is written: only those names (no directories, no other paths —
@@ -71,6 +75,7 @@ from .state import StudioState, clip_refs
 log = logging.getLogger("synthlab.studio")
 
 PROJECT = "project.json"
+NOTES = "NOTES.txt"
 _SAMPLE = re.compile(r"samples/([0-9a-f]{16})\.wav")
 _CLIP = re.compile(r"clips/([^/\\]+?)(\.meta\.json|\.wav)")
 _NOTES = re.compile(rf"{TAKE_NOTES}/([^/\\]+?)\.json")
@@ -117,6 +122,33 @@ def sample_refs(payload) -> set[str]:
     return found
 
 
+def uses_kit(payload) -> bool:
+    """Does any beat in a persisted payload play the acoustic kit: the
+    working loop, a bank slot, a variation, a song pattern, a baseline
+    (`drum_kit`, or a pattern's `kit`, set to "naked")."""
+    stack = [payload]
+    while stack:
+        node = stack.pop()
+        items = node.items() if isinstance(node, dict) else enumerate(node)
+        for key, value in items:
+            if key in ("drum_kit", "kit") and value == "naked":
+                return True
+            if isinstance(value, (dict, list)):
+                stack.append(value)
+    return False
+
+
+def kit_notes() -> str:
+    """NOTES.txt for a project that plays the acoustic kit."""
+    from .kitjobs import CREDIT, CREDIT_URL
+
+    return (
+        "This project plays the acoustic drum kit:\n"
+        f"  {CREDIT}\n  {CREDIT_URL}\n"
+        "The kit is not in this bundle: the studio downloads it on first use.\n"
+    )
+
+
 # --- writing -------------------------------------------------------------------
 
 
@@ -129,6 +161,8 @@ def build(payload: dict, data_dir: Path) -> bytes:
     clips = clip_dir(data_dir)
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         zip_write(z, PROJECT, project_text(payload))
+        if uses_kit(payload):
+            zip_write(z, NOTES, kit_notes())
         # audio is stored, not deflated: 16-bit PCM barely compresses (the
         # stems export measured deflating it as half its time)
         for sid in sorted(sample_refs(payload)):
@@ -260,6 +294,8 @@ def read(data: bytes) -> Bundle:
         name = info.filename
         if info.is_dir() or info.flag_bits & 0x1:  # a directory; encrypted
             raise BundleError(f"unexpected entry {name!r}")
+        if name == NOTES:
+            continue  # written for people: nothing to install
         if name == PROJECT:
             raw = _member(z, info, limits.MAX_PROJECT_UPLOAD_BYTES)
             project = json.loads(raw.decode("utf-8"))

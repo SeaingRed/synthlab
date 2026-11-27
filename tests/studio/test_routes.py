@@ -345,6 +345,7 @@ EXPECTED_ROUTES = [
     (["GET"], "/fragment/clips"),
     (["GET"], "/fragment/curve-close"),
     (["GET"], "/fragment/curve/{param}"),
+    (["GET"], "/fragment/drums/kit/job"),  # the acoustic kit's download line
     (["GET"], "/fragment/free/shaper"),  # free record's shaper (routes/freerec.py)
     # the clip hub (routes/cliphub.py): an item's bench, the filtered list,
     # the player for a tune, the send panel for a Place section
@@ -447,15 +448,20 @@ EXPECTED_ROUTES = [
     (["POST"], "/fragment/drums/clear"),
     (["POST"], "/fragment/drums/grid"),
     (["POST"], "/fragment/drums/kit"),  # genre kits
+    # the acoustic kit: its download, its cancel, the polled line
+    (["POST"], "/fragment/drums/kit/cancel"),
+    (["POST"], "/fragment/drums/kit/download"),
     (["POST"], "/fragment/drums/lib/delete"),
     (["POST"], "/fragment/drums/lib/load"),
     (["POST"], "/fragment/drums/lib/save"),
+    (["POST"], "/fragment/drums/mics"),  # the acoustic kit's mic mixer
     (["POST"], "/fragment/drums/mutate"),
     (["POST"], "/fragment/drums/notation"),
     (["POST"], "/fragment/drums/preset"),
     (["POST"], "/fragment/drums/randomise"),
     (["POST"], "/fragment/drums/row/{voice}/{op}"),
     (["POST"], "/fragment/drums/sample"),
+    (["POST"], "/fragment/drums/source"),  # the kit sound: electronic / acoustic
     (["POST"], "/fragment/drums/transport"),
     (["POST"], "/fragment/drums/var"),  # the beat's variations A-D
     (["POST"], "/fragment/factory/load"),
@@ -711,6 +717,9 @@ LOCK_FREE = {
     # (self-locking) and the job's own state, never the session
     "/lab/{sid}/region.wav",
     "/fragment/lab/job",
+    # the Kit page's download line: the job's own state (its last answer,
+    # the one that finds the job ended, takes the lock to draw the panel)
+    "/fragment/drums/kit/job",
     # a chop's audition and the stem downloads: the source store again (the
     # downloads are files streamed from disk, minutes long)
     "/lab/{sid}/chop/{cid}.wav",
@@ -736,6 +745,8 @@ RENDER_OUTSIDE_LOCK = {
     # ... and on a pool pattern: a section of its own, through a lane
     "/song/pattern/{pattern_id}/play.wav",
     "/fragment/breed/generation",
+    # the acoustic kit's download: whether it is here stats every file
+    "/fragment/drums/kit/download",
     # Import SFZ…: the samples are decoded with the lock released (they touch
     # only the self-locking sample store), the sound loaded under it again
     "/fragment/sampler/sfz",
