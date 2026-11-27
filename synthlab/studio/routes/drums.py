@@ -24,7 +24,7 @@ from ..gen import drums as gd
 from ..render import RenderError, RenderResult, _to_wav_bytes, loop_refusal
 from ..routing import StrForm, Svc, pattern_edit, studio_router
 from ..service import StudioService
-from ..state import DRUM_ROWS, StudioState, drum_grid, lane_fields
+from ..state import ALL_DRUM_ROWS, StudioState, drum_grid, lane_fields
 
 router = studio_router()
 
@@ -302,7 +302,7 @@ def fragment_drums_sample(request: Request, form: StrForm, svc: Svc) -> Response
     """Point one drum voice at a clip from the store — or
     back at its synthesized hit with an empty clip name."""
     voice = form.get("voice", "")
-    if voice not in DRUM_ROWS:
+    if voice not in ALL_DRUM_ROWS:
         return Response(status_code=404)
     s: StudioState = svc.state
     # each row's select is `clip.<voice>`: they all sit inside #drum-grid,
@@ -335,7 +335,7 @@ def fragment_drums_row(
     row's per-hit data, its hits kept). A hit's data follows its cell
     through a shift and goes with a cell that goes."""
     s: StudioState = svc.state
-    if voice not in DRUM_ROWS:
+    if voice not in ALL_DRUM_ROWS:
         return Response(status_code=404)
     arr = s.arrangement
     others = [c for c in arr.drums if c[0] != voice]

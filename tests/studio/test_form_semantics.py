@@ -152,6 +152,8 @@ _DRUM_AND_CLIP_FIELDS = (
     "clips",
     "drum_hits",
     "drum_row_swing",
+    "drum_kit",
+    "drum_mics",
 )
 _CELL_FIELDS = ("cells", "velocities", "slides", "cuts", "note_chance")
 _GRID_FIELDS = (
@@ -202,6 +204,8 @@ def _fill_non_synth_arrangement(s):
         drum_mix={"kick": {"level": 0.5}},
         drum_hits={"snare.4": {"v": 0.3, "r": 2}, "kick.0": {"n": -0.25}},
         drum_row_swing={"kick": 0.0},
+        drum_kit="naked",
+        drum_mics={"overheads": -3.0},
         clips=[{"clip": "take", "at_bar": 1, "gain": 0.8}],
         cells=[["C2", 1]],
         cuts=[["C2", 1]],

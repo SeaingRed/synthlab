@@ -86,6 +86,8 @@ def _drum_notes(arr, offset: float) -> list[mf.Note]:
             _velocity(h[1]),
         )
         for voice, hits in drum_hits(arr)
+        # (an acoustic-kit row has no key here yet: it is left out)
+        if voice in GM_DRUMS
         for h in hits
         if h[1] > 0
     ]

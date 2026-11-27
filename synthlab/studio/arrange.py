@@ -36,6 +36,7 @@ from .curves import CURVABLE, curve_array, lane_array
 from .drumlab import specs_of
 from .lru import LRU
 from .state import (
+    ALL_DRUM_ROWS,
     DRUM_ROWS,
     ROOTS,
     SCALE_CHOICES,
@@ -251,7 +252,7 @@ def arrangement_from_form(
         if not key.startswith(_DRUM_PREFIX):
             continue
         parts = key.split(".")
-        if len(parts) != 3 or parts[1] not in DRUM_ROWS:
+        if len(parts) != 3 or parts[1] not in ALL_DRUM_ROWS:
             continue
         try:
             step = int(parts[2])
@@ -1639,14 +1640,27 @@ def drum_hits(arr: Arrangement) -> list[tuple[str, list[Hit]]]:
     by_voice: dict[str, list[int]] = {}
     for name, step in arr.drums:
         s = int(step)
-        if name in DRUM_ROWS and (
+        if name in ALL_DRUM_ROWS and (
             0 <= s < total or (s == total and (data.get(f"{name}.{s}") or {}).get("pk"))
         ):
             by_voice.setdefault(name, []).append(s)
-    seed = zlib.crc32(json.dumps([arr.drums, human, mix], sort_keys=True).encode())
+    # the seed and the draw order are today's eight rows' as they always
+    # were: the acoustic kit's further rows (`NEW_DRUM_ROWS`) are left out
+    # of the seed and drawn after them, so a beat with none is the schedule
+    # it always was, and one with some moves none of the eight's draws
+    seed = zlib.crc32(
+        json.dumps(
+            [
+                [c for c in arr.drums if c[0] in DRUM_ROWS],
+                human,
+                {k: v for k, v in mix.items() if k in DRUM_ROWS},
+            ],
+            sort_keys=True,
+        ).encode()
+    )
     rng = np.random.default_rng(seed)
     out: list[tuple[str, list[Hit]]] = []
-    for voice, steps in sorted(by_voice.items()):
+    for voice, steps in sorted(by_voice.items(), key=_row_order):
         m = mix.get(voice, {})
         if not drum_row_sounds(arr, voice):  # muted, or soloed out
             continue
@@ -1703,6 +1717,12 @@ def drum_hits(arr: Arrangement) -> list[tuple[str, list[Hit]]]:
     return out
 
 
+def _row_order(item) -> tuple:
+    """`drum_hits`' voice order: today's eight by name (so "hat" before
+    "ohat"), then the acoustic kit's further rows by name."""
+    return (item[0] not in DRUM_ROWS, item[0])
+
+
 def _tuned(voice: str, params: dict, sample, semitones: float) -> np.ndarray:
     """A voice's hit `semitones` away from its own: a synthesized voice
     with a `tune` (kick, snare, tom, rim: `drumlab.DRUM_PARAMS`) is struck
@@ -1740,6 +1760,10 @@ def _schedule_drums(song: Song, arr: Arrangement, clip_root=None) -> None:
             k: v for k, v in (arr.drum_params.get(voice) or {}).items() if k in valid
         }
         clip = _voice_sample(arr, voice, clip_root)
+        if clip is None and voice not in dr.KIT:
+            # an acoustic-kit row with no electronic voice of its own and
+            # no clip: nothing to play here yet
+            continue
         sample = clip if clip is not None else dr.hit(voice, **params)
         tuned: dict[float, np.ndarray] = {}  # a hit's own pitch (`Hit.tune`)
         track = f"drum_{voice}"

@@ -172,7 +172,12 @@ def step_key(raw: str) -> str | None:
 # render 768 cells (6 rows), ~1.7 s for 2048.
 MAX_GRID_PITCHES = 24
 MAX_GRID_CELLS = MAX_GRID_STEPS * MAX_GRID_PITCHES
-MAX_DRUM_CELLS = MAX_GRID_STEPS * 8  # 8 drum voices (state.DRUM_ROWS)
+# 8 x the longest grid: every row of today's eight at 256 steps, and exactly
+# every row of `state.ALL_DRUM_ROWS` (16) on the drum grid's longest (4 bars
+# of 32 steps)
+MAX_DRUM_CELLS = MAX_GRID_STEPS * 8
+# the acoustic kit's mic mixer (`Arrangement.drum_mics`): dB a mic
+MIC_DB_RANGE = (-60.0, 12.0)
 # a lane's per-note feel entries (`Arrangement.note_feel`): one a note at
 # most, and a note is at least one cell
 MAX_FEEL_NOTES = MAX_GRID_CELLS

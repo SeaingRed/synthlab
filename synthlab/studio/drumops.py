@@ -30,7 +30,7 @@ from .patternops import (
     remap,
     remap_lane,
 )
-from .state import DRUM_ROWS
+from .state import ALL_DRUM_ROWS
 
 DRUM_TOOLS = frozenset(
     {
@@ -200,7 +200,11 @@ def hits_from_form(form: Mapping[str, str], drums, prev: Mapping | None = None) 
         if not key.startswith("hit."):
             continue
         parts = key.split(".")
-        if len(parts) != 4 or parts[1] not in DRUM_ROWS or parts[3] not in HIT_FIELDS:
+        if (
+            len(parts) != 4
+            or parts[1] not in ALL_DRUM_ROWS
+            or parts[3] not in HIT_FIELDS
+        ):
             continue
         step = limits.step_key(parts[2])
         if step is None:
@@ -232,14 +236,14 @@ def row_swing_from_form(
         if isinstance(parsed, dict):
             out = parsed
     for key, value in form.items():
-        if key.startswith("rswing.") and key[7:] in DRUM_ROWS:
+        if key.startswith("rswing.") and key[7:] in ALL_DRUM_ROWS:
             x = _number(value)
             if x is None:
                 out.pop(key[7:], None)
             else:
                 out[key[7:]] = x
     clean: dict = {}
-    for voice in DRUM_ROWS:
+    for voice in ALL_DRUM_ROWS:
         x = _number(out.get(voice)) if voice in out else None
         if x is None:
             continue
@@ -263,10 +267,10 @@ def levels_from_form(form: Mapping[str, str]) -> dict[str, float]:
         if isinstance(parsed, dict):
             out = parsed
     for key, value in form.items():
-        if key.startswith("level.") and key[6:] in DRUM_ROWS:
+        if key.startswith("level.") and key[6:] in ALL_DRUM_ROWS:
             out[key[6:]] = value
     clean: dict[str, float] = {}
-    for voice in DRUM_ROWS:
+    for voice in ALL_DRUM_ROWS:
         x = _number(out.get(voice)) if voice in out else None
         if x is not None:
             clean[voice] = min(1.5, max(0.0, x))
@@ -284,7 +288,7 @@ def euclid_row(lane: dict, voice: str, hits: int, of: int, rotate: int = 0) -> d
     it is asked for one step on — `x..x..x.`, the longest gaps first — and
     `rotate` turns it from there. The row's hits past the grid stay
     hidden; the other rows do not move."""
-    if voice not in DRUM_ROWS:
+    if voice not in ALL_DRUM_ROWS:
         raise KeyError(voice)
     total = int(lane["bars"]) * int(lane["steps"])
     of = max(1, min(int(of), total, limits.MAX_GRID_STEPS))
@@ -330,5 +334,5 @@ def swap_kit(lane: dict, kit: dict, samples: Mapping | None = None) -> dict:
         "lane": _with(lane),
         "params": {v: dict(p) for v, p in kit["params"].items()},
         "samples": dict(samples or {}),
-        "unshaped": sorted(played - set(kit["params"]), key=DRUM_ROWS.index),
+        "unshaped": sorted(played - set(kit["params"]), key=ALL_DRUM_ROWS.index),
     }

@@ -23,7 +23,7 @@ import zlib
 
 from ..sequencer import euclid
 from . import meter as _meter
-from .state import DRUM_ROWS
+from .state import ALL_DRUM_ROWS, DRUM_ROWS
 
 # voice -> (forced 16th steps, (euclid hits, rotate) | None, extra-hit probability)
 _STYLES: dict[str, dict[str, tuple[tuple[int, ...], tuple[int, int] | None, float]]] = {
@@ -1066,7 +1066,8 @@ def mutate(
     ``voice`` only that row's cells are touched."""
     rng = random.Random(seed)
     total = bars * steps_per_bar
-    cells = {(v, s) for v, s in steps if v in DRUM_ROWS and 0 <= s < total}
+    # every row's cells are kept; the eight electronic rows are flipped
+    cells = {(v, s) for v, s in steps if v in ALL_DRUM_ROWS and 0 <= s < total}
     rows = [voice] if voice else DRUM_ROWS
     grid = [(v, s) for v in rows for s in range(total)]
     flips = [c for c in grid if rng.random() < rate] or [rng.choice(grid)]

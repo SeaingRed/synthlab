@@ -39,8 +39,9 @@ class DrumBank:
     # restart keeps the one on the grid, and "Save to slot" keeps any.
     VARIANTS = ("A", "B", "C", "D")
     # what a variation is: the drum lane's cells, lanes, shape, per-hit
-    # data and row swings (the kit, the tempo and the kit's swing are the
-    # beat family's, shared)
+    # data and row swings, and its sound source (the acoustic kit and its
+    # mics live on the beat); the electronic kit's shaping, the tempo and
+    # the kit's swing are the beat family's, shared
     _VAR_FIELDS = (
         "drums",
         "drum_vel",
@@ -48,6 +49,8 @@ class DrumBank:
         "drum_steps",
         "drum_hits",
         "drum_row_swing",
+        "drum_kit",
+        "drum_mics",
     )
 
     def _var_lane(self) -> dict:
@@ -123,15 +126,19 @@ class DrumBank:
                 "swing": arr.drum_swing,
                 "hits": copy.deepcopy(arr.drum_hits),
                 "row_swing": dict(arr.drum_row_swing),
+                # the kit lives on the beat (absent when unset)
+                "kit": arr.drum_kit,
+                "mics": dict(arr.drum_mics),
             }
         )
 
     @staticmethod
     def pattern_fields(pattern: dict) -> dict:
         """A pattern as the drum lane's fields (drums + bars/steps/swing,
-        and its per-hit data and row swings — none, for a pattern without
-        any): what `apply_pattern` puts on the grid, and what a beat loop
-        renders with (`routes/takes.py`)."""
+        its per-hit data and row swings, its kit and mics — none, for a
+        pattern without any: the electronic voices): what `apply_pattern`
+        puts on the grid, and what a beat loop renders with
+        (`routes/takes.py`)."""
         p = _clean_pattern(pattern)
         return {
             "drums": [list(d) for d in p["steps"]],
@@ -140,6 +147,8 @@ class DrumBank:
             "drum_swing": p["swing"],
             "drum_hits": copy.deepcopy(p.get("hits") or {}),
             "drum_row_swing": dict(p.get("row_swing") or {}),
+            "drum_kit": p.get("kit") or "",
+            "drum_mics": dict(p.get("mics") or {}),
         }
 
     def apply_pattern(self, pattern: dict) -> None:

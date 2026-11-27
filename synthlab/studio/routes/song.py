@@ -83,7 +83,7 @@ from ..routing import (
     studio_router,
 )
 from ..service import StudioService
-from ..state import DRUM_ROWS, Arrangement, key_ladder
+from ..state import ALL_DRUM_ROWS, Arrangement, key_ladder
 from ..state.model import NOTE_LANE
 from ..words import plural
 from .drums import _extend_hits, _extend_vel
@@ -1441,7 +1441,7 @@ def _beat_tool(song: dict, p: dict, op: str, form: dict, seed: int) -> dict:
     lane = gd.lane_of(p)
     if op in ("euclid", "hitclear"):
         voice = form.get("voice", "")
-        if voice not in DRUM_ROWS:
+        if voice not in ALL_DRUM_ROWS:
             raise sm.SongError("No such drum row.")
         if op == "hitclear":
             kept = {
