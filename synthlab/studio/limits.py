@@ -254,6 +254,11 @@ MAX_DRUM_HITS = MAX_DRUM_CELLS
 # (POST /song/cells): past either the post is refused whole, never cut
 MAX_JAM_EVENTS = 512
 MAX_RANGE_CELLS = 96
+# the piano roll's selection as a set of notes (`patternops.parse_sel`'s
+# `n:<pitch>@<start>,...`): a whole 16-bar window's notes fit; past it, or
+# past its characters, the post is refused whole, never cut
+MAX_SEL_NOTES = 4096
+MAX_SEL_CHARS = MAX_SEL_NOTES * 12
 # a generator's seed is taken modulo this (routes/song_start.py)
 SEED_MODULO = 1_000_000
 STRUM_MS_RANGE = (-60.0, 60.0)  # a chord's notes apart, low to high (or high to low)

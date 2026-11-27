@@ -18,7 +18,7 @@ import random
 from collections.abc import Callable, Collection
 
 from ..sequencer import midi
-from . import notefeel, schema
+from . import limits, notefeel, schema
 
 Cells = list[list]
 
@@ -565,15 +565,42 @@ def _int(raw) -> int:
     return int(raw)
 
 
-def parse_sel(raw: str, total: int, rows) -> tuple[int, int, int, int] | None:
-    """`sel=<step0>:<step1>:<pitch>:<pitch>` (inclusive both ways) as
-    (step0, step1, row0, row1) indices into the window, clamped to it;
-    None when there is none. Raises `ToolRefused` for a rectangle that
-    names no row of the window or is not numbers."""
+def parse_sel(
+    raw: str, total: int, rows
+) -> tuple[int, int, int, int] | frozenset[tuple[str, int]] | None:
+    """A selection, in one of two forms; None when there is none.
+
+    - `sel=n:<pitch>@<start>,<pitch>@<start>,...`: exactly those notes (a
+      note = its row and its start step in the window) — what the roll
+      sends, a frozenset of (pitch, start).
+    - `sel=<step0>:<step1>:<pitch>:<pitch>` (inclusive both ways): every
+      note a cell of which lies in the rectangle, as (step0, step1, row0,
+      row1) indices into the window, clamped to it.
+
+    Raises `ToolRefused` for one that names no row of the window, a start
+    off the grid, more than `limits.MAX_SEL_NOTES` notes, or is not
+    numbers."""
     if not raw:
         return None
-    parts = raw.split(":")
     order = {r: i for i, r in enumerate(rows)}
+    if raw.startswith("n:"):
+        if len(raw) > limits.MAX_SEL_CHARS:
+            raise ToolRefused(_NO_SEL)
+        items = raw[2:].split(",")
+        if len(items) > limits.MAX_SEL_NOTES:
+            raise ToolRefused(_NO_SEL)
+        out = set()
+        for item in items:
+            pitch, at, start = item.partition("@")
+            try:
+                step = _int(start)
+            except ValueError:
+                raise ToolRefused(_NO_SEL) from None
+            if not at or pitch not in order or not 0 <= step < total:
+                raise ToolRefused(_NO_SEL)
+            out.add((pitch, step))
+        return frozenset(out)
+    parts = raw.split(":")
     if len(parts) != 4 or parts[2] not in order or parts[3] not in order:
         raise ToolRefused(_NO_SEL)
     try:
@@ -585,10 +612,13 @@ def parse_sel(raw: str, total: int, rows) -> tuple[int, int, int, int] | None:
 
 
 def _picked(notes, sel, rows) -> list[bool]:
-    """Which notes the selection holds: every one a cell of which lies in
-    the rectangle (all of them when there is no selection)."""
+    """Which notes the selection holds: those it names (a note set), every
+    one a cell of which lies in the rectangle, or all of them when there is
+    no selection."""
     if sel is None:
         return [True] * len(notes)
+    if isinstance(sel, frozenset):
+        return [(r, a) in sel for r, a, _b in notes]
     s0, s1, r0, r1 = sel
     order = {r: i for i, r in enumerate(rows)}
     return [r0 <= order[r] <= r1 and a <= s1 and b > s0 for r, a, b in notes]
@@ -829,14 +859,9 @@ def is_roll(op: str, args) -> bool:
     return op in ROLL_TOOLS or (op in NUDGES and bool(args.get("sel")))
 
 
-def bounds(notes, rows) -> str:
-    """The rectangle round `notes`, as a `sel` ("" for none)."""
-    if not notes:
-        return ""
-    order = {r: i for i, r in enumerate(rows)}
-    top = min(notes, key=lambda n: order[n[0]])[0]
-    low = max(notes, key=lambda n: order[n[0]])[0]
-    return f"{min(n[1] for n in notes)}:{max(n[2] for n in notes) - 1}:{top}:{low}"
+def note_set(notes) -> str:
+    """`notes` as a `sel` naming exactly them ("" for none)."""
+    return "n:" + ",".join(f"{n[0]}@{n[1]}" for n in notes) if notes else ""
 
 
 def roll_tool(
@@ -844,13 +869,16 @@ def roll_tool(
 ) -> tuple[dict, str, str | None]:
     """A piano-roll edit on a notes lane (`is_roll`), over the window
     (`rows`, top to bottom, x the lane's steps). `args` is the request's
-    form: `sel` (a rectangle; none = every note the window shows, except
-    for move / copy / remove / resize, which need one), `dx` / `dy`
+    form: `sel` (a note set or a rectangle, `parse_sel`; none = every note
+    the window shows, except for move / copy / remove / resize, which need
+    one), `dx` / `dy`
     (steps later, rows up), `by` (steps a note's end moves), and for a
     stamp `row` / `step` / `len` with `q` (the in-key chord on that row)
     or `tones` (comma-separated pitches). Returns (the new lane, a note
-    for the user or "", the selection afterwards — the rectangle round
-    the notes it touched, "" for none, None to leave the page's alone).
+    for the user or "", the selection afterwards — exactly the notes it
+    touched, as a note set (`note_set`: never the rectangle round them,
+    which can hold notes never picked), "" for none, None to leave the
+    page's alone).
     Raises `ToolRefused`, KeyError for an unknown op."""
     total = int(lane["bars"]) * int(lane["steps_per_bar"])
     sel = parse_sel(args.get("sel", ""), total, rows)
@@ -895,7 +923,7 @@ def roll_tool(
         return out, said if left else "", None
     else:
         raise KeyError(op)
-    return out, "", bounds(hit, rows) if sel is not None else None
+    return out, "", note_set(hit) if sel is not None else None
 
 
 def __getattr__(name: str):

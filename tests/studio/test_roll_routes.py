@@ -68,7 +68,7 @@ def test_a_move_carries_the_note_and_answers_with_where_it_went(client):
     assert r.status_code == 200
     assert cells(client) == [("C2", 4), ("C2", 8), ("C2", 9)]
     assert arr(client).velocities == {"8": 0.4}  # the velocity went with it
-    assert trig(r)["roll-sel"] == {"sel": "8:9:C2:C2"}
+    assert trig(r)["roll-sel"] == {"sel": "n:C2@8"}
     # one pattern-undo step, and it brings the lane's notes AND lanes back
     assert len(s._pattern_undo) == 1
     client.post("/fragment/pattern/undo", headers=PERFORM)
@@ -80,11 +80,11 @@ def test_a_copy_and_a_resize_and_a_remove(client):
     data = {"sel": "0:1:A1:A1", "dx": "8"}
     r = client.post(NOTES + "copy", data=data, headers=PERFORM)
     assert cells(client) == [("A1", 0), ("A1", 1), ("A1", 8), ("A1", 9), ("C2", 4)]
-    assert trig(r)["roll-sel"] == {"sel": "8:9:A1:A1"}
+    assert trig(r)["roll-sel"] == {"sel": "n:A1@8"}
     r = client.post(
         NOTES + "resize", data={"sel": "8:9:A1:A1", "by": "2"}, headers=PERFORM
     )
-    assert ("A1", 11) in cells(client) and trig(r)["roll-sel"] == {"sel": "8:11:A1:A1"}
+    assert ("A1", 11) in cells(client) and trig(r)["roll-sel"] == {"sel": "n:A1@8"}
     r = client.post(NOTES + "remove", data={"sel": "8:8:A1:A1"}, headers=PERFORM)
     assert cells(client) == [("A1", 0), ("A1", 1), ("C2", 4)]
     assert trig(r)["roll-sel"] == {"sel": ""}  # nothing is selected any more
@@ -93,7 +93,7 @@ def test_a_copy_and_a_resize_and_a_remove(client):
 def test_the_patterns_shift_moves_a_selection_when_the_post_carries_one(client):
     r = client.post(NOTES + "shift_right", data={"sel": "4:4:C2:C2"}, headers=PERFORM)
     assert cells(client) == [("A1", 0), ("A1", 1), ("C2", 5)]
-    assert arr(client).slides == [5] and trig(r)["roll-sel"] == {"sel": "5:5:C2:C2"}
+    assert arr(client).slides == [5] and trig(r)["roll-sel"] == {"sel": "n:C2@5"}
     # without one it is the tool it always was: every note, wrapping
     client.post(NOTES + "shift_left", headers=PERFORM)
     assert cells(client) == [("A1", 0), ("A1", 15), ("C2", 4)]
@@ -108,7 +108,7 @@ def test_legato_half_and_double_take_the_window_or_a_selection(client):
     r = client.post(NOTES + "half", data={"sel": "4:4:C2:C2"}, headers=PERFORM)
     assert sum(c[0] == "C2" for c in cells(client)) == 6
     assert sum(c[0] == "A1" for c in cells(client)) == 4  # not selected: untouched
-    assert trig(r)["roll-sel"] == {"sel": "4:9:C2:C2"}
+    assert trig(r)["roll-sel"] == {"sel": "n:C2@4"}
 
 
 def test_a_stamp_writes_the_chord_in_the_key_on_the_clicked_row(client):
@@ -354,7 +354,7 @@ def test_the_drawers_roll_moves_a_pool_pattern_in_one_song_undo_step(drawer):
     r = drawer.post("/song/pattern/p1/tool/move", data=data, headers=SONG)
     assert r.status_code == 200
     assert sorted(map(tuple, pat(drawer)["cells"])) == [("B1", 2), ("E2", 4)]
-    assert trig(r)["roll-sel"] == {"sel": "2:2:B1:B1"}
+    assert trig(r)["roll-sel"] == {"sel": "n:B1@2"}
     assert set(trig(r)["song-changed"]["sections"]) == {"s1", "s2"}  # it is shared
     assert len(s._song_undo) == undo + 1
     drawer.post("/song/undo", headers=SONG)
