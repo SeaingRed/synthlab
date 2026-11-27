@@ -1,6 +1,7 @@
 """synthlab.kits.fetch: a kit fetched file by file, never over the network."""
 
 import hashlib
+import http.client
 import io
 import json
 import re
@@ -80,6 +81,56 @@ def test_cancel_stops_the_download(tmp_path):
     with pytest.raises(fetch.Cancelled):
         fetch.download(kit, d, cancel=lambda: len(calls) >= 1, opener=opener)
     assert len(calls) == 1
+    assert not list(d.rglob("*.part"))
+
+
+def test_cancel_between_files_keeps_the_finished_one(tmp_path):
+    kit, d = _kit(tmp_path), tmp_path / "out"
+    seen = []
+
+    def cancel():
+        seen.append(1)
+        return len(seen) == 2  # first call: mid-file one; second: after it
+
+    with pytest.raises(fetch.Cancelled):
+        fetch.download(kit, d, cancel=cancel, opener=_opener(FILES))
+    assert not list(d.rglob("*.part"))
+
+
+def test_a_dropped_connection_is_a_kit_error(tmp_path):
+    kit, d = _kit(tmp_path), tmp_path / "out"
+
+    class Dropped(io.BytesIO):
+        def read(self, n=-1):
+            raise http.client.IncompleteRead(b"12", 100)
+
+    with pytest.raises(fetch.KitError, match="a/one.flac"):
+        fetch.download(kit, d, opener=lambda url: Dropped())
+    assert not list(d.rglob("*.part"))
+
+
+def test_a_short_body_says_it_ended_early(tmp_path):
+    kit, d = _kit(tmp_path), tmp_path / "out"
+    served = dict(FILES, **{"a/one.flac": b"1" * 10})
+    with pytest.raises(fetch.KitError, match="ended early"):
+        fetch.download(kit, d, opener=_opener(served))
+
+
+def test_stale_part_files_are_swept(tmp_path):
+    kit, d = _kit(tmp_path), tmp_path / "out"
+    (d / "a").mkdir(parents=True)
+    stale = d / "a" / "one.flac.dead.part"
+    stale.write_bytes(b"x")
+    fetch.download(kit, d, opener=_opener(FILES))
+    assert not stale.exists()
+
+
+def test_availability_is_size_only_and_verified_hashes(tmp_path):
+    kit, d = _kit(tmp_path), tmp_path / "out"
+    fetch.download(kit, d, opener=_opener(FILES))
+    (d / "a" / "two.flac").write_bytes(b"Z" * 2500)  # same size, wrong bytes
+    assert fetch.availability(kit, d)["ready"] is True
+    assert fetch.verified(kit, d) is False
 
 
 def test_http_is_refused(tmp_path):

@@ -13,6 +13,7 @@ be resumed and a file that is wrong is never used. Modelled on
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import sys
@@ -170,6 +171,8 @@ def download(
         raise KitError("Kit downloads are HTTPS only.")
     d = Path(directory or kit_dir(kit))
     opener = opener or _open  # looked up now: the suite replaces it
+    for stale in d.rglob("*.part") if d.is_dir() else ():
+        stale.unlink(missing_ok=True)  # a killed run's leftovers
     todo = [e for e in manifest(kit) if not _verify_one(_target(d, e), e)]
     total, done = sum(e["size"] for e in todo), 0
     for e in todo:
@@ -192,9 +195,11 @@ def download(
                             raise Cancelled("Download cancelled.")
                     out.flush()
                     os.fsync(out.fileno())
-            except OSError as err:  # URLError, a dropped connection, a full disk
+            except (OSError, http.client.HTTPException) as err:  # URLError, a drop
                 raise KitError(f"The download of {e['path']} failed: {err}") from err
-            if got != e["size"] or h.hexdigest() != e["sha256"]:
+            if got < e["size"]:
+                raise KitError(f"{e['path']} ended early; it was deleted.")
+            if h.hexdigest() != e["sha256"]:
                 raise KitError(
                     f"{e['path']} did not match its pinned SHA-256; it was deleted."
                 )
@@ -208,11 +213,11 @@ def download(
 
 
 def availability(kit: Kit = NAKED, directory: Path | None = None) -> dict:
-    """What a button needs: `ready` (every file there, right size and hash),
-    `megabytes` still to fetch, and `reason` — "" when ready, else the
-    sentence to show."""
-    d = Path(directory or kit_dir(kit))
-    left = [e for e in manifest(kit) if not _verify_one(_target(d, e), e)]
+    """What a button needs: `ready` (every file there at its size), `megabytes`
+    still to fetch, and `reason` — "" when ready, else the sentence to show.
+    Size only (a stat a file): the SHA-256 is held when `download` writes a
+    file and by `verified`, never hashed per request here."""
+    left = missing(kit, directory)
     mb = round(sum(e["size"] for e in left) / 1e6)
     if not left:
         return {"ready": True, "megabytes": 0, "reason": ""}
