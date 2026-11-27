@@ -115,7 +115,7 @@ def test_the_cache_is_bounded(tmp_path):
     names = [_write(tmp_path, f"f{i}.flac", 0.1, n=1000) for i in range(20)]
     cache = play.SampleCache(max_bytes=20_000)
     for n in names:
-        cache.get(tmp_path / n)
+        cache.get(tmp_path / n, SR)
         assert cache.bytes <= 20_000
     assert 0 < cache.bytes
 
@@ -131,3 +131,67 @@ def test_levels_overlay_the_studio_preset():
     assert lv["far_room"] == -3 and lv["kick_in"] is None
     assert lv["close_room"] == -6 and lv["mid_side"] is None
     assert set(lv) == set(play.MICS)
+
+
+def test_cached_arrays_are_read_only_stereo_at_the_rate(tmp_path):
+    _write(tmp_path, "m.flac", 0.3, n=441, sr=22050)
+    got = play.SampleCache().get(tmp_path / "m.flac", SR)
+    assert got.dtype == np.float32 and got.shape[1] == 2 and abs(len(got) - 882) <= 2
+    with pytest.raises(ValueError):
+        got[0, 0] = 1.0
+
+
+def test_layers_with_one_centre_do_not_divide_by_zero(tmp_path):
+    a = _write(tmp_path, "a.flac", 0.2)
+    b = _write(tmp_path, "b.flac", 0.4)
+    c = _write(tmp_path, "c.flac", 0.8)
+    kit = _kit(
+        [
+            _art(
+                [
+                    Layer(0, 40, ({"kick_in": a},)),
+                    Layer(10, 30, ({"kick_in": b},)),
+                    Layer(100, 127, ({"kick_in": c},)),
+                ]
+            )
+        ]
+    )
+    for v in (0.1, 0.2, 0.5, 1.0):
+        out = play.render_hit(kit, tmp_path, "kick", "hit", v, 0, None)
+        assert np.isfinite(out).all()
+
+
+def test_a_path_outside_the_kit_is_refused(tmp_path):
+    kit_root = tmp_path / "kit"
+    kit_root.mkdir()
+    _write(tmp_path, "secret.flac", 0.5)
+    for rel in ("../secret.flac", str(tmp_path / "secret.flac")):
+        kit = _kit([_art([Layer(0, 127, ({"kick_in": rel},))])])
+        with pytest.raises(KitError):
+            play.render_hit(kit, kit_root, "kick", "hit", 1.0, 0, None)
+
+
+def test_a_cold_path_from_many_threads_decodes_once(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    _write(tmp_path, "x.flac", 0.5)
+    cache = play.SampleCache()
+    calls = []
+    real = play.SampleCache._decode
+
+    def counting(path):
+        calls.append(path)
+        time.sleep(0.05)
+        return real(path)
+
+    monkeypatch.setattr(play.SampleCache, "_decode", staticmethod(counting))
+    ts = [
+        threading.Thread(target=cache.get, args=(tmp_path / "x.flac", SR))
+        for _ in range(8)
+    ]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert len(calls) == 1

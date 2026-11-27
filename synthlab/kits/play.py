@@ -88,20 +88,21 @@ def _cache_bytes() -> int:
 
 
 class SampleCache:
-    """Decoded files, byte-bounded and least-recently-used. Held as float32,
-    each file decoded once however many threads ask for it at the same time."""
+    """What a hit sums: each file as stereo float32 at the rate asked, read-only,
+    byte-bounded and least-recently-used, keyed by (path, rate). Each is made
+    once however many threads ask for it at the same time."""
 
     def __init__(self, max_bytes: int | None = None):
         self.max_bytes = _cache_bytes() if max_bytes is None else max_bytes
         self.bytes = 0
-        self._items: OrderedDict[str, np.ndarray] = OrderedDict()
+        self._items: OrderedDict[tuple[str, int], np.ndarray] = OrderedDict()
         self._lock = threading.Lock()
-        self._path_locks: dict[str, threading.Lock] = {}
+        self._path_locks: dict[tuple[str, int], threading.Lock] = {}
 
-    def get(self, path: Path) -> np.ndarray:
-        """The file as float64 `(n, channels)` at its own rate's samples, and
-        the rate: `(audio, sr)`. A missing or unreadable file is a KitError."""
-        key = str(path)
+    def get(self, path: Path, sr: int = SR) -> np.ndarray:
+        """The file as read-only float32 `(n, 2)` at `sr`. A missing or
+        unreadable file is a KitError."""
+        key = (str(path), sr)
         with self._lock:
             hit = self._items.get(key)
             if hit is not None:
@@ -112,10 +113,11 @@ class SampleCache:
                 with self._lock:
                     hit = self._items.get(key)
                 if hit is None:
-                    hit = self._decode(path)
+                    audio, file_sr = self._decode(path)
+                    hit = _stereo(audio, file_sr, sr)
+                    hit.flags.writeable = False
                     self._put(key, hit)
-        audio, sr = hit
-        return audio.astype(np.float64), sr
+        return hit
 
     @staticmethod
     def _decode(path: Path):
@@ -127,15 +129,14 @@ class SampleCache:
             raise KitError(f"kit sample missing or unreadable: {path.name}") from err
         return audio, int(sr)
 
-    def _put(self, key: str, item) -> None:
-        size = item[0].nbytes
+    def _put(self, key, item: np.ndarray) -> None:
         with self._lock:
-            if key in self._items or size > self.max_bytes:
+            if key in self._items or item.nbytes > self.max_bytes:
                 return
             self._items[key] = item
-            self.bytes += size
+            self.bytes += item.nbytes
             while self.bytes > self.max_bytes:
-                _, (old, _sr) = self._items.popitem(last=False)
+                _, old = self._items.popitem(last=False)
                 self.bytes -= old.nbytes
 
 
@@ -143,22 +144,39 @@ CACHE = SampleCache()
 
 
 def _stereo(audio: np.ndarray, sr: int, want: int) -> np.ndarray:
-    if audio.shape[1] == 1:
-        audio = np.repeat(audio, 2, axis=1)
-    elif audio.shape[1] > 2:
+    """Float32 `(n, 2)` at `want`: resampled linearly first (a mono file once,
+    not twice), then a mono file to both sides."""
+    if audio.shape[1] > 2:
         audio = audio[:, :2]
     if sr != want and len(audio):
         n = max(1, round(len(audio) * want / sr))
         idx = np.linspace(0, len(audio) - 1, n)
         base = np.arange(len(audio))
-        audio = np.stack([np.interp(idx, base, audio[:, c]) for c in (0, 1)], axis=1)
-    return audio
+        audio = np.stack(
+            [np.interp(idx, base, audio[:, c]) for c in range(audio.shape[1])], axis=1
+        ).astype(np.float32)
+    if audio.shape[1] == 1:
+        audio = np.repeat(audio, 2, axis=1)
+    return np.ascontiguousarray(audio)
+
+
+def _inside(root: Path, rel: str) -> Path:
+    base = Path(root).resolve()
+    path = (base / rel).resolve()
+    if not path.is_relative_to(base):
+        raise KitError(f"kit sample outside the kit: {rel}")
+    return path
 
 
 def _weights(layers, m: float):
     """[(layer, weight)] for MIDI velocity `m`: the nearest centres, equal power."""
-    order = sorted(layers, key=lambda ly: (ly.lo + ly.hi) / 2)
-    centres = [(ly.lo + ly.hi) / 2 for ly in order]
+    order, centres = [], []
+    for ly in sorted(layers, key=lambda ly: (ly.lo + ly.hi) / 2):
+        c = (ly.lo + ly.hi) / 2
+        if centres and c == centres[-1]:
+            continue  # two layers at one centre: the first stands for both
+        order.append(ly)
+        centres.append(c)
     if m <= centres[0]:
         return [(order[0], 1.0)]
     if m >= centres[-1]:
@@ -198,11 +216,10 @@ def render_hit(
             if db is None:
                 continue
             gain = amp * w * 10 ** ((db + a.mic_trim_db.get(mic, 0.0)) / 20)
-            audio, file_sr = CACHE.get(Path(root) / rel)
-            parts.append((_stereo(audio, file_sr, sr), gain))
+            parts.append((CACHE.get(_inside(root, rel), sr), gain))
     if not parts:
         return np.zeros((0, 2))
     out = np.zeros((max(len(p) for p, _ in parts), 2))
     for p, gain in parts:
-        out[: len(p)] += p * gain
+        out[: len(p)] += p * np.float32(gain)
     return out
