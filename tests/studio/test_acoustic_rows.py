@@ -225,11 +225,11 @@ def test_an_electronic_beat_schedules_as_before(slot):
     assert {v for v, _ in got} - set(DRUM_ROWS) == {"ride", "tom3"}
 
 
-def test_a_new_row_renders_its_fallback_and_exports_nothing_yet():
+def test_a_new_row_renders_its_fallback():
     """On an electronic kit a new row's cells play the nearest electronic
     voice (`arrange.FALLBACK_VOICES`: the ride the crash voice, short) on a
     track of their own, and the beat beside them renders exactly as without
-    them. Their MIDI keys are not written yet (Task 6)."""
+    them. Their MIDI keys are the electronic kit's own."""
     import numpy as np
 
     from synthlab.studio import midi_bridge
@@ -245,4 +245,6 @@ def test_a_new_row_renders_its_fallback_and_exports_nothing_yet():
         )
     ((_at, ride, gain),) = b.tracks["drum_ride"].events
     assert gain == 1.0 and np.max(np.abs(ride)) > 0.1
-    assert midi_bridge._drum_notes(more, 0.0) == midi_bridge._drum_notes(arr, 0.0)
+    got = midi_bridge._drum_notes(more, 0.0)
+    assert sorted(n.pitch for n in got) == [36, 42, 51]  # the ride at its GM key
+    assert [n for n in got if n.pitch != 51] == midi_bridge._drum_notes(arr, 0.0)
