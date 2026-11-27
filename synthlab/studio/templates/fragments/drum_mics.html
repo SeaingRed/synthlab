@@ -5,7 +5,8 @@
    fader (dB) and a mute a microphone (`kits.play.MICS`), the three presets
    — and the kit's credit. Every value is a native range posting itself on
    `change` (`POST /fragment/drums/mics`, `<mic>=<dB>`); a mute posts
-   "off" (or, lit, the mic's rest level back); a preset puts every mic at
+   `mute.<mic>` (its level stays: unmuted, it is back where it was; a mic
+   its preset leaves off is turned on at its rest level); a preset puts every mic at
    its levels. What is off the preset is written down
    (`Arrangement.drum_mics`, absent at the studio preset). #}
 {% from "macros.html" import fill %}
@@ -37,7 +38,7 @@
              aria-label="{{ m.label }} level, dB" title="{{ m.label }}: its level in dB · double-click: the preset's">
       <output for="mic-{{ m.id }}" class="mic-val">{{ m.db | round(1) }}</output>
       <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="{{ 'true' if m.off else 'false' }}"
-              hx-post="/fragment/drums/mics" hx-vals='{{ {m.id: (m.rest if m.off else "off")} | tojson }}' hx-swap="none"
+              hx-post="/fragment/drums/mics" hx-vals='{{ ({"mute." ~ m.id: "0"} if m.muted else ({m.id: m.rest} if m.off else {"mute." ~ m.id: "1"})) | tojson }}' hx-swap="none"
               data-cmd="Mute the {{ m.label }} mic" data-cmd-group="Kit" aria-label="mute {{ m.label }}" title="mute {{ m.label }}">M</button>
       <span class="mic-name">{{ m.label }}</span>
     </div>

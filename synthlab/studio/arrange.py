@@ -1893,25 +1893,57 @@ HAT_RINGERS = ("half", "open")
 KIT_GAIN_DB = 11.0
 KIT_GAIN = 10.0 ** (KIT_GAIN_DB / 20.0)
 KIT_READY_SECONDS = 2.0  # how long a "the kit is here" answer is believed
-_KIT_READY: dict[str, tuple[float, bool]] = {}
+_KIT_READY: dict[str, tuple[float, dict]] = {}
 
 
 def kit_ready() -> bool:
     """Is the acoustic kit on this machine (`kits.fetch.availability`: a
     stat a file, ~50 ms) — believed for `KIT_READY_SECONDS`, since every
     acoustic key asks. `forget_kit` drops the answer (a download ends)."""
+    return bool(kit_availability().get("ready"))
+
+
+def kit_availability() -> dict:
+    """`kits.fetch.availability` of the kit folder (`ready`, `megabytes`
+    still to fetch, `reason`), believed for `KIT_READY_SECONDS` as
+    `kit_ready` is (it is that answer)."""
     d = _kit_fetch.kit_dir()
     now = time.monotonic()
     got = _KIT_READY.get(str(d))
     if got is None or now - got[0] > KIT_READY_SECONDS:
-        got = (now, bool(_kit_fetch.availability(directory=d).get("ready")))
+        got = (now, dict(_kit_fetch.availability(directory=d)))
         _KIT_READY[str(d)] = got
     return got[1]
 
 
 def forget_kit() -> None:
-    """Drop `kit_ready`'s answer: the next one asks the disk."""
+    """Drop `kit_ready`'s answer (the next one asks the disk) and what
+    `kit_damage` says (a download has run since)."""
     _KIT_READY.clear()
+    _KIT_DAMAGE.clear()
+
+
+# why the kit could not play a hit, by kit folder (`_kit_hit`): the Kit page
+# says it, with a fresh download (every file checked again)
+_KIT_DAMAGE: dict[str, str] = {}
+
+
+def kit_damage() -> str:
+    """The last `KitError` the render met in the kit on this machine
+    ("" while none): a kit there by size but a file corrupt, or the kit's
+    SFZ and its files disagreeing."""
+    return _KIT_DAMAGE.get(str(_kit_fetch.kit_dir()), "")
+
+
+def _kit_hit(kit, row: str, art: str, velocity: float, rr: int, mics):
+    """`kits.play.render_hit`, or None when the kit cannot play it
+    (`KitError`): that hit plays the row's electronic stand-in instead, and
+    `kit_damage` says why — a damaged kit never fails the render."""
+    try:
+        return _kit_play.render_hit(kit[0], kit[1], row, art, velocity, rr, mics)
+    except _kit_fetch.KitError as err:
+        _KIT_DAMAGE[str(kit[1])] = str(err)
+        return None
 
 
 def acoustic_kit(arr: Arrangement, ready: bool | None = None):
@@ -1999,6 +2031,7 @@ def _schedule_drums(
             beat, gain = h
             if h.art == "choke":  # cuts the ring (below), sounds nothing
                 continue
+            kitted = False
             if acoustic:
                 vel = max(0.0, float(h.vel if h.vel is not None else 1.0))
                 q = round(min(1.0, vel) * 127)
@@ -2006,9 +2039,9 @@ def _schedule_drums(
                     continue
                 key = (voice, h.art, q, h.rr, mic_key)
                 if key not in made:
-                    made[key] = _kit_play.render_hit(
-                        kit[0], kit[1], voice, h.art, q / 127, h.rr, mics
-                    )
+                    made[key] = _kit_hit(kit, voice, h.art, q / 127, h.rr, mics)
+                kitted = made[key] is not None
+            if kitted:
                 src, which = made[key], key
                 gain = gain / min(1.0, vel) * KIT_GAIN
             elif clip is not None:
@@ -2023,7 +2056,7 @@ def _schedule_drums(
                 if (which, h.tune) not in tuned:
                     tuned[(which, h.tune)] = (
                         _tuned("", {}, src, h.tune)
-                        if acoustic or clip is not None
+                        if kitted or clip is not None
                         else _tuned(voices[which][1], voices[which][2], None, h.tune)
                     )
                 src = tuned[(which, h.tune)]

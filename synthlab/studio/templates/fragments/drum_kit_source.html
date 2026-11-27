@@ -27,8 +27,17 @@
   <button type="button" class="btn btn-s" hx-post="/fragment/drums/kit/cancel" hx-target="#kit-source" hx-swap="outerMorph"
           data-cmd="Cancel the kit's download" data-cmd-group="Kit"
           title="stop the download: what has landed stays, and the next Download carries on from there">cancel</button>
+  {%- elif kit.damage %}
+  {#- here by size, but a hit could not be played (`arrange.kit_damage`):
+      its row plays the electronic voice; a fresh download hashes every
+      file again and fetches what does not match -#}
+  <span class="kit-error" role="alert" title="{{ kit.damage }}">The kit is damaged: its rows play electronic voices where it fails</span>
+  <button type="button" class="btn btn-s btn-primary" hx-post="/fragment/drums/kit/download" hx-vals='{"repair": "1"}'
+          hx-target="#kit-source" hx-swap="outerMorph"
+          data-cmd="Repair the acoustic kit" data-cmd-group="Kit"
+          title="check every file of Naked Drums against its pinned SHA-256 and fetch again what does not match">Download again</button>
   {%- elif kit.acoustic and not kit.ready %}
-  <span class="kit-missing">Download Naked Drums ({{ kit.size }})</span>
+  <span class="kit-missing">{{ "Finish downloading" if kit.partial else "Download" }} Naked Drums ({{ kit.size }}{{ " left" if kit.partial }})</span>
   <button type="button" class="btn btn-s btn-primary" hx-post="/fragment/drums/kit/download" hx-target="#kit-source" hx-swap="outerMorph"
           data-cmd="Download the acoustic kit" data-cmd-group="Kit"
           title="fetch Naked Drums ({{ kit.size }}, CC-BY 4.0) into this machine's kit folder — once; every file is checked against its pinned SHA-256">Download</button>

@@ -179,15 +179,17 @@ def test_the_acoustic_kit_shows_its_rows(client):
 
 
 def test_a_grid_post_keeps_the_rows_it_does_not_draw(client):
-    """An electronic grid draws the eight: a ride's cells and hits stay."""
+    """A grid posts the rows it drew (`rows`); a row it did not draw — a
+    page drawn before the ride had cells — keeps its cells and hits."""
     _set(
         client,
         drums=[["kick", 0], ["ride", 2], ["ride", 6]],
         drum_hits={"ride.2": {"v": 0.5}, "kick.0": {"v": 0.7}},
     )
+    eight = ",".join(DRUM_ROWS)
     r = client.post(
         "/fragment/drums/grid",
-        data={"drum.kick.0": "on", "drum.snare.4": "on", "hits": "{}"},
+        data={"rows": eight, "drum.kick.0": "on", "drum.snare.4": "on", "hits": "{}"},
         headers=HX,
     )
     assert r.status_code == 200
@@ -199,10 +201,25 @@ def test_a_grid_post_keeps_the_rows_it_does_not_draw(client):
         ("snare", 4),
     ]
     assert a.drum_hits == {"ride.2": {"v": 0.5}}
-    # the acoustic kit's grid draws the ride: its post decides it
-    _set(client, drum_kit="naked")
+    # the page draws the ride now (it plays: the crash voice) and posts it
+    html = client.get("/view/drums").text
+    assert _rows(html) == [*DRUM_ROWS, "ride"]
+    assert f'name="rows" value="{eight},ride"' in html
+    client.post(
+        "/fragment/drums/grid",
+        data={"rows": f"{eight},ride", "drum.kick.0": "on"},
+        headers=HX,
+    )
+    assert _st(client).arrangement.drums == [["kick", 0]]
+    # a post without `rows` (a script's): the rows the beat's kit draws now
+    _set(client, drums=[["kick", 0], ["china", 1]], drum_kit="naked")
     client.post("/fragment/drums/grid", data={"drum.kick.0": "on"}, headers=HX)
     assert _st(client).arrangement.drums == [["kick", 0]]
+
+
+def test_an_electronic_beat_shows_the_further_rows_it_plays():
+    assert kit_rows("", [["kick", 0]]) == DRUM_ROWS
+    assert kit_rows("", [["china", 1], ["ride", 3]]) == [*DRUM_ROWS, "ride", "china"]
 
 
 def test_a_song_pattern_post_keeps_the_rows_its_grid_does_not_draw(client):
@@ -211,7 +228,7 @@ def test_a_song_pattern_post_keeps_the_rows_its_grid_does_not_draw(client):
     p["drums"] = [["kick", 0], ["china", 3]]
     r = client.post(
         "/song/pattern/pd/grid",
-        data={"drum.kick.0": "on", "drum.kick.4": "on"},
+        data={"rows": ",".join(DRUM_ROWS), "drum.kick.0": "on", "drum.kick.4": "on"},
         headers={**HX, "HX-Current-URL": "http://testserver/view/song"},
     )
     assert r.status_code == 200, r.text[:200]
@@ -401,3 +418,85 @@ def test_a_beats_pictures_draw_its_further_rows():
     assert roll["h"] == 10 and "M2 8.5h0.7" in roll["d"] and "M3 9.5h0.7" in roll["d"]
     p = {"kind": "drums", "bars": 1, "steps": 16, "drums": [["kick", 0], ["tom3", 5]]}
     assert _thumb(p) == {"w": 16, "h": 9, "marks": [(0, 0), (5, 8)]}
+
+
+def test_a_mute_keeps_the_mics_own_level(client):
+    _set(client, drum_kit="naked")
+
+    def mics(**data):
+        client.post("/fragment/drums/mics", data=data, headers=HX)
+        return _st(client).arrangement.drum_mics
+
+    assert mics(overheads="-3") == {"overheads": -3.0}
+    assert mics(**{"mute.overheads": "1"}) == {
+        "overheads": -3.0,
+        "muted": ["overheads"],
+    }
+    assert play.levels(_st(client).arrangement.drum_mics)["overheads"] is None
+    html = client.get("/view/drums").text
+    strip = html[html.index('data-mic="overheads"') :]
+    assert 'value="-3.0"' in strip[:600] and '"mute.overheads": "0"' in strip[:1500]
+    assert mics(**{"mute.overheads": "0"}) == {"overheads": -3.0}  # back at -3
+    # a fader on a muted mic lifts the mute
+    mics(**{"mute.hats": "1"})
+    assert mics(hats="-6") == {"overheads": -3.0, "hats": -6.0}
+    # a preset puts every mic at its levels, mutes and all
+    mics(**{"mute.hats": "1"})
+    assert mics(preset="room") == {"preset": "room"}
+
+
+def test_a_damaged_kit_plays_electronic_and_says_so(tmp_path, monkeypatch):
+    """A kit there by size whose file is corrupt (or whose SFZ disagrees
+    with its files): the render never fails — that row plays its
+    electronic voice — and the Kit page offers the download again."""
+
+    def broken(*a, **k):
+        raise fetch.KitError("Samples/OH_A2_10_one-CWG6.flac could not be read")
+
+    monkeypatch.setenv(fetch.KIT_ENV, str(tmp_path / "kit"))
+    monkeypatch.setattr(play, "render_hit", broken)
+    monkeypatch.setattr(fetch, "availability", lambda *a, **k: {"ready": True})
+    monkeypatch.setattr(sfz, "read_kit", lambda root: sfz.KitMap({}, ()))
+    arrange.forget_kit()
+    try:
+        with TestClient(create_app(data_dir=tmp_path / "data")) as c:
+            _set(c, drum_kit="naked", drums=[["hat", 0], ["kick", 4]])
+            assert "The kit is damaged" not in c.get("/view/drums").text
+            r = c.post("/fragment/preview", data={"view": "drums"}, headers=HX)
+            assert r.status_code == 200, r.text[:200]
+            assert "preview-ready" in r.headers.get("HX-Trigger", "")
+            # the render's answer carries the kit line, out of band
+            assert "The kit is damaged" in r.text
+            html = c.get("/view/drums").text
+            assert "The kit is damaged" in html and '"repair": "1"' in html
+            started = []
+            monkeypatch.setattr(
+                c.app.state.svc.kits,
+                "start",
+                lambda repair=False: started.append(repair) or "",
+            )
+            c.post("/fragment/drums/kit/download", data={"repair": "1"}, headers=HX)
+            assert started == [True]
+    finally:
+        arrange.forget_kit()
+    assert arrange.kit_damage() == ""  # a download forgets it
+
+
+def test_a_stopped_download_says_what_is_left(client, monkeypatch):
+    monkeypatch.setattr(
+        fetch,
+        "availability",
+        lambda *a, **k: {"ready": False, "megabytes": 240, "reason": "x"},
+    )
+    arrange.forget_kit()
+    _set(client, drum_kit="naked")
+    assert (
+        "Finish downloading Naked Drums (240 MB left)" in client.get("/view/drums").text
+    )
+
+
+def test_the_pages_subtitle_names_its_kit(client):
+    assert "eight voices" in client.get("/view/drums").text
+    _set(client, drum_kit="naked")
+    html = client.get("/view/drums").text
+    assert "eight voices" not in html and "multi-sampled acoustic kit" in html

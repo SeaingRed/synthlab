@@ -75,15 +75,18 @@ MIC_PRESETS: dict[str, dict[str, float | None]] = {
 def levels(mics: dict | None) -> dict[str, float | None]:
     """A mic mix as `Arrangement.drum_mics` holds it, resolved: its
     `"preset"` (default and unknown: `studio`), then its own dB values over
-    that preset (None = off)."""
+    that preset (None = off), then `"muted"` (mics muted over their level)."""
     mics = mics or {}
     preset = mics.get("preset")
     if not isinstance(preset, str) or preset not in MIC_PRESETS:
         preset = "studio"
     out = dict(MIC_PRESETS[preset])
     for k, v in mics.items():
-        if k != "preset":
+        if k not in ("preset", "muted"):
             out[k] = None if v is None else float(v)
+    for k in mics.get("muted") or ():  # muted over their level
+        if k in out:
+            out[k] = None
     return out
 
 

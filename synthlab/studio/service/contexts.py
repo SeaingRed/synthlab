@@ -216,6 +216,7 @@ class Contexts:
             acoustic and not busy and arrange.kit_ready(),
             busy,
             self.kits.last_error() if acoustic else "",
+            arrange.kit_damage() if acoustic else "",
         )
 
     def kit_context(self) -> dict:
@@ -228,9 +229,13 @@ class Contexts:
         acoustic = a.drum_kit == "naked"
         job = self.kits.state()
         ready = acoustic and job is None and arrange.kit_ready()
+        have = arrange.kit_availability() if acoustic and not ready else {}
+        left = int(have.get("megabytes") or round(kitjobs.kit_bytes() / 1e6))
         preset = (a.drum_mics or {}).get("preset") or "studio"
         base = kit_play.MIC_PRESETS.get(preset, kit_play.MIC_PRESETS["studio"])
-        levels = kit_play.levels(a.drum_mics)
+        mixed = dict(a.drum_mics or {})
+        muted = set(mixed.pop("muted", None) or ())
+        levels = kit_play.levels(mixed)  # each mic's level, mute or not
         mics = []
         for mic in kit_play.MICS:
             rest = base.get(mic)
@@ -241,7 +246,8 @@ class Contexts:
                     "id": mic,
                     "label": kitjobs.MIC_LABELS[mic],
                     "db": rest if db is None else db,
-                    "off": db is None,
+                    "off": db is None or mic in muted,
+                    "muted": mic in muted,  # over a level it keeps
                     "rest": rest,
                 }
             )
@@ -251,7 +257,11 @@ class Contexts:
             "ready": ready,
             "job": job,
             "error": self.kits.last_error() if acoustic else "",
-            "size": kitjobs.size_label(),
+            # a kit here by size that could not play a hit (`arrange.kit_damage`)
+            "damage": arrange.kit_damage() if ready else "",
+            # what is left to fetch (all of it, or the rest after a stop)
+            "size": kitjobs.size_label(left),
+            "partial": 0 < left < kitjobs.kit_bytes() / 1e6 - 1,
             "credit": kitjobs.CREDIT,
             "credit_url": kitjobs.CREDIT_URL,
             "preset": preset,

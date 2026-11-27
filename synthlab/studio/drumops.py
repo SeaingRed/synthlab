@@ -341,6 +341,19 @@ def swap_kit(lane: dict, kit: dict, samples: Mapping | None = None) -> dict:
 # --- the rows a grid draws ----------------------------------------------------------
 
 
+def drawn_rows(form: Mapping[str, str], fallback) -> list[str]:
+    """The rows a grid post's grid drew: its hidden `rows` field (a
+    comma list, held to `ALL_DRUM_ROWS`) — what the page showed, even when
+    the beat has moved since — else `fallback` (a script's post: the rows
+    the beat's kit draws now)."""
+    raw = form.get("rows")
+    if isinstance(raw, str) and len(raw) <= 512:
+        rows = [r for r in raw.split(",") if r in ALL_DRUM_ROWS]
+        if rows:
+            return rows
+    return list(fallback)
+
+
 def keep_hidden(
     drums, hits: Mapping, was_drums, was_hits: Mapping, drawn: Collection[str], form
 ) -> tuple[list, dict]:

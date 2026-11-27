@@ -346,7 +346,7 @@ body { line-height: 1.35; }
   :is(.perform-view, .drums-view) :is(.transport, .drum-grid) > .grid .gridrow:not(.sliderow) > .cell {
     height: auto; }
   :is(.perform-view, .drums-view) .drum-grid-8 .gridrow {
-    height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 30px); }
+    --step-h: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 30px); height: var(--step-h); }
   :is(.perform-view, .drums-view) .grid:not(.drum-grid-8) .gridrow:not(.sliderow) {
     height: clamp(17px, calc((100cqh - 46px) / var(--rows, 6) - 2px), 30px); }
 
@@ -402,7 +402,7 @@ body { line-height: 1.35; }
    grid sized for a giant screen) */
 @media (min-width: 1200px) and (min-height: 1200px) {
   :is(.perform-view, .drums-view) .drum-grid-8 .gridrow {
-    height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 30px); }
+    --step-h: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 30px); height: var(--step-h); }
   :is(.perform-view, .drums-view) .grid:not(.drum-grid-8) .gridrow:not(.sliderow) {
     height: clamp(17px, calc((100cqh - 46px) / var(--rows, 6) - 2px), 30px); }
 }
@@ -470,7 +470,7 @@ body { line-height: 1.35; }
   .drums-view > #drum-bank { grid-column: 1; grid-row: 3; }
   .drums-view .drum-grid { max-height: none; }
   .drums-view .drum-grid-8 .gridrow {
-    height: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 96px); }
+    --step-h: clamp(17px, calc((100cqh - var(--lanes-h, 32px)) / var(--rows, 8) - 2px), 96px); height: var(--step-h); }
   .drums-view > #drum-panels { grid-column: 2; grid-row: 3; overflow: auto;
     display: flex; flex-direction: column; }
   #drumkit.panels { flex: 1 1 auto; }
@@ -917,7 +917,7 @@ body { line-height: 1.35; }
    to fill it. */
 @media (min-width: 1200px) {
   html:not([data-density="comfy"])[data-rack="drums"] .perform-view .drum-grid-8 .gridrow {
-    height: max(17px, calc((100cqh - 32px) / var(--rows, 8) - 2px)); }
+    --step-h: max(17px, calc((100cqh - 32px) / var(--rows, 8) - 2px)); height: var(--step-h); }
 }
 
 /* ---------- D41. Perform's launcher (style.css 41) ----------
@@ -987,8 +987,7 @@ html:not([data-density="comfy"]) {
       grid-template-areas: "h h h" "lvl read read" "spec spec spec" "gonio gonio gonio" "hist hist hist" "loud loud loud" "fx fx fx";
       align-content: stretch; gap: var(--s2); padding: var(--s2); }
     .mix-master > h2 { grid-area: h; }
-    .mix-master > .mix-master-level { grid-area: lvl; min-height: 0; grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr) auto auto; align-items: stretch; }
+    .mix-master > .mix-master-level { grid-area: lvl; min-height: 0; grid-template-rows: minmax(0, 1fr) auto auto; }
     .mix-master > .mm-read { grid-area: read; grid-auto-rows: minmax(0, 1fr); }
     .mix-master > .mm-spec { grid-area: spec; }
     .mix-master > .mm-gonio { grid-area: gonio; }
@@ -1062,13 +1061,15 @@ html:not([data-density="comfy"]) {
    height. */
 html:not([data-density="comfy"]) {
   .drum-grid-8 .artrow { position: static; margin-block: 0; padding-block: 1px; background: none; }
-  .drum-grid-8 .art-cell { height: 18px; }
-  .drums-view:has(.artrow) { --lanes-h: 54px; }
+  .drum-grid-8 .art-cell { --step-h: 26px; } /* (the velocity lane's height) */
+  .song-drawer .drum-grid-8 .art-cell { --step-h: 20px; } /* (the drawer's lane) */
+  .drums-view:has(.artrow) { --lanes-h: 60px; }
   .kit-pads .hit-pad { width: 100%; height: 32px; } /* (over the dense pad's 52 px square) */
 }
 @media (min-width: 1200px) and (min-height: 1000px) {
   html:not([data-density="comfy"]) {
-    .drums-view:has(.artrow) { --lanes-h: 166px; }
+    .drums-view:has(.artrow) { --lanes-h: 172px; }
+    .drums-view .drum-grid-8 > .artrow .art-cell { --step-h: 22px; } /* (the stacked hit lanes') */
   }
 }
 @media (min-width: 2200px) {
@@ -1086,6 +1087,7 @@ html:not([data-density="comfy"]) {
 }
 @media (min-width: 2200px) and (min-height: 1000px) {
   html:not([data-density="comfy"]) {
-    #view.drums-view:has(.artrow) { --lanes-h: 226px; }
+    #view.drums-view:has(.artrow) { --lanes-h: 244px; }
+    #view.drums-view .drum-grid-8 > .artrow .art-cell { --step-h: 36px; } /* (the five lanes' 36 px here) */
   }
 }

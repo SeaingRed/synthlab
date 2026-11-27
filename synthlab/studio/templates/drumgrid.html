@@ -47,6 +47,7 @@
     <input type="hidden" name="steps" value="{{ steps }}">
     <input type="hidden" name="hits" value="{{ hits | tojson | forceescape }}">
     <input type="hidden" name="rswing" value="{{ row_swing | tojson | forceescape }}">
+    <input type="hidden" name="rows" value="{{ drum_rows | join(',') }}">
     {%- if tools %}
     <input type="hidden" name="rlevel" value="{}">
     {%- endif %}

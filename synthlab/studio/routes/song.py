@@ -1309,7 +1309,7 @@ def _drums_grid(song: dict, p: dict, form: dict) -> None:
         hits,
         p["drums"],
         p.get("hits") or {},
-        kit_rows(p.get("kit", ""), p["drums"]),
+        drumops.drawn_rows(form, kit_rows(p.get("kit", ""), p["drums"])),
         form,
     )
     swing = drumops.row_swing_from_form(form, p.get("swing"), song["drum_swing"])

@@ -159,7 +159,7 @@ def _drums_from_form(svc: StudioService, form: dict) -> None:
         drumops.hits_from_form(form, parsed.drums, arr.drum_hits),
         arr.drums,
         arr.drum_hits,
-        kit_rows(arr.drum_kit, arr.drums),
+        drumops.drawn_rows(form, kit_rows(arr.drum_kit, arr.drums)),
         form,
     )
     s.arrangement = replace(
@@ -829,8 +829,10 @@ def fragment_drums_source(request: Request, form: StrForm, svc: Svc) -> Response
 @router.post("/fragment/drums/mics")
 def fragment_drums_mics(request: Request, form: StrForm, svc: Svc) -> Response:
     """The acoustic kit's mic mixer (`Arrangement.drum_mics`): `preset`
-    puts every mic at its levels (the overrides go), `<mic>=<dB>` sets one
-    (held to `limits.MIC_DB_RANGE`), `<mic>=off` mutes it. What equals the
+    puts every mic at its levels (the overrides and mutes go), `<mic>=<dB>`
+    sets one (held to `limits.MIC_DB_RANGE`), `<mic>=off` turns it off,
+    `mute.<mic>=1` / `0` mutes / unmutes it over its level (which stays:
+    a -3 dB mic comes back at -3). What equals the
     preset is not written down (`schema`'s cleaner). A fader's own post is
     not drawn again under the hand; a mute or a preset redraws the mixer."""
     s: StudioState = svc.state
@@ -841,7 +843,12 @@ def fragment_drums_mics(request: Request, form: StrForm, svc: Svc) -> Response:
             return svc.toast("No such mic preset.")
         mics, redraw = {"preset": form["preset"]}, True
     was = kit_play.levels(mics)
+    muted = set(mics.get("muted") or ())
     for mic in kit_play.MICS:
+        flag = form.get(f"mute.{mic}", "")
+        if flag in ("1", "0"):  # a mute over the mic's level: the level stays
+            (muted.add if flag == "1" else muted.discard)(mic)
+            redraw = True
         raw = form.get(mic, "").strip()
         if raw == "off":
             mics[mic], redraw = None, True
@@ -852,7 +859,9 @@ def fragment_drums_mics(request: Request, form: StrForm, svc: Svc) -> Response:
                 continue
             if math.isfinite(x):
                 redraw |= was.get(mic) is None  # a fader lifts a mic out of mute
+                muted.discard(mic)
                 mics[mic] = x
+    mics["muted"] = sorted(muted)
     s.arrangement = replace(s.arrangement, drum_mics=clean_mics(mics))
     if not redraw:
         svc.suppress("drum-panels")
@@ -868,16 +877,23 @@ def _kit_source(svc: StudioService, **extra) -> str:
 
 @router.post("/fragment/drums/kit/download")
 @render_outside_lock
-def fragment_kit_download(request: Request, svc: Svc) -> Response | OutsideLock:
+def fragment_kit_download(
+    request: Request, form: StrForm, svc: Svc
+) -> Response | OutsideLock:
     """Fetch the acoustic kit (`kitjobs`: one at a time, its own thread,
-    every file checked). Asking whether it is already here stats each of
-    its files, so that runs with the lock released; the answer is the kit
-    line, polling the job."""
+    every file checked); `repair=1` runs even when every file is there by
+    size (the kit met a damaged one: each is hashed again). Asking whether
+    it is here stats each of its files, so that runs with the lock released
+    — and is asked again there before the lock is taken, so the answer
+    drawn under it is the memo's (`arrange.kit_ready`). The answer is the
+    kit line, polling the job."""
+    repair = form.get("repair") == "1"
 
     def run() -> Response:
-        problem = svc.kits.start()
+        problem = svc.kits.start(repair=repair)
         if problem == "busy":
             return svc.toast("The kit is already downloading.")
+        arrange.kit_availability()  # the stat, outside the lock
         with svc.state.lock:
             here = svc.kits.state() is None
             return HTMLResponse(_kit_source(svc, just_ready=here))
@@ -905,7 +921,11 @@ def fragment_kit_job(request: Request) -> Response:
     svc: StudioService = request.app.state.svc
     if not (request.query_params.get("watch") == "1" and not svc.kits.busy()):
         return HTMLResponse(_kit_source(svc))
+    arrange.kit_availability()  # the stat, outside the lock
     with svc.state.lock:
+        # renders made while the kit was missing or damaged hold the
+        # stand-in voices under keys that may not move: forget them
+        svc.reset_caches()
         html = _kit_source(svc, just_ready=not svc.kits.last_error())
         html += svc.oob_regions(request, "drum-panels", view="drums")
     return HTMLResponse(html)

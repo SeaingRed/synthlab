@@ -69,13 +69,16 @@ _ACOUSTIC_EXTRAS: tuple[str, ...] = ("ohat", "clap", "rim")
 
 def kit_rows(kit: str, drums) -> list[str]:
     """The rows a grid draws for a beat on `kit` holding `drums` (cells):
-    an electronic kit's eight (`DRUM_ROWS`), or the acoustic kit's
+    an electronic kit's eight (`DRUM_ROWS`) and, after them, each further
+    row while it holds cells (a beat moved back from the acoustic kit: its
+    ride plays the crash voice, and is seen); or the acoustic kit's
     (`ACOUSTIC_ROWS`) and, after them, `ohat` / `clap` / `rim` while they
-    hold cells. A row a grid does not draw keeps its cells on a post
+    hold cells. So no row that plays is hidden. A grid posts the rows it
+    drew (`rows`), and a row it did not draw keeps its cells
     (`drumops.keep_hidden`)."""
-    if kit != "naked":
-        return list(DRUM_ROWS)
     held = {c[0] for c in drums or ()}
+    if kit != "naked":
+        return held_rows(drums)
     return ACOUSTIC_ROWS + [r for r in _ACOUSTIC_EXTRAS if r in held]
 
 

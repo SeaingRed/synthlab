@@ -555,3 +555,30 @@ def test_a_choke_never_sounds_on_an_electronic_kit_and_cuts_nothing(no_kit):
         full = len(_events(replace(arr, drums=[["crash", 0]]), "crash")[0][1])
         # the acoustic kit's fallback is cut by the choke; electronic is not
         assert len(ev[1]) == (full if not drum_kit else n_samples(0.75, SR))
+
+
+def test_a_damaged_kit_plays_the_electronic_voice_and_says_why(kit, monkeypatch):
+    """R10: a KitError rendering a hit (a corrupt file, an SFZ that names a
+    file the kit lacks) never fails the render: that hit plays its row's
+    electronic stand-in, and `arrange.kit_damage` says why."""
+
+    def broken(kmap, root, row, art, velocity, rr, mics, sr=SR):
+        if row == "hat":
+            raise fetch.KitError("hat: a file is damaged")
+        return np.full((FAKE_LEN, 2), 0.2)
+
+    monkeypatch.setattr(play, "render_hit", broken)
+    arr = _arr([["hat", 0], ["kick", 4]], {"hat.0": {"t": 3}})
+    got = build_song(Patch(), arr, None).render(normalize=0)
+    electronic = build_song(Patch(), replace(arr, drum_kit=""), None)
+    hat = electronic.tracks["drum_hat"]
+    assert np.isfinite(got).all() and np.abs(got).max() > 0
+    assert arrange.kit_damage() == "hat: a file is damaged"
+    assert len(hat.events) == 1
+    # the hat's track holds the electronic hat (tuned as a voice), not silence
+    song = build_song(Patch(), arr, None)
+    played = song.tracks["drum_hat"].events
+    assert len(played) == 1 and np.abs(played[0][1]).max() > 0
+    np.testing.assert_allclose(played[0][1], hat.events[0][1])
+    arrange.forget_kit()
+    assert arrange.kit_damage() == ""

@@ -112,6 +112,19 @@ def test_the_acoustic_kit_plays_an_open_hat_from_the_lane(kit_here, studio):
         "() => getComputedStyle(document.querySelector('#drum-grid input[name=\"drum.hat.4\"]'), '::after').content"
     )
     assert glyph == '"◐"', glyph
+    # ... and reads: the glyph's type is a good share of the step it sits on
+    # (sized from the row's `--step-h`), and the lane is the other lanes' height
+    size = page.evaluate("""() => {
+      const c = document.querySelector('#drum-grid input[name="drum.hat.4"]');
+      const lane = document.querySelector('.artrow .art-cell[data-step="4"]');
+      const vel = document.querySelector('#drum-grid .velrow[data-lane] .vel-lane');
+      return {font: parseFloat(getComputedStyle(c, '::after').fontSize), cell: c.getBoundingClientRect().height,
+              laneFont: parseFloat(getComputedStyle(lane, '::after').fontSize), lane: lane.getBoundingClientRect().height,
+              vel: vel.getBoundingClientRect().height};
+    }""")
+    assert size["font"] >= 13 and size["font"] >= 0.55 * size["cell"], size
+    assert size["laneFont"] >= 12 and size["laneFont"] >= 0.55 * size["lane"], size
+    assert abs(size["lane"] - size["vel"]) <= 2, size
     deadline = 0
     while s.arrangement.drum_hits.get("hat.4", {}).get("a") != "open" and deadline < 80:
         page.wait_for_timeout(50)

@@ -42,9 +42,11 @@ def kit_bytes() -> int:
     return sum(e["size"] for e in fetch.manifest(fetch.NAKED))
 
 
-def size_label() -> str:
-    """The kit's size as the download button says it: "1.3 GB"."""
-    return f"{kit_bytes() / 1e9:.1f} GB"
+def size_label(megabytes: float | None = None) -> str:
+    """A download's size as the button says it: "1.3 GB", "240 MB" — the
+    whole kit by default."""
+    mb = kit_bytes() / 1e6 if megabytes is None else megabytes
+    return f"{mb / 1e3:.1f} GB" if mb >= 1000 else f"{max(1, round(mb))} MB"
 
 
 class KitJobs:
@@ -75,13 +77,15 @@ class KitJobs:
     def last_error(self) -> str:
         return (self.last or {}).get("error", "")
 
-    def start(self) -> str:
+    def start(self, repair: bool = False) -> str:
         """Begin downloading the kit. "" when it started (or the kit is
-        already here), "busy" while one runs."""
+        already here), "busy" while one runs. `repair`: run even when every
+        file is there by size — `fetch.download` hashes each one again and
+        fetches what does not match (the kit met a damaged file)."""
         with self._lock:
             if self._job is not None:
                 return "busy"
-        if self.availability().get("ready"):
+        if not repair and self.availability().get("ready"):
             arrange.forget_kit()
             return ""
         with self._lock:

@@ -556,8 +556,10 @@ def _mics(x) -> dict:
     """The acoustic kit's mic mixer (`Arrangement.drum_mics`): a "preset"
     (`synthlab.kits.play.MIC_PRESETS`) when it is not the default
     ("studio"), and dB a mic (`MICS`, held to `limits.MIC_DB_RANGE`; None =
-    off) only where it is off that preset. An unknown mic, a bad level or
-    an unknown preset is dropped; everything at the default is {}."""
+    off) only where it is off that preset, and "muted": the mics muted over
+    their level, kept for the unmute (sorted; absent when none). An unknown
+    mic, a bad level or an unknown preset is dropped; everything at the
+    default is {}."""
     from synthlab.kits.play import MIC_PRESETS, MICS
 
     if not isinstance(x, dict):
@@ -568,6 +570,12 @@ def _mics(x) -> dict:
     base = MIC_PRESETS[preset]
     lo, hi = limits.MIC_DB_RANGE
     out: dict = {} if preset == "studio" else {"preset": preset}
+    # a mic muted over its level (the level kept for when it is unmuted)
+    muted = x.get("muted")
+    if isinstance(muted, list):
+        held = sorted({m for m in muted if isinstance(m, str) and m in MICS})
+        if held:
+            out["muted"] = held
     for mic in MICS:
         if mic not in x:
             continue
