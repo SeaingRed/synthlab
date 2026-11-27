@@ -1,0 +1,29 @@
+#define $TRIM_DI_HH 2
+
+master_label=$LAB_HH
+master_volume=$TRIM_DI_HH
+seq_length=2
+
+//articulation trim
+#define $TRIM_HH_CLS 1
+
+<group>
+key=$KEY_HH_CLS
+group=$GRP_OH_HH_CLS
+group_volume=$TRIM_HH_CLS
+group_label=$closed
+#include "../Data/file/DI.txt"
+#include "../Data/region/v2.txt"
+
+<group>
+key=$KEY_HH_OPN
+locc4=1
+hicc4=40
+group_volume=3
+#include "../Data/file/DI.txt"
+#include "../Data/region/v2.txt"
+
+<group>
+key=$KEY_SNR2
+#include "../Data/file/DI.txt"
+#include "../Data/region/v2.txt"

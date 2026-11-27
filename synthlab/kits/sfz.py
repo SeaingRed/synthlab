@@ -16,9 +16,10 @@ What it keeps, by design:
   hit and is left out, as are the `*silence` regions that only choke;
 - snare 2 (key 40, group file suffix `top2`) is out of scope;
 - `Articulation.trim_db` is the articulation's own trim (`group_volume`);
-  a mic's `master_volume` is a mix balance and left to the mixer;
-- a hat or ride has two direct mics (`ch` and `di`) that the map calls one,
-  `hats` / `ride`: the `di` take wins.
+  a mic's own `master_volume` (its balance) is `mic_trim_db`;
+- a hat or ride has two direct mics, `ch` (`hats`, `ride`) and `di`
+  (`hats_di`, `ride_di`): different recordings, both kept; two files
+  claiming one (round robin, mic) slot is a `KitError`.
 
 A row with one articulation (the kick, the toms, the splash, the china) calls
 it "hit". Sample paths are relative to the kit directory, so `root / path`
@@ -29,9 +30,11 @@ from __future__ import annotations
 
 import posixpath
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+
+from synthlab.kits.fetch import KitError
 
 _BASE = ("Wilkinson Audio", "Naked Drums")
 _KEYMAP = "User/Naked Drums GM keymap.txt"
@@ -69,7 +72,9 @@ MICS = (
     "snare_bottom",
     "toms",
     "hats",
+    "hats_di",
     "ride",
+    "ride_di",
     "cymbals",
     "overheads",
     "close_room",
@@ -104,6 +109,7 @@ class Articulation:
     layers: tuple[Layer, ...]
     trim_db: float
     group: str
+    mic_trim_db: dict[str, float] = field(default_factory=dict)  # mic -> dB
 
 
 @dataclass(frozen=True)
@@ -201,10 +207,8 @@ def _mic(stem: str, suffix: str) -> str | None:
     if suffix in ("di", "ch"):
         if stem.startswith("tom"):
             return "toms"
-        if stem == "hats":
-            return "hats"
-        if stem == "ride":
-            return "ride"
+        if stem in ("hats", "ride"):
+            return stem if suffix == "ch" else f"{stem}_di"
         if stem.startswith(("crash", "splash", "china")):
             return "cymbals"
     return None
@@ -233,7 +237,8 @@ def _group_file(
     anchor: Path,
     prefix: str,
 ):
-    """The regions of one group file: (row, art, trim, lo, hi, seq, sample)."""
+    """The regions of one group file: (row, art, trim, mic trim, lo, hi, seq,
+    sample)."""
     out = []
     master: dict[str, str] = {}
     group: dict[str, str] = {}
@@ -271,6 +276,7 @@ def _group_file(
                 (
                     *hit,
                     _num(reg.get("group_volume")),
+                    _num(reg.get("master_volume")),
                     int(_num(reg["lovel"])),
                     int(_num(reg.get("hivel"), 127)),
                     int(_num(reg.get("seq_position"), 1)),
@@ -290,23 +296,31 @@ def _read(base: Path, root: Path) -> KitMap:
     prefix = "" if prefix == "." else prefix
     files = sorted(
         (base / "Data" / "group").glob("*.txt"),
-        key=lambda f: (f.stem.rpartition("_")[2] != "ch", f.name),  # ch before di
+        key=lambda f: f.name,
     )
     cells: dict[tuple[str, str], dict[tuple[int, int], dict[int, dict[str, str]]]] = {}
     trims: dict[tuple[str, str], float] = {}
+    mic_trims: dict[tuple[str, str], dict[str, float]] = {}
     seen_mics: set[str] = set()
     for f in files:
         stem, _, suffix = f.stem.rpartition("_")
         mic = _mic(stem, suffix)
         if mic is None:
             continue
-        for row, art, trim, lo, hi, seq, sample in _group_file(
+        for row, art, trim, mtrim, lo, hi, seq, sample in _group_file(
             f, defs, keys, base / "Stereo", prefix
         ):
             seen_mics.add(mic)
             trims.setdefault((row, art), trim)
             takes = cells.setdefault((row, art), {}).setdefault((lo, hi), {})
-            takes.setdefault(seq, {})[mic] = sample
+            mic_trims.setdefault((row, art), {})[mic] = mtrim
+            take = takes.setdefault(seq, {})
+            if mic in take:
+                raise KitError(
+                    f"{f.name}: two files for {row}/{art} {lo}-{hi} take {seq}, "
+                    f"mic {mic}"
+                )
+            take[mic] = sample
     arts = {}
     for (row, art), layers in cells.items():
         built = tuple(
@@ -314,7 +328,12 @@ def _read(base: Path, root: Path) -> KitMap:
             for (lo, hi), takes in sorted(layers.items())
         )
         arts[(row, art)] = Articulation(
-            row, art, built, trims[(row, art)], _CHOKE.get(row, "")
+            row,
+            art,
+            built,
+            trims[(row, art)],
+            _CHOKE.get(row, ""),
+            mic_trims[(row, art)],
         )
     return KitMap(arts, tuple(m for m in MICS if m in seen_mics))
 

@@ -1,3 +1,4 @@
+#define $TRIM_OH_HH -4
 
 master_label=$LAB_HH
 master_volume=$TRIM_OH_HH

@@ -1,5 +1,6 @@
 """synthlab.kits.sfz: the kit's SFZ read into rows, articulations and mics."""
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -28,7 +29,33 @@ def test_velocity_splits_and_round_robins():
 
 def test_mics_come_from_the_group_file():
     kit = sfz.read_kit(FIXTURE)
-    assert kit.mics == ("overheads",)
+    assert kit.mics == ("hats", "hats_di", "overheads")
+
+
+def test_ch_and_di_are_two_mics_and_both_stay():
+    art = sfz.read_kit(FIXTURE).arts[("hat", "closed")]
+    for layer in art.layers:
+        for take in layer.takes:
+            assert set(take) == {"hats", "hats_di", "overheads"}
+    take = art.layers[0].takes[0]
+    assert take["hats_di"].endswith("DI_A2_10_one-CWG6.flac")
+    assert take["hats"].endswith("OH_A2_10_one-CWG6.flac")
+
+
+def test_mic_trim_is_each_files_master_volume():
+    art = sfz.read_kit(FIXTURE).arts[("hat", "closed")]
+    assert art.mic_trim_db == {"hats": 0.0, "hats_di": 2.0, "overheads": -4.0}
+    assert art.trim_db == 1.0
+
+
+def test_two_files_for_one_slot_raise(tmp_path):
+    root = tmp_path / "kit"
+    shutil.copytree(FIXTURE, root)
+    group = root / "Wilkinson Audio/Naked Drums/Data/group/hats_oh.txt"
+    text = group.read_text(encoding="utf-8")
+    group.write_text(text + text.split("//articulation trim")[1], encoding="utf-8")
+    with pytest.raises(fetch.KitError, match="mic overheads"):
+        sfz.read_kit(root)
 
 
 def test_gated_and_unmapped_groups_are_left_out():
