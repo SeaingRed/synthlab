@@ -1515,6 +1515,17 @@ class SectionParts:
     # (`render._take_stems`). Empty for every song whose audio tracks have
     # neither, so no key gains it
     takes: tuple = ()
+    # whether the acoustic kit is on this machine (`arrange.kit_ready`),
+    # sampled once when the section's beat plays it, so its key and its
+    # render (every chunk and pass, `inputs`) agree. None on an electronic
+    # kit. In no key by itself: `RenderInputs.key` carries it
+    kit_ready: bool | None = None
+
+    def __post_init__(self) -> None:
+        if self.kit_ready is None and getattr(self.arr, "drum_kit", ""):
+            from .arrange import kit_ready  # lazy: arrange imports state
+
+            object.__setattr__(self, "kit_ready", kit_ready())
 
     @property
     def audio_clips(self) -> list:
@@ -1556,6 +1567,7 @@ class SectionParts:
             arp=self.arp,
             lead=self.lead,
             auto=self.auto or None,
+            kit_ready=self.kit_ready,
         )
 
     def flatten(self) -> SectionParts:

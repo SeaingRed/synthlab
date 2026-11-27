@@ -449,7 +449,9 @@ def test_the_kit_arriving_moves_the_acoustic_keys(kit, monkeypatch):
         fetch, "availability", lambda *a, **k: {"ready": False, "megabytes": 9}
     )
     arrange.forget_kit()
-    assert inp.key() != ready
+    assert inp.key() == ready  # sampled once: these inputs keep their answer
+    again = RenderInputs(patch=Patch(), arr=arr, parts=("synth", "drums"))
+    assert again.key() != ready
     assert _stem_keys(arr)["drums"] != stems["drums"]
     assert _stem_keys(arr)["main"] == stems["main"]
 
@@ -482,3 +484,74 @@ def test_the_real_kit_plays_a_beat(monkeypatch):
     out = build_song(Patch(), arr, None).render(normalize=0)
     assert np.all(np.isfinite(out)) and np.max(np.abs(out)) > 0.05
     arrange.forget_kit()
+
+
+# --- review round 1 -------------------------------------------------------------
+
+
+def test_the_kits_make_up_gain_is_pinned(kit):
+    """The kit's one fixed make-up (+11 dB: matched by loudness, measured in
+    `arrange.KIT_GAIN_DB`'s comment) and what it does to one acoustic loop's
+    normalised level: changing the constant must be deliberate."""
+    assert arrange.KIT_GAIN_DB == 11.0
+    arr = _arr([["kick", 0], ["snare", 8]], drum_bars=2)  # never overlap
+    stem = build_song(Patch(), arr, None).render(normalize=0)
+    peak = max(_level("kick", "hit", 0), _level("snare", "centre", 0))
+    assert np.max(np.abs(stem)) == pytest.approx(peak * 10 ** (11 / 20))
+    got = render.render_loop(RenderInputs(patch=Patch(), arr=arr, parts=("drums",)))
+    assert got.norm_gain_db == pytest.approx(-4.722, abs=1e-3)
+
+
+def test_the_render_plays_the_readiness_its_key_was_made_with(kit, monkeypatch):
+    arr = _arr([["kick", 0], ["ride", 4]])
+    ready = RenderInputs(patch=Patch(), arr=arr, parts=("drums",))
+    assert ready.kit_ready is True
+    parts = sm.section_arrangement(*_one_section())
+    assert parts.kit_ready is True
+    monkeypatch.setattr(
+        fetch, "availability", lambda *a, **k: {"ready": False, "megabytes": 9}
+    )
+    arrange.forget_kit()
+    gone = RenderInputs(patch=Patch(), arr=arr, parts=("drums",))
+    assert gone.kit_ready is False and gone.key() != ready.key()
+    # the inputs keyed "ready" still render the kit, now it says otherwise
+    render.render_stems(ready)
+    assert [c[0] for c in kit] == ["kick", "ride"]
+    assert parts.inputs().kit_ready is True
+    assert parts.window(0, 1).inputs().kit_ready is True
+    kit.clear()
+    # and the reverse: keyed "not here", rendered on the fallbacks
+    monkeypatch.setattr(
+        fetch, "availability", lambda *a, **k: {"ready": True, "megabytes": 0}
+    )
+    arrange.forget_kit()
+    render.render_stems(gone)
+    assert kit == []
+    assert RenderInputs(patch=Patch(), arr=replace(arr, drum_kit="")).kit_ready is None
+
+
+def _one_section():
+    song = sm.new_song(120.0, "A1", "minor")
+    tid = sm.add_track(song, "drums", "Drums")
+    sid = sm.add_section(song, "S", 2)
+    data = {"drums": [["kick", 0]], "bars": 1, "steps": 16, "kit": "naked"}
+    sm.set_cell(song, sid, tid, sm.add_pattern(song, "drums", "beat", data))
+    return song, song["sections"][0]
+
+
+def test_a_silent_hit_asks_the_kit_for_nothing(kit):
+    arr = _arr([["snare", 0], ["snare", 4]], drum_vel={"0": 0.0})
+    song = build_song(Patch(), arr, None)
+    assert [c[3] for c in kit] == [1]
+    assert len(song.tracks["drum_snare"].events) == 1
+
+
+def test_a_choke_never_sounds_on_an_electronic_kit_and_cuts_nothing(no_kit):
+    hits = {"crash.6": {"a": "choke"}}
+    for drum_kit in ("", "naked"):
+        arr = _arr([["crash", 0], ["crash", 6]], hits, drum_kit=drum_kit)
+        (ev,) = _events(arr, "crash")
+        assert ev[0] == 0
+        full = len(_events(replace(arr, drums=[["crash", 0]]), "crash")[0][1])
+        # the acoustic kit's fallback is cut by the choke; electronic is not
+        assert len(ev[1]) == (full if not drum_kit else n_samples(0.75, SR))

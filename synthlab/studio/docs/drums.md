@@ -151,18 +151,42 @@ and the schedule is the one it always was.
 - **Round robins are a count of the pattern** (`arrange.rr_marks`): the
   strikes of the same (row, articulation) before a cell in its pattern,
   in step order, a ratchet counting each strike — never what a roll let
-  play, so every pass takes the same takes at the same steps. A tiled
+  play, so every pass takes the same takes at the same steps. The price
+  of that exactness (loop == section == chunks): a cell a chance drops
+  still uses its take number, and a hit struck once a pattern repeats
+  its take every pass (a crash on bar 1 of a 1-bar beat is the same
+  recording each bar; a longer pattern, or more strikes, varies it). A tiled
   section's cycle carries each cell's count as `q` beside `k` / `pk`
   (`song_model._tile_rr`), so the loop, a section and every chunk agree.
 - **The render** (`_schedule_drums`) asks `kits.play.render_hit` for each
   distinct (row, art, velocity in 1/127ths, take, mic mix) once a render,
   through `play.levels(drum_mics)` (a preset, then its overrides), times
   the row's level (`gain / vel`: the level never picks the layer) and
-  `KIT_GAIN` (+11 dB, measured: the kit by loudness against the
-  electronic voices). A pedal, tight or closed hat cuts a ringing half /
+  `KIT_GAIN` (a velocity that rounds to 0 asks for nothing). A pedal, tight or closed hat cuts a ringing half /
   open one, and a `choke` cuts its row's ringing hit and sounds nothing —
   the open hat's 8 ms fade, on the schedule's own times. A row with a
   clip plays its clip; clap and rim play their electronic voices.
+- **Its level** (`KIT_GAIN_DB`, +11 dB): measured over every beat style,
+  the kit sat a median 11.2 LU under the electronic voices with its
+  sample peaks only 1.5 dB under (the recordings' crest factor). It is
+  matched by **loudness**, so the drums sit against the synths as the
+  electronic kit's do. The trade-off, honestly: at that loudness its
+  transients peak ~9.5 dB over the electronic kit's, and nothing that
+  levels a render reads loudness — the loop (`render._normalize`) scales
+  by the 99.5th percentile of the frames' peaks and limits at 0.97, the
+  song as played (`song_play.gain_of`) is capped by its peak; only the
+  export's -14 / -9 LUFS targets measure loudness. So those references
+  key on the drum transients — an acoustic loop or song comes out quieter
+  overall than an electronic one — and every level-dependent unit on the
+  drum bus or the master (drive, clip, compress, ott, limiter,
+  transient, vgate, sidechain) hears hotter drums.
+- **A choke never sounds, on any kit**: on an electronic kit (a beat
+  moved back from the acoustic one keeps its `a`) it is marked and
+  skipped, and cuts nothing.
+- **Whether the kit is here is asked once** per render: `RenderInputs`
+  (or the section's `SectionParts`, handing it to every chunk and pass)
+  samples `kit_ready` when its beat plays the kit, and its key and its
+  render (`build_song(kit_ready=)`) both read that answer.
 - **Fallbacks** (`FALLBACK_VOICES`, `TOM_STEPS`): an electronic kit, or
   the acoustic kit while it is not on this machine (`kit_ready`), plays a
   new row on the nearest electronic voice — ride, crash 2, splash and

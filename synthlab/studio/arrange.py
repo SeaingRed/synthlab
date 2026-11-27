@@ -1334,6 +1334,7 @@ def build_song(
     memo: NoteMemo | None = None,
     lead: str | None = None,
     auto: dict | None = None,
+    kit_ready: bool | None = None,
 ) -> Song:
     """The loop as a Song. `breaks` (steps where a held main-lane note is
     re-attacked) and a layer dict's own `"breaks"` are only ever set by a
@@ -1352,7 +1353,8 @@ def build_song(
     whole. `auto` (a layer dict's own `"auto"`): a song section's
     automation lanes for the lane (`_auto_arrays`); a lane wins over a
     drawn curve on the same field, and is the one automation a layer
-    plays."""
+    plays. `kit_ready`: whether the acoustic kit is here, as the render's
+    key saw it (`RenderInputs.kit_ready`; None asks now)."""
     song = _song(arr)
     # one place: every scheduler below reads `patch`, so synced LFO rates
     # resolve here rather than being plumbed through each note() call
@@ -1481,7 +1483,7 @@ def build_song(
             else:
                 song.notes(f"layer{k}_{i}", lsynth, events, gain=lgain)
 
-    _schedule_drums(song, arr, clip_root)
+    _schedule_drums(song, arr, clip_root, kit_ready)
 
     return song
 
@@ -1721,6 +1723,10 @@ def drum_hits(arr: Arrangement) -> list[tuple[str, list[Hit]]]:
                     "rr": int((h or {}).get("q", marks.get(f"{voice}.{s}", 0))),
                 }
                 if acoustic
+                # a choke never sounds, on any kit (a beat moved back from
+                # the acoustic kit keeps its `a`): marked, the render skips it
+                else {"art": "choke"}
+                if h and h.get("a") == "choke"
                 else {}
             )
             if not h:
@@ -1868,11 +1874,22 @@ HAT_RINGERS = ("half", "open")
 # The acoustic kit's level against the electronic voices: one fixed make-up
 # gain on every acoustic hit, never a per-buffer normalisation. Measured
 # (2026-11-28, studio mics, every `beatgen.STYLES` beat, seed 1, 2 bars, its
-# kick / snare / hat / ohat / tom / crash cells, four passes): the kit sat a
-# median 11.2 LU under the electronic voices (7.7..15.6; kick -14.3, snare
-# -3.2, hat -4.4, tom -14.8, crash -12.3 alone), its sample peaks a median
-# 1.5 dB under — the recordings' crest factor, not a quiet kit. The loop and
-# the song master normalise by loudness, so the kit is matched by loudness.
+# kick / snare / hat / ohat / tom / crash cells, four passes, BS.1770): the
+# kit sat a median 11.2 LU under the electronic voices (7.7..15.6; alone,
+# kick -14.3, snare -3.2, hat -4.4, tom -14.8, crash -12.3), its sample peaks
+# a median only 1.5 dB under — the recordings' crest factor, not a quiet kit.
+# +11 dB matches the kit by LOUDNESS, so the drums sit against the synths as
+# the electronic kit's do. The trade-off: at the same loudness the acoustic
+# transients peak ~9.5 dB over the electronic kit's. Nothing that levels a
+# render reads loudness — the loop (`render._normalize`) scales by the 99.5th
+# percentile of its frames' peaks and limits at 0.97, the song as played
+# (`song_play.gain_of`) is capped by its peak (CEILING / peak); only the
+# export's -14 / -9 LUFS targets measure loudness — so those references key
+# on the drum transients and an acoustic loop or song comes out quieter
+# overall than an electronic one, and every level-dependent unit on the drum
+# bus or the master (drive, clip, compress, ott, limiter, transient, vgate,
+# sidechain) hears hotter drums. Pinned by
+# `test_acoustic_schedule.py::test_the_kits_make_up_gain_is_pinned`.
 KIT_GAIN_DB = 11.0
 KIT_GAIN = 10.0 ** (KIT_GAIN_DB / 20.0)
 KIT_READY_SECONDS = 2.0  # how long a "the kit is here" answer is believed
@@ -1897,10 +1914,14 @@ def forget_kit() -> None:
     _KIT_READY.clear()
 
 
-def acoustic_kit(arr: Arrangement):
-    """`(KitMap, root)` when `arr` plays the acoustic kit and it is here,
-    else None (its rows play `_electronic`'s voices)."""
-    if getattr(arr, "drum_kit", "") != "naked" or not kit_ready():
+def acoustic_kit(arr: Arrangement, ready: bool | None = None):
+    """`(KitMap, root)` when `arr` plays the acoustic kit and it is here —
+    `ready`, the answer the render's key was made with (`RenderInputs.
+    kit_ready`), else asked now — or None (its rows play `_electronic`'s
+    voices)."""
+    if getattr(arr, "drum_kit", "") != "naked":
+        return None
+    if not (kit_ready() if ready is None else ready):
         return None
     root = _kit_fetch.kit_dir()
     return _kit_sfz.read_kit(root), root
@@ -1928,7 +1949,9 @@ def _next_after(beats: list[float], beat: float, loop_beats: float) -> float | N
     return min(beats) + loop_beats if nxt is None else nxt
 
 
-def _schedule_drums(song: Song, arr: Arrangement, clip_root=None) -> None:
+def _schedule_drums(
+    song: Song, arr: Arrangement, clip_root=None, ready: bool | None = None
+) -> None:
     """The drum machine: its own bars/steps/swing, a velocity lane, per-
     voice level / mute / solo / probability, humanise (`drum_hits`: what
     plays when), and the open hat choked by the next closed hat.
@@ -1946,7 +1969,7 @@ def _schedule_drums(song: Song, arr: Arrangement, clip_root=None) -> None:
     steps_per_bar = max(1, int(getattr(arr, "drum_steps", arr.steps_per_bar)))
     total = max(1, int(getattr(arr, "drum_bars", arr.bars))) * steps_per_bar
     loop_beats = total * (bar_beats(arr) / steps_per_bar)
-    kit = acoustic_kit(arr)
+    kit = acoustic_kit(arr, ready)
     mics = _kit_play.levels(arr.drum_mics) if kit else {}
     mic_key = tuple(sorted(mics.items()))
     made: dict[tuple, np.ndarray] = {}  # each distinct acoustic hit, once
@@ -1961,7 +1984,13 @@ def _schedule_drums(song: Song, arr: Arrangement, clip_root=None) -> None:
         acoustic = kit is not None and clip is None and voice in ACOUSTIC_ROWS
         if voice == "hat":
             closed += [h[0] for h in hits if h.art in HAT_CLOSERS]
-        chokes = [h[0] for h in hits if h.art == "choke"]
+        # a choke cuts its row's ring on the acoustic kit (its fallbacks
+        # too); on an electronic kit it cuts nothing (and sounds nothing)
+        chokes = (
+            [h[0] for h in hits if h.art == "choke"]
+            if getattr(arr, "drum_kit", "") == "naked"
+            else []
+        )
         voices: dict[str, tuple] = {}  # an electronic voice: (sample, base, params)
         tuned: dict[tuple, np.ndarray] = {}  # a hit's own pitch (`Hit.tune`)
         track = f"drum_{voice}"
@@ -1973,13 +2002,15 @@ def _schedule_drums(song: Song, arr: Arrangement, clip_root=None) -> None:
             if acoustic:
                 vel = max(0.0, float(h.vel if h.vel is not None else 1.0))
                 q = round(min(1.0, vel) * 127)
+                if q == 0:  # silent: nothing to ask the kit for
+                    continue
                 key = (voice, h.art, q, h.rr, mic_key)
                 if key not in made:
                     made[key] = _kit_play.render_hit(
                         kit[0], kit[1], voice, h.art, q / 127, h.rr, mics
                     )
                 src, which = made[key], key
-                gain = gain / min(1.0, vel) * KIT_GAIN if vel > 0 else 0.0
+                gain = gain / min(1.0, vel) * KIT_GAIN
             elif clip is not None:
                 src, which = clip, "clip"
             else:
