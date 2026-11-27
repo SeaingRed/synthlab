@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import time
 import zlib
 from collections.abc import Mapping
 from dataclasses import replace
@@ -19,6 +20,9 @@ from .. import _native, core
 from .. import drums as dr
 from .. import sequencer as _seq
 from ..core import SR, n_samples
+from ..kits import fetch as _kit_fetch
+from ..kits import play as _kit_play
+from ..kits import sfz as _kit_sfz
 from ..sampler import Strikes
 from ..sequencer import (
     Song,
@@ -36,7 +40,9 @@ from .curves import CURVABLE, curve_array, lane_array
 from .drumlab import specs_of
 from .lru import LRU
 from .state import (
+    ACOUSTIC_ROWS,
     ALL_DRUM_ROWS,
+    ARTICULATIONS,
     DRUM_ROWS,
     ROOTS,
     SCALE_CHOICES,
@@ -1551,17 +1557,38 @@ class Hit(tuple):
     schedule before per-hit data reads it still — and carries what only a
     hit with data has: `tune` (semitones on that hit) and `until` (the beat
     at which its own next retrigger cuts it: a ratchet is one voice struck
-    again, not voices piling up)."""
+    again, not voices piling up). On the acoustic kit alone it also carries
+    its articulation (`art`), its velocity (`vel`: what picks the recorded
+    layer, where `gain` is the row's level x it) and its round robin
+    (`rr`: a strike count, `rr_marks`)."""
 
     tune: float = 0.0
     until: float | None = None
+    art: str = ""
+    vel: float | None = None
+    rr: int = 0
 
-    def __new__(cls, beat: float, gain: float, tune: float = 0.0, until=None):
+    def __new__(
+        cls,
+        beat: float,
+        gain: float,
+        tune: float = 0.0,
+        until=None,
+        art: str = "",
+        vel: float | None = None,
+        rr: int = 0,
+    ):
         self = super().__new__(cls, (beat, gain))
         if tune:
             self.tune = tune
         if until is not None:
             self.until = until
+        if art:
+            self.art = art
+        if vel is not None:
+            self.vel = vel
+        if rr:
+            self.rr = rr
         return self
 
 
@@ -1659,6 +1686,8 @@ def drum_hits(arr: Arrangement) -> list[tuple[str, list[Hit]]]:
         ).encode()
     )
     rng = np.random.default_rng(seed)
+    acoustic = getattr(arr, "drum_kit", "") == "naked"
+    marks = rr_marks(arr) if acoustic else {}
     out: list[tuple[str, list[Hit]]] = []
     for voice, steps in sorted(by_voice.items(), key=_row_order):
         m = mix.get(voice, {})
@@ -1681,9 +1710,21 @@ def drum_hits(arr: Arrangement) -> list[tuple[str, list[Hit]]]:
                 v = float(h["v"])
             gain = level * v
             if human > 0:
-                gain *= float(np.clip(1.0 + rng.normal(0.0, 0.12 * human), 0.4, 1.3))
+                lift = float(np.clip(1.0 + rng.normal(0.0, 0.12 * human), 0.4, 1.3))
+                gain *= lift
+                v *= lift
+            # the acoustic kit's marks: what it plays, how hard, which take
+            mark = (
+                {
+                    "art": _art_of(voice, h),
+                    "vel": v,
+                    "rr": int((h or {}).get("q", marks.get(f"{voice}.{s}", 0))),
+                }
+                if acoustic
+                else {}
+            )
             if not h:
-                hits.append(Hit(max(0.0, beat), gain))
+                hits.append(Hit(max(0.0, beat), gain, **mark))
                 continue
             # the draws above are made whatever the roll says: a chance on
             # one hit never re-humanises the hits after it
@@ -1705,15 +1746,74 @@ def drum_hits(arr: Arrangement) -> list[tuple[str, list[Hit]]]:
             tune = float(h.get("t", 0.0))
             sub = step_beats / r
             for j in range(r):
+                if acoustic:
+                    mark = {
+                        **mark,
+                        "vel": v * RATCHET_FALL**j,
+                        "rr": int(h.get("q", marks.get(f"{voice}.{s}", 0))) + j,
+                    }
                 hits.append(
                     Hit(
                         beat + j * sub,
                         gain * RATCHET_FALL**j,
                         tune,
                         beat + (j + 1) * sub if j < r - 1 else None,
+                        **mark,
                     )
                 )
         out.append((voice, hits))
+    return _open_hats(out) if acoustic else out
+
+
+def _art_of(voice: str, h) -> str:
+    """A hit's articulation on the acoustic kit: an `ohat` cell is the hat's
+    "open"; else its own `a`, or its row's default ("hit" for a row with
+    none)."""
+    if voice == "ohat":
+        return "open"
+    arts = ARTICULATIONS.get(voice)
+    a = (h or {}).get("a")
+    if arts:
+        return a if a in arts else arts[0]
+    return "hit"
+
+
+def _open_hats(out: list) -> list:
+    """The acoustic kit has one hi-hat: the `ohat` row's hits (each with its
+    row's level and chance, marked "open") join the hat row's, in time."""
+    rows = dict(out)
+    if "ohat" not in rows:
+        return out
+    hat = sorted([*rows.get("hat", []), *rows.pop("ohat")], key=lambda h: h[0])
+    rows["hat"] = hat
+    return sorted(rows.items(), key=_row_order)
+
+
+def rr_marks(arr: Arrangement) -> dict[str, int]:
+    """The round robin each cell of a beat starts at, as `"<voice>.<step>"`:
+    how many strikes of its (row, articulation) come before it in its
+    pattern, in step order (a ratchet strikes `r` times; an `ohat` cell is
+    the hat's "open"). A count of the pattern's own cells, never of what a
+    roll let play, so every pass of a pattern — the loop, each repeat of a
+    section's tiled cycle (`song_model._tile_rr`) and each chunk of it —
+    takes the same takes at the same steps."""
+    steps_per_bar = max(1, int(getattr(arr, "drum_steps", arr.steps_per_bar)))
+    total = max(1, int(getattr(arr, "drum_bars", arr.bars))) * steps_per_bar
+    data = getattr(arr, "drum_hits", None) or {}
+    cells = sorted(
+        {
+            (int(s), v)
+            for v, s in arr.drums
+            if v in ALL_DRUM_ROWS and 0 <= int(s) < total
+        }
+    )
+    count: dict[tuple[str, str], int] = {}
+    out: dict[str, int] = {}
+    for s, v in cells:
+        h = data.get(f"{v}.{s}") or {}
+        key = ("hat" if v == "ohat" else v, _art_of(v, h))
+        out[f"{v}.{s}"] = count.get(key, 0)
+        count[key] = count.get(key, 0) + max(1, min(4, int(h.get("r", 1))))
     return out
 
 
@@ -1727,13 +1827,20 @@ def _tuned(voice: str, params: dict, sample, semitones: float) -> np.ndarray:
     """A voice's hit `semitones` away from its own: a synthesized voice
     with a `tune` (kick, snare, tom, rim: `drumlab.DRUM_PARAMS`) is struck
     at that pitch; one without (the hats, the clap, the crash) is itself; a
-    sampled row (`sample`) is resampled — linear, as its sample-rate
-    conversion is (`_voice_sample`: one-shots, not masters)."""
+    sampled row (`sample`: a clip, or an acoustic hit, stereo) is resampled
+    — linear, as its sample-rate conversion is (`_voice_sample`: one-shots,
+    not masters)."""
     ratio = 2.0 ** (float(semitones) / 12.0)
     if sample is not None:
         n = max(2, int(round(len(sample) / ratio)))
         idx = np.linspace(0, len(sample) - 1, n)
-        return np.interp(idx, np.arange(len(sample)), sample)
+        base = np.arange(len(sample))
+        if sample.ndim == 2:
+            return np.stack(
+                [np.interp(idx, base, sample[:, c]) for c in range(sample.shape[1])],
+                axis=1,
+            )
+        return np.interp(idx, base, sample)
     spec = next((s for s in specs_of(voice) if s["name"] == "tune"), None)
     if spec is None:
         return dr.hit(voice, **params)
@@ -1741,48 +1848,163 @@ def _tuned(voice: str, params: dict, sample, semitones: float) -> np.ndarray:
     return dr.hit(voice, **{**params, "tune": base * ratio})
 
 
+# The electronic voice a row with none of its own plays — an acoustic-kit
+# row on an electronic kit, or on the acoustic kit while it is not here: the
+# crash voice at another decay, the tom retuned three semitones a drum down
+# (its own tune, `drum_params["tom"]`, times the factor). Nothing is ever
+# silently dropped.
+FALLBACK_VOICES: dict[str, tuple[str, dict]] = {
+    "ride": ("crash", {"decay": 0.9}),
+    "crash2": ("crash", {"decay": 1.4}),
+    "splash": ("crash", {"decay": 0.6}),
+    "china": ("crash", {"decay": 1.2}),
+}
+TOM_STEPS: dict[str, float] = {f"tom{k + 1}": 2.0 ** (-k / 12 * 3) for k in range(1, 5)}
+# a hat articulation that closes the hat (cuts a ringing half / open one),
+# and one that rings until it is closed. "" is a hat hit on an electronic
+# kit: every one closes, as it always did
+HAT_CLOSERS = ("", "closed", "pedal", "tight")
+HAT_RINGERS = ("half", "open")
+# The acoustic kit's level against the electronic voices: one fixed make-up
+# gain on every acoustic hit, never a per-buffer normalisation. Measured
+# (2026-11-28, studio mics, every `beatgen.STYLES` beat, seed 1, 2 bars, its
+# kick / snare / hat / ohat / tom / crash cells, four passes): the kit sat a
+# median 11.2 LU under the electronic voices (7.7..15.6; kick -14.3, snare
+# -3.2, hat -4.4, tom -14.8, crash -12.3 alone), its sample peaks a median
+# 1.5 dB under — the recordings' crest factor, not a quiet kit. The loop and
+# the song master normalise by loudness, so the kit is matched by loudness.
+KIT_GAIN_DB = 11.0
+KIT_GAIN = 10.0 ** (KIT_GAIN_DB / 20.0)
+KIT_READY_SECONDS = 2.0  # how long a "the kit is here" answer is believed
+_KIT_READY: dict[str, tuple[float, bool]] = {}
+
+
+def kit_ready() -> bool:
+    """Is the acoustic kit on this machine (`kits.fetch.availability`: a
+    stat a file, ~50 ms) — believed for `KIT_READY_SECONDS`, since every
+    acoustic key asks. `forget_kit` drops the answer (a download ends)."""
+    d = _kit_fetch.kit_dir()
+    now = time.monotonic()
+    got = _KIT_READY.get(str(d))
+    if got is None or now - got[0] > KIT_READY_SECONDS:
+        got = (now, bool(_kit_fetch.availability(directory=d).get("ready")))
+        _KIT_READY[str(d)] = got
+    return got[1]
+
+
+def forget_kit() -> None:
+    """Drop `kit_ready`'s answer: the next one asks the disk."""
+    _KIT_READY.clear()
+
+
+def acoustic_kit(arr: Arrangement):
+    """`(KitMap, root)` when `arr` plays the acoustic kit and it is here,
+    else None (its rows play `_electronic`'s voices)."""
+    if getattr(arr, "drum_kit", "") != "naked" or not kit_ready():
+        return None
+    root = _kit_fetch.kit_dir()
+    return _kit_sfz.read_kit(root), root
+
+
+def _electronic(arr: Arrangement, voice: str) -> tuple[str, dict]:
+    """The electronic voice a row plays and its params: its own, or its
+    `FALLBACK_VOICES` / `TOM_STEPS` stand-in."""
+    base, over = FALLBACK_VOICES.get(
+        voice, ("tom" if voice in TOM_STEPS else voice, {})
+    )
+    valid = {spec["name"] for spec in specs_of(base)}
+    params = {k: v for k, v in (arr.drum_params.get(base) or {}).items() if k in valid}
+    if voice in TOM_STEPS:
+        tune = next(s["default"] for s in specs_of("tom") if s["name"] == "tune")
+        params["tune"] = float(params.get("tune", tune)) * TOM_STEPS[voice]
+    return base, {**params, **over}
+
+
+def _next_after(beats: list[float], beat: float, loop_beats: float) -> float | None:
+    """The first of `beats` after `beat`, or the first of the next repeat."""
+    if not beats:
+        return None
+    nxt = min((c for c in beats if c > beat), default=None)
+    return min(beats) + loop_beats if nxt is None else nxt
+
+
 def _schedule_drums(song: Song, arr: Arrangement, clip_root=None) -> None:
     """The drum machine: its own bars/steps/swing, a velocity lane, per-
     voice level / mute / solo / probability, humanise (`drum_hits`: what
-    plays when), and the open hat choked by the next closed hat."""
+    plays when), and the open hat choked by the next closed hat.
+
+    On the acoustic kit (`acoustic_kit`) each hit of its rows is the kit's
+    recording (`kits.play.render_hit`) of its articulation at its velocity
+    and round robin, through the beat's mic mix (`play.levels` of
+    `drum_mics`), scaled by the row's level (`gain / vel`: the level never
+    picks the layer) and `KIT_GAIN`; each distinct hit is rendered once a
+    render. A pedal, tight or closed hat cuts a ringing half / open one; a
+    `choke` cuts its row's ringing hit and sounds nothing. A row with a clip
+    plays its clip; clap and rim, and every row while the kit is not here,
+    play the electronic voices (`_electronic`; a half / open hat the open
+    hat voice)."""
     steps_per_bar = max(1, int(getattr(arr, "drum_steps", arr.steps_per_bar)))
     total = max(1, int(getattr(arr, "drum_bars", arr.bars))) * steps_per_bar
     loop_beats = total * (bar_beats(arr) / steps_per_bar)
+    kit = acoustic_kit(arr)
+    mics = _kit_play.levels(arr.drum_mics) if kit else {}
+    mic_key = tuple(sorted(mics.items()))
+    made: dict[tuple, np.ndarray] = {}  # each distinct acoustic hit, once
     # Beats at which a closed hat actually sounded: after mute/solo, the
     # probability roll, swing and humanise. The open hat chokes on these —
     # choking on the raw grid cut it early against a swung hat, and a muted
     # closed-hat row still silenced every open hat it no longer played over.
-    # `drum_hits` walks "hat" before "ohat", so this is filled in time.
+    # `drum_hits` walks "hat" before "ohat", so this is filled first.
     closed: list[float] = []
     for voice, hits in drum_hits(arr):
-        valid = {spec["name"] for spec in specs_of(voice)}
-        params = {
-            k: v for k, v in (arr.drum_params.get(voice) or {}).items() if k in valid
-        }
         clip = _voice_sample(arr, voice, clip_root)
-        if clip is None and voice not in dr.KIT:
-            # an acoustic-kit row with no electronic voice of its own and
-            # no clip: nothing to play here yet
-            continue
-        sample = clip if clip is not None else dr.hit(voice, **params)
-        tuned: dict[float, np.ndarray] = {}  # a hit's own pitch (`Hit.tune`)
+        acoustic = kit is not None and clip is None and voice in ACOUSTIC_ROWS
+        if voice == "hat":
+            closed += [h[0] for h in hits if h.art in HAT_CLOSERS]
+        chokes = [h[0] for h in hits if h.art == "choke"]
+        voices: dict[str, tuple] = {}  # an electronic voice: (sample, base, params)
+        tuned: dict[tuple, np.ndarray] = {}  # a hit's own pitch (`Hit.tune`)
         track = f"drum_{voice}"
         song.track(track)
         for h in hits:
             beat, gain = h
-            hit = src = sample
+            if h.art == "choke":  # cuts the ring (below), sounds nothing
+                continue
+            if acoustic:
+                vel = max(0.0, float(h.vel if h.vel is not None else 1.0))
+                q = round(min(1.0, vel) * 127)
+                key = (voice, h.art, q, h.rr, mic_key)
+                if key not in made:
+                    made[key] = _kit_play.render_hit(
+                        kit[0], kit[1], voice, h.art, q / 127, h.rr, mics
+                    )
+                src, which = made[key], key
+                gain = gain / min(1.0, vel) * KIT_GAIN if vel > 0 else 0.0
+            elif clip is not None:
+                src, which = clip, "clip"
+            else:
+                which = "ohat" if voice == "hat" and h.art in HAT_RINGERS else voice
+                if which not in voices:
+                    base, params = _electronic(arr, which)
+                    voices[which] = (dr.hit(base, **params), base, params)
+                src = voices[which][0]
             if h.tune:
-                if h.tune not in tuned:
-                    tuned[h.tune] = _tuned(voice, params, clip, h.tune)
-                hit = src = tuned[h.tune]
-            if voice == "hat":
-                closed.append(beat)
+                if (which, h.tune) not in tuned:
+                    tuned[(which, h.tune)] = (
+                        _tuned("", {}, src, h.tune)
+                        if acoustic or clip is not None
+                        else _tuned(voices[which][1], voices[which][2], None, h.tune)
+                    )
+                src = tuned[(which, h.tune)]
             cut = h.until  # a ratchet's next retrigger cuts this one
-            if voice == "ohat" and closed:  # choke: a closed hat cuts the open one
-                nxt = min((c for c in closed if c > beat), default=None)
-                if nxt is None:
-                    nxt = min(closed) + loop_beats  # wraps into the next repeat
-                cut = nxt if cut is None else min(cut, nxt)
+            rings = voice == "ohat" or (voice == "hat" and h.art in HAT_RINGERS)
+            for nxt in (
+                _next_after(closed, beat, loop_beats) if rings else None,
+                _next_after(chokes, beat, loop_beats),
+            ):
+                if nxt is not None:
+                    cut = nxt if cut is None else min(cut, nxt)
+            hit = src
             if cut is not None:
                 secs = (
                     song.clock.span(beat, cut - beat)

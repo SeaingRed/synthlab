@@ -1993,7 +1993,14 @@ def _flat(
         ],
         drums=_tile(a.drums, drum_p, cycle * ds, d_lo, d_hi),
         drum_vel=_tile_keys(a.drum_vel, drum_p, cycle * ds, d_lo, d_hi),
-        drum_hits=_tile_hits(a.drum_hits, a.drums, drum_p, cycle * ds, d_lo, d_hi),
+        drum_hits=_tile_rr(
+            a,
+            _tile_hits(a.drum_hits, a.drums, drum_p, cycle * ds, d_lo, d_hi),
+            drum_p,
+            cycle * ds,
+            d_lo,
+            d_hi,
+        ),
         clips=[c for c in a.clips if int(c.get("at_bar", 0)) < cycle],
         # timing inside a step follows its notes; a step's chance rolls
         # afresh on every pass (`arrange.chance_tile`). Both stay empty
@@ -2339,6 +2346,24 @@ def _tile_hits(
             h = {**h, "k": [chance_seed(voice, rows[voice]), step]}
         for _x, t in _tile([[voice, step]], period, total, lo, hi):
             out[f"{voice}.{t}"] = h
+    return out
+
+
+def _tile_rr(a, tiled: dict, period: int, total: int, lo: int = 0, hi=None) -> dict:
+    """On the acoustic kit, every tiled cell's round robin in its PATTERN
+    (`arrange.rr_marks`) as `q` beside its hit data, so each repeat of the
+    pattern and each chunk of the cycle takes the takes the pattern takes
+    looping on its own. Internal to a flattened cycle, as `k` / `pk` are;
+    an electronic beat gains nothing."""
+    if getattr(a, "drum_kit", "") != "naked":
+        return tiled
+    from .arrange import rr_marks  # lazy: arrange imports state
+
+    out = dict(tiled)
+    for key, q in rr_marks(a).items():
+        voice, _dot, raw = key.partition(".")
+        for _x, t in _tile([[voice, int(raw)]], period, total, lo, hi):
+            out[f"{voice}.{t}"] = {**out.get(f"{voice}.{t}", {}), "q": q}
     return out
 
 

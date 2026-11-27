@@ -225,10 +225,11 @@ def test_an_electronic_beat_schedules_as_before(slot):
     assert {v for v, _ in got} - set(DRUM_ROWS) == {"ride", "tom3"}
 
 
-def test_a_new_row_renders_and_exports_nothing_yet():
-    """Until the acoustic kit plays (and its MIDI keys exist), a new row's
-    cells are kept but sound nothing and write no note: the beat beside
-    them renders and exports exactly as without them."""
+def test_a_new_row_renders_its_fallback_and_exports_nothing_yet():
+    """On an electronic kit a new row's cells play the nearest electronic
+    voice (`arrange.FALLBACK_VOICES`: the ride the crash voice, short) on a
+    track of their own, and the beat beside them renders exactly as without
+    them. Their MIDI keys are not written yet (Task 6)."""
     import numpy as np
 
     from synthlab.studio import midi_bridge
@@ -237,5 +238,11 @@ def test_a_new_row_renders_and_exports_nothing_yet():
     arr = Arrangement(bpm=120.0, cells=[], drums=[["kick", 0], ["hat", 2]])
     more = replace(arr, drums=[["kick", 0], ["hat", 2], ["ride", 4]])
     a, b = build_song(Patch(), arr, None), build_song(Patch(), more, None)
-    assert np.array_equal(a.render(normalize=0), b.render(normalize=0))
+    for name, track in a.tracks.items():
+        assert all(
+            x[0] == y[0] and np.array_equal(x[1], y[1]) and x[2] == y[2]
+            for x, y in zip(b.tracks[name].events, track.events, strict=True)
+        )
+    ((_at, ride, gain),) = b.tracks["drum_ride"].events
+    assert gain == 1.0 and np.max(np.abs(ride)) > 0.1
     assert midi_bridge._drum_notes(more, 0.0) == midi_bridge._drum_notes(arr, 0.0)

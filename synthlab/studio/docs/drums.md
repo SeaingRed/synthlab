@@ -135,6 +135,42 @@ The loop and a section's cycle are circles.
   (`song_model.bar_sample`) and any hit, plain or not, may land a
   sample apart.
 
+### The acoustic kit in the schedule
+
+A beat whose `drum_kit` is `"naked"` (the downloadable acoustic kit,
+`synthlab/kits`) is scheduled by the same `drum_hits`, the same draws
+and rolls, and each `Hit` also carries `art` (its articulation: the
+hit's `a`, else its row's default — `state.ARTICULATIONS`, "hit" for a
+row with none), `vel` (what picks the recorded layer: the step's or the
+hit's velocity x humanise x the ratchet's fall; `gain` stays the row's
+level x it) and `rr` (its round robin). On an electronic kit none is set
+and the schedule is the one it always was.
+
+- **`ohat` is the hat's "open"**: its hits join the hat row's, with the
+  `ohat` row's level and chance.
+- **Round robins are a count of the pattern** (`arrange.rr_marks`): the
+  strikes of the same (row, articulation) before a cell in its pattern,
+  in step order, a ratchet counting each strike — never what a roll let
+  play, so every pass takes the same takes at the same steps. A tiled
+  section's cycle carries each cell's count as `q` beside `k` / `pk`
+  (`song_model._tile_rr`), so the loop, a section and every chunk agree.
+- **The render** (`_schedule_drums`) asks `kits.play.render_hit` for each
+  distinct (row, art, velocity in 1/127ths, take, mic mix) once a render,
+  through `play.levels(drum_mics)` (a preset, then its overrides), times
+  the row's level (`gain / vel`: the level never picks the layer) and
+  `KIT_GAIN` (+11 dB, measured: the kit by loudness against the
+  electronic voices). A pedal, tight or closed hat cuts a ringing half /
+  open one, and a `choke` cuts its row's ringing hit and sounds nothing —
+  the open hat's 8 ms fade, on the schedule's own times. A row with a
+  clip plays its clip; clap and rim play their electronic voices.
+- **Fallbacks** (`FALLBACK_VOICES`, `TOM_STEPS`): an electronic kit, or
+  the acoustic kit while it is not on this machine (`kit_ready`), plays a
+  new row on the nearest electronic voice — ride, crash 2, splash and
+  china the crash voice at decay 0.9 / 1.4 / 0.6 / 1.2, tom 2-5 the tom
+  three semitones a drum lower — and a half / open hat on the open hat
+  voice. The drum stem key and the loop key carry the kit, whether it is
+  here (`kit_ready`) and the mic mix, each absent on an electronic kit.
+
 ### The sidechain
 
 `fxrack.kick_steps` (the kicks a `sidechain` unit ducks on, and part of
