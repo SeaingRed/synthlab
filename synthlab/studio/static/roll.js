@@ -58,7 +58,9 @@
 
   // ---- the selection: exactly the notes picked, each "<pitch>@<its start step>" ----
   let sel = null, mark = null, anchor = null, cur = null; // {box, notes}; the copied one (+ its extent); Shift's fixed corner (+ what it adds to); the cursor {box, name}
-  const text = (r) => (r?.notes.length ? `n:${r.notes.join(",")}` : "");
+  // on grid g: only the notes on rows it draws now (an octave or span change hides the rest; one hidden note refused the whole post)
+  const shown = (r, g) => (g ? r?.notes.filter((n) => pitches(g).includes(split(n)[0])) : r?.notes);
+  const text = (r, g) => (shown(r, g)?.length ? `n:${shown(r, g).join(",")}` : "");
   const gridOf = (r) => document.getElementById(r?.box)?.querySelector(ROLL) || null;
   const noteAt = (g, c) => c.checked && `${pitchOf(c)}@${runOf(g, pitchOf(c), stepOf(c))[0]}`;
   const split = (n) => [n.slice(0, n.lastIndexOf("@")), Number(n.slice(n.lastIndexOf("@") + 1))];
@@ -127,7 +129,7 @@
     busy = performance.now(); // (a toolbar click too: a key pressed behind it waits its turn)
     const body = e.detail.ctx.request.body, args = JSON.parse(el.dataset.args || "{}");
     delete el.dataset.args;
-    if (sel && sel.box === boxOf(g).id) body.set("sel", text(sel));
+    if (sel && sel.box === boxOf(g).id) body.set("sel", text(sel, g));
     if (el.dataset.rollOp === "dup" && ext(sel)) body.set("dx", ext(sel).s1 - ext(sel).s0 + 1);
     body.set("span", g.dataset.span);
     body.set("oct", g.dataset.oct);
