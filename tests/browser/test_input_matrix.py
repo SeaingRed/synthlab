@@ -261,6 +261,69 @@ def test_roll_mouse_draws_lengthens_moves_copies_and_deletes(studio, server):
     wait(page, lambda: undo_steps(server) == 6, "one step taken back")
 
 
+def picked(page) -> list[str]:
+    js = "() => [...document.querySelectorAll('#transport .grid.roll .cell.sel')]"
+    return sorted(page.evaluate(js + ".map((c) => c.name)"))
+
+
+def test_roll_select_picks_one_line_of_a_stacked_octave_and_moves_it_alone(
+    studio, server
+):
+    # the bug: a selection was a rectangle, so a note could not be picked
+    # apart from the octave stacked on it — a drag moved them all
+    page = perform(studio, server, cells=[("A1", 0), ("A1", 1), ("A2", 0), ("A2", 1)])
+    m = Mouse(page)
+    tool(page, "select")
+    page.click(cell("A1", 0))
+    wait(page, lambda: picked(page) == ["cell.A1.0", "cell.A1.1"], "A1 alone")
+    m.drag(cell("A1", 0), cell("A1", 4))
+    wait(
+        page,
+        lambda: notes(server) == [("A2", 0, 2), ("A1", 4, 6)],
+        "A1 moved, A2 left",
+        server=server,
+    )
+    # the answer's selection is the note it moved, never the box round it
+    sync(page, server)
+    wait(page, lambda: picked(page) == ["cell.A1.4", "cell.A1.5"], "it, still")
+    assert undo_steps(server) == 1
+
+
+def test_roll_select_shift_click_toggles_notes_and_moves_only_those(studio, server):
+    page = perform(studio, server, cells=[("C2", 0), ("D2", 2), ("E2", 4)])
+    m = Mouse(page)
+    tool(page, "select")
+    page.click(cell("C2", 0))
+    page.click(cell("E2", 4), modifiers=["Shift"])
+    wait(page, lambda: picked(page) == ["cell.C2.0", "cell.E2.4"], "two notes")
+    # Ctrl-click toggles too: the note between in, and out again
+    page.click(cell("D2", 2), modifiers=["Control"])
+    wait(page, lambda: len(picked(page)) == 3, "the third in")
+    page.click(cell("D2", 2), modifiers=["Shift"])
+    wait(page, lambda: picked(page) == ["cell.C2.0", "cell.E2.4"], "the third out")
+    m.drag(cell("C2", 0), cell("C2", 1))
+    wait(
+        page,
+        lambda: notes(server) == [("C2", 1, 2), ("D2", 2, 3), ("E2", 5, 6)],
+        "both moved, the note between them not",
+        server=server,
+    )
+    sync(page, server)
+    wait(page, lambda: picked(page) == ["cell.C2.1", "cell.E2.5"], "the two")
+    # a click on an empty step clears it; Shift + a marquee adds what it touches
+    page.click(cell("C2", 8))
+    wait(page, lambda: picked(page) == [], "nothing selected")
+    page.click(cell("C2", 1))
+    page.keyboard.down("Shift")
+    m.drag(cell("E2", 4), cell("D2", 6))
+    page.keyboard.up("Shift")
+    wait(
+        page,
+        lambda: picked(page) == ["cell.C2.1", "cell.E2.5"],
+        "the marquee's note added",
+    )
+
+
 def test_roll_mouse_a_fast_stroke_fills_every_step_between_two_samples(studio, server):
     page = perform(studio, server)
     m = Mouse(page)

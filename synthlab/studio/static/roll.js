@@ -8,7 +8,9 @@
 //     `paintVal` false); select and stamp are this file's;
 //   - a note's END dragged in the draw tool (the last 6 px of a note's last
 //     step; 10 px under a pen, half the step under a finger), the MARQUEE
-//     and the selection, a selection DRAGGED (Ctrl = copy) — each ends in
+//     and the selection — the exact set of notes picked (a click, Shift /
+//     Ctrl-click to toggle one, a marquee), never an area — a selection
+//     DRAGGED (Ctrl = copy) — each ends in
 //     one post to the pattern tool route (`patternops.roll_tool`: the
 //     server moves cells, cuts, velocities and slides together, one undo
 //     step), never in a checkbox it ticks itself;
@@ -54,37 +56,49 @@
     return [a, b];
   }
 
-  // ---- the selection: a rectangle of steps x rows, drawn on the notes in it ----
-  let sel = null, mark = null, anchor = null, cur = null; // {box, s0, s1, top, low}; the copied one; Shift's fixed corner; the cursor {box, name}
-  const text = (r) => (r ? `${r.s0}:${r.s1}:${r.top}:${r.low}` : "");
+  // ---- the selection: exactly the notes picked, each "<pitch>@<its start step>" ----
+  let sel = null, mark = null, anchor = null, cur = null; // {box, notes}; the copied one (+ its extent); Shift's fixed corner (+ what it adds to); the cursor {box, name}
+  // on grid g: only the notes on rows it draws now (an octave or span change hides the rest; one hidden note refused the whole post)
+  const shown = (r, g) => (g ? r?.notes.filter((n) => pitches(g).includes(split(n)[0])) : r?.notes);
+  const text = (r, g) => (shown(r, g)?.length ? `n:${shown(r, g).join(",")}` : "");
   const gridOf = (r) => document.getElementById(r?.box)?.querySelector(ROLL) || null;
+  const noteAt = (g, c) => c.checked && `${pitchOf(c)}@${runOf(g, pitchOf(c), stepOf(c))[0]}`;
+  const split = (n) => [n.slice(0, n.lastIndexOf("@")), Number(n.slice(n.lastIndexOf("@") + 1))];
+  const hold = (g, notes) => void (sel = notes.length ? { box: boxOf(g).id, notes: [...new Set(notes)] } : null);
+  const mineIn = (g) => (sel?.box === boxOf(g).id ? sel.notes : []);
+  // its extent on the grid now: the first start, the last end, the top row (paste, move-to-cursor and dup are offsets from it)
+  function ext(r) {
+    const g = gridOf(r), rows = g ? pitches(g) : [], at = (r?.notes || []).map(split).filter(([p]) => rows.includes(p));
+    if (!at.length) return null;
+    return { ...r, s0: Math.min(...at.map((n) => n[1])), s1: Math.max(...at.map(([p, a]) => runOf(g, p, a)[1])), top: rows[Math.min(...at.map(([p]) => rows.indexOf(p)))] };
+  }
   function paint() {
     for (const c of document.querySelectorAll(`${ROLL} .sel`)) c.classList.remove("sel");
-    const g = gridOf(sel), rows = g ? pitches(g) : [];
-    if (!g || !rows.includes(sel.top) || !rows.includes(sel.low)) return;
-    for (const pitch of rows.slice(rows.indexOf(sel.top), rows.indexOf(sel.low) + 1)) {
-      for (let s = sel.s0; s <= sel.s1; s++) {
-        if (!cellAt(g, pitch, s)?.checked) continue;
-        const [a, b] = runOf(g, pitch, s);
-        for (let k = a; k <= b; k++) cellAt(g, pitch, k).classList.add("sel");
-        s = b;
-      }
+    const g = gridOf(sel);
+    for (const [pitch, a] of g ? sel.notes.map(split) : []) {
+      if (!cellAt(g, pitch, a)?.checked) continue;
+      for (let k = a; k <= runOf(g, pitch, a)[1]; k++) cellAt(g, pitch, k).classList.add("sel");
     }
   }
-  // select what a rectangle of cells touches (pulled in to the notes it holds; nothing = no selection)
-  function pick(g, s0, s1, r0, r1) {
-    const rows = pitches(g), box = boxOf(g).id;
-    sel = { box, s0: Math.min(s0, s1), s1: Math.max(s0, s1), top: rows[Math.min(r0, r1)], low: rows[Math.max(r0, r1)] };
+  // select the notes a rectangle of cells touches, added to `base` (none at all = no selection)
+  function pick(g, s0, s1, r0, r1, base = []) {
+    const rows = pitches(g), got = [...base];
+    for (const pitch of rows.slice(Math.min(r0, r1), Math.max(r0, r1) + 1)) {
+      for (let s = Math.min(s0, s1); s <= Math.max(s0, s1); s++) if (cellAt(g, pitch, s)?.checked) got.push(noteAt(g, cellAt(g, pitch, s)));
+    }
+    hold(g, got);
     paint();
-    const lit = [...g.querySelectorAll(".cell.sel")];
-    if (!lit.length) return void (sel = null);
-    const steps = lit.map(stepOf), at = lit.map((c) => rows.indexOf(pitchOf(c)));
-    sel = { box, s0: Math.min(...steps), s1: Math.max(...steps), top: rows[Math.min(...at)], low: rows[Math.max(...at)] };
   }
-  document.addEventListener("roll-sel", (e) => { // the server: where the notes went
+  // Shift / Ctrl-click: the note under the step in or out of the selection
+  function toggle(g, c) {
+    const n = noteAt(g, c), now = mineIn(g);
+    if (n) hold(g, now.includes(n) ? now.filter((x) => x !== n) : [...now, n]);
+    paint();
+  }
+  document.addEventListener("roll-sel", (e) => { // the server: exactly the notes the edit touched
     if (!sel) return;
-    const [s0, s1, top, low] = (e.detail?.sel || "").split(":");
-    sel = top ? { box: sel.box, s0: Number(s0), s1: Number(s1), top, low } : null;
+    const raw = e.detail?.sel || "";
+    sel = raw.startsWith("n:") ? { box: sel.box, notes: raw.slice(2).split(",") } : null;
     paint();
   });
 
@@ -115,8 +129,8 @@
     busy = performance.now(); // (a toolbar click too: a key pressed behind it waits its turn)
     const body = e.detail.ctx.request.body, args = JSON.parse(el.dataset.args || "{}");
     delete el.dataset.args;
-    if (sel && sel.box === boxOf(g).id) body.set("sel", text(sel));
-    if (el.dataset.rollOp === "dup" && sel) body.set("dx", sel.s1 - sel.s0 + 1);
+    if (sel && sel.box === boxOf(g).id) body.set("sel", text(sel, g));
+    if (el.dataset.rollOp === "dup" && ext(sel)) body.set("dx", ext(sel).s1 - ext(sel).s0 + 1);
     body.set("span", g.dataset.span);
     body.set("oct", g.dataset.oct);
     for (const k in args) body.set(k, args[k]);
@@ -124,7 +138,7 @@
   // the three commands that act at the cursor: paste what was copied there, move the selection there, stamp a chord there
   const chord = (c) => ({ row: pitchOf(c), step: stepOf(c), q: boxOf(c).querySelector("[data-roll-opt=q]")?.value, len: boxOf(c).querySelector("[data-roll-opt=len]")?.value });
   function atCursor(g, op) {
-    const c = g.querySelector(".gridrow:not(.sliderow) .cell[tabindex='0']"), rows = pitches(g), from = op === "paste" ? mark : sel;
+    const c = g.querySelector(".gridrow:not(.sliderow) .cell[tabindex='0']"), rows = pitches(g), from = op === "paste" ? mark : ext(sel);
     if (!c || op === "stamp") return c && chord(c);
     return from && rows.includes(from.top) ? { sel: text(from), dx: stepOf(c) - from.s0, dy: rows.indexOf(from.top) - rows.indexOf(pitchOf(c)) } : null;
   }
@@ -161,11 +175,11 @@
     const g = boxOf(t)?.querySelector(ROLL), op = t.dataset.rollOp;
     if (t.dataset.rollTool) keep("tool", (root.dataset.roll = t.dataset.rollTool));
     else if (!op) keep("ghosts", (root.dataset.ghosts = root.dataset.ghosts === "off" ? "on" : "off"));
-    else if (op === "mark") mark = sel && { ...sel };
+    else if (op === "mark") mark = ext(sel);
     else if (g && !t.dataset.args && ["paste", "move", "stamp"].includes(op)) { // (a click made by `send` brings its own)
       const args = atCursor(g, op);
       if (!args) return void (e.preventDefault(), e.stopImmediatePropagation());
-      if (op === "paste") sel ??= { ...mark, box: boxOf(g).id }; // the copy becomes the selection (`roll-sel`)
+      if (op === "paste") sel ??= { box: boxOf(g).id, notes: mark.notes }; // the copy becomes the selection (`roll-sel`)
       t.dataset.args = JSON.stringify(args);
     }
     dress();
@@ -193,10 +207,9 @@
       if (s !== b || e.offsetX < c.offsetWidth * (1 - grip(e))) return; // not on a note's end: audio.js's stroke
       drag = { kind: "len", box: boxOf(g).id, pitch, a, b, to: b };
     } else if (mode === "select") {
-      if (e.shiftKey) return void e.stopPropagation(); // adds to the selection: the click below
-      const held = c.classList.contains("sel");
+      const held = c.classList.contains("sel") && !e.shiftKey, add = e.shiftKey || e.ctrlKey; // Shift / Ctrl: a click toggles a note, a marquee adds
       const a = g.querySelector(".cell"), b = a.nextElementSibling?.matches(".cell") ? a.nextElementSibling : a, row = a.parentElement.nextElementSibling;
-      drag = { kind: held ? "move" : "box", box: boxOf(g).id, s, r, to: s, tr: r, copy: e.ctrlKey, w: b.getBoundingClientRect().left - a.getBoundingClientRect().left, h: (row?.getBoundingClientRect().top ?? 0) - a.parentElement.getBoundingClientRect().top };
+      drag = { kind: held ? "move" : "box", box: boxOf(g).id, s, r, to: s, tr: r, copy: e.ctrlKey, add, w: b.getBoundingClientRect().left - a.getBoundingClientRect().left, h: (row?.getBoundingClientRect().top ?? 0) - a.parentElement.getBoundingClientRect().top };
     } else if (mode !== "stamp") return;
     e.stopPropagation(); // not audio.js's stroke
     if (drag) try { g.setPointerCapture(e.pointerId); } catch {}
@@ -233,10 +246,12 @@
     setTimeout(() => { eat = false; }, 0);
     if (!g) return;
     for (const x of g.querySelectorAll(".pre, .gone, .msel")) x.classList.remove("pre", "gone", "msel");
-    if (e.type === "pointercancel" || (d.kind !== "box" && !d.moved)) return void (d.kind === "move" && pick(g, d.s, d.s, d.r, d.r), dress());
-    if (d.kind === "len") Math.max(d.a, d.to) !== d.b && send(g, "len", { sel: `${d.a}:${d.a}:${d.pitch}:${d.pitch}`, by: Math.max(d.a, d.to) - d.b });
+    if (e.type === "pointercancel" || (d.kind === "len" && !d.moved)) return void dress();
+    const c = !d.moved && cellAt(g, pitches(g)[d.r], d.s); // a click, not a drag: the note under it alone, or in / out
+    if (c) return void (d.add ? toggle(g, c) : pick(g, d.s, d.s, d.r, d.r), dress());
+    if (d.kind === "len") Math.max(d.a, d.to) !== d.b && send(g, "len", { sel: `n:${d.pitch}@${d.a}`, by: Math.max(d.a, d.to) - d.b });
     else if (d.kind === "move") send(g, d.copy ? "paste" : "move", { dx: d.to - d.s, dy: d.r - d.tr });
-    else pick(g, d.s, d.to, d.r, d.tr);
+    else pick(g, d.s, d.to, d.r, d.tr, d.add ? mineIn(g) : []);
     if (d.kind === "move") setTimeout(dress, 900); // (a refused move settles nothing)
   }
   document.addEventListener("pointerup", drop, true);
@@ -251,10 +266,10 @@
     const g = c.closest(ROLL);
     e.stopPropagation(); // (grid.js's Shift-click is a cut: not in these tools)
     if (mode === "stamp") send(g, "stamp", chord(c));
-    else if (mode === "select" && (e.shiftKey || e.detail === 0)) { // Shift (a pen's barrel): add this step; Space / Enter: the note here
-      const rows = pitches(g), s = stepOf(c), r = rows.indexOf(pitchOf(c)), more = e.shiftKey && sel;
+    else if (mode === "select" && (e.shiftKey || e.ctrlKey || e.detail === 0)) { // Shift / Ctrl (a pen's barrel, Shift+Enter): this note in or out; Space / Enter: it alone
+      const r = pitches(g).indexOf(pitchOf(c));
       // (after the dispatch: a cancelled click has the box toggled until then)
-      setTimeout(() => pick(g, more ? Math.min(more.s0, s) : s, more ? Math.max(more.s1, s) : s, more ? Math.min(rows.indexOf(more.top), r) : r, more ? Math.max(rows.indexOf(more.low), r) : r), 0);
+      setTimeout(() => (e.shiftKey || e.ctrlKey ? toggle(g, c) : pick(g, stepOf(c), stepOf(c), r, r)), 0);
     }
   }, true);
   // a finger held on a step (grid.js hears the press): select the note under it and ask menu.js for the roll's menu
@@ -293,7 +308,7 @@
     const g = c.closest(ROLL), row = c.parentElement, lane = c.matches(".vel-lane"), line = [...row.querySelectorAll(".cell, .vel-lane")], i = line.indexOf(c);
     const ctrl = e.ctrlKey, k = e.key, go = ARROW[k], spb = Number(g.dataset.spb) || line.length, note = !lane && row.querySelector("[data-pitch]");
     const done = () => { e.preventDefault(); e.stopPropagation(); };
-    const here = () => { const [a] = runOf(g, pitchOf(c), i); return { sel: `${a}:${a}:${pitchOf(c)}:${pitchOf(c)}` }; };
+    const here = () => ({ sel: `n:${noteAt(g, c)}` });
     const mine = sel && sel.box === boxOf(g).id;
     if (lane && (k === "PageUp" || k === "PageDown") && !ctrl) { // velocity ↔ chance: the other lane in its place, the same step
       const to = g.querySelector(k === "PageDown" ? ".chancerow" : ".velrow:not(.chancerow)");
@@ -322,18 +337,18 @@
     else if (k === "Escape" && sel) return void (done(), (sel = anchor = null), paint());
     else if (ctrl && note && "cvda".includes(k.toLowerCase()) && !e.shiftKey && !e.altKey) {
       done();
-      if (k === "c" || k === "C") mark = sel && { ...sel };
+      if (k === "c" || k === "C") mark = ext(sel);
       else if (k === "a" || k === "A") pick(g, 0, line.length - 1, 0, pitches(g).length - 1);
       else if (k.toLowerCase() === "d") send(g, "dup", {});
-      else if (atCursor(g, "paste")) { sel ??= { ...mark, box: boxOf(g).id }; send(g, "paste", atCursor(g, "paste")); }
+      else if (atCursor(g, "paste")) { sel ??= { box: boxOf(g).id, notes: mark.notes }; send(g, "paste", atCursor(g, "paste")); }
       return;
     }
     if (!to) return void (go && !ctrl && done()); // an edge: the page does not scroll under the cursor
     done();
     if (e.shiftKey && go && note && to.name?.startsWith("cell.")) {
       const rows = pitches(g);
-      anchor ??= { s: i, r: rows.indexOf(pitchOf(c)) };
-      pick(g, anchor.s, stepOf(to), anchor.r, rows.indexOf(pitchOf(to)));
+      anchor ??= { s: i, r: rows.indexOf(pitchOf(c)), base: mineIn(g) }; // the sweep adds to what was selected when it began
+      pick(g, anchor.s, stepOf(to), anchor.r, rows.indexOf(pitchOf(to)), anchor.base);
     } else anchor = null;
     to.focus();
     to.scrollIntoView({ block: "nearest", inline: "nearest" });

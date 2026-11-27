@@ -606,17 +606,24 @@ gesture becomes:
 
 `…` is `/fragment/pattern` on Perform (`@pattern_edit`: one pattern-undo
 step) and `/song/pattern/{id}/tool/` in the drawer (one song-undo step;
-every section using the pattern follows). A selection is
-`sel=<step0>:<step1>:<pitch>:<pitch>`, inclusive: it holds every note a
-cell of which lies in the rectangle (`_picked`). A tool that needs one
-and gets none, a rectangle that names no row, a number that is not one:
-a 422 toast, nothing changed. Every one keeps what the window hides
+every section using the pattern follows). **A selection is a set of
+notes, never an area**: `sel=n:<pitch>@<start>,<pitch>@<start>,...`, a
+note named by its row and its start step in the window (`parse_sel`;
+`_picked` takes exactly those). It was a rectangle, and a rectangle
+cannot hold one line of a chord without the octave stacked on it, or two
+notes far apart without every note between: a drag moved them all. The
+rectangle form, `sel=<step0>:<step1>:<pitch>:<pitch>` (inclusive: every
+note a cell of which lies in it), still parses — the roll no longer
+sends it. A tool that needs a selection and gets none, a row the window
+does not have, a start off the grid, more than `limits.MAX_SEL_NOTES`
+notes, a number that is not one: a 422 toast, nothing changed. Every one keeps what the window hides
 (`_split` / `_join`, the `_carry_over` rule).
 
 **The answer carries the selection**: `HX-Trigger: {"roll-sel": {"sel":
-…}}` is the rectangle round the notes the edit touched (`""` after a
-remove; absent when the tool ran on the window, or a move could not
-move). roll.js keeps its selection from that, so it survives the redraw
+…}}` names exactly the notes the edit touched, as a note set
+(`patternops.note_set`: never the rectangle round them, which can hold
+notes nobody picked; `""` after a remove; absent when the tool ran on
+the window, or a move could not move). roll.js keeps its selection from that, so it survives the redraw
 and a second move selects exactly the notes the first one moved.
 
 **Strum** (`tests/studio/test_strum.py`) is not a
@@ -752,9 +759,12 @@ a finger need: in draw, a drag that starts on a note's END (the last
 6 px of its last step; 10 px under a pen; the right HALF of the step
 under a finger, where a step is 40 px) changes its length. A click
 there is still a click. In select: a drag on empty steps is a marquee
-(the selection is pulled in to the notes it holds), a drag on a selected
-note moves the selection (Ctrl held when it lands = copy), a click
-selects the note under it, Shift-click (a pen's barrel) adds. In stamp a
+(it selects the notes it touches; with Shift or Ctrl held it adds them),
+a drag on a selected note moves exactly the selected notes (Ctrl held
+when it lands = copy), a click selects the note under it alone,
+Shift-click or Ctrl-click (a pen's barrel, Shift+Enter) puts that one
+note in or takes it out, and a click on an empty step (or Esc) clears
+it. In stamp a
 click stamps. Erase never draws. A right click erases a step in every
 tool (grid.js).
 
@@ -862,7 +872,7 @@ every redraw): its cells, and its velocity lanes.
 | PageUp / PageDown | an octave up / down; at the top / bottom row, the window |
 | Space, Enter | a click in the current tool (toggle, stamp, select the note) |
 | Shift+Enter | a cut |
-| Shift+arrows | select: from where Shift was first held to the cursor |
+| Shift+arrows | select: the notes from where Shift was first held to the cursor, added to what was selected then |
 | Alt+arrows; Alt+Shift+↑ ↓ | move the selection a step / a row / an octave — with no selection, the whole pattern (the tools ◀ ▶ ▲ ▼ ±8va) |
 | Ctrl+← → | the note under the cursor (or the selection) a step shorter / longer |
 | Ctrl+↑ ↓ | the cursor's step's velocity (the lane's own keys) |
@@ -876,9 +886,9 @@ On a velocity lane ← → walk the lanes and ↑ ↓ Home End set the value
 transposing the whole pattern is Alt+arrows (the drum grid keeps
 Shift+arrows: grid.js). Tools have no key
 of their own (no bare letter is free): they are commands (Ctrl+K,
-"Tool: stamp") and Stream Deck keys. Paste copies the notes that are in
-the remembered rectangle *now* — it is "copy from there to here", not a
-clipboard that outlives an edit of its source.
+"Tool: stamp") and Stream Deck keys. Paste copies the remembered notes
+as they are *now* (by row and start step) — it is "copy from there to
+here", not a clipboard that outlives an edit of its source.
 
 **Posts go one at a time.** htmx keeps one waiting request an element
 and drops the rest, and a tool's answer redraws the button that sent
