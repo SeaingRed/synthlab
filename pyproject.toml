@@ -65,6 +65,7 @@ synthlab-studio = "synthlab.studio.server:main"
 dev = [
     "httpx2>=2.13.1",
     "pytest>=8.3",
+    "pytest-xdist>=3.6",
     "ruff>=0.8",
     "ty>=0.0.72",
 ]
@@ -110,5 +111,6 @@ select = ["E", "F", "I", "UP", "B", "NPY"]
 testpaths = ["tests"]
 markers = [
     "slow: heavy files (the live parity corpus); `-m \"not slow\"` skips them",
+    "premerge: the pre-merge tier (tests/test_*.py + the studio's render / cache-key guards), tagged in tests/conftest.py; `pytest -n auto -m premerge`",
     "browser: real-browser smoke journeys (tests/browser/, Playwright + Chromium); skipped when either is missing",
 ]

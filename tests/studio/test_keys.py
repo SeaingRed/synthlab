@@ -37,7 +37,9 @@ def test_piano_bridge_folds_notes_into_midi_range():
     src = Path("synthlab/studio/static/piano.js").read_text(encoding="utf-8")
     bridge = src[src.index("window.synthlab.piano = {") :]
     bridge = bridge[: bridge.index("};")]
-    assert "noteOn: (id, midi, vel) => noteOn(id, fakeKey(inMidiRange(midi))" in bridge
+    assert (
+        "noteOn: (id, midi, vel, at) => noteOn(id, fakeKey(inMidiRange(midi))" in bridge
+    )
     fold = src[src.index("const inMidiRange") :].split("\n", 1)[0]
     assert "127" in fold and "12" in fold
 

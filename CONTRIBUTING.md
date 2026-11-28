@@ -10,10 +10,23 @@ in `synthlab/studio/docs/` (start at its `README.md`), the engine's in
 `docs/engine.md` — and most of them are pinned by a test. Read the one for
 the area you touch before changing it.
 
-A pull request should pass `uv run ruff check synthlab tests tools`,
-`uv run ruff format --check synthlab tests tools` and the quick tier
-(`uv run pytest -q -m "not slow"`); CI runs the same plus the NumPy
-fallback, the WebAssembly check and the Rust kernels.
+Testing has three levels:
+
+1. **Per change**: lint, plus only the test files for the code you touched.
+   No full-suite runs.
+   `uv run ruff check synthlab tests tools`,
+   `uv run ruff format --check synthlab tests tools`,
+   `uv run pytest -q tests/studio/test_<area>.py`.
+2. **Before a merge** (the pre-merge tier, about a minute): every engine test
+   (`tests/test_*.py`) and the studio's render / cache-key guards
+   (`tests/studio/test_render.py`, `test_render_cache_keys.py`,
+   `test_song_routes.py`, `test_drum_hits.py`), in parallel:
+   `uv run pytest -q -n auto -m premerge`. CI (manual) runs this tier plus
+   the NumPy fallback, the WebAssembly check and the Rust kernels.
+3. **Browser tier**: on request only, never a gate (see below).
+
+Tests check wiring and contracts, not taste: the owner listens and plays to
+judge sound and feel.
 
 ## Commands
 
@@ -29,8 +42,9 @@ uv sync --all-extras              # install (studio + playback extras, dev group
                                    # manifest) likewise downloads on request into
                                    # %LOCALAPPDATA%\synthlab\kits\naked-drums, or
                                    # SYNTHLAB_KIT_DIR; never into the repo
-uv run pytest -q                  # full test suite
-uv run pytest -q -m "not slow"    # quick tier: everything but the live parity corpus
+uv run pytest -q tests/studio/test_x.py  # per change: the files for the code touched
+uv run pytest -q -n auto -m premerge     # pre-merge tier (engine + render / cache-key guards)
+uv run pytest -q                  # the full suite: rarely, on request
 uv run pytest tests/test_breed.py::test_mutate_is_deterministic_with_seed  # one test
 uv run ruff check synthlab tests tools  # lint (scope to these dirs, not ".")
 uv run ruff format synthlab tests tools
@@ -73,10 +87,10 @@ SYNTHLAB_NATIVE=0 uv run pytest -q         # the suite on the NumPy fallback
 # Chromium against a scratch studio. Opt-in — the `browser` dependency group is
 # not in `uv sync --all-extras`, and without it (or its Chromium) they skip
 uv run --group browser playwright install chromium   # once per machine
-uv run --group browser pytest tests/browser -q       # 241 journeys
+uv run --group browser pytest tests/browser -q       # opt-in, on request: 241 journeys
 ```
 
-**Browser smoke tests** (`tests/browser/`, its `conftest.py` is the harness):
+**Browser smoke tests** (opt-in, run on request, never a gate; `tests/browser/`, its `conftest.py` is the harness):
 each test starts its own studio in-process (uvicorn in a thread, the first
 free port from 8430, a pytest temp data dir) and drives it with a real
 pointer and keyboard — every view cold and through the nav, the live keys

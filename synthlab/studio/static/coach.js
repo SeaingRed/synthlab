@@ -20,7 +20,10 @@
 //   to Gemini is on): held, the mic records (voice.js's capture); let go,
 //   up to 10 s goes to /fragment/coach/talk as a 16 kHz mono WAV, its
 //   answer swapped in like any htmx answer (the regions ride on it).
-// Budget: <= 110 code lines.
+// - Motion: a settle brings in only the rows it added and unfolds a new
+//   proposal; Accept / Discard fold it while they post (GSAP, none when calm).
+// 110 -> 125: that motion (the panel's redesign: flat, hairlines, one dot).
+// Budget: <= 125 code lines.
 
 (() => {
   "use strict";
@@ -64,17 +67,44 @@
     put(notes, d.notes?.add, "coach-add"); put(notes, d.notes?.del, "coach-del");
     put(drums, d.drums?.add, "coach-add"); put(drums, d.drums?.del, "coach-del");
   }
-  document.addEventListener("htmx:after:settle", () => { if (dock()) lay(); });
+  // ---- motion (GSAP; none under calm, frontend.md "Motion: full or calm") ----------
+  // A settle brings in only the rows it added (`data-k`: a finding, a
+  // thread entry) — a short staggered fade and a 4 px rise — and unfolds a
+  // new proposal; Accept / Discard fold it away while their post runs.
+  // One tween per new row, never a frame loop.
+  const G = () => (!S.calm?.() && window.gsap) || null;
+  const seen = new Set();
+  function arrive(prime) {
+    const fresh = [];
+    for (const el of document.querySelectorAll("#coach-panel [data-k]")) {
+      if (!seen.has(el.dataset.k)) { seen.add(el.dataset.k); fresh.push(el); }
+    }
+    const g = G(), prop = document.querySelector("#coach-panel .coach-prop");
+    if (prime || !g || !open || !fresh.length) return;
+    const rows = fresh.filter((el) => !el.classList.contains("coach-prop"));
+    if (rows.length) g.from(rows, { opacity: 0, y: 4, duration: 0.22, stagger: { amount: Math.min(0.24, 0.04 * rows.length) }, ease: "power2.out", clearProps: "opacity,transform" });
+    if (fresh.includes(prop)) g.from(prop, { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0, duration: 0.26, ease: "power2.out", clearProps: "all" });
+  }
+  function fold(card) {
+    const g = G();
+    if (g && card) g.to(card, { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0, borderWidth: 0, duration: 0.2, ease: "power2.in" });
+  }
+  function unfold(card) { const g = G(); if (g && card) { g.killTweensOf(card); g.set(card, { clearProps: "all" }); } }
+  document.addEventListener("htmx:after:settle", () => { if (dock()) { lay(); arrive(false); } });
   document.addEventListener("htmx:after:request", (e) => {
     const form = e.detail?.ctx?.sourceElement?.closest?.(".coach-say");
     const status = e.detail?.ctx?.response?.status || 0;
     if (form && status && status < 400) form.querySelector('[name="coach_say"]').value = "";
+    const f = e.detail?.ctx?.sourceElement?.closest?.("[data-coach-fold]");
+    if (f && !(status && status < 400)) unfold(f.closest(".coach-prop")); // refused: the proposal stands
   });
 
   // ---- the clicks and the key -----------------------------------------------------------
   document.addEventListener("click", (e) => {
     const b = e.target instanceof Element && e.target.closest("[data-coach-toggle]");
     if (b) toggle({ open: true, close: false }[b.dataset.coachToggle] ?? !open);
+    const f = e.target instanceof Element && e.target.closest("[data-coach-fold]:not(:disabled)");
+    if (f) fold(f.closest(".coach-prop"));
   });
   window.addEventListener("keydown", (e) => {
     if (e.code !== "KeyK" || !e.altKey || e.ctrlKey || e.metaKey || e.repeat || !dock()) return;
@@ -123,5 +153,6 @@
   document.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat && e.target.closest?.("[data-coach-mic]")) { e.preventDefault(); start(e.target.closest("[data-coach-mic]")); } });
   document.addEventListener("keyup", (e) => { if ((e.key === " " || e.key === "Enter") && rec && e.target.closest?.("[data-coach-mic]")) stop(); });
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", lay); else lay();
+  const init = () => { lay(); arrive(true); };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();

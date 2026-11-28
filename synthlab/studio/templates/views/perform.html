@@ -304,7 +304,7 @@
             localStorage `synthlab.coach`). -#}
         <section id="coach-dock" class="coach module" data-module="perform.coach" aria-label="Loop coach" hidden>
           <header class="coach-head">
-            <h2 class="caps is-ai" title="Reads the loop — every lane's notes, the beat, the key, the chord lane — and says what it finds. A fix, Clean up all, an option or a chat reply is a proposal: shown on the grids (added notes outlined, removed ones struck), heard with ▶, and changes the loop only on Accept">✦ Coach</h2>
+            <h2 class="coach-title" title="Reads the loop — every lane's notes, the beat, the key, the chord lane — and says what it finds. A fix, Clean up all, an option or a chat reply is a proposal: shown on the grids (added notes outlined, removed ones struck), heard with ▶, and changes the loop only on Accept">✦ Coach</h2>
             <button type="button" class="btn btn-ghost btn-icon btn-s" data-coach-toggle aria-controls="coach-dock" aria-expanded="true"
                     aria-label="close the coach" title="close the coach: back to the lane (Alt+K)">✕</button>
           </header>
@@ -313,16 +313,20 @@
               turn deadline, so htmx's own timeout is lifted above it -#}
           <form class="coach-say" hx-post="/fragment/coach/chat" hx-swap="none" hx-sync="this:queue all"
                 hx-indicator="#coach-dock" hx-config='{"timeout": 120000}'>
-            <input class="field field-s" type="text" name="coach_say" maxlength="{{ limits.MAX_COACH_SAY }}" autocomplete="off" spellcheck="true"
-                   aria-label="talk to the coach"
-                   placeholder="{{ 'make the bass follow the kick · less busy in bar 3 · why does bar 2 sound off?' if not coach_why else 'Talk needs a key — ' ~ coach_why }}">
-            <button type="submit" class="btn btn-s" data-cmd="Coach: send the message" data-cmd-group="Coach"
-                    title="ask the coach (Enter): its reply lands in the thread, and any change it makes is a proposal">Send</button>
-            {% if not coach_why and coach_audio %}
-            <button type="button" class="btn btn-s btn-icon coach-mic" data-coach-mic aria-pressed="false" aria-label="hold to talk to the coach"
-                    title="hold to talk, let go to send: Gemini hears up to 8 s of what you say (it is sent to Google) and answers as to a typed message">🎙</button>
-            {% endif %}
-            <span class="coach-busy dim" aria-hidden="true">✦ thinking…</span>
+            {#- one rounded field, Send and 🎙 inside its right edge; while a
+                request runs, one dim "Working…" line shimmers above it -#}
+            <span class="coach-busy" aria-hidden="true">Working…</span>
+            <div class="coach-field">
+              <input class="field field-s" type="text" name="coach_say" maxlength="{{ limits.MAX_COACH_SAY }}" autocomplete="off" spellcheck="true"
+                     aria-label="talk to the coach"
+                     placeholder="{{ 'Ask the coach — make the bass follow the kick, less busy in bar 3…' if not coach_why else 'Talk needs a key — ' ~ coach_why }}">
+              {% if not coach_why and coach_audio %}
+              <button type="button" class="btn btn-s btn-ghost btn-icon coach-mic" data-coach-mic aria-pressed="false" aria-label="hold to talk to the coach"
+                      title="hold to talk, let go to send: Gemini hears up to 8 s of what you say (it is sent to Google) and answers as to a typed message">🎙</button>
+              {% endif %}
+              <button type="submit" class="btn btn-s btn-ghost coach-send" data-cmd="Coach: send the message" data-cmd-group="Coach"
+                      title="ask the coach (Enter): its reply lands in the conversation, and any change it makes is a proposal">Send</button>
+            </div>
           </form>
         </section>
         {#- the lane, after the coach: an open coach hides it with a sibling
