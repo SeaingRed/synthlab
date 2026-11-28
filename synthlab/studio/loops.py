@@ -66,10 +66,10 @@ from .files import dir_sig, rename_file, safe_name
 from .files import free_name as free_name_in
 from .lru import LRU
 from .state.model import (
-    DRUM_ROWS,
     LOOP_FIELDS,
     NOTE_LANE,
     Arrangement,
+    held_rows,
     preset_from_json,
 )
 
@@ -898,16 +898,18 @@ def idea_roll(slots) -> dict:
 
 def beat_roll(pattern: dict) -> dict:
     """A beat as a mini step grid, drawn as `roll_of` draws notes: a row a
-    voice in the drum grid's order (`DRUM_ROWS`), a dash a hit."""
+    voice in the drum grid's order (`DRUM_ROWS`, and after them each
+    further row that holds a hit: `held_rows`), a dash a hit."""
     total = max(1, int(pattern["bars"]) * int(pattern["steps_per_bar"]))
+    rows = held_rows(pattern["steps"])
     bits = sorted(
         {
-            f"M{int(st)} {DRUM_ROWS.index(v) + 0.5:g}h0.7"
+            f"M{int(st)} {rows.index(v) + 0.5:g}h0.7"
             for v, st in pattern["steps"]
-            if v in DRUM_ROWS and 0 <= int(st) < total
+            if v in rows and 0 <= int(st) < total
         }
     )
-    return {"d": "".join(bits), "w": total, "h": len(DRUM_ROWS)}
+    return {"d": "".join(bits), "w": total, "h": len(rows)}
 
 
 def roll_of_notes(notes, bars: float) -> dict:

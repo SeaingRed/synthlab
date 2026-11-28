@@ -19,6 +19,7 @@ from synthlab.studio import song_model as sm
 from synthlab.studio.arrange import NOTE_GATE, build_song, drum_hits, note_schedule
 from synthlab.studio.server import create_app
 from synthlab.studio.state import Arrangement
+from synthlab.studio.state.model import ARTICULATIONS
 from synthlab.synth import Patch
 
 P = Patch(name="short", release=0.05)
@@ -343,3 +344,125 @@ def test_gate_is_the_schedulers_own():
 
     assert inspect.signature(Song.notes).parameters["gate"].default == NOTE_GATE
     assert arrange.NOTE_GATE == 0.9
+
+
+# --- the beat's kit chooses the keys ---------------------------------------------
+
+
+GM_OLD = {
+    "kick": 36, "rim": 37, "snare": 38, "clap": 39,
+    "hat": 42, "tom": 45, "ohat": 46, "crash": 49,
+}  # fmt: skip
+
+
+def _kit_arr(kit: str, drums, hits=None) -> Arrangement:
+    return Arrangement(
+        bpm=120.0,
+        cells=[],
+        drums=[list(d) for d in drums],
+        drum_hits=dict(hits or {}),
+        drum_kit=kit,
+    )
+
+
+def test_electronic_midi_is_unchanged():
+    """No kit: every old row at `GM_DRUMS`, an old `ohat` cell on 46, the
+    bytes of the file the same whatever `gm_key` is asked."""
+    from synthlab.studio import midi_bridge as mb
+
+    rows = [[r, i] for i, r in enumerate(mb.GM_DRUMS)]
+    arr = _kit_arr("", rows)
+    got = mb._drum_notes(arr, 0.0)
+    assert sorted(n.pitch for n in got) == sorted(mb.GM_DRUMS.values())
+    assert [mb.gm_key(r, a, "") for r, a in (("rim", ""), ("ohat", ""))] == [37, 46]
+    assert [mb.gm_key("hat", "open", "")] == [42]  # art is ignored
+    assert mb.gm_key("ride", "choke", "") is None
+    # note for note what the old reading (`GM_DRUMS[voice]` per hit) wrote
+    old = [
+        (h[0], GM_OLD[v], mb._velocity(h[1]))
+        for v, hs in drum_hits(arr)
+        for h in hs
+        if h[1] > 0
+    ]
+    assert [(n.start, n.pitch, n.velocity) for n in got] == old
+
+
+def test_acoustic_midi_uses_the_kit_keys():
+    from synthlab.studio import midi_bridge as mb
+
+    want = {
+        ("kick", ""): 36,
+        ("snare", "centre"): 38,
+        ("snare", "side"): 37,
+        ("hat", "closed"): 42,
+        ("hat", "pedal"): 44,
+        ("hat", "tight"): 42,
+        ("hat", "half"): 46,
+        ("hat", "open"): 46,
+        ("tom", ""): 48,
+        ("crash", "edge"): 49,
+        ("crash", "bell"): 49,
+        ("ride", "bow"): 51,
+        ("ride", "bell"): 53,
+        ("tom2", ""): 47,
+        ("tom3", ""): 45,
+        ("tom4", ""): 43,
+        ("tom5", ""): 41,
+        ("crash2", "edge"): 57,
+        ("splash", "hit"): 55,
+        ("china", "hit"): 52,
+    }
+    for (row, art), key in want.items():
+        assert mb.gm_key(row, art, "naked") == key, (row, art)
+    for row in ("ride", "crash", "crash2", "splash", "china"):
+        assert mb.gm_key(row, "choke", "naked") is None
+
+
+def test_a_choke_writes_no_note_and_an_old_open_hat_is_46():
+    from synthlab.studio import midi_bridge as mb
+
+    arr = _kit_arr(
+        "naked",
+        [["ride", 0], ["ride", 4], ["ohat", 8], ["hat", 12]],
+        {"ride.4": {"a": "choke"}, "hat.12": {"a": "pedal"}},
+    )
+    assert sorted(n.pitch for n in mb._drum_notes(arr, 0.0)) == [44, 46, 51]
+
+
+def test_acoustic_midi_reads_back():
+    from synthlab.studio import midi_bridge as mb
+
+    arts = {
+        ("kick", "hit"),
+        ("snare", "centre"),
+        ("snare", "side"),
+        ("hat", "closed"),
+        ("hat", "pedal"),
+        ("hat", "open"),
+        ("tom", "hit"),
+        ("tom2", "hit"),
+        ("tom3", "hit"),
+        ("tom4", "hit"),
+        ("tom5", "hit"),
+        ("ride", "bow"),
+        ("ride", "bell"),
+        ("crash", "edge"),
+        ("crash2", "edge"),
+        ("splash", "hit"),
+        ("china", "hit"),
+    }
+    for row, art in arts:
+        key = mb.gm_key(row, art, "naked")
+        got = mb.row_of_key(key, "naked")
+        assert got is not None and got[0] == row, (row, art, got)
+        if row in ARTICULATIONS and len(ARTICULATIONS[row]) > 2:
+            assert got[1] == art, (row, art, got)
+    # the keys with two articulations read as closed and open
+    assert mb.row_of_key(42, "naked") == ("hat", "closed")
+    assert mb.row_of_key(46, "naked") == ("hat", "open")
+    assert mb.row_of_key(37, "naked") == ("snare", "side")
+    assert mb.row_of_key(53, "naked") == ("ride", "bell")
+    # and the electronic kit reads 37 as the rim and 46 as the open hat
+    assert mb.row_of_key(37, "") == ("rim", "")
+    assert mb.row_of_key(46, "") == ("ohat", "")
+    assert mb.row_of_key(30, "naked") is None and mb.row_of_key(30, "") is None

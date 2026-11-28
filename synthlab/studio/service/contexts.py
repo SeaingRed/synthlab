@@ -25,13 +25,16 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 
 from ...explore import SpaceStore
+from ...kits import play as kit_play
 from ...params import PARAMS, denorm, norm
 from ...sequencer import midi
 from ...synth import Patch
 from .. import (
+    arrange,
     booth,
     chords,
     cliplib,
+    kitjobs,
     lab,
     labchops,
     labmake,
@@ -49,10 +52,11 @@ from ..drumlab import DRUM_PARAMS, DRUM_VOICES, VOICE_PRESETS, defaults_of, spec
 from ..fxrack import clean_chain
 from ..gen import chordtrack
 from ..gen import loop as gen_loop
+from ..kitjobs import KitJobs
 from ..labjobs import LabJobs
 from ..paramui import CONTINUOUS_CHOICES, MACRO_CHOICES, PARAM_GROUPS, spec_of
 from ..soundmeta import envelope_svg
-from ..state import RESET_SCOPES, RESET_VIEWS, StudioState
+from ..state import ACOUSTIC_ROWS, RESET_SCOPES, RESET_VIEWS, StudioState, kit_rows
 from ..state.model import SPAN_NOTES, grid_rows, materialise, octave_range
 from ..voice import panel_context, read_lab
 
@@ -110,6 +114,7 @@ class Contexts:
     templates: Jinja2Templates
     _space: SpaceStore
     lab: LabJobs
+    kits: KitJobs
 
     # -- context pieces ----------------------------------------------------
     def env_amp_svg(self, p: Patch) -> str:
@@ -168,6 +173,102 @@ class Contexts:
             "voice_presets": VOICE_PRESETS,
             "drum_values": {v: self.drum_voice_values(v) for v in DRUM_VOICES},
             "drum_hash": {v: self.drum_voice_hash(v) for v in DRUM_VOICES},
+        }
+
+    def drum_pad_acoustic(self, voice: str) -> bool:
+        """Does `voice`'s pad play the acoustic kit's recording: the beat
+        plays the kit, it is here, the row is one of the kit's and plays no
+        clip of its own."""
+        a = self.state.arrangement
+        return (
+            a.drum_kit == "naked"
+            and voice in ACOUSTIC_ROWS
+            and not (a.drum_samples or {}).get(voice)
+            and arrange.kit_ready()
+        )
+
+    def drum_pad_hash(self, voice: str) -> str:
+        """What a row's pad one-shot (`/drum/<voice>/hit.wav`) depends on,
+        hashed: the electronic voice's identity (`drum_voice_hash`, as it
+        always was for the eight) — a further row's stand-in voice — or, on
+        the acoustic kit, its default articulation through the mic mix."""
+        if self.drum_pad_acoustic(voice):
+            levels = kit_play.levels(self.state.arrangement.drum_mics)
+            ident: dict = {"kit": "naked", "mics": sorted(levels.items())}
+        elif voice in DRUM_VOICES:
+            return self.drum_voice_hash(voice)
+        else:
+            base, params = arrange._electronic(self.state.arrangement, voice)
+            ident = {"base": base, "params": defaults_of(base) | params}
+        blob = json.dumps(ident, sort_keys=True).encode()
+        return hashlib.sha1(blob).hexdigest()[:8]
+
+    def kit_watch(self) -> tuple:
+        """What the kit's sound shows (`kit_context`), for the regions'
+        watches: the beat's kit, whether the acoustic kit is here (asked
+        only while the beat plays it), whether its download runs and how
+        the last one ended."""
+        a = self.state.arrangement
+        acoustic = a.drum_kit == "naked"
+        busy = self.kits.busy()
+        return (
+            a.drum_kit,
+            acoustic and not busy and arrange.kit_ready(),
+            busy,
+            self.kits.last_error() if acoustic else "",
+            arrange.kit_damage() if acoustic else "",
+        )
+
+    def kit_context(self) -> dict:
+        """The Kit page's sound source (`fragments/drum_kit_source.html`) and,
+        on the acoustic kit, its mic mixer (`drum_mics.html`): whether the
+        kit is here, the download job, the credit, the pads of the kit's
+        rows and a fader a mic. Asks the disk at most every 2 s
+        (`arrange.kit_ready`), and only while the beat plays the kit."""
+        a = self.state.arrangement
+        acoustic = a.drum_kit == "naked"
+        job = self.kits.state()
+        ready = acoustic and job is None and arrange.kit_ready()
+        have = arrange.kit_availability() if acoustic and not ready else {}
+        left = int(have.get("megabytes") or round(kitjobs.kit_bytes() / 1e6))
+        preset = (a.drum_mics or {}).get("preset") or "studio"
+        base = kit_play.MIC_PRESETS.get(preset, kit_play.MIC_PRESETS["studio"])
+        mixed = dict(a.drum_mics or {})
+        muted = set(mixed.pop("muted", None) or ())
+        levels = kit_play.levels(mixed)  # each mic's level, mute or not
+        mics = []
+        for mic in kit_play.MICS:
+            rest = base.get(mic)
+            rest = kitjobs.MUTED_DB if rest is None else rest
+            db = levels.get(mic)
+            mics.append(
+                {
+                    "id": mic,
+                    "label": kitjobs.MIC_LABELS[mic],
+                    "db": rest if db is None else db,
+                    "off": db is None or mic in muted,
+                    "muted": mic in muted,  # over a level it keeps
+                    "rest": rest,
+                }
+            )
+        rows = kit_rows(a.drum_kit, a.drums) if acoustic else []
+        return {
+            "acoustic": acoustic,
+            "ready": ready,
+            "job": job,
+            "error": self.kits.last_error() if acoustic else "",
+            # a kit here by size that could not play a hit (`arrange.kit_damage`)
+            "damage": arrange.kit_damage() if ready else "",
+            # what is left to fetch (all of it, or the rest after a stop)
+            "size": kitjobs.size_label(left),
+            "partial": 0 < left < kitjobs.kit_bytes() / 1e6 - 1,
+            "credit": kitjobs.CREDIT,
+            "credit_url": kitjobs.CREDIT_URL,
+            "preset": preset,
+            "presets": kitjobs.PRESET_LABELS,
+            "mics": mics,
+            "db_range": limits.MIC_DB_RANGE,
+            "pads": [(r, self.drum_pad_hash(r)) for r in rows],
         }
 
     def dxy_context(self) -> dict:

@@ -1,0 +1,47 @@
+{# synthlab/studio/templates/fragments/drum_mics.html
+   The acoustic kit in place of the eight channel strips (drum_panels.html,
+   while the beat plays it): a pad a row of the kit (its default
+   articulation, struck hard: `/drum/<row>/hit.wav`), the mic mixer — a
+   fader (dB) and a mute a microphone (`kits.play.MICS`), the three presets
+   — and the kit's credit. Every value is a native range posting itself on
+   `change` (`POST /fragment/drums/mics`, `<mic>=<dB>`); a mute posts
+   `mute.<mic>` (its level stays: unmuted, it is back where it was; a mic
+   its preset leaves off is turned on at its rest level); a preset puts every mic at
+   its levels. What is off the preset is written down
+   (`Arrangement.drum_mics`, absent at the studio preset). #}
+{% from "macros.html" import fill %}
+<div class="mic-mixer" role="group" aria-label="The acoustic kit">
+  <div class="kit-pads" role="group" aria-label="the kit's pads">
+    {%- for row, h in kit.pads %}
+    <button type="button" class="hit-pad" id="hitpad-{{ row }}" data-voice="{{ row }}" data-hit-url="/drum/{{ row }}/hit.wav?k={{ h }}"
+            title="{{ row }}: hear it"><svg class="pad-wave" preserveAspectRatio="none" aria-hidden="true" focusable="false"></svg><span class="pad-name">{{ row }}</span><span class="pad-read" aria-hidden="true"></span></button>
+    {%- endfor %}
+  </div>
+  <div class="mic-head">
+    <span class="caps">mics</span>
+    <div class="seg mic-presets" role="group" aria-label="mic presets">
+      {%- for id, label in kit.presets %}
+      <button type="button" aria-pressed="{{ 'true' if id == kit.preset else 'false' }}"
+              hx-post="/fragment/drums/mics" hx-vals='{"preset": "{{ id }}"}' hx-swap="none"
+              data-cmd="Mic preset: {{ label }}" data-cmd-group="Kit"
+              title="every mic at the {{ label }} levels">{{ label }}</button>
+      {%- endfor %}
+    </div>
+  </div>
+  {%- set lo, hi = kit.db_range %}
+  <div class="mic-strips" role="group" aria-label="the microphones">
+    {%- for m in kit.mics %}
+    <div class="mic-strip{{ ' muted' if m.off }}" role="group" aria-label="{{ m.label }}" data-mic="{{ m.id }}">
+      <input type="range" class="knob fader" id="mic-{{ m.id }}" name="{{ m.id }}" min="{{ lo }}" max="{{ hi }}" step="0.5"
+             value="{{ m.db }}" data-default="{{ m.rest }}" style="--fill: {{ fill(m.db, lo, hi) }}"
+             hx-post="/fragment/drums/mics" hx-trigger="change" hx-sync="this:queue last" hx-swap="none"
+             aria-label="{{ m.label }} level, dB" title="{{ m.label }}: its level in dB · double-click: the preset's">
+      <output for="mic-{{ m.id }}" class="mic-val">{{ m.db | round(1) }}</output>
+      <button type="button" class="btn btn-s btn-icon rowbtn mute" aria-pressed="{{ 'true' if m.off else 'false' }}"
+              hx-post="/fragment/drums/mics" hx-vals='{{ ({"mute." ~ m.id: "0"} if m.muted else ({m.id: m.rest} if m.off else {"mute." ~ m.id: "1"})) | tojson }}' hx-swap="none"
+              data-cmd="Mute the {{ m.label }} mic" data-cmd-group="Kit" aria-label="mute {{ m.label }}" title="mute {{ m.label }}">M</button>
+      <span class="mic-name">{{ m.label }}</span>
+    </div>
+    {%- endfor %}
+  </div>
+</div>

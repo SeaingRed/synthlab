@@ -35,7 +35,10 @@
 // the input matrix's whole step-sequencer row, and they share one table.
 // 270 -> 295: Kit's stacked lanes — the four hit lanes drawn
 // under the velocity's at once, each read back into its own field.
-// Budget: <= 295 code lines (tests/studio/test_island.py).
+// 295 -> 325: the acoustic kit's articulation lane (`a`, a sixth hit field,
+// a word not a number): its row, a click cycling it, the step's glyph, and
+// the hit menu showing only the articulations of the row it acts on.
+// Budget: <= 325 code lines (tests/studio/test_island.py).
 (() => {
   "use strict";
   const S = () => window.synthlab || {};
@@ -66,6 +69,14 @@
   const stacked = (form) => !!form.querySelector(".hitrow")?.checkVisibility();
   const laneOf = (form) => (stacked(form) ? "v" : st(form).lane);
   const who = (form) => { const s = st(form); return s.row || s.voice || form.querySelector(`${CELL}:checked`)?.name.split(".")[1] || ""; };
+  // the acoustic kit (the grid's `data-arts`: a row's articulations, its default first)
+  const artsOf = (form) => { try { return JSON.parse(form?.dataset.arts || "{}"); } catch { return {}; } };
+  // the articulation lane's row: the lanes' own while it has articulations, else the first such row with a hit
+  function artWho(form) {
+    const A = artsOf(form), w = who(form);
+    const rows = [...form.querySelectorAll(".drumrow")].map((r) => r.dataset.voice).filter((v) => A[v]); // the grid's order
+    return A[w] ? w : rows.find((r) => form.querySelector(`${CELL}[name^="drum.${r}."]:checked`)) || rows[0] || "";
+  }
   const stepVel = (form, step) => { const i = laneAt(form, step)?.querySelector("input"); return Number(i?.dataset.vel ?? i?.value ?? 1); };
 
   // ---- the table ---------------------------------------------------------------
@@ -76,12 +87,14 @@
       if (v === false || v == null || v === 0 && k !== "p") delete d[k]; else d[k] = v;
     }
     if (h && "v" in h) cell.style.setProperty("--hv", h.v); else cell.style.removeProperty("--hv");
+    if (h?.a && cell.form?.dataset.arts) d.art = h.a; else delete d.art; // its glyph (style.css 49)
   }
   const get = (form, voice, step, f) => { const h = table(form)[`${voice}.${step}`]; return h && f in h ? h[f] : f === "v" ? stepVel(form, step) : F[f][0]; };
   // one field of one hit (x null: forget it); a value that says nothing is not kept
   function set(form, voice, step, f, x) {
     const t = table(form), k = `${voice}.${step}`, h = t[k] || {};
     if (f === "*") for (const key of Object.keys(h)) delete h[key];
+    else if (f === "a") { if (x == null || x === (artsOf(form)[voice] || [])[0]) delete h.a; else h.a = x; } // the default is never written
     else if (x == null || tidy(snap(f, x)) === F[f][0]) delete h[f];
     else h[f] = tidy(snap(f, x));
     if (Object.keys(h).length) t[k] = h; else delete t[k];
@@ -152,6 +165,14 @@
         lane.dataset.was = lane.getAttribute("aria-valuenow");
         lane.classList.toggle("idle", !on);
       }
+    }
+    const ar = form.querySelector(".artrow"), aw = artWho(form), names = artsOf(form)[aw] || [];
+    if (ar) ar.querySelector(".lane-who").textContent = aw;
+    for (const b of ar ? ar.querySelectorAll(".art-cell") : []) {
+      const on = !!cellOf(form, aw, b.dataset.step)?.checked, a = on ? table(form)[`${aw}.${b.dataset.step}`]?.a || names[0] : "";
+      if (a) b.dataset.art = a; else delete b.dataset.art;
+      b.classList.toggle("idle", !on);
+      b.title = on ? `${aw} ${Number(b.dataset.step) + 1}: ${a} · click: the next` : "";
     }
     for (const b of form.querySelectorAll(".lane-pick [data-lane]")) b.setAttribute("aria-pressed", String(b.dataset.lane === row.dataset.lane));
     for (const b of form.querySelectorAll(".rowlabel[data-voice]")) b.setAttribute("aria-pressed", String(b.dataset.voice === s.row));
@@ -246,6 +267,14 @@
   document.addEventListener("click", (e) => {
     const form = formOf(e.target);
     if (!form) return;
+    const art = e.target.closest(".art-cell");
+    if (art) { // the articulation lane: the next of its row's, on that step's hit
+      const r = artWho(form), names = artsOf(form)[r] || [], step = Number(art.dataset.step), cell = cellOf(form, r, step);
+      if (!cell?.checked || !names.length) return;
+      const now = table(form)[`${r}.${step}`]?.a || names[0];
+      set(form, r, step, "a", names[(names.indexOf(now) + 1) % names.length]);
+      return void fire(cell);
+    }
     const s = st(form), name = e.target.closest(".rowlabel[data-voice]"), pick = e.target.closest(".lane-pick [data-lane]"), item = e.target.closest("[data-hit-set]");
     if (name) { s.row = s.row === name.dataset.voice ? "" : name.dataset.voice; s.voice ||= s.row; }
     else if (e.target.closest("[data-row-all]")) s.row = "";
@@ -272,17 +301,28 @@
   function menuRow(form, item) {
     const s = st(form), m = menuOf(form), from = m.querySelector("[data-from]").value, what = item.dataset.hitSet;
     // opened on a lane bar (menu.js): that step of the lane's row; else the cursor's hit
-    const step = from === "" ? s.step : Number(from);
-    const voice = (from !== "" && s.row) || s.voice || s.row || form.querySelector(`${CELL}[name$=".${step}"]:checked`)?.name.split(".")[1];
+    const step = from === "" ? s.step : Number(from), art = what.startsWith("a=");
+    const voice = art ? menuVoice(form, from) : (from !== "" && s.row) || s.voice || s.row || form.querySelector(`${CELL}[name$=".${step}"]:checked`)?.name.split(".")[1];
     m.hidePopover();
     const cell = voice && cellOf(form, voice, step);
     if (!cell?.checked) return;
     if (what === "clear") set(form, voice, step, "*");
+    else if (art) set(form, voice, step, "a", what.slice(2));
     else if (what === "n-" || what === "n+") bump(form, voice, step, "n", what === "n-" ? -5 : 5);
     else set(form, voice, step, what[0], Number(what.slice(2)));
     cell.focus({ preventScroll: true });
     fire(cell);
   }
+  // an articulation is the lane's row's when the menu opened on a lane bar, else the cursor's
+  const menuVoice = (form, from) => (from !== "" ? artWho(form) : st(form).voice);
+  // the menu lists only that row's articulations
+  document.addEventListener("beforetoggle", (e) => {
+    const m = e.target, form = m.classList?.contains("hit-menu") && document.getElementById(m.id.slice(8));
+    if (e.newState !== "open" || !form) return;
+    const names = artsOf(form)[menuVoice(form, m.querySelector("[data-from]").value)] || [];
+    for (const b of m.querySelectorAll(".art-item")) b.hidden = !names.includes(b.dataset.art);
+    m.querySelector(".art-sep")?.toggleAttribute("hidden", !names.length);
+  }, true);
   // a long press (touch) or the Menu key on a hit: its menu. A mouse's right
   // click stays an erase (grid.js); a pen's is cancelled before this (pen.js)
   document.addEventListener("contextmenu", (e) => {

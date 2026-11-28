@@ -30,6 +30,7 @@
   "HubPage": null,
   "HubSession": null,
   "Jinja2Templates": null,
+  "KitJobs": null,
   "LANE_TARGETS": null,
   "LRU": null,
   "LabJobs": null,
@@ -233,6 +234,9 @@
   "clips_fragment": "(self, request: 'Request') -> 'HTMLResponse'",
   "do_render": "(self, request: 'Request', extra_html: 'str' = '', view: 'str | None' = None) -> 'Response'",
   "drawer_octave": "(self, p: 'dict', span: 'int') -> 'int'",
+  "drum_editing": "(self) -> 'dict | None'",
+  "drum_pad_acoustic": "(self, voice: 'str') -> 'bool'",
+  "drum_pad_hash": "(self, voice: 'str') -> 'str'",
   "drum_panels_fragment": "(self, request: 'Request', *, need=frozenset(['drums'])) -> 'str'",
   "drum_voice_hash": "(self, voice: 'str') -> 'str'",
   "drum_voice_identity": "(self, voice: 'str') -> 'dict'",
@@ -252,6 +256,9 @@
   "hub_params": "(self, request: 'Request') -> 'dict'",
   "hub_undo_label": "(self) -> 'str'",
   "hub_url": "(params: 'dict') -> 'str'",
+  "iter_song_stems": "(self, song: 'dict', master_fx=(), task: 'Task' = QUIET)",
+  "kit_context": "(self) -> 'dict'",
+  "kit_watch": "(self) -> 'tuple'",
   "lab_context": "(self, selected: 'str' = '') -> 'dict'",
   "land_on": "(self, request: 'Request', view: 'str', say: 'str' = '', *, kind: 'str' = '') -> 'Response'",
   "lane_context": "(self) -> 'dict'",
@@ -271,6 +278,7 @@
   "pool_beats": "(self) -> 'dict'",
   "preview_inputs": "(self, view: 'str', *, patch: 'Patch | None' = None, chain: 'dict | None' = None, mix: 'bool | None' = None, arr: 'dict | None' = None, **fields) -> 'RenderInputs'",
   "preview_trigger": "(self, request: 'Request | None' = None, view: 'str | None' = None) -> 'dict'",
+  "ready": "(self, view: 'str', result: 'RenderResult') -> 'dict'",
   "refresh": "(self, request: 'Request', view: 'str', before: 'dict[str, Hashable]', response, suppressed: 'frozenset[str]' = frozenset([]), moved: 'list[str] | None' = None)",
   "render": "(self, view: 'str', *, patch: 'Patch | None' = None, chain: 'dict | None' = None, mix: 'bool | None' = None, post: 'str | None' = None, register: 'str | None' = None, arrangement: 'Arrangement | None' = None, parts: 'tuple[str, ...] | None' = None) -> 'RenderResult'",
   "render_inputs": "(self, view: 'str', *, patch: 'Patch | None' = None, chain: 'dict | None' = None, mix: 'bool | None' = None, register: 'str | None' = None, arrangement: 'Arrangement | None' = None, parts: 'tuple[str, ...] | None' = None) -> 'RenderInputs'",
@@ -311,6 +319,7 @@
   "data_dir",
   "events",
   "hub",
+  "kits",
   "lab",
   "notes",
   "perf",
@@ -585,6 +594,30 @@
    null
   ],
   [
+   "kit-source",
+   "fragments/drum_kit_source.html",
+   [],
+   [
+    "drums"
+   ],
+   "_w_kit_source",
+   "_ctx_kit_source",
+   "drum-bank"
+  ],
+  [
+   "drum-panels",
+   "fragments/drum_panels.html",
+   [
+    "drums"
+   ],
+   [
+    "drums"
+   ],
+   "_w_drum_panels",
+   null,
+   null
+  ],
+  [
    "perform-drums",
    "fragments/perform_drums.html",
    [
@@ -849,6 +882,8 @@
    "status-bar",
    "drum-transport",
    "drum-bank",
+   "kit-source",
+   "drum-panels",
    "key-takes"
   ],
   "perform": [

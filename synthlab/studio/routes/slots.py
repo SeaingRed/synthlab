@@ -477,6 +477,8 @@ def _section_loops(s: StudioState, sec: dict) -> tuple[list, dict]:
             "swing": arr.drum_swing,
             "hits": arr.drum_hits,
             "row_swing": arr.drum_row_swing,
+            "kit": arr.drum_kit,
+            "mics": arr.drum_mics,
         }
         slots[s.DRUM_LANE] = loops.save_beat(
             s.data_dir, f"{sec['name']} beat", beat, arr

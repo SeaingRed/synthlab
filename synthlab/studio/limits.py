@@ -172,7 +172,12 @@ def step_key(raw: str) -> str | None:
 # render 768 cells (6 rows), ~1.7 s for 2048.
 MAX_GRID_PITCHES = 24
 MAX_GRID_CELLS = MAX_GRID_STEPS * MAX_GRID_PITCHES
-MAX_DRUM_CELLS = MAX_GRID_STEPS * 8  # 8 drum voices (state.DRUM_ROWS)
+# 16 x the longest grid: every row of `state.ALL_DRUM_ROWS` (16) at 256
+# steps — 8 bars of 32 steps, the longest song pool beat. Cells are sorted, so
+# a cap any lower would drop whole rows
+MAX_DRUM_CELLS = MAX_GRID_STEPS * 16
+# the acoustic kit's mic mixer (`Arrangement.drum_mics`): dB a mic
+MIC_DB_RANGE = (-60.0, 12.0)
 # a lane's per-note feel entries (`Arrangement.note_feel`): one a note at
 # most, and a note is at least one cell
 MAX_FEEL_NOTES = MAX_GRID_CELLS
@@ -254,6 +259,11 @@ MAX_DRUM_HITS = MAX_DRUM_CELLS
 # (POST /song/cells): past either the post is refused whole, never cut
 MAX_JAM_EVENTS = 512
 MAX_RANGE_CELLS = 96
+# the piano roll's selection as a set of notes (`patternops.parse_sel`'s
+# `n:<pitch>@<start>,...`): a whole 16-bar window's notes fit; past it, or
+# past its characters, the post is refused whole, never cut
+MAX_SEL_NOTES = 4096
+MAX_SEL_CHARS = MAX_SEL_NOTES * 12
 # a generator's seed is taken modulo this (routes/song_start.py)
 SEED_MODULO = 1_000_000
 STRUM_MS_RANGE = (-60.0, 60.0)  # a chord's notes apart, low to high (or high to low)

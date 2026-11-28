@@ -33,19 +33,21 @@
 {% macro swap_to(target) %}{% if target %}hx-target="{{ target }}" hx-swap="outerMorph"{% else %}hx-swap="none"{% endif %}{% endmacro %}
 
 {#- a step's marks, from its hit's data (steps.js `mark` writes the same) -#}
-{% macro hit_marks(h) %}{% if h %}{% if h.r is defined and h.r > 1 %} data-r="{{ h.r }}"{% endif %}{% if h.p is defined %} data-p="{{ (h.p * 100) | round | int }}"{% endif %}{% if h.n is defined and h.n %} data-n="{{ '-' if h.n < 0 else '+' }}"{% endif %}{% if h.t is defined and h.t %} data-t="{{ '-' if h.t < 0 else '+' }}"{% endif %}{% if h.v is defined %} style="--hv: {{ h.v }}"{% endif %}{% endif %}{% endmacro %}
+{% macro hit_marks(h, arts={}) %}{% if h %}{% if h.r is defined and h.r > 1 %} data-r="{{ h.r }}"{% endif %}{% if h.p is defined %} data-p="{{ (h.p * 100) | round | int }}"{% endif %}{% if h.n is defined and h.n %} data-n="{{ '-' if h.n < 0 else '+' }}"{% endif %}{% if h.t is defined and h.t %} data-t="{{ '-' if h.t < 0 else '+' }}"{% endif %}{% if h.v is defined %} style="--hv: {{ h.v }}"{% endif %}{% if arts and h.a is defined %} data-art="{{ h.a }}"{% endif %}{% endif %}{% endmacro %}
 
-{% macro drum_grid(post, drums, drum_vel, bars, steps, drum_rows, form_id="drum-grid", tools=true, mix={}, samples={}, clips=[], target="#drum-bank", form_class="", hits={}, row_swing={}, swing=0.0, row_tool="", bar_meter="4/4", lanes=false) -%}
+{% macro drum_grid(post, drums, drum_vel, bars, steps, drum_rows, form_id="drum-grid", tools=true, mix={}, samples={}, clips=[], target="#drum-bank", form_class="", hits={}, row_swing={}, swing=0.0, row_tool="", bar_meter="4/4", lanes=false, arts={}) -%}
 {#- another meter's bar (meter.py): its beats and its groups' heads -#}
 {%- set acc = meter.grid_accents(bar_meter, steps) -%}
 <form id="{{ form_id }}" class="drum-grid{% if form_class %} {{ form_class }}{% endif %}"
-        hx-post="{{ post }}" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last" hx-swap="none">
+        hx-post="{{ post }}" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last" hx-swap="none"{% if arts %}
+        data-arts="{{ arts | tojson | forceescape }}"{% endif %}>
     {% set dsteps = bars * steps %}
     {% set any_solo = mix.values() | selectattr("solo") | list | length > 0 %}
     <input type="hidden" name="bars" value="{{ bars }}">
     <input type="hidden" name="steps" value="{{ steps }}">
     <input type="hidden" name="hits" value="{{ hits | tojson | forceescape }}">
     <input type="hidden" name="rswing" value="{{ row_swing | tojson | forceescape }}">
+    <input type="hidden" name="rows" value="{{ drum_rows | join(',') }}">
     {%- if tools %}
     <input type="hidden" name="rlevel" value="{}">
     {%- endif %}
@@ -158,7 +160,7 @@
            bar line reads apart from a beat line) #}
         <input type="checkbox" name="drum.{{ drum }}.{{ step }}"
                class="cell {% if acc is none %}{% if step % 4 == 0 %}beat{% endif %}{% else %}{{ meter.mark(acc, step) }}{% endif %} {% if step and step % steps == 0 %}bar{% endif %}"
-               {% if [drum, step] in drums %}checked{{ hit_marks(hits.get(drum ~ "." ~ step)) }}{% endif %}
+               {% if [drum, step] in drums %}checked{{ hit_marks(hits.get(drum ~ "." ~ step), arts) }}{% endif %}
                aria-label="{{ drum }} step {{ step + 1 }}" tabindex="{{ 0 if loop.first and tab == 0 else -1 }}">
         {% endfor %}
       </div>
@@ -196,6 +198,20 @@
         {%- endfor %}
       </div>
       {%- endfor %}
+      {%- endif %}
+      {#- the acoustic kit (`arts`: the rows' articulations): the sixth hit
+          lane, under the others on every grid — a row's hits' articulation,
+          a glyph each; a click cycles it, the hit menu lists them. It shows
+          the selected row, else the cursor's, while that row has
+          articulations — else the first with a hit (steps.js `artWho`) -#}
+      {%- if arts %}
+      <div class="velrow artrow" role="group" aria-label="the articulation lane" data-lane="a">
+        <span class="rowhead"><span class="rowlabel lane-name" aria-hidden="true">art</span><span class="lane-who" aria-hidden="true"></span></span>
+        {%- for step in range(dsteps) %}
+        <button type="button" class="art-cell idle" data-step="{{ step }}" data-ctx-pop="hitmenu-{{ form_id }}" tabindex="-1"
+                aria-label="articulation step {{ step + 1 }}"></button>
+        {%- endfor %}
+      </div>
       {%- endif %}
     </div>
     {# under the grid: which lane it shows, of which row; then the knobs
@@ -258,6 +274,14 @@
       <button type="button" class="menu-item" role="menuitem" data-hit-set="n-">nudge earlier <kbd>Alt+←</kbd></button>
       <button type="button" class="menu-item" role="menuitem" data-hit-set="n+">nudge later <kbd>Alt+→</kbd></button>
       <button type="button" class="menu-item" role="menuitem" data-hit-set="n=0">on the grid</button>
+      {%- if arts %}
+      {%- set ns = namespace(names=[]) %}
+      {%- for _row, names in arts.items() %}{% for n in names if n not in ns.names %}{% set ns.names = ns.names + [n] %}{% endfor %}{% endfor %}
+      <hr class="menu-sep art-sep">
+      {%- for n in ns.names %}
+      <button type="button" class="menu-item art-item" role="menuitem" data-hit-set="a={{ n }}" data-art="{{ n }}">{{ n }}</button>
+      {%- endfor %}
+      {%- endif %}
       <hr class="menu-sep">
       <button type="button" class="menu-item danger" role="menuitem" data-hit-set="clear">clear hit data <kbd>Del</kbd></button>
     </div>

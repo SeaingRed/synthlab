@@ -1,0 +1,4 @@
+#define $CODE_01 CWG6
+#define $CODE_02 4I2D
+#define $CODE_03 PF2U
+#define $CODE_04 X129

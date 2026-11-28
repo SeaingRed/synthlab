@@ -98,6 +98,7 @@
     <input type="hidden" name="steps" value="16">
     <input type="hidden" name="hits" value="{&#34;clap.20&#34;: {&#34;r&#34;: 2, &#34;t&#34;: -3.0}, &#34;hat.2&#34;: {&#34;p&#34;: 0.5, &#34;r&#34;: 3}, &#34;kick.0&#34;: {&#34;n&#34;: -0.25, &#34;v&#34;: 0.6}, &#34;kick.16&#34;: {&#34;n&#34;: 0.1, &#34;p&#34;: 0.0, &#34;t&#34;: 5.0}}">
     <input type="hidden" name="rswing" value="{&#34;hat&#34;: 0.2}">
+    <input type="hidden" name="rows" value="kick,snare,hat,ohat,clap,tom,rim,crash">
     <input type="hidden" name="rlevel" value="{}">
     <div class="grid drum-grid-8" aria-label="Drum grid" data-bars="2" style="--steps: 32; --rows: 8">
       <i class="playhead" aria-hidden="true" style="grid-row: 1 / span 9"></i>
@@ -3133,7 +3134,19 @@
       </select></label>
       <button type="submit" class="btn btn-s" data-cmd="Load the genre kit" title="load the kit's pattern, swing, velocities and voice shaping">Load kit</button>
       <button type="submit" class="btn btn-s" name="keep" value="pattern" data-cmd="Swap the kit, keep the beat" title="only the kit's voices: the beat on the grid, its swing, velocities, hit data and the rows' samples stay">Swap kit, keep beat</button>
-    </form><form class="bank-save" aria-label="Save the beat" hx-post="/loop/beat/keep" hx-swap="none" hx-sync="this:drop">
+    </form>
+<div id="kit-source" class="kit-source" role="group" aria-label="Kit sound"
+     
+     >
+  <form class="bank-source" aria-label="The kit's sound" hx-post="/fragment/drums/source" hx-trigger="change"
+        hx-sync="this:queue last" hx-target="body" hx-swap="innerMorph">
+    <label>kit sound <select class="field field-s" name="source"
+                             title="the beat's sound: the eight synthesised voices, or a multi-sampled acoustic kit (its own rows, articulations and mics)">
+      <option value="" selected>Electronic</option>
+      <option value="naked" >Acoustic (Naked Drums)</option>
+    </select></label>
+  </form>
+</div><form class="bank-save" aria-label="Save the beat" hx-post="/loop/beat/keep" hx-swap="none" hx-sync="this:drop">
       <label>name <input class="field field-s" name="name" maxlength="40" autocomplete="off" placeholder="Four on the floor beat…"
                          title="its name in the Loops (blank: named from what it is — style, tempo, bars)"></label>
       <button type="submit" class="btn btn-s" data-cmd="Save the beat to the Loops" data-cmd-group="Beats"

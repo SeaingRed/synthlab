@@ -1,0 +1,5 @@
+#define $MIC OH
+#define $ART A2
+#define $VEL1 10
+#define $VEL2 20
+#include "../Data/file/codes.txt"

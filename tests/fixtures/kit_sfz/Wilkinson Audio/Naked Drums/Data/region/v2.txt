@@ -1,0 +1,9 @@
+#define $POS 1
+#define $RR one
+<region> lovel=$V21L hivel=$V21H seq_position=$POS region_label=$VEL1 $RR sample=$MIC_$ART_$VEL1_$RR-$CODE_01.$ext
+<region> lovel=$V22L hivel=$V22H seq_position=$POS region_label=$VEL2 $RR sample=$MIC_$ART_$VEL2_$RR-$CODE_02.$ext
+
+#define $POS 2
+#define $RR two
+<region> lovel=$V21L hivel=$V21H seq_position=$POS region_label=$VEL1 $RR sample=$MIC_$ART_$VEL1_$RR-$CODE_03.$ext
+<region> lovel=$V22L hivel=$V22H seq_position=$POS region_label=$VEL2 $RR sample=$MIC_$ART_$VEL2_$RR-$CODE_04.$ext

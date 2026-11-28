@@ -33,6 +33,63 @@ log = logging.getLogger(__package__)
 STATE_VERSION = 3
 
 DRUM_ROWS: list[str] = ["kick", "snare", "hat", "ohat", "clap", "tom", "rim", "crash"]
+# the acoustic kit's further rows, appended (today's eight keep their ids and
+# meaning, and stay `DRUM_ROWS`: the electronic kits' rows). `ALL_DRUM_ROWS`
+# is every row a beat may hold — what the schema accepts; a new row's cells,
+# hits and mix are absent while empty, as every row's are
+NEW_DRUM_ROWS: list[str] = [
+    *("ride", "tom2", "tom3", "tom4", "tom5", "crash2", "splash", "china"),
+]
+ALL_DRUM_ROWS: list[str] = DRUM_ROWS + NEW_DRUM_ROWS
+# the rows the acoustic kit shows (`tom` is its tom 1, `crash` its crash 1;
+# plus `clap` / `rim` while they hold cells: electronic voices there)
+ACOUSTIC_ROWS: list[str] = [
+    *("kick", "snare", "hat", "ride", "tom", "tom2", "tom3", "tom4", "tom5"),
+    *("crash", "crash2", "splash", "china"),
+]
+# a hit's articulation (`a` in `Arrangement.drum_hits`), per row: the first
+# is the row's default, never written down. A row not here takes none (it
+# plays its one articulation, "hit")
+ARTICULATIONS: dict[str, tuple[str, ...]] = {
+    "hat": ("closed", "pedal", "tight", "half", "open"),
+    "snare": ("centre", "side"),
+    "ride": ("bow", "bell", "choke"),
+    "crash": ("edge", "bell", "choke"),
+    "crash2": ("edge", "bell", "choke"),
+    "splash": ("hit", "choke"),
+    "china": ("hit", "choke"),
+}
+# a beat's sound source (`Arrangement.drum_kit`): "" the electronic voices,
+# "naked" the downloadable acoustic kit (synthlab/kits)
+DRUM_KITS: tuple[str, ...] = ("", "naked")
+# the rows the acoustic kit shows besides its own while they hold cells:
+# `ohat` (its hits play as the hat's "open"), `clap` and `rim` (electronic)
+_ACOUSTIC_EXTRAS: tuple[str, ...] = ("ohat", "clap", "rim")
+
+
+def kit_rows(kit: str, drums) -> list[str]:
+    """The rows a grid draws for a beat on `kit` holding `drums` (cells):
+    an electronic kit's eight (`DRUM_ROWS`) and, after them, each further
+    row while it holds cells (a beat moved back from the acoustic kit: its
+    ride plays the crash voice, and is seen); or the acoustic kit's
+    (`ACOUSTIC_ROWS`) and, after them, `ohat` / `clap` / `rim` while they
+    hold cells. So no row that plays is hidden. A grid posts the rows it
+    drew (`rows`), and a row it did not draw keeps its cells
+    (`drumops.keep_hidden`)."""
+    held = {c[0] for c in drums or ()}
+    if kit != "naked":
+        return held_rows(drums)
+    return ACOUSTIC_ROWS + [r for r in _ACOUSTIC_EXTRAS if r in held]
+
+
+def held_rows(drums) -> list[str]:
+    """Today's eight rows and, after them, every further row that holds a
+    cell (`NEW_DRUM_ROWS` order): what a beat's sparkline or thumbnail draws,
+    so a ride or a tom 3 is never left off the picture."""
+    held = {c[0] for c in drums or ()}
+    return DRUM_ROWS + [r for r in NEW_DRUM_ROWS if r in held]
+
+
 # Every key: each semitone from A0 to E3. Sharps, as `name_of` spells.
 BASS_ROOTS: list[str] = ["A0", "E1", "A1", "E2", "A2", "E3"]  # Bass Lab's keys
 ROOTS: list[str] = [name_of(m) for m in range(midi("A0"), midi("E3") + 1)]
@@ -93,6 +150,9 @@ RESET_SCOPES: dict[str, tuple[str, tuple[str, ...]]] = {
             "arr.drum_humanize",
             "arr.drum_hits",
             "arr.drum_row_swing",
+            # the kit lives on the beat (absent while unset: `ARR_OPTIONAL`)
+            "arr.drum_kit",
+            "arr.drum_mics",
         ),
     ),
     "fx_drums": ("Drum FX", ("state.fx_drums",)),
@@ -183,6 +243,17 @@ class Arrangement:
     drum_row_swing: dict[str, float] = field(
         default_factory=dict, metadata=_lane("drum")
     )
+    # the beat's sound source (`DRUM_KITS`: "" the electronic voices,
+    # "naked" the acoustic kit) and, on the acoustic kit, its mic mixer: dB
+    # per mic (`synthlab.kits.play.MICS`; None = off) where it is off the
+    # preset, and "preset" when not the default ("studio"). Both travel with
+    # the beat (bank slots, variations, beat loops, song patterns) and are
+    # ABSENT when unset wherever an arrangement is written down, as the two
+    # above: no saved state, loop key or stem key gains them
+    drum_kit: str = field(default="", metadata=_lane("drum"))
+    drum_mics: dict[str, float | str | None] = field(
+        default_factory=dict, metadata=_lane("drum")
+    )
     # ms between the notes of a chord (notes that start on one step), low
     # to high; negative: high to low (`arrange._strummed`).
     # The note grid's own, per slot (`seq_of`), and ABSENT at 0 wherever an
@@ -262,6 +333,9 @@ DRUM_LOOP_FIELDS = (
     "drum_swing",
     "drum_hits",
     "drum_row_swing",
+    # the kit lives on the beat
+    "drum_kit",
+    "drum_mics",
 )
 # what a saved loop keeps of an Arrangement (loops.py): the note lane, the
 # tempo, the key and the meter — and what an open loop edit mirrors back

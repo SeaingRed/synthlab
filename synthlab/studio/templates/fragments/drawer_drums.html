@@ -12,9 +12,9 @@
    the lanes above it must still fit their pane. #}
 {% from "drumgrid.html" import drum_grid %}
     {% set tool = "/song/pattern/" ~ p.id ~ "/tool/" %}
-    {% call drum_grid("/song/pattern/" ~ p.id ~ "/grid", p.drums, p.drum_vel, p.bars, p.steps, drum_rows,
+    {% call drum_grid("/song/pattern/" ~ p.id ~ "/grid", p.drums, p.drum_vel, p.bars, p.steps, kit_rows(p.get("kit") or "", p.drums),
                       form_id="drawer-grid", tools=false, target=none, hits=p.get("hits") or {}, row_swing=p.get("swing") or {},
-                      swing=song.drum_swing, row_tool=tool ~ "OP", bar_meter=p.get("meter") or "4/4") %}
+                      swing=song.drum_swing, row_tool=tool ~ "OP", bar_meter=p.get("meter") or "4/4", arts=articulations if p.get("kit") == "naked" else {}) %}
       <span class="beat-bar drawer-beat" role="group" aria-label="Beat variations and generators">
       <span class="caps">beat</span>
       {% if d.section %}

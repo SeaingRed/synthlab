@@ -56,10 +56,10 @@ from ..recipes import tags as recipe_tags
 from ..render import RenderError
 from ..soundmeta import filter_response_svg
 from ..state import (
-    DRUM_ROWS,
     ROOTS,
     SCALE_CHOICES,
     StudioState,
+    kit_rows,
 )
 from ..state.model import BASS_ROOTS, grid_rows
 from ..views import view_title
@@ -236,7 +236,8 @@ class Page:
             **self.status_context(view),
             "pitch_rows": grid_rows(s.arrangement, s.grid_span, s.grid_oct),
             **self.grid_context(),
-            "drum_rows": DRUM_ROWS,
+            # the rows the beat's kit shows (`kit_rows`): a grid draws these
+            "drum_rows": kit_rows(s.arrangement.drum_kit, s.arrangement.drums),
             "drum_bank": s.drum_bank,
             "active_slot": s.active_slot,
             # the bank's old "Save to slot" defaults (the Kit page's ✚ Save
@@ -373,6 +374,7 @@ class Page:
                 s.arrangement.drums, s.arrangement.drum_steps, s.arrangement.drum_bars
             )
             ctx.update(self.drums_context())
+            ctx["kit"] = self.kit_context()  # the beat's kit sound, its mics
             ctx.update(self.dxy_context())
         if "song" in need:
             ctx.update(self.song_context())
