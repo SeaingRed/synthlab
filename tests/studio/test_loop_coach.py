@@ -754,3 +754,93 @@ def test_the_brief_is_text_with_the_lanes_as_grids(client):
     assert "Lane 1 (the one being edited)" in text and "Beat (drums):" in text
     assert re.search(r"A3 +[1-9=.|]+", text)
     assert "The player says: hello" in text
+
+
+# --- a note's feel follows the note ---------------------------------------------------
+
+
+def test_a_coach_move_carries_the_notes_feel_and_a_removed_note_leaves_none(client):
+    """A note's nudge, chance and own feel are keyed by its start: a move
+    made by the coach takes them along, and a note added where one was
+    removed starts clean (it used to inherit the removed note's)."""
+    s = _st(client)
+    start = 2  # the riff's second note, C#4 on step 2 (seed's RIFF)
+    pitch = next(p for p, st in s.arrangement.cells if st == start)
+    s.arrangement = replace(
+        s.arrangement,
+        note_nudge={str(start): 0.2},
+        note_chance={str(start): 0.5},
+        note_feel={f"{pitch}.{start}": [0.1, -0.2, 0.8]},
+    )
+    f = lc.facts(s)
+    doc, done, skipped = loopchat.apply(
+        lc.read(s),
+        f,
+        [{"lane": "1", "op": "move", "pitch": pitch, "step": start, "to_step": 3}],
+    )
+    assert done and not skipped
+    lc.write(s, doc)
+    a = s.arrangement
+    assert a.note_nudge == {"3": 0.2} and a.note_chance == {"3": 0.5}
+    assert a.note_feel == {f"{pitch}.3": [0.1, -0.2, 0.8]}
+    # removed, then a new note drawn on its step: no feel left behind
+    doc, done, _ = loopchat.apply(
+        lc.read(s),
+        f,
+        [
+            {"lane": "1", "op": "remove", "pitch": pitch, "step": 3},
+            {"lane": "1", "op": "add", "pitch": pitch, "step": 3},
+        ],
+    )
+    assert len(done) == 2
+    lc.write(s, doc)
+    a = s.arrangement
+    assert not a.note_nudge and not a.note_chance and not a.note_feel
+
+
+def test_another_lanes_feel_follows_its_notes_too(client):
+    s = _st(client)
+    lay = s.layers[1]
+    m, st = lay["cells"][0]
+    lay.setdefault("seq", {})
+    lay["seq"] = {**(lay["seq"] or {}), "note_nudge": {str(st): -0.1}}
+    f = lc.facts(s)
+    doc, done, _ = loopchat.apply(
+        lc.read(s), f, [{"lane": "2", "op": "remove", "pitch": m, "step": st}]
+    )
+    assert done
+    lc.write(s, doc)
+    assert not s.layers[1]["seq"].get("note_nudge")
+
+
+def test_the_brief_says_how_each_lane_plays(client):
+    """What the chat is sent besides the notes: a lane's arp, strum, mute,
+    level, the lanes doubling it and the saved loop it holds; its notes as
+    a list by bar with their nudge and chance; the beat's kit and each
+    hit's extras; the launcher's scenes."""
+    s = _st(client)
+    s.arrangement = replace(
+        s.arrangement,
+        arp_mode="up",
+        arp_octaves=2,
+        strum=0.25,
+        swing=0.2,
+        note_nudge={"2": 0.15},
+        note_chance={"2": 0.5},
+        drum_kit="naked",
+        drum_hits={"snare.4": {"r": 2, "p": 0.5}},
+    )
+    s.layers[1]["muted"] = True
+    s.layers[1]["gain"] = 0.5
+    s.add_layer(Patch(name="Double"), [], select=False, slot=2, octave=1)
+    s.perform_slots = [
+        {"slots": [None, "sub line", None, None, "beat one"], "name": "A"}
+    ]
+    text = loopchat.brief(loopchat.info(s), "less busy")
+    assert "swing 0.2" in text
+    assert "arp: up over 2 octave(s)" in text and "strummed (0.25" in text
+    assert "followed by lane 3 1 octave(s) up" in text
+    assert "MUTED" in text and "level -6.0 dB" in text
+    assert "bar 1: 0 A3 x1" in text and "nudge +0.15 chance 50%" in text
+    assert "kit: acoustic" in text and "snare 4: chance 0.5, ratchet 2" in text
+    assert 'scene 1 "A": lane 2: sub line, drums: beat one' in text

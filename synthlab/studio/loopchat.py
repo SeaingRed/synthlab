@@ -12,12 +12,15 @@ reach Gemini). Not the agent: not logged in `agent_log.json`, not counted
 against its budget — each reply carries its own tokens and "≈ $", shown
 in the thread.
 
-What is sent: the loop as text — the tempo, the meter, the key, the chord
-lane, each lane's sound name and its notes as a grid, the beat as a grid,
-what the coach's rules found — the last few lines of the thread, and the
-message. A spoken message is the phrase as a 16 kHz mono WAV
-(`clipmorph.audio_wav`, at most 8 s from the first sound) with the same
-text; the reply says what it heard."""
+What is sent: the loop as text — the tempo, the meter, the key, the swing,
+the chord lane; each lane's sound, how it plays (its arp, strum, mute,
+solo, level, the lanes that follow it, the saved loop it holds) and its
+notes twice, as a grid and as a list by bar with each note's nudge, chance
+and own feel; the beat as a grid with its kit, swing and each hit's
+extras; the launcher's scenes; what the coach's rules found — the last few
+lines of the thread, and the message. A spoken message is the phrase as a
+16 kHz mono WAV (`clipmorph.audio_wav`, at most 8 s from the first
+sound) with the same text; the reply says what it heard."""
 
 from __future__ import annotations
 
@@ -50,6 +53,13 @@ nothing.
 of that pitch sounding at that step. move: the note of that pitch at that step \
 to to_step and/or to_pitch. velocity: the note starting at that step.
 - Drums: voice (one of the listed), step; add / remove / velocity.
+- Each lane also lists its notes by bar: "step pitch xlength v(1-9)", \
+with its nudge (a share of a step early/late), its chance and its own feel \
+(played between the lines) when it has them. Use those step numbers.
+- A lane with an arp: its grid holds the chord(s) the arp walks, not the \
+line heard; edit the chord tones, or say what to change in the arp. A lane \
+"followed by" another is doubled there (that lane plays these notes). A \
+MUTED lane is silent.
 - Stay in the key unless asked; keep what the player clearly meant.
 - `fixes` may name findings of the coach's own checks by their id to apply \
 them as they stand (they are listed); use them when one does what was asked.
@@ -144,6 +154,160 @@ def drums_text(drums: dict, total: int, spb: int) -> str:
     return "\n".join(lines) or "(no beat)"
 
 
+def notes_text(lane: dict, total: int, spb: int, main: dict | None = None) -> str:
+    """A lane's notes as a list a bar a line, each "step pitch xlength v",
+    the step counted across the lane (so nothing is counted off a grid)."""
+    feel = lane.get("feel") or {}
+    bars: dict[int, list[str]] = {}
+    for n in lc.notes(lane):
+        if n.start >= total:
+            continue
+        v = max(1, min(9, round(lc.vel_of(lane, n.start, main) * 9)))
+        bit = f"{n.start} {n.pitch} x{n.n} v{v}"
+        if (nd := feel.get("nudge", {}).get(str(n.start))) is not None:
+            bit += f" nudge {nd:+.2f}"
+        if (ch := feel.get("chance", {}).get(str(n.start))) is not None:
+            bit += f" chance {round(ch * 100)}%"
+        if f"{n.pitch}.{n.start}" in feel.get("notes", {}):
+            bit += " (own feel)"
+        bars.setdefault(n.start // spb, []).append(bit)
+    return "\n".join(
+        f"bar {b + 1}: " + ", ".join(bits) for b, bits in sorted(bars.items())
+    )
+
+
+def arp_text(mode, octaves, pattern) -> str:
+    """How a lane's arp plays, in words ("" with none)."""
+    if not mode or mode == "off":
+        return ""
+    if mode == "pattern" and pattern:
+        steps = pattern.get("steps") or []
+        on = [s for s in steps if s.get("on", True)]
+        extra = []
+        if any((s.get("rep") or 1) > 1 for s in on):
+            extra.append("ratchets")
+        if any(s.get("tr") for s in on):
+            extra.append("steps transposed in the key")
+        if any(
+            float(s.get("chance", 1) if s.get("chance") is not None else 1) < 1
+            for s in on
+        ):
+            extra.append("steps by chance")
+        return (
+            f"arp: a {len(steps)}-step pattern ({len(on)} on) at "
+            f"{pattern.get('rate', 'grid')}, {pattern.get('mode', 'up')} over "
+            f"{pattern.get('oct', 1)} octave(s)"
+            + (f", with {', '.join(extra)}" if extra else "")
+        )
+    return f"arp: {mode} over {octaves or 1} octave(s), one note a step"
+
+
+def lane_meta(state, i: int) -> list[str]:
+    """How lane `i` plays besides its notes: its arp, strum and voice, its
+    mix, the lanes doubling it and the saved loop it holds."""
+    a, lay = state.arrangement, state.layers[i]
+    if i == state.active_layer:
+        mode, octs, pat = a.arp_mode, a.arp_octaves, a.arp_pattern
+        strum, voice = a.strum, state.patch.voice_mode
+    else:
+        seq = lay.get("seq") if isinstance(lay.get("seq"), dict) else {}
+        mode, octs = seq.get("arp_mode", "off"), seq.get("arp_octaves", 1)
+        pat, strum = seq.get("arp_pattern") or {}, seq.get("strum") or 0
+        voice = (lay.get("patch") or {}).get("voice_mode", "poly")
+    out = [x for x in (arp_text(mode, octs, pat),) if x]
+    if strum:
+        out.append(f"strummed ({strum:g} of a step between a chord's notes)")
+    if voice and voice != "poly":
+        out.append(f"one voice ({voice})")
+    if lay.get("role"):
+        out.append(f"role: {lay['role']}")
+    if lay.get("muted"):
+        out.append("MUTED")
+    if lay.get("solo"):
+        out.append("soloed")
+    gain = float(lay.get("gain") or 1.0)
+    if abs(gain - 1.0) > 0.01:
+        out.append(f"level {20 * math.log10(max(gain, 1e-4)):+.1f} dB")
+    main = state.main_index()
+    for j, other in enumerate(state.layers):
+        if j != i and main == i and other.get("patch") and state.follows(j):
+            octave = int((other.get("follow") or {}).get("octave") or 0)
+            where = (
+                f" {abs(octave)} octave(s) {'up' if octave > 0 else 'down'}"
+                if octave
+                else ""
+            )
+            out.append(f"followed by lane {j + 1}{where}")
+    if e := state.loop_edit_of(i):
+        out.append(f'holds the saved loop "{e["name"]}" (edits save to it)')
+    return out
+
+
+_HIT = {"p": "chance", "r": "ratchet", "n": "nudge", "t": "tune", "a": "art"}
+
+
+def drums_meta(state) -> list[str]:
+    """The beat besides its grid: the kit, its swing and feel, the rows'
+    mix and every hit's extras (chance, ratchet, nudge, tune, articulation)."""
+    a = state.arrangement
+    kit = (
+        "acoustic (Naked Drums, a recorded kit)"
+        if a.drum_kit == "naked"
+        else "electronic"
+    )
+    out = [f"kit: {kit}"]
+    if a.drum_swing:
+        out.append(f"swing {a.drum_swing:g}")
+    if a.drum_humanize:
+        out.append(f"humanize {a.drum_humanize:g}")
+    if a.drum_row_swing:
+        out.append(
+            "row swing: " + ", ".join(f"{k} {v:g}" for k, v in a.drum_row_swing.items())
+        )
+    for v, m in sorted((a.drum_mix or {}).items()):
+        bits = [
+            w for w, on in (("muted", m.get("mute")), ("soloed", m.get("solo"))) if on
+        ]
+        if m.get("level") is not None and abs(float(m["level"]) - 1) > 0.01:
+            bits.append(f"level {float(m['level']):g}")
+        if bits:
+            out.append(f"{v}: {', '.join(bits)}")
+    extras = []
+    for k, h in sorted((a.drum_hits or {}).items(), key=lambda kv: str(kv[0])):
+        if not isinstance(h, dict) or "." not in str(k):
+            continue
+        bits = [
+            f"{_HIT[x]} {h[x]:g}"
+            if isinstance(h[x], int | float)
+            else f"{_HIT[x]} {h[x]}"
+            for x in _HIT
+            if x in h
+        ]
+        if bits:
+            voice, step = str(k).rsplit(".", 1)
+            extras.append(f"{voice} {step}: {', '.join(bits)}")
+    if extras:
+        out.append("hits with extras: " + "; ".join(extras[:32]))
+    if e := state.loop_edit_of(state.DRUM_LANE):
+        out.append(f'holds the saved beat "{e["name"]}" (edits save to it)')
+    return out
+
+
+def launcher_text(state) -> list[str]:
+    """The launcher's scenes (at most 8): what each holds a lane."""
+    out = []
+    for r, row in enumerate((state.perform_slots or [])[:8]):
+        held = [
+            f"{'drums' if k == state.DRUM_LANE else f'lane {k + 1}'}: {n}"
+            for k, n in enumerate(row.get("slots") or [])
+            if n
+        ]
+        if held:
+            name = f' "{row["name"]}"' if row.get("name") else ""
+            out.append(f"scene {r + 1}{name}: " + ", ".join(held))
+    return out
+
+
 def info(state) -> dict:
     """What a message is sent with: the loop, read now (under the lock)."""
     doc, f = lc.read(state), lc.facts(state)
@@ -163,6 +327,8 @@ def info(state) -> dict:
                 "name": f.names.get(i, ""),
                 "edited": i == f.active,
                 "grid": lane_text(lane, f.total, f.spb, f.main_vel),
+                "notes": notes_text(lane, f.total, f.spb, f.main_vel),
+                "meta": lane_meta(state, i),
             }
         )
     finds = lc.assess(doc, f)
@@ -177,6 +343,9 @@ def info(state) -> dict:
         "chords": chords,
         "lanes": lanes,
         "drums": drums_text(doc["drums"], f.drum_total, f.drum_spb),
+        "drums_meta": drums_meta(state),
+        "swing": float(state.arrangement.swing or 0),
+        "launcher": launcher_text(state),
         "findings": [f"{x.id}: {x.title}" for x in finds if x.after],
         "said": [x.title for x in finds if not x.after],
         "history": history(state),
@@ -197,7 +366,9 @@ def history(state) -> list[str]:
 
 def brief(info: dict, message: str, spoken: bool = False) -> str:
     lines = [
-        f"Tempo {info['bpm']:g} bpm, {info['meter']}, key {info['key']}.",
+        f"Tempo {info['bpm']:g} bpm, {info['meter']}, key {info['key']}"
+        + (f", swing {info['swing']:g}" if info.get("swing") else "")
+        + ".",
         f"The loop: {info['bars']} bar(s) of {info['spb']} steps on the note "
         f"grid; the beat {info['drum_bars']} bar(s) of {info['drum_spb']} steps.",
         "Chord lane: " + ("; ".join(info["chords"]) or "none"),
@@ -208,9 +379,18 @@ def brief(info: dict, message: str, spoken: bool = False) -> str:
             f"Lane {lane['lane']}{' (the one being edited)' if lane['edited'] else ''}"
             f" — sound: {lane['name'] or 'untitled'}"
         )
+        if lane.get("meta"):
+            lines.append("  " + "; ".join(lane["meta"]))
         lines.append(lane["grid"])
+        if lane.get("notes"):
+            lines += ["Its notes by bar:", lane["notes"]]
         lines.append("")
-    lines += ["Beat (drums):", info["drums"], ""]
+    lines.append("Beat (drums):")
+    if info.get("drums_meta"):
+        lines.append("  " + "; ".join(info["drums_meta"]))
+    lines += [info["drums"], ""]
+    if info.get("launcher"):
+        lines += ["Launcher scenes (saved loops by lane):", *info["launcher"], ""]
     if info["findings"]:
         lines.append("The coach's checks found (id: what):")
         lines += [f"- {x}" for x in info["findings"]]
@@ -406,7 +586,12 @@ def _one(doc: dict, f: lc.Facts, e) -> str | None:
         keep = (
             {to_s: lc.vel_of(ln, hit.start, f.main_vel)} if to_s != hit.start else None
         )
-        doc["lanes"][key] = lc.with_notes(ln, rest + [moved], keep_vel=keep)
+        doc["lanes"][key] = lc.with_notes(
+            ln,
+            rest + [moved],
+            keep_vel=keep,
+            carry={(hit.pitch, hit.start): (moved.pitch, to_s)},
+        )
         return (
             f"{name}: moved {hit.pitch} at {where(hit.start)} "
             f"to {moved.pitch} at {where(to_s)}{tail}"

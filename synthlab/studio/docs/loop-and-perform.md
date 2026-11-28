@@ -1724,7 +1724,12 @@ slides; a following lane plays the main lane's and is none) and the beat
 (`drums`, `drum_vel`, `drum_hits`). Clocks, key, meter, sounds: read,
 never written. Notes are runs (`notes`, `with_notes`: cells and the cuts
 between two notes of a pitch; a velocity stays on its start step, the
-grid's rule).
+grid's rule). A lane's timing and chance ride with it (`feel`: the
+step-keyed `note_nudge` and `note_chance`, the per-note `note_feel`): a
+note the chat moves takes its entries along (`with_notes(carry=)`), and
+written back every entry on no note's start is dropped (`feel_after`,
+notefeel.py's rule) — so a note removed leaves none for one drawn on its
+step later.
 
 **Assess** (instant, no network): `RULES`, each at most one finding a
 lane with a one-line why and its fix as a whole new doc — notes **off the

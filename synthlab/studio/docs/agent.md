@@ -268,12 +268,22 @@ covers it; a test patches `takecoach.load_config` / `client_for` /
 ```
 
 **What is sent** (`loopchat.info` + `brief`, text only): the tempo, the
-meter, the key, the chord lane's chords with their steps, each lane that
-plays notes of its own with its sound's name and its notes as a grid (a
-row a pitch: a velocity digit where a note starts, `=` while it is held),
-the beat as a grid, what the coach's rules found (id and title), the last
-six lines of the thread and the message. No audio, unless the message was
-spoken.
+meter, the key, the swing, the chord lane's chords with their steps; each
+lane that plays notes of its own with its sound's name, a line of how it
+plays (`lane_meta`: its arp — mode and octaves, or the pattern's steps,
+rate and what it ratchets, transposes or rolls — its strum, one voice,
+role, MUTED / soloed / level, the lanes that follow it and at what
+octave, the saved loop it holds) and its notes twice: as a grid (a row a
+pitch: a velocity digit where a note starts, `=` while it is held) and as
+a list a bar a line (`notes_text`: "step pitch xlength v", the step
+counted across the lane — a model miscounts columns of a 128-step row —
+with the note's nudge, chance and own feel); the beat as a grid with its
+kit, swing, humanize, the rows' mutes and levels and every hit's chance,
+ratchet, nudge, tune and articulation (`drums_meta`); the launcher's
+scenes, a saved loop a lane (`launcher_text`, at most 8); what the
+coach's rules found (id and title), the last six lines of the thread and
+the message. A 4-lane, 8-bar loop is about 2k tokens. No audio, unless
+the message was spoken.
 
 **Nothing in it is trusted**: `loopchat.apply` makes each edit on a copy
 of the loop only when it fits — a lane that plays its own notes, a pitch
