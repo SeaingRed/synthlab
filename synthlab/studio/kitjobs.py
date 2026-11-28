@@ -77,6 +77,17 @@ class KitJobs:
     def last_error(self) -> str:
         return (self.last or {}).get("error", "")
 
+    def take_fresh(self) -> bool:
+        """True once for a job that ended with the kit downloaded: the one
+        poll that asks (`GET /fragment/drums/kit/job?watch=1`) forgets the
+        renders made with the stand-in voices; every other poll, tab or
+        failed job answers False."""
+        with self._lock:
+            if self.last and self.last.get("fresh"):
+                self.last["fresh"] = False
+                return True
+            return False
+
     def start(self, repair: bool = False) -> str:
         """Begin downloading the kit. "" when it started (or the kit is
         already here), "busy" while one runs. `repair`: run even when every
@@ -126,7 +137,7 @@ class KitJobs:
         arrange.forget_kit()  # the next render asks the disk again
         with self._lock:
             self._job = None
-            self.last = {"error": error, "at": time.time()}
+            self.last = {"error": error, "at": time.time(), "fresh": not error}
 
     def _download(self) -> None:
         megabytes = max(1, round(kit_bytes() / 1e6))

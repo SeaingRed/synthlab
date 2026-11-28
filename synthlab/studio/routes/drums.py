@@ -49,6 +49,7 @@ from ..service import StudioService
 from ..state import (
     ALL_DRUM_ROWS,
     ARTICULATIONS,
+    DRUM_ROWS,
     StudioState,
     drum_grid,
     kit_rows,
@@ -707,9 +708,41 @@ def fragment_drums_notation(request: Request, form: StrForm, svc: Svc) -> Respon
             if "steps per bar" not in str(e):
                 break
             continue
-        s.arrangement = replace(arr, drums=steps, drum_steps=spb)
+        # notation spells today's eight rows (`DRUM_ROWS`): an acoustic
+        # beat's further rows keep their cells and hits (`keep_hidden`, as a
+        # grid post), moved onto a finer grid with the rows it spells
+        was_drums, was_hits = _regrid_hidden(arr, spb)
+        drums_, hits = drumops.keep_hidden(
+            steps, was_hits, was_drums, was_hits, DRUM_ROWS, {}
+        )
+        s.arrangement = replace(arr, drums=drums_, drum_hits=hits, drum_steps=spb)
         return _bank_response(svc, request)
     return svc.toast(str(err))
+
+
+def _regrid_hidden(arr, spb: int) -> tuple[list, dict]:
+    """The beat's cells and hits of the rows notation does not spell, on a
+    grid of `spb` steps a bar: a step lands where it sounded when `spb` is
+    a whole multiple of the grid it was on (a nudge, a share of a step,
+    scaled with it), else it stays where it was (as the steps select
+    leaves cells)."""
+    k, rem = divmod(spb, max(1, arr.drum_steps))
+    if spb == arr.drum_steps or rem or not k:
+        return arr.drums, dict(arr.drum_hits or {})
+    drums_ = [
+        [v, int(st) * k] if v not in DRUM_ROWS else [v, st] for v, st in arr.drums
+    ]
+    hits = {}
+    for key, h in (arr.drum_hits or {}).items():
+        v, _dot, raw = key.partition(".")
+        if v in DRUM_ROWS:
+            hits[key] = h
+            continue
+        h = dict(h)
+        if "n" in h:
+            h["n"] = max(-0.5, min(0.5, float(h["n"]) * k))
+        hits[f"{v}.{int(raw) * k}"] = h
+    return drums_, hits
 
 
 @router.post("/fragment/drums/clear")
@@ -745,27 +778,41 @@ def fragment_drums_lib_delete(request: Request, form: StrForm, svc: Svc) -> Resp
 
 
 @router.get("/drum/{voice}/hit.wav")
-def drum_hit(voice: str, svc: Svc) -> Response:
+@render_outside_lock
+def drum_hit(voice: str, svc: Svc) -> Response | OutsideLock:
     """A row's one-shot, what its pad and its name play: the row's clip
     when it has one (on the pads as in the loop), on the acoustic kit its
     default articulation struck hard (`_acoustic_pad`), else its
-    electronic voice — a further row's stand-in (`arrange._electronic`)."""
+    electronic voice — a further row's stand-in (`arrange._electronic`).
+    A cold acoustic pad (the kit's SFZ read, its FLACs decoded) renders
+    with the lock released, from the arrangement read under it."""
     if voice not in ALL_DRUM_ROWS:
         return Response(status_code=404)
     key = "drum-hit:" + voice + ":" + svc.drum_pad_hash(voice)
     result = svc.notes.get(key)
-    if result is None:
-        s = svc.state
-        audio = _voice_sample(s.arrangement, voice, s.data_dir)
-        if audio is None and svc.drum_pad_acoustic(voice):
-            audio = _acoustic_pad(s.arrangement, voice)
-        if audio is None and voice in drums.KIT:
-            audio = drums.hit(voice, **svc.drum_voice_values(voice))
+    if result is not None:
+        return _hit_wav(result)
+    s = svc.state
+    arr = s.arrangement  # replaced, never mutated: a snapshot
+    clip = _voice_sample(arr, voice, s.data_dir)
+    acoustic = clip is None and svc.drum_pad_acoustic(voice)
+    values = svc.drum_voice_values(voice) if voice in drums.KIT else None
+
+    def run() -> Response:
+        audio = _acoustic_pad(arr, voice) if acoustic else clip
+        if audio is None and values is not None:
+            audio = drums.hit(voice, **values)
         if audio is None:
-            base, params = arrange._electronic(s.arrangement, voice)
+            base, params = arrange._electronic(arr, voice)
             audio = drums.hit(base, **params)
-        result = RenderResult(key=key, wav=_to_wav_bytes(audio), analysis={})
-        svc.notes.put(result)
+        made = RenderResult(key=key, wav=_to_wav_bytes(audio), analysis={})
+        svc.notes.put(made)
+        return _hit_wav(made)
+
+    return OutsideLock(run) if acoustic else run()
+
+
+def _hit_wav(result: RenderResult) -> Response:
     return Response(
         result.wav, media_type="audio/wav", headers={"Cache-Control": "no-store"}
     )
@@ -917,15 +964,18 @@ def fragment_kit_job(request: Request) -> Response:
     Lab's `/fragment/lab/job`). The one answer that finds the job ended
     (`watch=1`) takes the lock to draw the kit's panel too (its pads are
     the kit's now) and, when the kit is here, asks the page for its loop
-    again."""
+    again; the first such answer after a job that brought the kit drops
+    the caches (`KitJobs.take_fresh`)."""
     svc: StudioService = request.app.state.svc
     if not (request.query_params.get("watch") == "1" and not svc.kits.busy()):
         return HTMLResponse(_kit_source(svc))
     arrange.kit_availability()  # the stat, outside the lock
     with svc.state.lock:
         # renders made while the kit was missing or damaged hold the
-        # stand-in voices under keys that may not move: forget them
-        svc.reset_caches()
+        # stand-in voices under keys that may not move: forget them — once
+        # a job, and only when it brought the kit (not for each polling tab)
+        if svc.kits.take_fresh():
+            svc.reset_caches()
         html = _kit_source(svc, just_ready=not svc.kits.last_error())
         html += svc.oob_regions(request, "drum-panels", view="drums")
     return HTMLResponse(html)

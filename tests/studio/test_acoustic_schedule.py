@@ -40,7 +40,7 @@ def kit(monkeypatch):
     """A ready fake kit; yields the `render_hit` calls."""
     calls: list[tuple] = []
 
-    def render_hit(kmap, root, row, art, velocity, rr, mics, sr=SR):
+    def render_hit(kmap, root, row, art, velocity, rr, mics, sr=SR, count=0):
         calls.append((row, art, velocity, rr, mics))
         return np.full((FAKE_LEN, 2), _level(row, art, rr))
 
@@ -131,6 +131,77 @@ def test_sixteen_closed_hats_never_repeat_a_take_back_to_back(kit):
     # and the render asks the kit for each take, in turn
     build_song(Patch(), arr, None)
     assert [c[3] for c in kit] == list(range(16))
+
+
+def _takes(seq, takes=10) -> list[int]:
+    """The take each `(rr, rn)` strike plays on a layer of `takes` takes."""
+    return [play.take_of(rr, rn, takes) for rr, rn in seq]
+
+
+def test_take_of_moves_only_a_seam_repeat():
+    # 11 strikes on 10 takes: the last one would replay take 0 at the seam
+    assert _takes([(r, 11) for r in range(11)]) == [*range(10), 1]
+    # any other count is rr % takes
+    for n in (10, 12, 16, 20):
+        assert _takes([(r, n) for r in range(n)]) == [r % 10 for r in range(n)]
+    # once a pass: the same take every pass
+    assert _takes([(0, 1)] * 4) == [0, 0, 0, 0]
+    assert play.take_of(10, 0, 10) == 0  # count unknown: as before
+    assert play.take_of(1, 3, 2) == 1 and play.take_of(5, 7, 1) == 0
+
+
+def _eleven_hats_section(lane: bool):
+    song = sm.new_song(120.0, "A1", "minor")
+    tid = sm.add_track(song, "drums", "Drums")
+    sid = sm.add_section(song, "S", 4)
+    data = {
+        "drums": [["hat", s] for s in range(11)],
+        "bars": 1,
+        "steps": 16,
+        "hits": {},
+        "kit": "naked",
+    }
+    sm.set_cell(song, sid, tid, sm.add_pattern(song, "drums", "beat", data))
+    if lane:
+        sm.set_lane(song, sid, tid, "gain", [[0.0, 0.2], [1.0, 0.2]])
+    return sm.section_arrangement(song, song["sections"][0])
+
+
+def test_eleven_hats_never_repeat_a_take_across_the_seam(kit, monkeypatch):
+    """R12: 11 closed hats on a 10-take layer: the pass's last strike and
+    the next pass's first never play one take back to back, and the loop, a
+    section and its chunks play the same takes."""
+    loop = _arr([["hat", s] for s in range(11)])
+    ((_v, hits),) = drum_hits(loop)
+    assert [(h.rr, h.rn) for h in hits] == [(r, 11) for r in range(11)]
+    want = _placed(loop, reps=4)
+    in_time = sorted(want, key=lambda x: x[-1])
+    takes = _takes([(r, n) for _v, _a, r, n, _b in in_time])
+    assert len(takes) == 44
+    assert all(a != b for a, b in zip(takes, takes[1:], strict=False))
+    assert _placed(_eleven_hats_section(False).arr, reps=4) == want
+    flat = _eleven_hats_section(True)
+    assert flat.flat and _placed(flat.arr) == want
+    monkeypatch.setattr(render, "MAX_LOOP_SECONDS", 2.0)
+    assert len(section_windows(flat)) > 1 and _windows(flat) == want
+    # the render hands the kit the count for the last strike alone
+    counts = []
+
+    def render_hit(kmap, root, row, art, velocity, rr, mics, sr=SR, count=0):
+        counts.append((rr, count))
+        return np.full((FAKE_LEN, 2), 0.1)
+
+    monkeypatch.setattr(play, "render_hit", render_hit)
+    build_song(Patch(), loop, None)
+    assert counts == [*((r, 0) for r in range(10)), (10, 11)]
+
+
+def test_a_once_a_pass_hit_keeps_its_take_every_pass(kit):
+    arr = _arr([["snare", 4], ["kick", 0], *(["hat", s] for s in range(11))])
+    rows = dict(drum_hits(arr))
+    assert [(h.rr, h.rn) for h in rows["snare"]] == [(0, 1)]
+    assert [(h.rr, h.rn) for h in rows["kick"]] == [(0, 1)]
+    assert _takes([(0, 1)] * 3) == [0, 0, 0]
 
 
 def test_a_ratchet_is_that_many_takes_and_an_articulation_counts_on_its_own(kit):
@@ -342,7 +413,7 @@ def _section(bars=4, lane=False):
 def _placed(arr, offset=0.0, reps=1) -> list:
     length = arr.drum_bars * 4.0
     return sorted(
-        (v, h.art, h.rr, round(h[0] + offset + r * length, 9))
+        (v, h.art, h.rr, h.rn, round(h[0] + offset + r * length, 9))
         for r in range(reps)
         for v, hs in drum_hits(arr)
         for h in hs
@@ -359,14 +430,14 @@ def _windows(parts) -> list:
 def test_loop_section_and_chunks_agree(kit, monkeypatch):
     loop = _arr(BEAT["drums"], BEAT["hits"])
     want = _placed(loop, reps=4)
-    assert {(v, a) for v, a, _r, _b in want} >= {
+    assert {(v, a) for v, a, _r, _n, _b in want} >= {
         ("hat", "open"),
         ("hat", "pedal"),
         ("ride", "bell"),
         ("crash", "choke"),
         ("snare", "side"),
     }
-    assert max(r for _v, _a, r, _b in want) >= 5
+    assert max(r for _v, _a, r, _n, _b in want) >= 5
     native = _section()
     assert not native.flat and native.arr.drum_kit == "naked"
     assert _placed(native.arr, reps=4) == want
@@ -562,7 +633,7 @@ def test_a_damaged_kit_plays_the_electronic_voice_and_says_why(kit, monkeypatch)
     file the kit lacks) never fails the render: that hit plays its row's
     electronic stand-in, and `arrange.kit_damage` says why."""
 
-    def broken(kmap, root, row, art, velocity, rr, mics, sr=SR):
+    def broken(kmap, root, row, art, velocity, rr, mics, sr=SR, count=0):
         if row == "hat":
             raise fetch.KitError("hat: a file is damaged")
         return np.full((FAKE_LEN, 2), 0.2)
@@ -582,3 +653,71 @@ def test_a_damaged_kit_plays_the_electronic_voice_and_says_why(kit, monkeypatch)
     np.testing.assert_allclose(played[0][1], hat.events[0][1])
     arrange.forget_kit()
     assert arrange.kit_damage() == ""
+
+
+@pytest.mark.parametrize(
+    "err", [fetch.KitError("two takes claim one slot"), OSError("locked")]
+)
+def test_an_unreadable_sfz_plays_the_electronic_voices_and_says_why(
+    kit, monkeypatch, err
+):
+    def broken(root):
+        raise err
+
+    monkeypatch.setattr(sfz, "read_kit", broken)
+    arr = _arr([["hat", 0], ["kick", 4]])
+    got = build_song(Patch(), arr, None).render(normalize=0)
+    want = build_song(Patch(), replace(arr, drum_kit=""), None).render(normalize=0)
+    assert kit == []  # the kit was never asked for a hit
+    np.testing.assert_allclose(got, want)
+    assert arrange.kit_damage() == str(err)
+
+
+# --- choosing the acoustic kit: the open hats onto the hat row --------------------
+
+
+def _played(arr) -> list:
+    # (the `ohat` row's level goes onto the open hits' velocity: its gain
+    # holds, the layer it picks moves, by design)
+    return sorted(
+        (v, round(h[0], 9), round(h[1], 9), h.art, h.rr)
+        for v, hs in drum_hits(arr)
+        for h in hs
+    )
+
+
+HAT_BEATS = {
+    "own swing": dict(drum_swing=0.1, drum_row_swing={"ohat": 0.3}),
+    "hat's own swing": dict(drum_row_swing={"hat": 0.2}),
+    "hat muted": dict(drum_mix={"hat": {"mute": True}, "ohat": {"level": 0.5}}),
+    "ohat soloed": dict(drum_mix={"ohat": {"solo": True}}),
+    "hat soloed": dict(drum_mix={"hat": {"solo": True}}),
+    "both soloed": dict(drum_mix={"hat": {"solo": True}, "ohat": {"solo": True}}),
+    "ohat muted": dict(drum_mix={"ohat": {"mute": True}}),
+    "kick soloed": dict(drum_mix={"kick": {"solo": True}}),
+}
+
+
+@pytest.mark.parametrize("name", list(HAT_BEATS))
+def test_choosing_the_acoustic_kit_plays_what_the_open_hats_played(name):
+    from synthlab.studio import drumops
+
+    drums = [["kick", 0], ["hat", 0], ["hat", 2], ["hat", 4], ["hat", 5]]
+    drums += [["ohat", 3], ["ohat", 4], ["ohat", 7]]  # step 4: both rows
+    arr = _arr(drums, {"ohat.7": {"n": 0.1}}, **HAT_BEATS[name])
+    after = replace(arr, **drumops.open_hats_to_hat(arr))
+    assert not any(v == "ohat" for v, _s in after.drums)
+    assert "ohat" not in (after.drum_row_swing or {})
+    assert _played(after) == _played(arr)
+
+
+def test_a_step_both_hat_rows_strike_plays_the_open_hit_alone():
+    arr = _arr([["hat", 4], ["ohat", 4], ["hat", 6]])
+    ((_v, hits),) = drum_hits(arr)
+    assert [(h[0], h.art) for h in hits] == [(1.0, "open"), (1.5, "closed")]
+    muted = replace(arr, drum_mix={"ohat": {"mute": True}})
+    ((_v, hits),) = drum_hits(muted)
+    assert [(h[0], h.art) for h in hits] == [(1.0, "closed"), (1.5, "closed")]
+    # an electronic beat plays both, as it always did
+    rows = dict(drum_hits(replace(arr, drum_kit="")))
+    assert [h[0] for h in rows["hat"]] == [1.0, 1.5] and len(rows["ohat"]) == 1

@@ -199,6 +199,18 @@ def _weights(layers, m: float):
     return [(order[-1], 1.0)]
 
 
+def take_of(rr: int, count: int, takes: int) -> int:
+    """Which of a layer's `takes` strike `rr` plays: `rr % takes`, except the
+    last strike of a pass of `count` (`rr == count - 1`) when `count % takes
+    == 1` and `count > 1` — that one would play the take the next pass opens
+    on, back to back across the loop's seam, so it takes the next one. A
+    once-a-pass strike (`count` 1) plays the same take every pass."""
+    takes = max(1, int(takes))
+    if count > 1 and takes > 1 and count % takes == 1 and rr % count == count - 1:
+        return (rr + 1) % takes
+    return rr % takes
+
+
 def render_hit(
     kit: KitMap,
     root: Path,
@@ -208,8 +220,11 @@ def render_hit(
     rr: int,
     mics: dict | None,
     sr: int = SR,
+    count: int = 0,
 ) -> np.ndarray:
-    """One hit of `row`/`art` as `(n, 2)` float64."""
+    """One hit of `row`/`art` as `(n, 2)` float64. `count` is how many
+    strikes of it one pass of the pattern makes (0: not known), which only
+    moves the take of a pass's last strike (`take_of`)."""
     a = kit.arts.get((row, art))
     if a is None or not a.layers:
         raise KitError(f"the kit has no {row}/{art}")
@@ -220,7 +235,7 @@ def render_hit(
     for layer, w in _weights(a.layers, velocity * 127):
         if not layer.takes:
             continue
-        take = layer.takes[rr % len(layer.takes)]
+        take = layer.takes[take_of(rr, count, len(layer.takes))]
         for mic, rel in take.items():
             db = chan.get(CHANNEL_OF.get(mic, mic))
             if db is None:

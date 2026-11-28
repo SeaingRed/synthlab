@@ -315,7 +315,9 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   never shipped. `fetch.py` downloads it file by file from a URL pinned to
   a commit into `%LOCALAPPDATA%\synthlab\kits\naked-drums`
   (`SYNTHLAB_KIT_DIR`), HTTPS only, every file held to the SHA-256 and
-  size in the committed `naked_drums.json`, resumable and cancellable;
+  size in the committed `naked_drums.json`, four files at once, each
+  retried on a throttle, a 5xx or a network fault, resumable and
+  cancellable;
   availability is a size check only. `sfz.py` reads the kit's own SFZ
   (defines, includes, groups) into a `KitMap`: rows, articulations,
   velocity layers, round-robin takes, mic files, choke groups. `play.py`

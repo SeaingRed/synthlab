@@ -2363,19 +2363,25 @@ def _tile_hits(
 
 def _tile_rr(a, tiled: dict, period: int, total: int, lo: int = 0, hi=None) -> dict:
     """On the acoustic kit, every tiled cell's round robin in its PATTERN
-    (`arrange.rr_marks`) as `q` beside its hit data, so each repeat of the
-    pattern and each chunk of the cycle takes the takes the pattern takes
-    looping on its own. Internal to a flattened cycle, as `k` / `pk` are;
-    an electronic beat gains nothing."""
+    (`arrange.rr_marks`) as `q`, and its (row, articulation)'s strikes a
+    pass (`arrange.rr_passes`) as `qn`, beside its hit data, so each repeat
+    of the pattern and each chunk of the cycle takes the takes the pattern
+    takes looping on its own — the seam's take included. Internal to a
+    flattened cycle, as `k` / `pk` are; an electronic beat gains nothing."""
     if getattr(a, "drum_kit", "") != "naked":
         return tiled
-    from .arrange import rr_marks  # lazy: arrange imports state
+    from .arrange import rr_marks, rr_passes  # lazy: arrange imports state
 
     out = dict(tiled)
+    passes = rr_passes(a)
     for key, q in rr_marks(a).items():
         voice, _dot, raw = key.partition(".")
         for _x, t in _tile([[voice, int(raw)]], period, total, lo, hi):
-            out[f"{voice}.{t}"] = {**out.get(f"{voice}.{t}", {}), "q": q}
+            out[f"{voice}.{t}"] = {
+                **out.get(f"{voice}.{t}", {}),
+                "q": q,
+                "qn": passes[key],
+            }
     return out
 
 

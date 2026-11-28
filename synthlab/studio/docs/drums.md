@@ -17,8 +17,9 @@ song's generators in `songcraft.md`; which island owns which gesture in
 **Drum machine** (`arrange._schedule_drums`): 8 voices (`DRUM_ROWS`:
 kick snare hat ohat clap tom rim crash; notation `bd sn hh oh cp tm rm
 cr`) — the electronic kits' rows; a beat on the acoustic kit may hold
-eight more (`ALL_DRUM_ROWS`, "The acoustic kit" below). It has its **own clock** — `Arrangement.drum_bars/drum_steps/
-drum_swing/drum_humanize` — separate from the synth grid's
+eight more (`ALL_DRUM_ROWS`, "The acoustic kit" below). It has its **own
+clock** — `Arrangement.drum_bars/drum_steps/drum_swing/drum_humanize` —
+separate from the synth grid's
 `bars/steps_per_bar/swing`; only `bpm` is shared. A mixed render loops
 over `loop_bars(arr, parts)` = lcm of both, each section rendered at
 its own length and wrap-tiled (`render._wrap_tile`). Per step `drum_vel`
@@ -149,27 +150,41 @@ and rolls, and each `Hit` also carries `art` (its articulation: the
 hit's `a`, else its row's default — `state.ARTICULATIONS`, "hit" for a
 row with none), `vel` (what picks the recorded layer: the step's or the
 hit's velocity x humanise x the ratchet's fall; `gain` stays the row's
-level x it) and `rr` (its round robin). On an electronic kit none is set
+level x it), `rr` (its round robin) and `rn` (the strikes its (row,
+articulation) makes a pass). On an electronic kit none is set
 and the schedule is the one it always was.
 
 - **`ohat` is the hat's "open"**: its hits join the hat row's, with the
-  `ohat` row's level and chance.
+  `ohat` row's level, chance and swing. **A step both rows strike plays
+  the open hit alone** while the `ohat` row sounds (`arrange.
+  _opened_steps`; the closed one plays while it is muted or soloed out) —
+  one hi-hat, one hit a step, as the Kit sound select's conversion
+  stores it. An electronic beat still plays both.
 - **Round robins are a count of the pattern** (`arrange.rr_marks`): the
   strikes of the same (row, articulation) before a cell in its pattern,
   in step order, a ratchet counting each strike — never what a roll let
-  play, so every pass takes the same takes at the same steps. The price
-  of that exactness (loop == section == chunks): a cell a chance drops
-  still uses its take number, and a hit struck once a pattern repeats
-  its take every pass (a crash on bar 1 of a 1-bar beat is the same
-  recording each bar; a longer pattern, or more strikes, varies it). A tiled
-  section's cycle carries each cell's count as `q` beside `k` / `pk`
+  play, so every pass takes the same takes at the same steps. A layer of
+  T takes plays strike `rr % T` (`kits.play.take_of`), with one
+  exception at the loop's seam: where a pass strikes a (row,
+  articulation) N times, N > 1 and N % T == 1 (11 closed hats on the
+  real kit's 10 takes), its last strike would replay the take the next
+  pass opens on, so it takes the one after (`(rr + 1) % T`; the render
+  hands `render_hit` N as `count` for that strike alone). The price of
+  that exactness (loop == section == chunks): a cell a chance drops
+  still uses its take number, and **a hit struck once a pass (N == 1)
+  plays the same take every pass** — a lone snare or kick per bar of a
+  1-bar beat is the same recording each bar, as is a crash on bar 1; a
+  longer pattern, or more strikes, varies it (each pass varying on its
+  own is kit project 2's, feel and form). With T == 2 and N odd no
+  choice avoids one repeat a pass. A tiled section's cycle carries each
+  cell's count as `q` and its N as `qn` beside `k` / `pk`
   (`song_model._tile_rr`), so the loop, a section and every chunk agree.
 - **The render** (`_schedule_drums`) asks `kits.play.render_hit` for each
   distinct (row, art, velocity in 1/127ths, take, mic mix) once a render,
   through `play.levels(drum_mics)` (a preset, then its overrides), times
   the row's level (`gain / vel`: the level never picks the layer) and
-  `KIT_GAIN` (a velocity that rounds to 0 asks for nothing). A pedal, tight or closed hat cuts a ringing half /
-  open one, and a `choke` cuts its row's ringing hit and sounds nothing —
+  `KIT_GAIN_DB` (a velocity that rounds to 0 asks for nothing). A
+  pedal, tight or closed hat cuts a ringing half / open one, and a `choke` cuts its row's ringing hit and sounds nothing —
   the open hat's 8 ms fade, on the schedule's own times. A row with a
   clip plays its clip; clap and rim play their electronic voices.
 - **Its level** (`KIT_GAIN_DB`, +11 dB): measured over every beat style,
@@ -454,9 +469,18 @@ structure, not timbre.
   SHA-256. `fetch.download` is HTTPS only (a redirect off it is
   refused), reads at most the listed size + 1 bytes, writes a `.part`
   file, checks size and hash, and only then renames; a wrong file is
-  deleted. It **resumes**: a file already there at its size is skipped,
-  stale `.part` files are swept, a dropped connection or a short body is
-  a `KitError` (never a half file), a cancel keeps the finished files.
+  deleted. It fetches **`WORKERS` (4) files at once** and **retries** a
+  file whose attempt meets a 429, a 5xx, a network fault, a timeout or a
+  short body: up to `RETRIES` (5) attempts, `BACKOFF` 1 s doubling or the
+  server's `Retry-After`, within `MAX_WAIT` (120 s) of waiting a file;
+  then it is a `KitError` naming the file (a 404 or a wrong hash is never
+  retried; never a half file). It **resumes**: a file already there at
+  its size is skipped, and a killed run's parts are swept — only this
+  module's own `<file>.<32 hex>.part` beside a manifest file in a
+  manifest folder (`SYNTHLAB_KIT_DIR` may be any folder), a part another
+  job holds left alone; a cancel stops the files in flight, deletes their
+  parts and keeps the finished files. Measured: the whole kit (4,262
+  files, 1.28 GB) from a local server in 6.9 s, `verified` 16 s after.
   `fetch.availability` and `kit_ready` ask by **size only** (a stat a
   file, no hashing on the render path); `verified` hashes, memoised by
   path / mtime / size. `tests/test_kit_fetch.py`.
@@ -464,14 +488,17 @@ structure, not timbre.
   second start answers "busy"), a daemon thread with progress a MB,
   **Cancel**, the last error's text on the page, and
   `arrange.forget_kit()` whenever a job ends so the next render asks the
-  disk again. `POST /fragment/drums/kit/download`, `.../kit/cancel`,
+  disk again; the first poll that finds a job ended with the kit here
+  drops the render caches, once (`KitJobs.take_fresh`). `POST /fragment/drums/kit/download`, `.../kit/cancel`,
   `GET .../kit/job` (the polled line; the answer that finds it ended
   also redraws the page and posts a preview so the loop renders with the
   kit). **Repair** (`repair=1`, "Download again") skips the by-size
   shortcut and hashes every file. `tests/studio/test_kit_page.py`.
 - **A damaged kit plays electronic and says so.** A hit the kit cannot
   play (`KitError`: a corrupt file, the SFZ and its files disagreeing)
-  is replaced by its row's electronic stand-in (`arrange._kit_hit`), the
+  is replaced by its row's electronic stand-in (`arrange._kit_hit`), as
+  is every row when the kit's SFZ cannot be read (`acoustic_kit`: a
+  `KitError` — two takes claiming one slot — or an `OSError`); the
   render never fails, and the reason is `arrange.kit_damage()`; the Kit
   page's line reads "The kit is damaged: ..." with Download again. A
   kit that is simply not on this machine takes the same stand-ins
@@ -499,8 +526,15 @@ structure, not timbre.
   voice: it is the hat's "open" articulation. Choosing Acoustic
   (`drumops.open_hats_to_hat`) turns each `ohat` cell into a hat hit
   `a=open` (the `ohat` row's chance times the hit's, its level over the
-  hat's carried onto `v`, its mute as `p=0`, its mix entry dropped; a
-  step the hat also strikes becomes the open hit); choosing Electronic
+  hat's carried onto `v`, its mute or being soloed out as `p=0`, its
+  own swing where it differs from the hat's onto an odd step's `n` —
+  held to +-0.5 of a step —, its mix and swing entries dropped; an
+  `ohat` row sounding over a muted or soloed-out hat row lifts the
+  hat's mute / sets its solo and gives the closed hits `p=0`; a step
+  the hat also strikes becomes the open hit while the `ohat` row
+  sounds, else stays the closed one — so the beat plays what it played
+  on the acoustic kit, `tests/studio/test_acoustic_schedule.py`);
+  choosing Electronic
   (`hat_to_open_hats`) puts half and open hat hits back on `ohat`, so a
   round trip does not close the open hats. One pattern undo step with
   the kit. `ohat` cells that stay on an acoustic beat (a Randomise that
@@ -565,8 +599,10 @@ structure, not timbre.
   kit. **Live keys**: the kit is absent on them (Perform's keys and the
   live voice are electronic); only the Kit page's pads
   (`/drum/{voice}/hit.wav`) play it, at the row's default articulation,
-  velocity 0.9, take 0, through the beat's mics. A further row's pad on
-  an electronic beat plays its stand-in.
+  velocity 0.9, take 0, through the beat's mics — a cold one (the SFZ
+  read, its FLACs decoded) rendered with the studio lock released
+  (`@render_outside_lock`). A further row's pad on an electronic beat
+  plays its stand-in.
 - **MIDI keys by kit.** The beat's file keys are by the beat's kit
   (`midi_bridge.gm_key` / `row_of_key`; the table is in
   `song-render-export.md`, "Export is the schedule"). The studio has no
@@ -688,6 +724,10 @@ beside it — see "Genre recipes, kits and chains" in `sounds-and-breeding.md`. 
 Drum mini-notation (`studio/notation.py`): `bd*4 [~ sn] hh*8`, layers
 with `,`. Off-grid slots are a `NotationError` (422 toast), never a
 silent quantise. `to_notation` describes bar 1 only (grid is the truth).
+It spells the eight `DRUM_ROWS` alone, so Apply replaces those rows and
+keeps the acoustic kit's further rows, cells and hits (`drumops.
+keep_hidden`, as a grid post; a finer grid the pattern needs moves them
+with it, `routes/drums._regrid_hidden`).
 
 ## Drum bank saves never overwrite silently
 

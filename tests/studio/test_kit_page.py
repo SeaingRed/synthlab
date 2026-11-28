@@ -44,7 +44,7 @@ def kit(tmp_path, monkeypatch):
     """A ready fake kit; yields `render_hit`'s calls."""
     calls: list[tuple] = []
 
-    def render_hit(kmap, root, row, art, velocity, rr, mics, sr=44100):
+    def render_hit(kmap, root, row, art, velocity, rr, mics, sr=44100, count=0):
         calls.append((row, art, velocity, rr))
         return np.full((4410, 2), 0.05)
 
@@ -292,6 +292,24 @@ def test_the_download_runs_once_and_says_how_it_ended(client, monkeypatch):
     ended = client.get("/fragment/drums/kit/job?watch=1").text
     assert 'id="drum-panels"' in ended and "hx-swap-oob" in ended
     assert "every 1s" not in ended
+
+
+def test_the_caches_go_once_a_job_and_only_when_it_brought_the_kit(client, monkeypatch):
+    svc = client.app.state.svc
+    resets = []
+    monkeypatch.setattr(svc, "reset_caches", lambda: resets.append(1))
+    _set(client, drum_kit="naked")
+    for fail, want in (("a file failed", 0), ("", 1)):
+        resets.clear()
+        fake = _Fake(fail=fail)
+        monkeypatch.setattr(svc.kits, "fetch_kit", fake)
+        client.post("/fragment/drums/kit/download", headers=HX)
+        fake.gate.set()
+        svc.kits.join()
+        for _tab in range(3):  # three tabs poll the job's end
+            ended = client.get("/fragment/drums/kit/job?watch=1").text
+            assert 'id="drum-panels"' in ended
+        assert len(resets) == want
 
 
 def test_a_failed_download_shows_its_error_and_a_cancel_stops_it(client, monkeypatch):

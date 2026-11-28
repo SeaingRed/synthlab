@@ -40,7 +40,11 @@ def test_the_rows_and_their_articulations():
     ]
     assert ALL_DRUM_ROWS == DRUM_ROWS + NEW_DRUM_ROWS
     assert set(ACOUSTIC_ROWS) <= set(ALL_DRUM_ROWS)
-    assert ARTICULATIONS["hat"][0] == "closed" and "open" in ARTICULATIONS["hat"]
+    assert ACOUSTIC_ROWS == [
+        *("kick", "snare", "hat", "ride", "tom", "tom2", "tom3", "tom4", "tom5"),
+        *("crash", "crash2", "splash", "china"),
+    ]
+    assert ARTICULATIONS["hat"] == ("closed", "pedal", "tight", "half", "open")
     assert ARTICULATIONS["snare"] == ("centre", "side")
     assert ARTICULATIONS["ride"] == ("bow", "bell", "choke")
     assert (

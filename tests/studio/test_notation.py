@@ -121,3 +121,39 @@ def test_notation_route_bumps_grid_to_fit(tmp_path):
         client.post("/fragment/drums/notation", data={"notation": "bd*3"}).status_code
         == 422
     )
+
+
+def test_notation_keeps_an_acoustic_beats_further_rows(tmp_path):
+    """Notation spells the eight `DRUM_ROWS`: on an acoustic beat Apply
+    keeps the ride, toms, crashes and their hits (`drumops.keep_hidden`),
+    and moves them with the grid when it grows finer."""
+    from dataclasses import replace
+
+    from fastapi.testclient import TestClient
+
+    from synthlab.studio.server import create_app
+
+    client = TestClient(create_app(data_dir=tmp_path))
+    s = client.app.state.studio
+    s.arrangement = replace(
+        s.arrangement,
+        drum_kit="naked",
+        drum_steps=16,
+        drum_bars=1,
+        drums=[["kick", 0], ["snare", 4], ["ride", 2], ["tom3", 6], ["china", 15]],
+        drum_hits={"ride.2": {"a": "bell", "v": 0.5}, "snare.4": {"v": 0.7}},
+    )
+    r = client.post("/fragment/drums/notation", data={"notation": "bd*4"})
+    assert r.status_code == 200
+    a = s.arrangement
+    assert hits(a.drums, "kick") == [0, 4, 8, 12]
+    assert hits(a.drums, "snare") == []
+    assert (hits(a.drums, "ride"), hits(a.drums, "tom3")) == ([2], [6])
+    assert hits(a.drums, "china") == [15]
+    assert a.drum_hits == {"ride.2": {"a": "bell", "v": 0.5}}
+    # a pattern finer than the grid: the further rows move to where they were
+    r = client.post("/fragment/drums/notation", data={"notation": "hh*32"})
+    assert r.status_code == 200 and s.arrangement.drum_steps == 32
+    a = s.arrangement
+    assert (hits(a.drums, "ride"), hits(a.drums, "china")) == ([4], [30])
+    assert a.drum_hits == {"ride.4": {"a": "bell", "v": 0.5}}

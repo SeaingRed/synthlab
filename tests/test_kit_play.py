@@ -71,6 +71,20 @@ def test_round_robins_rotate(tmp_path):
     assert got == [0.2, 0.4, 0.2]
 
 
+def test_a_pass_of_one_more_than_the_takes_moves_its_last_strike(tmp_path):
+    """4 strikes a pass on 3 takes: the last takes take 1, never take 0
+    again just before the next pass opens on it."""
+    files = [_write(tmp_path, f"t{i}.flac", 0.1 * (i + 1)) for i in range(3)]
+    kit = _kit([_art([Layer(0, 127, tuple({"kick_in": f} for f in files))])])
+
+    def take(rr, count):
+        hit = play.render_hit(kit, tmp_path, "kick", "hit", 1.0, rr, None, count=count)
+        return round(_level(hit) * 10) - 1
+
+    assert [take(r, 4) for r in range(4)] == [0, 1, 2, 1]
+    assert [take(r, 0) for r in range(4)] == [0, 1, 2, 0]
+
+
 def test_mics_sum_at_their_levels(tmp_path):
     a = _write(tmp_path, "in.flac", 0.2)
     b = _write(tmp_path, "oh.flac", 0.4)

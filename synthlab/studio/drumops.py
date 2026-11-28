@@ -30,7 +30,7 @@ from .patternops import (
     remap,
     remap_lane,
 )
-from .state import ALL_DRUM_ROWS
+from .state import ALL_DRUM_ROWS, drum_row_sounds
 
 DRUM_TOOLS = frozenset(
     {
@@ -379,38 +379,65 @@ def keep_hidden(
 def open_hats_to_hat(arr) -> dict:
     """What choosing the acoustic kit does to a beat (the Kit sound select):
     its `ohat` cells become hat hits played "open" (`a`), so the open hats
-    are on the one hat row the kit has. A hit keeps its own data; the
-    `ohat` row's chance goes onto its hits (times their own), its level
-    onto their velocity (over the hat row's, held to 0.05..1) and its mute
-    to a chance of 0 — so the beat plays what it played. A step the hat
-    already strikes becomes the open hit. The `ohat` row's mix entry goes.
-    Arrangement fields to `replace`; {} when there is no open hat."""
+    are on the one hat row the kit has — and the beat plays what it played
+    there (`arrange._open_hats`). A hit keeps its own data; the `ohat`
+    row's chance goes onto its hits (times their own), its level onto
+    their velocity (over the hat row's, held to 0.05..1), its mute — or
+    being soloed out — to a chance of 0, and its own swing, where it
+    differs from the hat row's, onto an odd step's nudge (held to the
+    nudge's +-0.5 of a step). An `ohat` row that sounds while the hat row
+    does not (muted, or soloed out by the `ohat` solo) lends the hat row
+    its sounding — the mute lifted, the solo set — and the closed hits,
+    which were silent, take a chance of 0. A step both rows strike plays
+    the open hit alone while the `ohat` row sounds (it becomes the open
+    hit), else the closed one (the open is dropped). The `ohat` row's mix
+    and swing entries go. Arrangement fields to `replace`; {} when there
+    is no open hat."""
     opens = [int(s) for v, s in arr.drums if v == "ohat"]
     if not opens:
         return {}
+    sounds, hat_sounds = drum_row_sounds(arr, "ohat"), drum_row_sounds(arr, "hat")
     mix = dict(arr.drum_mix or {})
-    om, hm = mix.pop("ohat", {}) or {}, mix.get("hat", {}) or {}
+    om, hm = mix.pop("ohat", {}) or {}, dict(mix.get("hat", {}) or {})
     ratio = float(om.get("level", 1.0)) / max(1e-6, float(hm.get("level", 1.0)))
-    prob = 0.0 if om.get("mute") else float(om.get("prob", 1.0))
+    prob = float(om.get("prob", 1.0)) if sounds else 0.0
+    row_swing = dict(getattr(arr, "drum_row_swing", None) or {})
+    swing = float(getattr(arr, "drum_swing", 0.0))
+    shift = float(row_swing.pop("ohat", swing)) - float(row_swing.get("hat", swing))
+    closed = {int(s) for v, s in arr.drums if v == "hat"}
     hits = {
         k: dict(v)
         for k, v in (arr.drum_hits or {}).items()
         if not k.startswith("ohat.")
     }
+    if sounds and not hat_sounds:
+        hm.pop("mute", None)
+        if om.get("solo"):
+            hm["solo"] = True
+        mix["hat"] = hm
+        for s in closed:
+            hits[f"hat.{s}"] = {**hits.get(f"hat.{s}", {}), "p": 0.0}
     for s in opens:
+        if s in closed and not sounds:
+            continue  # the open never sounded: the closed hit stays
         h = dict((arr.drum_hits or {}).get(f"ohat.{s}") or {})
         if abs(ratio - 1.0) > 1e-9:
             v = float(h.get("v", (arr.drum_vel or {}).get(str(s), 1.0)))
             h["v"] = round(min(1.0, max(0.05, v * ratio)), 3)
         if prob < 1.0:
             h["p"] = round(float(h.get("p", 1.0)) * prob, 3)
+        if s % 2 == 1 and abs(shift) > 1e-9:
+            h["n"] = round(min(0.5, max(-0.5, float(h.get("n", 0.0)) + shift)), 4)
         h["a"] = "open"
         hits[f"hat.{s}"] = h
     cells = {(v, int(s)) for v, s in arr.drums if v != "ohat"} | {
         ("hat", s) for s in opens
     }
     drums = sorted([list(c) for c in cells], key=lambda c: (c[0], c[1]))
-    return {"drums": drums, "drum_hits": clean_hits(hits, drums), "drum_mix": mix}
+    out = {"drums": drums, "drum_hits": clean_hits(hits, drums), "drum_mix": mix}
+    if "ohat" in (getattr(arr, "drum_row_swing", None) or {}):
+        out["drum_row_swing"] = row_swing
+    return out
 
 
 def hat_to_open_hats(arr) -> dict:

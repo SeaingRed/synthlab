@@ -747,6 +747,8 @@ RENDER_OUTSIDE_LOCK = {
     "/fragment/breed/generation",
     # the acoustic kit's download: whether it is here stats every file
     "/fragment/drums/kit/download",
+    # a cold acoustic pad: the kit's SFZ read and its FLACs decoded
+    "/drum/{voice}/hit.wav",
     # Import SFZ…: the samples are decoded with the lock released (they touch
     # only the self-locking sample store), the sound loaded under it again
     "/fragment/sampler/sfz",
