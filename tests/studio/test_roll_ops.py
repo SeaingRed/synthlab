@@ -78,6 +78,30 @@ def test_a_hostile_selection_is_refused_not_an_error(raw):
         po.parse_sel(raw, 16, ROWS)
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "n:",
+        "n:Z9@1",
+        "n:A1",
+        "n:A1@x",
+        "n:A1@16",
+        "n:A1@-1",
+        "n:A1@" + "9" * 40,
+        "n:" + ",".join(["A1@0"] * (po.limits.MAX_SEL_NOTES + 1)),
+        "n:A1@0" + " " * po.limits.MAX_SEL_CHARS,
+    ],
+    ids=range(9),
+)
+def test_a_hostile_note_set_is_refused_not_an_error(raw):
+    with pytest.raises(po.ToolRefused):
+        po.parse_sel(raw, 16, ROWS)
+
+
+def test_a_note_set_reads_as_the_notes_it_names():
+    assert po.parse_sel("n:A1@0,E2@15,A1@0", 16, ROWS) == {("A1", 0), ("E2", 15)}
+
+
 def test_a_selection_is_clamped_to_the_grid_and_takes_either_order():
     assert po.parse_sel("12:-3:A1:E2", 8, ROWS) == (0, 7, 0, 4)
     assert po.parse_sel("", 8, ROWS) is None
@@ -288,17 +312,46 @@ def test_no_roll_tool_leaves_a_cut_without_a_cell():
 # --- the selection afterwards, and the pattern's own tools on one -------------------
 
 
-def test_a_move_answers_with_the_rectangle_round_where_the_notes_landed():
+def test_a_move_answers_with_exactly_the_notes_it_moved():
     ln = lane(run("A1", 0, 2) + run("C2", 1, 4) + run("E2", 9, 10))
     args = {"sel": "0:3:C2:A1", "dx": "4", "dy": "1"}
     out, _said, now = po.roll_tool("move", ln, rows=ROWS, ladder=LADDER, args=args)
     assert notes(out) == [("B1", 4, 6), ("D2", 5, 8), ("E2", 9, 10)]
-    assert now == "4:7:D2:B1"
-    # the same rectangle selects the same notes again: a second move follows
+    assert now == "n:B1@4,D2@5"  # the notes, never the rectangle round them
+    # the answer selects the same notes again: a second move follows
     out, _said, now = po.roll_tool(
         "move", out, rows=ROWS, ladder=LADDER, args={"sel": now, "dx": "-1"}
     )
     assert notes(out) == [("B1", 3, 5), ("D2", 4, 7), ("E2", 9, 10)]
+
+
+def test_a_note_set_moves_one_line_of_a_stacked_octave_alone():
+    # the bug: a chord's line and the note an octave (here: rows) above it
+    # start together, so no rectangle holds one without the other
+    ln = lane(run("A1", 0, 2) + run("D2", 0, 2) + run("A1", 4, 6) + run("D2", 4, 6))
+    args = {"sel": "n:A1@0,A1@4", "dx": "1", "dy": "1"}
+    out, _said, now = po.roll_tool("move", ln, rows=ROWS, ladder=LADDER, args=args)
+    assert notes(out) == [("D2", 0, 2), ("B1", 1, 3), ("D2", 4, 6), ("B1", 5, 7)]
+    assert now == "n:B1@1,B1@5"
+
+
+def test_a_note_set_leaves_the_notes_between_its_notes_alone():
+    ln = lane(run("A1", 0, 1) + run("C2", 2, 3) + run("E2", 4, 5))
+    args = {"sel": "n:A1@0,E2@4", "dx": "8"}
+    out, _said, now = po.roll_tool("move", ln, rows=ROWS, ladder=LADDER, args=args)
+    assert notes(out) == [("C2", 2, 3), ("A1", 8, 9), ("E2", 12, 13)]
+    assert now == "n:A1@8,E2@12"
+    out, _said, _now = po.roll_tool(
+        "remove", ln, rows=ROWS, ladder=LADDER, args={"sel": "n:C2@2"}
+    )
+    assert notes(out) == [("A1", 0, 1), ("E2", 4, 5)]
+
+
+def test_a_note_set_names_starts_and_a_step_inside_a_note_picks_nothing():
+    ln = lane(run("A1", 0, 4))
+    all_ = po.notes_in(ln["cells"], ln["cuts"], 16, ROWS)
+    assert po._picked(all_, po.parse_sel("n:A1@0", 16, ROWS), ROWS) == [True]
+    assert po._picked(all_, po.parse_sel("n:A1@2", 16, ROWS), ROWS) == [False]
 
 
 def test_a_move_that_cannot_move_leaves_the_selection_alone():

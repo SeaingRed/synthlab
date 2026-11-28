@@ -38,6 +38,7 @@ from .arrange import (
     build_clips_song,
     build_song,
     follow_layer,
+    kit_ready,
     loop_bars,
     loop_seconds,
     nudge_of,
@@ -170,8 +171,15 @@ class RenderInputs:
     # it is). Only a loop whose notes rest by chance has more
     # (`song_model.loop_passes`: each pass rolls afresh)
     passes: int = 1
+    # whether the acoustic kit is on this machine (`arrange.kit_ready`),
+    # sampled ONCE — here, unless a section hands its own down — when the
+    # beat plays it: the key and the render read this one answer, so a key
+    # never holds the other answer's audio. None on an electronic kit
+    kit_ready: bool | None = None
 
     def __post_init__(self) -> None:
+        if self.kit_ready is None and self.arr.drum_kit and "drums" in self.parts:
+            object.__setattr__(self, "kit_ready", kit_ready())
         object.__setattr__(self, "layers", tuple(self.layers) if self.layers else ())
         object.__setattr__(self, "main_fx", tuple(self.main_fx) if self.main_fx else ())
         object.__setattr__(
@@ -222,6 +230,11 @@ class RenderInputs:
             "master_fx": list(self.master_fx),
             "drums_fx": list(self.drums_fx) if "drums" in parts else [],
         }
+        if "drums" in parts and self.arr.drum_kit:
+            # the acoustic kit renders its fallbacks until it is here: a key
+            # from before it arrived must not serve after (`/preview` is
+            # immutable). Absent on the electronic kits
+            payload["kit_ready"] = bool(self.kit_ready)
         if "drums" not in parts:
             clock = self._chain_clock()
             if clock:  # absent unless a chain reads the drum clock
@@ -660,6 +673,18 @@ def _timing(arr: Arrangement) -> dict:
     }
 
 
+def _kit_keyed(arr: Arrangement, ready: bool | None) -> dict:
+    """A drum stem payload's kit entries: the kit, whether it is on this
+    machine (`ready`, the inputs' `kit_ready`: until it is, its rows play
+    the electronic fallbacks) and the mic mix — each absent while unset."""
+    out: dict = {}
+    if arr.drum_kit:
+        out |= {"drum_kit": arr.drum_kit, "kit_ready": bool(ready)}
+    if arr.drum_mics:
+        out["drum_mics"] = arr.drum_mics
+    return out
+
+
 def _drum_timing(arr: Arrangement) -> dict:
     return {
         "bpm": arr.bpm,
@@ -852,9 +877,16 @@ def _stem_jobs(inp: RenderInputs) -> list[_StemJob]:
                 # so every stem key from before them holds
                 **({"drum_hits": arr.drum_hits} if arr.drum_hits else {}),
                 **({"row_swing": arr.drum_row_swing} if arr.drum_row_swing else {}),
+                # the beat's sound source, whether it is here, and its mics:
+                # absent on the electronic kits, so no stem key moves
+                **_kit_keyed(arr, inp.kit_ready),
             },
             lambda: build_song(
-                inp.patch, dc_replace(arr, cells=[]), None, clip_root=inp.clip_root
+                inp.patch,
+                dc_replace(arr, cells=[]),
+                None,
+                clip_root=inp.clip_root,
+                kit_ready=inp.kit_ready,
             ),
             fx_units=inp.drums_fx,
             own_parts=("drums",),

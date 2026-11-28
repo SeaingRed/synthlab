@@ -401,7 +401,14 @@ engine's `synthlab/midifile.py`; `tests/studio/test_midi_export.py`,
   A scheduling change belongs in those two, and the file follows.
 - `GET /export/loop.mid`: Perform's `render_inputs` — a track per synth
   lane that plays (edited lane, then layers; followers resolved), the
-  beat on channel 10 at General MIDI keys (`GM_DRUMS`), each clock tiled
+  beat on channel 10 at General MIDI keys (`GM_DRUMS` for the electronic
+  kit; on the acoustic kit `midi_bridge.gm_key(row, art, kit)`: snare/side
+  37, hat pedal 44, open and half 46, closed and tight 42, toms 48 / 47 /
+  45 / 43 / 41, ride 51 and its bell 53, crash 49, crash2 57, splash 55,
+  china 52; a choke writes no note on any kit; `row_of_key(key, kit)` is
+  the inverse, 37 / 46 reading as rim / ohat on the electronic kit and
+  snare/side / hat/open on the acoustic one, tight and half reading back
+  as closed and open), each clock tiled
   over `loop_bars`, only the parts the loop carries. `GET
   /export/song.mid`: one track per sounding drums/synth track
   (`song_play.stem_songs`, so the stems' tracks), sections end to end,

@@ -36,11 +36,13 @@ from .. import (
 from .. import song_model as sm
 from ..files import dir_sig
 from ..soundmeta import filter_response_svg
+from ..state import kit_rows
 from ..views import VIEW_PARTS
 from .page import (
     BANK_NEEDS,
     BAR_NEEDS,
     CLIPLIB_NEEDS,
+    DRUM_PANELS_NEEDS,
     PANEL_PAGES,
     SONG_NEEDS,
     TAKES_NEEDS,
@@ -379,6 +381,34 @@ def _w_drum_bank(svc: StudioService, view: str) -> str:
         dir_sig(s.data_dir / "presets" / "drums", ".json"),
         # an empty grid names the song's sections to open here
         song_sections(s.song) if not a.drums else (),
+        a.drum_kit,  # the rows the grid draws, the articulation lane
+    )
+
+
+def _w_kit_source(svc: StudioService, view: str) -> str:
+    return _sig(svc.kit_watch())
+
+
+def _ctx_kit_source(svc: StudioService, request: Request, view: str) -> dict:
+    return {"kit": svc.kit_context()}
+
+
+def _w_drum_panels(svc: StudioService, view: str) -> str:
+    """The kit's strips (each voice's shaping, level and chance, its pad's
+    one-shot) or, on the acoustic kit, its pads and mic mixer."""
+    a = svc.state.arrangement
+    return _sig(
+        svc.kit_watch(),
+        a.drum_params,
+        sorted(
+            (v, m.get("level"), m.get("prob"))
+            for v, m in a.drum_mix.items()
+            if "level" in m or "prob" in m
+        ),
+        a.drum_samples,
+        _clips_sig(svc),  # a row's clip is its pad's sound
+        a.drum_mics,
+        kit_rows(a.drum_kit, a.drums),
     )
 
 
@@ -409,6 +439,7 @@ def _w_perform_drums(svc: StudioService, view: str) -> str:
         a.drum_swing,
         _w_clips(svc, view),
         svc.drum_editing(),  # the beat loop it edits: its head's "saved"
+        a.drum_kit,  # the rows the grid draws, the articulation lane
     )
 
 
@@ -846,6 +877,22 @@ REGIONS: dict[str, Region] = {
     ),
     "drum-bank": Region(
         "fragments/drum_bank.html", BANK_NEEDS, frozenset({"drums"}), _w_drum_bank
+    ),
+    # the beat's kit sound beside the genre kit, drawn inside the beat
+    "kit-source": Region(
+        "fragments/drum_kit_source.html",
+        frozenset(),
+        frozenset({"drums"}),
+        _w_kit_source,
+        _ctx_kit_source,
+        inside="drum-bank",
+    ),
+    # the kit: eight strips, or the acoustic kit's pads and mic mixer
+    "drum-panels": Region(
+        "fragments/drum_panels.html",
+        DRUM_PANELS_NEEDS,
+        frozenset({"drums"}),
+        _w_drum_panels,
     ),
     # Perform
     "perform-drums": Region(

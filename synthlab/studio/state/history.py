@@ -210,6 +210,9 @@ class History:
         "drum_steps",
         "drum_hits",
         "drum_row_swing",
+        # the beat's kit and mics (a bank slot or a beat loads them)
+        "drum_kit",
+        "drum_mics",
         # the bar: a meter change is one step (`set_meter`), and undoing it
         # puts every grid back in the meter its steps are counted in
         "meter",

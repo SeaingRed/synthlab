@@ -60,6 +60,10 @@ from .paramui import CONTINUOUS_PARAMS, MACRO_PARAMS
 ARR_OPTIONAL = (
     "drum_hits",
     "drum_row_swing",
+    # the beat's kit and its mics (the acoustic kit): absent while the beat
+    # plays the electronic voices
+    "drum_kit",
+    "drum_mics",
     "strum",
     "meter",
     "ramp",
@@ -123,7 +127,9 @@ def clean_nudge(nudge, cells) -> dict:
 
 
 # what a hit's data says by not being there: certain, once, on the grid, at
-# the voice's own pitch (a velocity falls back to the step's `drum_vel`)
+# the voice's own pitch (a velocity falls back to the step's `drum_vel`).
+# Its articulation (`a`) is neutral at its ROW's default, the first of
+# `state.ARTICULATIONS[row]`: `Hits` drops that one, as it knows the row
 HIT_NEUTRAL = {"p": 1.0, "r": 1, "n": 0.0, "t": 0.0}
 
 
@@ -516,6 +522,75 @@ class Chances(MapOf):
         return {k: v for k, v in super().conform(x).items() if v < 1.0}
 
 
+class Hits(MapOf):
+    """The per-hit drum table (`Arrangement.drum_hits`): a `MapOf` whose
+    entries' articulation (`a`) is kept only where the hit's row has it
+    (`articulations`: row -> its names, the default first) and it is not
+    that row's default — a hit's value alone cannot know its row."""
+
+    def __init__(self, key: Node, value: Node, *, articulations: dict, **kw):
+        super().__init__(key, value, **kw)
+        self.articulations = articulations
+
+    def conform(self, x):
+        out: dict = {}
+        for k, v in super().conform(x).items():
+            own = self.articulations.get(k.split(".")[0], ())[1:]
+            if "a" in v and v["a"] not in own:
+                v = {f: y for f, y in v.items() if f != "a"}
+            if v or not self.drop_empty:
+                out[k] = v
+        return out
+
+
+def _kit(x) -> str:
+    """A beat's kit (`Arrangement.drum_kit`): one of `state.DRUM_KITS`."""
+    from .state.model import DRUM_KITS
+
+    if not isinstance(x, str) or x not in DRUM_KITS:
+        raise Invalid("not a kit")
+    return x
+
+
+def _mics(x) -> dict:
+    """The acoustic kit's mic mixer (`Arrangement.drum_mics`): a "preset"
+    (`synthlab.kits.play.MIC_PRESETS`) when it is not the default
+    ("studio"), and dB a mic (`MICS`, held to `limits.MIC_DB_RANGE`; None =
+    off) only where it is off that preset, and "muted": the mics muted over
+    their level, kept for the unmute (sorted; absent when none). An unknown
+    mic, a bad level or an unknown preset is dropped; everything at the
+    default is {}."""
+    from synthlab.kits.play import MIC_PRESETS, MICS
+
+    if not isinstance(x, dict):
+        raise Invalid("not a dict")
+    preset = x.get("preset", "studio")
+    if not isinstance(preset, str) or preset not in MIC_PRESETS:
+        preset = "studio"
+    base = MIC_PRESETS[preset]
+    lo, hi = limits.MIC_DB_RANGE
+    out: dict = {} if preset == "studio" else {"preset": preset}
+    # a mic muted over its level (the level kept for when it is unmuted)
+    muted = x.get("muted")
+    if isinstance(muted, list):
+        held = sorted({m for m in muted if isinstance(m, str) and m in MICS})
+        if held:
+            out["muted"] = held
+    for mic in MICS:
+        if mic not in x:
+            continue
+        v = x[mic]
+        if v is not None:
+            if isinstance(v, bool) or not isinstance(v, int | float):
+                continue
+            if not math.isfinite(v):
+                continue
+            v = round(min(hi, max(lo, float(v))), 2)
+        if v != base.get(mic):
+            out[mic] = v
+    return out
+
+
 class Record(Node):
     """A dict with known fields, unknown keys dropped (logged when
     `label` names the record). A missing field takes its default, or —
@@ -767,7 +842,7 @@ def _pattern_post(out: dict, raw: dict) -> dict:
     # saved bank reads and writes as it did); a hit's data needs its cell
     on = {f"{v}.{s}" for v, s in out["steps"]}
     out["hits"] = {k: v for k, v in (out.get("hits") or {}).items() if k in on}
-    for k in ("hits", "row_swing"):
+    for k in ("hits", "row_swing", "kit", "mics"):
         if not out.get(k):
             out.pop(k, None)
     return out
@@ -788,8 +863,9 @@ def nodes() -> SimpleNamespace:
     from .drumfactory import DRUM_FACTORY
     from .genome import DEPTHS
     from .state import (
+        ALL_DRUM_ROWS,
+        ARTICULATIONS,
         BANK_SLOTS,
-        DRUM_ROWS,
         LAYER_SEQ_KEYS,
         RESET_SCOPES,
         ROOTS,
@@ -833,7 +909,10 @@ def nodes() -> SimpleNamespace:
         max_len=len(CURVABLE),
         drop_empty=True,
     )
-    drum_voice = Choice(DRUM_ROWS)
+    # every row a beat may hold: today's eight and the acoustic kit's
+    # further rows. ("hat" is the schema's example only: a row with
+    # articulations, so the example hit's `a` is one that is written down)
+    drum_voice = Choice(ALL_DRUM_ROWS, "hat")
 
     def _hit_key(x) -> str:
         """`<voice>.<step>`: a drum cell's name, as the grid posts it."""
@@ -841,20 +920,24 @@ def nodes() -> SimpleNamespace:
             raise Invalid("not a hit")
         voice, step = x.split(".")
         key = limits.step_key(step)
-        if voice not in DRUM_ROWS or key is None:
+        if voice not in ALL_DRUM_ROWS or key is None:
             raise Invalid("not a hit")
         return f"{voice}.{key}"
 
     def _hit_post(out: dict, raw: dict) -> dict:
         """A value that says nothing is not written down: one hit, certain,
         on the grid, at the voice's own pitch (`HIT_NEUTRAL`). A velocity
-        always says something: the step's own may differ."""
+        always says something: the step's own may differ. (An articulation
+        that is its row's default, or not its row's, `Hits` drops.)"""
         return {k: v for k, v in out.items() if HIT_NEUTRAL.get(k) != v}
 
+    # every articulation name, each once, in the rows' order
+    art_names = tuple(dict.fromkeys(a for arts in ARTICULATIONS.values() for a in arts))
     # per-hit drum data beside a drum grid's cells (drums.md, "The per-hit
-    # model"): velocity, chance, ratchet, nudge (of a step), tune (st)
-    drum_hits = MapOf(
-        Leaf(_hit_key, example="kick.0"),
+    # model"): velocity, chance, ratchet, nudge (of a step), tune (st) and
+    # articulation (one of its row's `ARTICULATIONS`, never the default)
+    drum_hits = Hits(
+        Leaf(_hit_key, example="hat.0"),
         Record(
             {
                 "v": Num(0.05, 1.0),
@@ -864,14 +947,20 @@ def nodes() -> SimpleNamespace:
                 "r": Num(1, 4, 2, integer=True),
                 "n": Num(-0.5, 0.5),
                 "t": Num(-12.0, 12.0),
+                # ("open": the example's, on the hat, is written down)
+                "a": Choice(art_names, "open"),
             },
             partial=True,
             post=_hit_post,
         ),
+        articulations=ARTICULATIONS,
         max_len=limits.MAX_DRUM_HITS,
         drop_empty=True,
     )
-    row_swing = MapOf(drum_voice, Num(0.0, 0.6), max_len=len(DRUM_ROWS))
+    row_swing = MapOf(drum_voice, Num(0.0, 0.6), max_len=len(ALL_DRUM_ROWS))
+    # a beat's kit and its mic mixer (absent while unset: `ARR_OPTIONAL`)
+    drum_kit = Leaf(_kit, "", example="naked")
+    drum_mics = Leaf(_mics, dict, example={"preset": "room", "overheads": -3.0})
     # the note grid's timing inside a step (`Arrangement.note_nudge`): step
     # -> a share of a step, early (< 0) or late; 0 says nothing (dropped)
     note_nudge = MapOf(
@@ -1015,7 +1104,9 @@ def nodes() -> SimpleNamespace:
         "drum_swing": Num(0.0, 0.6),
         "drum_humanize": Num(0.0, 1.0),
         "drum_vel": step_values,
-        "drum_samples": MapOf(drum_voice, Str(nonempty=True), max_len=len(DRUM_ROWS)),
+        "drum_samples": MapOf(
+            drum_voice, Str(nonempty=True), max_len=len(ALL_DRUM_ROWS)
+        ),
         "drum_mix": MapOf(
             drum_voice,
             Record(
@@ -1027,7 +1118,7 @@ def nodes() -> SimpleNamespace:
                 },
                 partial=True,
             ),
-            max_len=len(DRUM_ROWS),
+            max_len=len(ALL_DRUM_ROWS),
             drop_empty=True,
         ),
         "clips": ListOf(
@@ -1042,6 +1133,8 @@ def nodes() -> SimpleNamespace:
         ),
         "drum_hits": drum_hits,
         "drum_row_swing": row_swing,
+        "drum_kit": drum_kit,
+        "drum_mics": drum_mics,
         "strum": Num(*limits.STRUM_MS_RANGE, 0.0, example=20.0),
         # the bar (meter.py): absent at 4/4; a ramp only a section's render
         # sets (`song_model.section_arrangement`), never a saved loop
@@ -1201,6 +1294,9 @@ def nodes() -> SimpleNamespace:
             "swing": Num(0.0, 1.0, 0.0),
             "hits": drum_hits,
             "row_swing": row_swing,
+            # the beat's kit and mics: absent when unset (`_pattern_post`)
+            "kit": drum_kit,
+            "mics": drum_mics,
         },
         post=_pattern_post,
     )
@@ -1430,7 +1526,7 @@ def nodes() -> SimpleNamespace:
             )
         return _unset(
             out,
-            *("gen", "fam", "var", "strum", "hits", "swing"),
+            *("gen", "fam", "var", "strum", "hits", "swing", "kit", "mics"),
             *("note_nudge", "note_chance", "arp_pattern", "note_feel"),
         )
 
@@ -1464,6 +1560,9 @@ def nodes() -> SimpleNamespace:
             "drum_vel": arr_fields["drum_vel"],
             "hits": drum_hits,
             "swing": row_swing,
+            # the beat's kit and mics (absent when unset: `pool_post`)
+            "kit": drum_kit,
+            "mics": drum_mics,
         },
     )
     pattern_notes = pattern_kind(

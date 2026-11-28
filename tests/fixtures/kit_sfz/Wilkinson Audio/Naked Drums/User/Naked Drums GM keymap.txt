@@ -1,0 +1,5 @@
+// keymap
+#define $KEY_KICK 36
+#define $KEY_HH_CLS 54
+#define $KEY_HH_OPN 46
+#define $KEY_SNR2 40

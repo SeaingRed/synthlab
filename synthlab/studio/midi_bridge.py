@@ -13,7 +13,8 @@ What MIDI cannot say is left out, deliberately:
 - a **slide** is exported as the plain note it starts (`midifile`'s
   docstring says why);
 - a drum hit is a short note on channel 10 at its General MIDI key
-  (`GM_DRUMS`); the open hat's choke is the receiving kit's business;
+  (`GM_DRUMS`, or `gm_key` by the beat's kit); a choke writes nothing; the
+  open hat's choke is the receiving kit's business;
 - audio tracks, takes and FX have no notes.
 A drawn `pitch_bend` curve on the main lane is the wheel and is written as
 pitch-bend, with the patch's `bend_range` as RPN 0.
@@ -48,8 +49,90 @@ GM_DRUMS = {
     "ohat": 46,
     "crash": 49,
 }
+# the electronic kit's keys for the rows added with the acoustic kit
+_ELECTRONIC_NEW = {
+    "ride": 51,
+    "tom2": 47,
+    "tom3": 43,
+    "tom4": 41,
+    "tom5": 40,
+    "crash2": 57,
+    "splash": 55,
+    "china": 52,
+}
+# the acoustic kit's keys: (row, articulation) -> key; a row's default
+# articulation ("") is its first. Tight and half have no key of their own
+# in General MIDI, so they share the closed / open hat's.
+_ACOUSTIC = {
+    ("snare", "side"): 37,
+    ("hat", "closed"): 42,
+    ("hat", "pedal"): 44,
+    ("hat", "tight"): 42,
+    ("hat", "half"): 46,
+    ("hat", "open"): 46,
+    ("tom", ""): 48,
+    ("tom2", ""): 47,
+    ("tom3", ""): 45,
+    ("tom4", ""): 43,
+    ("tom5", ""): 41,
+    ("ride", "bell"): 53,
+    ("ride", ""): 51,
+    ("crash", ""): 49,
+    ("crash2", ""): 57,
+    ("splash", ""): 55,
+    ("china", ""): 52,
+}
+# a key read back on the acoustic kit: the first articulation a key names
+_ACOUSTIC_READ = {
+    36: ("kick", ""),
+    37: ("snare", "side"),
+    38: ("snare", "centre"),
+    39: ("clap", ""),
+    41: ("tom5", ""),
+    42: ("hat", "closed"),
+    43: ("tom4", ""),
+    44: ("hat", "pedal"),
+    45: ("tom3", ""),
+    46: ("hat", "open"),
+    47: ("tom2", ""),
+    48: ("tom", ""),
+    49: ("crash", "edge"),
+    51: ("ride", "bow"),
+    52: ("china", "hit"),
+    53: ("ride", "bell"),
+    55: ("splash", "hit"),
+    57: ("crash2", "edge"),
+}
 DRUM_NOTE_BEATS = 0.25  # a hit is a one-shot: the note is only a trigger
 BEND_POINTS_PER_BEAT = 24  # how finely a drawn bend curve is sampled
+
+
+def gm_key(row: str, art: str, kit: str) -> int | None:
+    """The General MIDI key of a hit on `row` with articulation `art` (""
+    the row's default) under `kit` ("" electronic, "naked" acoustic). None:
+    write no note: a choke sounds nothing. The electronic kit ignores `art`
+    and keys by row, as it always has."""
+    if art == "choke":
+        return None
+    if kit != "naked":
+        return GM_DRUMS.get(row) or _ELECTRONIC_NEW.get(row)
+    key = _ACOUSTIC.get((row, art))
+    if key is None:
+        key = _ACOUSTIC.get((row, ""))
+    return key if key is not None else GM_DRUMS.get(row)
+
+
+def row_of_key(key: int, kit: str) -> tuple[str, str] | None:
+    """The (row, articulation) a General MIDI drum `key` reads as under
+    `kit`, or None for a key the kit has no row for. Electronic: 37 -> rim,
+    46 -> ohat (articulation ""). Acoustic: 37 -> snare/side, 46 ->
+    hat/open (tight and half read back as closed and open)."""
+    if kit == "naked":
+        return _ACOUSTIC_READ.get(key)
+    for row, k in {**GM_DRUMS, **_ELECTRONIC_NEW}.items():
+        if k == key:
+            return row, ""
+    return None
 
 
 def _velocity(v: float) -> int:
@@ -78,16 +161,19 @@ def _drum_notes(arr, offset: float) -> list[mf.Note]:
     hit's tune has no place on a General MIDI drum key and is left out."""
     step_beats = bar_beats(arr) / max(1, int(arr.drum_steps))
     length = min(DRUM_NOTE_BEATS, step_beats)
+    kit = getattr(arr, "drum_kit", "")
     return [
         mf.Note(
             offset + h[0],
             length if h.until is None else min(length, h.until - h[0]),
-            GM_DRUMS[voice],
+            key,
             _velocity(h[1]),
         )
         for voice, hits in drum_hits(arr)
         for h in hits
         if h[1] > 0
+        # a choke has no key: it sounds nothing, so it writes nothing
+        if (key := gm_key(voice, h.art, kit)) is not None
     ]
 
 

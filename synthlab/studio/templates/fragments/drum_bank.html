@@ -31,7 +31,7 @@
     <span class="grid-hint-or">or pick a style above.</span>
   </p>
   {% endif %}
-  {{ drum_grid("/fragment/drums/grid", arrangement.drums, arrangement.drum_vel, arrangement.drum_bars, arrangement.drum_steps, drum_rows, mix=arrangement.drum_mix, samples=arrangement.drum_samples, clips=clips, hits=arrangement.drum_hits, row_swing=arrangement.drum_row_swing, swing=arrangement.drum_swing, row_tool="/fragment/drums/row/VOICE/OP", bar_meter=arrangement.meter, lanes=true) }}
+  {{ drum_grid("/fragment/drums/grid", arrangement.drums, arrangement.drum_vel, arrangement.drum_bars, arrangement.drum_steps, drum_rows, mix=arrangement.drum_mix, samples=arrangement.drum_samples, clips=clips, hits=arrangement.drum_hits, row_swing=arrangement.drum_row_swing, swing=arrangement.drum_swing, row_tool="/fragment/drums/row/VOICE/OP", bar_meter=arrangement.meter, lanes=true, arts=articulations if arrangement.drum_kit == "naked" else {}) }}
 
   <form class="bank-notation" aria-label="Notation" hx-post="/fragment/drums/notation" hx-target="#drum-bank" hx-swap="outerHTML">
     <label>pattern <input class="field field-s" name="notation" value="{{ notation }}" placeholder="bd*4 [~ sn] hh*8"
@@ -60,6 +60,8 @@
       <button type="submit" class="btn btn-s" data-cmd="Load the genre kit" title="load the kit's pattern, swing, velocities and voice shaping">Load kit</button>
       <button type="submit" class="btn btn-s" name="keep" value="pattern" data-cmd="Swap the kit, keep the beat" title="only the kit's voices: the beat on the grid, its swing, velocities, hit data and the rows' samples stay">Swap kit, keep beat</button>
     </form>
+    {#- the beat's kit sound: electronic or the acoustic kit (a region) -#}
+    {% with oob = false %}{% include "fragments/drum_kit_source.html" %}{% endwith %}
     {#- Save beat: into the Loops panel only (a beat loop; the bank and the
         library are not written any more). A name another loop has gets
         "… 2" — never written over — and a beat a loop already holds is not

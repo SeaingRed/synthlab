@@ -83,7 +83,7 @@ from ..routing import (
     studio_router,
 )
 from ..service import StudioService
-from ..state import DRUM_ROWS, Arrangement, key_ladder
+from ..state import ALL_DRUM_ROWS, Arrangement, key_ladder, kit_rows
 from ..state.model import NOTE_LANE
 from ..words import plural
 from .drums import _extend_hits, _extend_vel
@@ -1302,6 +1302,16 @@ def _drums_grid(song: dict, p: dict, form: dict) -> None:
     # the per-hit table (the grid's hidden `hits`, or `hit.*` fields) and
     # the rows' own swing (`rswing`): a hit without a cell is dropped
     hits = drumops.hits_from_form(form, drums, p.get("hits"))
+    # the rows the drawer's grid does not draw (its beat's kit's: `kit_rows`)
+    # keep their cells and hits
+    drums, hits = drumops.keep_hidden(
+        drums,
+        hits,
+        p["drums"],
+        p.get("hits") or {},
+        drumops.drawn_rows(form, kit_rows(p.get("kit", ""), p["drums"])),
+        form,
+    )
     swing = drumops.row_swing_from_form(form, p.get("swing"), song["drum_swing"])
     if bars > p["bars"] and steps == p["steps"]:
         old, total = p["bars"] * steps, bars * steps
@@ -1441,7 +1451,7 @@ def _beat_tool(song: dict, p: dict, op: str, form: dict, seed: int) -> dict:
     lane = gd.lane_of(p)
     if op in ("euclid", "hitclear"):
         voice = form.get("voice", "")
-        if voice not in DRUM_ROWS:
+        if voice not in ALL_DRUM_ROWS:
             raise sm.SongError("No such drum row.")
         if op == "hitclear":
             kept = {

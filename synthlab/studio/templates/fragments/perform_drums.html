@@ -46,5 +46,5 @@
             title="keep this beat in the Loops panel as a beat (named from what it is: rename it there) — Open brings it back to the grid">✚ Keep</button>
     <a class="btn btn-s btn-ghost pt-link" {{ view_link("/view/drums") }} data-cmd="Open the kit and the bank on Kit" data-cmd-group="Go to" title="the kit's sounds, the bank, notation and the beat library">kit &amp; bank ▸</a>
   </div>
-  {{ drum_grid("/fragment/drums/grid", arrangement.drums, arrangement.drum_vel, arrangement.drum_bars, arrangement.drum_steps, drum_rows, form_id="perform-drum-grid", form_class="fold-body", mix=arrangement.drum_mix, samples=arrangement.drum_samples, clips=clips, target=none, hits=arrangement.drum_hits, row_swing=arrangement.drum_row_swing, swing=arrangement.drum_swing, row_tool="/fragment/drums/row/VOICE/OP", bar_meter=arrangement.meter) }}
+  {{ drum_grid("/fragment/drums/grid", arrangement.drums, arrangement.drum_vel, arrangement.drum_bars, arrangement.drum_steps, drum_rows, form_id="perform-drum-grid", form_class="fold-body", mix=arrangement.drum_mix, samples=arrangement.drum_samples, clips=clips, target=none, hits=arrangement.drum_hits, row_swing=arrangement.drum_row_swing, swing=arrangement.drum_swing, row_tool="/fragment/drums/row/VOICE/OP", bar_meter=arrangement.meter, arts=articulations if arrangement.drum_kit == "naked" else {}) }}
 </section>

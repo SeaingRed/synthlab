@@ -21,7 +21,7 @@ from ..curves import GAIN, LANE_TARGETS, lane_range, parse_fx
 from ..fxrack import FX_UNITS, MAX_UNITS, rack_rows
 from ..gen import chordtrack
 from ..paramui import spec_of
-from ..state import DRUM_ROWS, ROOTS, SCALE_CHOICES, StudioState
+from ..state import ROOTS, SCALE_CHOICES, StudioState, held_rows
 
 # what an FX parameter's readout says after its number (the rack itself
 # shows bare numbers); a share (mix, feedback) reads as a percentage
@@ -108,17 +108,19 @@ def _lane_row(lane: dict) -> dict:
 def _thumb(p: dict) -> dict:
     """A pool pattern's mini thumbnail, drawn as an SVG in `song_pool.html`:
     `w` steps by `h` rows and one `(x, y)` mark per hit or note. Drums: a
-    row per voice (DRUM_ROWS order). Notes: a row per semitone between the
-    lowest and highest note, highest on top."""
+    row per voice (DRUM_ROWS order, then each further row holding a hit:
+    `held_rows`). Notes: a row per semitone between the lowest and highest
+    note, highest on top."""
     if p["kind"] == "drums":
         w = p["bars"] * p["steps"]
-        order = {v: i for i, v in enumerate(DRUM_ROWS)}
+        rows = held_rows(p["drums"])
+        order = {v: i for i, v in enumerate(rows)}
         marks = [
             (int(step), order[voice])
             for voice, step in p["drums"]
             if voice in order and 0 <= int(step) < w
         ]
-        return {"w": max(w, 1), "h": len(DRUM_ROWS), "marks": marks}
+        return {"w": max(w, 1), "h": len(rows), "marks": marks}
     w = p["bars"] * p["steps_per_bar"]
     notes = []
     for pitch, step in p["cells"]:

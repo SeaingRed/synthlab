@@ -305,6 +305,9 @@ def drum_data(arr: dict) -> dict:
         # (absent when the loop has none, so its content hash holds)
         **({"hits": arr["drum_hits"]} if arr.get("drum_hits") else {}),
         **({"swing": arr["drum_row_swing"]} if arr.get("drum_row_swing") else {}),
+        # the beat's kit and mics: likewise
+        **({"kit": arr["drum_kit"]} if arr.get("drum_kit") else {}),
+        **({"mics": arr["drum_mics"]} if arr.get("drum_mics") else {}),
     }
 
 
@@ -318,9 +321,10 @@ def apply_kit(track: dict, arr: dict) -> None:
 
 def beat_lane(beat: dict) -> dict:
     """A drums pattern as the Arrangement fields it plays through — the
-    inverse of `drum_data`. `drum_hits` / `drum_row_swing` are always
-    here (empty without any) so a pattern put on a loop REPLACES the
-    loop's; `schema.ARRANGEMENT` and `arr_dict` drop the empty ones."""
+    inverse of `drum_data`. `drum_hits` / `drum_row_swing` / `drum_kit` /
+    `drum_mics` are always here (empty without any) so a pattern put on a
+    loop REPLACES the loop's; `schema.ARRANGEMENT` and `arr_dict` drop the
+    empty ones."""
     return {
         "drums": copy.deepcopy(beat["drums"]),
         "drum_vel": copy.deepcopy(beat.get("drum_vel") or {}),
@@ -328,6 +332,8 @@ def beat_lane(beat: dict) -> dict:
         "drum_steps": beat["steps"],
         "drum_hits": copy.deepcopy(beat.get("hits") or {}),
         "drum_row_swing": dict(beat.get("swing") or {}),
+        "drum_kit": beat.get("kit") or "",
+        "drum_mics": copy.deepcopy(beat.get("mics") or {}),
     }
 
 
@@ -664,6 +670,8 @@ def beat_data(beat: dict) -> dict:
         **bank_data(beat),
         **({"hits": copy.deepcopy(beat["hits"])} if beat.get("hits") else {}),
         **({"swing": dict(beat["row_swing"])} if beat.get("row_swing") else {}),
+        **({"kit": beat["kit"]} if beat.get("kit") else {}),
+        **({"mics": copy.deepcopy(beat["mics"])} if beat.get("mics") else {}),
     }
 
 

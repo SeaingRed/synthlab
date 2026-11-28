@@ -1,6 +1,13 @@
 {# synthlab/studio/templates/fragments/drum_panels.html #}
 {% from "macros.html" import fill, fmt %}
-<section id="drum-panels" class="module" data-module="drums.kit" aria-label="Drum kit">
+{#- a region (`drum-panels`): the acoustic kit (the beat's `drum_kit`) shows
+    its pads and mic mixer instead of the eight strips, and its credit -#}
+<section id="drum-panels" class="module{{ ' kit-acoustic' if kit.acoustic }}" data-module="drums.kit" aria-label="Drum kit"
+         {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  {%- if kit.acoustic %}
+  {% include "fragments/drum_mics.html" %}
+  <p class="kit-credit"><a href="{{ kit.credit_url }}" target="_blank" rel="noopener noreferrer">{{ kit.credit }}</a></p>
+  {%- else %}
   <form id="drumkit" class="panels"
         hx-post="/fragment/drums" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last" hx-swap="none">
     {% for voice, specs in drum_params %}
@@ -67,4 +74,5 @@
     </fieldset>
     {% endfor %}
   </form>
+  {%- endif %}
 </section>

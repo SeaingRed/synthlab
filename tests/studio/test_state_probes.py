@@ -206,7 +206,7 @@ def test_distinct_cells_are_capped(tmp_path):
 def test_grid_caps_derive_from_the_largest_grid():
     assert limits.MAX_GRID_STEPS == 16 * 16  # a 16-bar loop at 1/16
     assert limits.MAX_GRID_CELLS == limits.MAX_GRID_STEPS * limits.MAX_GRID_PITCHES
-    assert limits.MAX_DRUM_CELLS == limits.MAX_GRID_STEPS * 8
+    assert limits.MAX_DRUM_CELLS == limits.MAX_GRID_STEPS * 16
 
 
 # --- IMPORTANT: unhashable values in the enum cleaners -----------------------

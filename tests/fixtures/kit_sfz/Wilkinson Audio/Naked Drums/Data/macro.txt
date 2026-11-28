@@ -1,0 +1,5 @@
+#define $dir ../Samples
+#define $ext flac
+
+#define $V21L 1            #define $V21H 85
+#define $V22L 86          #define $V22H 127
