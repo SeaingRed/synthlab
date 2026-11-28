@@ -633,9 +633,16 @@ def test_roll_pen_pressure_eraser_barrel_and_the_note_end(studio, server):
 
 def _mid(page, selector: str) -> tuple[float, float]:
     """The middle of `selector`, scrolled into view first (the touch tier
-    is the flowing page: a finger taps what is on screen)."""
+    is the flowing page: a finger taps what is on screen) — once it has
+    stopped moving (a redraw can settle the layout above it a beat later)."""
     clear_of_dock(page, selector)
-    box = page.locator(selector).first.bounding_box()
+    box, still = page.locator(selector).first.bounding_box(), 0
+    for _ in range(40):
+        page.wait_for_timeout(50)
+        now = page.locator(selector).first.bounding_box()
+        still, box = (still + 1 if now == box else 0), now
+        if still >= 2:
+            break
     assert box, selector
     return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
 

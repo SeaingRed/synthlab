@@ -274,9 +274,12 @@ def _select(s: StudioState, form: StrForm, lane: int) -> None:
     selects it — the editor opens its lane (selection, not launch,
     moves the editor; a scene's ▶, Alt+1…8 or the deck's scene keys do
     not). A layer slot becomes the edited one, as its lane head's name
-    does; the drums' kind is the page's (slots.js turns Notes | Drums)."""
+    does; the drums' kind is the page's (slots.js turns Notes | Drums) —
+    and the roll's window moves to its notes (`show_notes`: none lands out
+    of sight)."""
     if form.get("select") == "1" and lane != s.DRUM_LANE:
         s.select_layer(lane)
+        s.show_notes()
 
 
 @router.post("/fragment/perform/slot/launch")

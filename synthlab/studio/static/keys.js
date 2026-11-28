@@ -96,7 +96,7 @@
     // `layer`: just that pre-rendered lane of it, FX baked in
     const q = new URLSearchParams({ ...(hold && { hold: 1 }), ...(noteView && { view: noteView }), ...(lane && { layer: lane }) });
     const g = gen, res = await fetch(`/note/${encodeURIComponent(nameOf(midi))}.wav${q.size ? `?${q}` : ""}`);
-    if (!res.ok) throw new Error(`key fetch ${res.status}`);
+    if (!res.ok || res.status === 204) throw new Error(`key fetch ${res.status}`); // 204: the lane plays live now
     const buffer = await ctx().decodeAudioData(await res.arrayBuffer());
     const loop = res.headers.get("X-Loop");
     // loop points land on the decoded buffer's own sample grid: the browser

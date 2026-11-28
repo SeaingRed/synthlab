@@ -24,7 +24,6 @@ import wave
 from urllib.parse import unquote
 
 import numpy as np
-import pytest
 
 from synthlab import midifile as mf
 from synthlab.studio import arrange, keytakes, loops
@@ -114,9 +113,6 @@ def _onsets(wav: bytes, floor: float = 0.04) -> list[float]:
     return out
 
 
-@pytest.mark.skip(
-    reason="shaper end-handle drag flaky; Edit shows no nudged cells",
-)
 def test_free_rec_a_phrase_shape_it_and_make_a_loop_that_keeps_its_timing(
     studio, server
 ):
@@ -150,14 +146,23 @@ def test_free_rec_a_phrase_shape_it_and_make_a_loop_that_keeps_its_timing(
     # the shaper opens on it
     page.wait_for_selector("#free-shaper:popover-open .shp-roll svg")
     assert page.locator("#free-shaper .shp-note").count() == len(PHRASE)
-    # trim the end: the end handle dragged to just before the last note
+    # trim the end: the end handle dragged to just before the last note —
+    # once the popover has stopped moving (it slides in)
+    shaper, still = page.locator("#free-shaper"), 0
+    for _ in range(60):
+        a = shaper.bounding_box()
+        page.wait_for_timeout(50)
+        still = still + 1 if shaper.bounding_box() == a else 0
+        if still >= 3:
+            break
     last = page.locator('#free-shaper .shp-note[data-i="5"]').bounding_box()
     handle = page.locator('#free-shaper .shp-handle[data-h="b"]').bounding_box()
     page.mouse.move(handle["x"] + 3, handle["y"] + 40)
     page.mouse.down()
     page.mouse.move(last["x"] - 4, handle["y"] + 40, steps=6)
     page.mouse.up()
-    page.wait_for_selector("#free-shaper .shp-note.out")
+    # (attached: the roll's svg is redrawn on every change)
+    page.wait_for_selector("#free-shaper .shp-note.out", state="attached")
     assert page.locator("#free-shaper .shp-note.out").count() == 1
     page.click('#free-shaper [data-shp-bars="2"]')
     page.click('#free-shaper [data-shp-mode="fit"]')
@@ -210,7 +215,8 @@ def test_free_rec_a_phrase_shape_it_and_make_a_loop_that_keeps_its_timing(
         assert abs(near - t) < 0.012, (t, heard_at)
         assert abs(near - round(t / step) * step) > 0.004  # not on the step
     # Edit: on the grid, notes drawn off their step lines
-    row.dblclick()  # a row's double-click: Edit
+    row.dblclick()  # a row's double-click: Edit (open already: it selects its slot)
+    page.wait_for_timeout(2500)
     page.wait_for_selector(".grid.roll .cell.nudged, .grid.roll .cell.felt-s")
     studio.settle()
     # (a note's own feel, `felt-s`, draws what a bare nudge did: `nudged`)

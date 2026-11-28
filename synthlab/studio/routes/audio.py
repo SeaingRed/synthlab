@@ -189,14 +189,19 @@ def note(
     with any synced LFO resolved against the bpm, or a live key plays at a
     different rate than the loop. `layer=N` (1-based slot): that one
     pre-rendered lane of the key's stack, with its FX (`render_lane`);
-    404 when the view's keys don't sound it pre-rendered."""
+    404 when the view's keys don't sound it pre-rendered — 204 when it is
+    the edited slot (it plays in the worklet): a lane switch lands while
+    the keys' warm-up of that lane is still in flight, and that answer is
+    "nothing to fetch", not an error in the console."""
     if not NOTE_RE.match(pitch):
         return Response(status_code=404)
     s: StudioState = svc.state
     lanes = fxlive.key_lanes(s, view or "editor")
     if layer:
-        mine = [ln for ln in lanes if ln.slot == layer - 1 and not ln.edited]
-        lane = mine[0] if mine else None
+        mine = [ln for ln in lanes if ln.slot == layer - 1]
+        if mine and all(ln.edited for ln in mine):
+            return Response(status_code=204)
+        lane = next((ln for ln in mine if not ln.edited), None)
         units = (s.layers[lane.slot].get("fx") or []) if lane else []
         if lane is None or fxlive.lane_mode(units) != "buffer":
             return Response(status_code=404)
