@@ -5,7 +5,9 @@ schedule**, the step sequencer (the grid on Drums, in Perform's rack and
 in the Song drawer), variations, fills and the other beat generators,
 the pattern bank and its save rules, the Kit page (the drum page: kits
 here, beats in the Loops panel), mini-notation, the
-generator's bar rule and the row heads. Genre kits and beat styles are in
+generator's bar rule, the row heads and **the acoustic kit** (the
+downloadable multi-sampled drum kit: its download, rows, articulations,
+mics and fallbacks). Genre kits and beat styles are in
 `sounds-and-breeding.md`; the pattern tools in `loop-and-perform.md`; a
 song's generators in `songcraft.md`; which island owns which gesture in
 `keys-and-midi.md`. Index: `README.md`.
@@ -14,7 +16,8 @@ song's generators in `songcraft.md`; which island owns which gesture in
 
 **Drum machine** (`arrange._schedule_drums`): 8 voices (`DRUM_ROWS`:
 kick snare hat ohat clap tom rim crash; notation `bd sn hh oh cp tm rm
-cr`). It has its **own clock** — `Arrangement.drum_bars/drum_steps/
+cr`) — the electronic kits' rows; a beat on the acoustic kit may hold
+eight more (`ALL_DRUM_ROWS`, "The acoustic kit" below). It has its **own clock** — `Arrangement.drum_bars/drum_steps/
 drum_swing/drum_humanize` — separate from the synth grid's
 `bars/steps_per_bar/swing`; only `bpm` is shared. A mixed render loops
 over `loop_bars(arr, parts)` = lcm of both, each section rendered at
@@ -32,7 +35,7 @@ hitclear}` (`beatgen.generate_row`, `drumops.euclid_row`).
 
 A hit may carry data of its own beside its cell: `Arrangement.drum_hits`
 (a pool pattern's `hits`, a bank slot's `hits`) is
-`{"<voice>.<step>": {v, p, r, n, t}}`, sparse, and a row may have its own
+`{"<voice>.<step>": {v, p, r, n, t, a}}`, sparse, and a row may have its own
 swing: `drum_row_swing` (a pattern's `swing`, a slot's `row_swing`),
 `{voice: 0..0.6}`.
 
@@ -43,10 +46,13 @@ swing: `drum_row_swing` (a pattern's `swing`, a slot's `row_swing`),
 | `r` | ratchet: that many hits inside the step, evenly, each 0.85 of the one before (`RATCHET_FALL`) | 1..4 | 1 |
 | `n` | nudge: its start moved by that share of a step, before swing | -0.5..+0.5 | 0 |
 | `t` | tune: semitones on that hit | -12..+12 | 0 |
+| `a` | articulation, on the acoustic kit: one of its row's `state.ARTICULATIONS` (hat closed / pedal / tight / half / open, snare centre / side, ride bow / bell / choke, crash and crash 2 edge / bell / choke, splash and china hit / choke) | that row's names | the row's default: its first (closed, centre, bow, edge, hit) |
 | row swing | that row's swing in place of the kit's (`drum_swing`); 0 is "this row is straight" | 0..0.6 | the kit's |
 
 - **A value that says nothing is not stored** (`schema.HIT_NEUTRAL`:
-  `p` 1, `r` 1, `n` 0, `t` 0; a `v` always says something), **a hit
+  `p` 1, `r` 1, `n` 0, `t` 0, `a` the row's default or a name the row
+  lacks — `schema.Hits` drops it, knowing the row; a `v` always says
+  something), **a hit
   without a cell is dropped** on every post and every load (the cuts
   rule), and a row whose swing equals the kit's has none of its own.
   `arrange.clean_hits` and the schema node `DRUM_HITS` are the one
@@ -329,7 +335,9 @@ style of another meter takes the loop there first.
   `keep=pattern`): only the kit's voices load. The pattern, its swing
   and velocity lane, the per-hit data, the rows' own swing and the
   rows' sample assignments stay, row for row — every kit is the same
-  eight voices, so "by voice role" is the row itself. Nothing in the
+  eight voices, so "by voice role" is the row itself. (Switching the
+  kit's *sound*, Electronic / Acoustic, is a different post that moves
+  the open hat: "The acoustic kit".) Nothing in the
   grid moves, so it is no pattern undo step.
 - **A style's feel** (`beatgen.STYLE_FEEL`, `dress`): ghosts with a
   velocity of their own, a chance a hit, the rows' own swing, the build
@@ -398,7 +406,9 @@ style of another meter takes the loop there first.
   rim tuned to 540 Hz** — its two partials 540 and 864, the drum
   machine's pair near enough; the rim's decay is fixed, so a short one:
   the long cowbell is the *Phonk Cowbell* recipe). There is no cowbell
-  row: `DRUM_ROWS` is eight voices and a ninth would move every pattern.
+  row: `DRUM_ROWS` is still the eight electronic voices (the acoustic
+  kit's rows are appended beside it, `ALL_DRUM_ROWS`), and a cowbell row
+  in it would move every pattern.
   `STYLE_FILL`: lo-fi's fills quiet, the cinematic ones toms. Cinematic,
   Chiptune and Hardstyle read as **dirty kits** in
   `tests/test_drumhits.py` (low toms read as kicks, an all-noise snare's
@@ -407,7 +417,7 @@ style of another meter takes the loop there first.
 ## Percussion one-shots
 
 **Percussion one-shots** (`synthlab/percussion.py`,
-`tests/test_percussion.py`): the hand and metal sounds the eight voices
+`tests/test_percussion.py`): the hand and metal sounds the eight electronic voices
 lack — cowbell (the 545 / 815 Hz square pair), shaker, conga (a skin
 near 200 Hz with a small pitch drop and a slap), tambourine, clank
 (inharmonic FM partials into a short comb). Pure and seeded, stereo,
@@ -418,6 +428,154 @@ one-shot into the clip store the first time (`perc-<kind>`, meta
 `source: percussion`) and points the row at it like any clip
 (`drum_samples`); later rows reuse the file. Every clip is still listed,
 under **Clips**.
+
+## The acoustic kit
+
+**Naked Drums** by Wilkinson Audio, a multi-sampled acoustic kit, played
+by a beat that picks it (`Arrangement.drum_kit == "naked"`; the Kit
+page's "Kit sound", Electronic / Acoustic). Code in `synthlab/kits/`
+(`fetch.py`, `sfz.py`, `play.py`); how a hit is scheduled and levelled
+is in "The acoustic kit in the schedule" above, so it is not repeated
+here. **Nobody has listened**: the tests assert signal, levels and
+structure, not timbre.
+
+- **Source, licence, credit.** CC-BY 4.0, from
+  `github.com/sfzinstruments/WilkinsonAudio.NakedDrums` pinned to one
+  commit (`fetch.NAKED`). No audio is in the repo. The credit "Naked
+  Drums by Wilkinson Audio, CC-BY 4.0", linking the repo, shows on the
+  Kit page while a beat uses the kit and is written to `NOTES.txt` in a
+  project export (`/project.zip`, which says the kit is not in the
+  bundle; the importer ignores it). `tests/studio/test_kit_page.py`.
+- **Where it lives.** About 1.3 GB (4262 files, 3840 of them FLAC) in
+  `%LOCALAPPDATA%\synthlab\kits\naked-drums`, or `SYNTHLAB_KIT_DIR`
+  (`fetch.kit_dir`); never the repo or `studio_data/`. The committed
+  manifest `synthlab/kits/naked_drums.json` (made by
+  `tools/make_kit_manifest.py`) lists every file's path, size and
+  SHA-256. `fetch.download` is HTTPS only (a redirect off it is
+  refused), reads at most the listed size + 1 bytes, writes a `.part`
+  file, checks size and hash, and only then renames; a wrong file is
+  deleted. It **resumes**: a file already there at its size is skipped,
+  stale `.part` files are swept, a dropped connection or a short body is
+  a `KitError` (never a half file), a cancel keeps the finished files.
+  `fetch.availability` and `kit_ready` ask by **size only** (a stat a
+  file, no hashing on the render path); `verified` hashes, memoised by
+  path / mtime / size. `tests/test_kit_fetch.py`.
+- **The download job** (`kitjobs.KitJobs`, `svc.kits`): one at a time (a
+  second start answers "busy"), a daemon thread with progress a MB,
+  **Cancel**, the last error's text on the page, and
+  `arrange.forget_kit()` whenever a job ends so the next render asks the
+  disk again. `POST /fragment/drums/kit/download`, `.../kit/cancel`,
+  `GET .../kit/job` (the polled line; the answer that finds it ended
+  also redraws the page and posts a preview so the loop renders with the
+  kit). **Repair** (`repair=1`, "Download again") skips the by-size
+  shortcut and hashes every file. `tests/studio/test_kit_page.py`.
+- **A damaged kit plays electronic and says so.** A hit the kit cannot
+  play (`KitError`: a corrupt file, the SFZ and its files disagreeing)
+  is replaced by its row's electronic stand-in (`arrange._kit_hit`), the
+  render never fails, and the reason is `arrange.kit_damage()`; the Kit
+  page's line reads "The kit is damaged: ..." with Download again. A
+  kit that is simply not on this machine takes the same stand-ins
+  (`kit_ready`, "Fallbacks" above). `test_acoustic_schedule.py`,
+  `test_kit_page.py`.
+- **The rows.** Today's eight (`DRUM_ROWS`) keep their ids and meaning;
+  eight are appended (`NEW_DRUM_ROWS`, in this order: `ride tom2 tom3
+  tom4 tom5 crash2 splash china`), and `ALL_DRUM_ROWS` is every row a
+  beat may hold (what `schema` accepts: cells, hits, samples, mix and
+  row swing are keyed over it). `tom` is the kit's tom 1 and `crash` its
+  crash 1. **What a grid shows** (`state.kit_rows(kit, drums)`): on the
+  electronic kit the eight, then each further row while it holds cells
+  (a beat moved back from the acoustic kit keeps its ride, on the crash
+  voice, and it is seen); on the acoustic kit `ACOUSTIC_ROWS` (kick
+  snare hat ride tom tom2-5 crash crash2 splash china), then `ohat` /
+  `clap` / `rim` while they hold cells (clap and rim play their
+  electronic voices there). A row the grid does not draw keeps its cells
+  and hits on a post (`drumops.drawn_rows` reads the grid's hidden
+  `rows` field; `keep_hidden`). The schedule's draws stay on today's
+  eight in today's order, so a ride cell moves none of the eight's
+  chance rolls. Perform's rack, the Song drawer, the Loops sparkline and
+  the pool thumbnail draw `kit_rows` / `held_rows` too.
+  `tests/studio/test_acoustic_rows.py`, `test_kit_page.py`.
+- **Switching kits moves the open hat.** The acoustic kit has no `ohat`
+  voice: it is the hat's "open" articulation. Choosing Acoustic
+  (`drumops.open_hats_to_hat`) turns each `ohat` cell into a hat hit
+  `a=open` (the `ohat` row's chance times the hit's, its level over the
+  hat's carried onto `v`, its mute as `p=0`, its mix entry dropped; a
+  step the hat also strikes becomes the open hit); choosing Electronic
+  (`hat_to_open_hats`) puts half and open hat hits back on `ohat`, so a
+  round trip does not close the open hats. One pattern undo step with
+  the kit. `ohat` cells that stay on an acoustic beat (a Randomise that
+  writes them) play as the hat's open.
+- **Articulations** are the `a` field above, each row's first being its
+  default (never stored). The step grid has an **articulation lane**
+  under the hit lanes (`.artrow`, acoustic beats only: Kit, Perform's
+  rack and the drawer): one button a step, a click cycles the row's
+  articulations, the hit menu lists them, and a lit step carries
+  `data-art` drawn as a glyph in `--signal-text` (half hat, open hat,
+  pedal, tight, bell, choke and side each have their own; the row's
+  default is a quiet dot in the lane). The glyph's size follows the
+  cell's height (`--step-h`); `tests/browser/test_acoustic_kit.py` holds
+  it to 13 px and 0.55 of the cell. `steps.js`.
+- **Velocity layers.** Each (row, articulation) has up to five recorded
+  layers by velocity (the SFZ's ranges), each with ten round-robin
+  takes; a velocity inside the crossfade of two layers plays both,
+  equal power. The played gain is the velocity to the power 0.7 on top
+  (`play.render_hit`), so a soft hit is quieter as well as different.
+  The layer is chosen from the hit's velocity in 1/127ths, never from
+  the row's level (`gain / vel`). Round robins are counts: see "The
+  acoustic kit in the schedule" for them and their limits.
+  `tests/test_kit_play.py`, `test_kit_sfz.py`.
+- **Chokes** (`sfz.py` reads the kit's groups: hat, ride, crash, crash
+  2): a pedal, tight or closed hat cuts a ringing half / open hat; a
+  `choke` articulation on the ride or a crash cuts that row's ringing
+  hit and sounds nothing, on every kit. The cut is the open hat's 8 ms
+  fade, placed on the schedule's own times, so loop, section and chunks
+  cut identically.
+- **The mics.** The kit is recorded through 12 mic channels
+  (`play.MICS`: kick in / sub, snare top / bottom, toms, hats, ride,
+  cymbals, overheads, close room, far room, mid-side), so 12 faders; the
+  hats' and ride's direct mics play under their row's fader
+  (`play.CHANNEL_OF`: `hats_di`, `ride_di`), and each articulation
+  carries the kit's own per-mic trim (`mic_trim_db`, from the SFZ's
+  per-file master volume). Three presets (`play.MIC_PRESETS`):
+  **studio** (the close mics at 0 dB, overheads 0, close room -6, far
+  room -15, mid-side off; the default), **close** (overheads -6, rooms
+  and mid-side off), **room** (close mics -3, rooms and mid-side up). A
+  mic mix is stored in `Arrangement.drum_mics` as `{"preset": name,
+  "<mic>": dB, "muted": [mic, ...]}`: the preset first, then each mic's
+  own dB (-60..+12, `limits.MIC_DB_RANGE`) over it, then the muted ones
+  off over their level (`play.levels`). **Absent at the defaults**:
+  `"preset": "studio"` and any mic at its preset's level are dropped by
+  `schema._mics`, so a beat that never touched a fader stores `{}`,
+  which `schema.ARR_OPTIONAL` leaves out of everything written. On the
+  Kit page (`POST /fragment/drums/mics`) a preset button resets the
+  overrides, a fader writes a mic's dB, mute toggles `muted` (a fader
+  drag does not redraw the panel; a mute or a preset does).
+  `tests/studio/test_kit_page.py`, `test_acoustic_rows.py`.
+- **The kit lives on the beat.** `drum_kit` and `drum_mics` are in
+  `DRUM_LOOP_FIELDS`, the "pattern" reset scope and the pattern
+  carriers: a bank slot, a beat loop, a variation, a song pool beat and
+  a section's beat each keep their own (`state/drums.py`, `song_bridge`,
+  `history.PATTERN_FIELDS`, so a bank load's undo puts the kit back).
+  Loading an electronic beat or a factory slot picks the electronic kit
+  again. Both fields are absent from a pattern while unset, so no
+  content hash, key or saved file moved and there was no `RENDER_REV`
+  bump (`test_acoustic_rows.py`: `LEGACY_KEY`, a frozen copy of the old
+  scheduler). The loop key, the drum stem key and a section's key carry
+  the kit, whether it is here and the mic mix, each only on the acoustic
+  kit. **Live keys**: the kit is absent on them (Perform's keys and the
+  live voice are electronic); only the Kit page's pads
+  (`/drum/{voice}/hit.wav`) play it, at the row's default articulation,
+  velocity 0.9, take 0, through the beat's mics. A further row's pad on
+  an electronic beat plays its stand-in.
+- **MIDI keys by kit.** The beat's file keys are by the beat's kit
+  (`midi_bridge.gm_key` / `row_of_key`; the table is in
+  `song-render-export.md`, "Export is the schedule"). The studio has no
+  drum MIDI importer: `row_of_key` exists for one and is tested, but
+  nothing calls it.
+- **The cell cap.** `limits.MAX_DRUM_CELLS` is 4096: sixteen rows
+  (`ALL_DRUM_ROWS`) at 256 steps, the longest song pool beat (8 bars of
+  32). Cells are sorted, so a lower cap would cut whole rows. Per-hit
+  data has the same cap (`MAX_DRUM_HITS`).
 
 ## The Kit page: the drum page makes kits
 
@@ -434,7 +592,10 @@ What it keeps: the transport (the drum clock), **the grid** — the loop's
 beat, the same one Perform's rack edits, a mirror of the selected drum
 slot — with its tools, notation, Randomise / Mutate / Clear, the genre
 kit (Load kit, Swap kit, keep beat), **the kit as eight channel strips**
-and the drum bus FX.
+and the drum bus FX; on a beat that picks the acoustic kit the strips
+give way to its kit panel (the Kit sound select, the download line, the
+pads of every shown row, the mic presets and 12 faders, the credit;
+"The acoustic kit").
 
 What it does not show: **the bank's 8 slots and the beat library list.**
 Beats are loops: **✚ Save beat** (`POST /loop/beat/keep` with the

@@ -309,6 +309,23 @@ Setup and commands are in `CONTRIBUTING.md`; the studio's notes start at
   `tests/test_drumhits.py` (precision / recall per lane against patterns
   the drum machine rendered: kick 0.99 / 1.00, snare 0.94 / 1.00, any hat
   1.00 / 0.80 — a hat under a snare is not looked for).
+- **The acoustic drum kit** (`synthlab/kits/`, the studio's Kit page;
+  `tests/test_kit_fetch.py`, `test_kit_sfz.py`, `test_kit_play.py`):
+  Naked Drums (CC-BY 4.0), a multi-sampled SFZ kit fetched on request,
+  never shipped. `fetch.py` downloads it file by file from a URL pinned to
+  a commit into `%LOCALAPPDATA%\synthlab\kits\naked-drums`
+  (`SYNTHLAB_KIT_DIR`), HTTPS only, every file held to the SHA-256 and
+  size in the committed `naked_drums.json`, resumable and cancellable;
+  availability is a size check only. `sfz.py` reads the kit's own SFZ
+  (defines, includes, groups) into a `KitMap`: rows, articulations,
+  velocity layers, round-robin takes, mic files, choke groups. `play.py`
+  renders one hit: the two layers a velocity falls between, crossfaded
+  equal power, x velocity^0.7, each mic at its dB (`MIC_PRESETS`,
+  `levels`) through a byte-bounded `SampleCache`. A take is a count,
+  never a random draw, so a render is deterministic. Not causal-contract
+  bound (known whole at note-on) and not live: the keys stay electronic.
+  The studio half (rows, the `a` field, chokes, the mic mixer, fallbacks)
+  is `synthlab/studio/docs/drums.md`, "The acoustic kit".
 - **Stem separation** (`synthlab/stems.py`, the `stems` extra): HT-Demucs
   as an ONNX graph on onnxruntime — not PyTorch, whose Windows-on-ARM
   wheels stop at cp312. `separate(mix, run)` is the chunked overlap-add
