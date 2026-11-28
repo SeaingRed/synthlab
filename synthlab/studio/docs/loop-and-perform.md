@@ -1721,8 +1721,9 @@ while they post, and a refused post puts it back.
 lane that plays notes of its own (the edited one from the arrangement;
 another slot from its `cells` and its `seq`'s cuts, velocities and
 slides; a following lane plays the main lane's and is none) and the beat
-(`drums`, `drum_vel`, `drum_hits`). Clocks, key, meter, sounds: read,
-never written. Notes are runs (`notes`, `with_notes`: cells and the cuts
+(`drums`, `drum_vel`, `drum_hits`), each lane's `play` (its arp's mode
+and octaves, its strum) and the loop's `swing`. Clocks, key, meter,
+sounds: read, never written. Notes are runs (`notes`, `with_notes`: cells and the cuts
 between two notes of a pitch; a velocity stays on its start step, the
 grid's rule). A lane's timing and chance ride with it (`feel`: the
 step-keyed `note_nudge` and `note_chance`, the per-note `note_feel`): a

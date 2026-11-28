@@ -222,6 +222,17 @@ def _talk(svc, say: str, audio: bytes | None = None) -> Response | OutsideLock:
             if audio is not None:
                 you["text"] = f"🎙 “{got['heard']}”" if got["heard"] else "🎙 (spoken)"
             doc, done = base, []
+            if got.get("option"):  # the coach's own option first, the rest on it
+                o = next(
+                    (
+                        o
+                        for o in lc.options(s, base, f)
+                        if o.id == got["option"] and o.after is not None
+                    ),
+                    None,
+                )
+                if o is not None:
+                    doc, done = o.after, [f"option: {o.label}"]
             if got["fixes"]:
                 doc, fixed = lc.apply_ids(doc, f, got["fixes"])
                 done += [f"fix: {t}" for t in fixed]

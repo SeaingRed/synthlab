@@ -32,9 +32,28 @@ from . import loopcoach as lc
 from . import takecoach
 from .agent.client import AgentError, Reply, reply_cost, usage_split
 from .agent.config import scrub
-from .drumlab import DRUM_VOICES
+from .state.model import ALL_DRUM_ROWS
 
-MAX_EDITS = 16
+DRUM_VOICES = tuple(ALL_DRUM_ROWS)  # every row of either kit
+ARP_MODES = ("off", "up", "down", "updown", "pattern")
+OPS = (
+    "add",
+    "remove",
+    "move",
+    "velocity",
+    "length",
+    "clear",
+    "transpose",
+    "copy",
+    "ramp",
+    "arp",
+    "strum",
+    "swing",
+    "chance",
+    "ratchet",
+)
+
+MAX_EDITS = 64  # an 8- or 16-bar grid: thinning the hats is dozens
 HISTORY = 6  # thread lines the model sees
 
 SYSTEM = """You are a producer sitting beside someone writing a short loop in \
@@ -51,8 +70,21 @@ nothing.
 - Lanes are named by number ("1", "2" ...) as in the grids; the beat is "drums".
 - add: pitch (like A3), step, length in steps, velocity 0-1. remove: the note \
 of that pitch sounding at that step. move: the note of that pitch at that step \
-to to_step and/or to_pitch. velocity: the note starting at that step.
-- Drums: voice (one of the listed), step; add / remove / velocity.
+to to_step and/or to_pitch. velocity: the note starting at that step. length: \
+the note of that pitch at that step made `length` steps long.
+- Ranges (step to to_step, both included): clear (every note starting there), \
+transpose (those notes `by` steps of the key's scale, + up), ramp (their \
+velocities from velocity to to_velocity). copy: bar to to_bar (1-based), the \
+destination bar replaced.
+- How a lane plays: arp (mode off/up/down/updown, value = octaves 1-3; \
+"pattern" only where the lane has one), strum (value: ms between a chord's \
+notes, -60..60, 0 off). swing (any lane): the loop's swing, value 0-0.6.
+- Drums: voice (one of the listed), step; add / remove / velocity / chance \
+(value 0-1) / ratchet (value 1-4 hits in the step); clear / ramp over a range \
+(voice optional: every row); copy bar to to_bar.
+- `option` may name one of the coach's own options by its id (they are \
+listed): it is made first, then your fixes and edits on top. Use one when it \
+does what was asked (busier, sparser, a fill...) rather than many edits.
 - Each lane also lists its notes by bar: "step pitch xlength v(1-9)", \
 with its nudge (a share of a step early/late), its chance and its own feel \
 (played between the lines) when it has them. Use those step numbers.
@@ -75,6 +107,7 @@ def schema() -> dict:
             "reply": {"type": "array", "items": {"type": "string"}, "maxItems": 4},
             "heard": {"type": "string"},
             "fixes": {"type": "array", "items": {"type": "string"}, "maxItems": 8},
+            "option": {"type": "string"},
             "edits": {
                 "type": "array",
                 "maxItems": MAX_EDITS,
@@ -82,10 +115,13 @@ def schema() -> dict:
                     "type": "object",
                     "properties": {
                         "lane": {"type": "string"},
-                        "op": {
-                            "type": "string",
-                            "enum": ["add", "remove", "move", "velocity"],
-                        },
+                        "op": {"type": "string", "enum": list(OPS)},
+                        "mode": {"type": "string", "enum": list(ARP_MODES)},
+                        "value": {"type": "number"},
+                        "by": {"type": "integer"},
+                        "bar": {"type": "integer"},
+                        "to_bar": {"type": "integer"},
+                        "to_velocity": {"type": "number"},
                         "pitch": {"type": "string"},
                         "voice": {"type": "string", "enum": list(DRUM_VOICES)},
                         "step": {"type": "integer"},
@@ -95,7 +131,7 @@ def schema() -> dict:
                         "velocity": {"type": "number"},
                         "why": {"type": "string"},
                     },
-                    "required": ["lane", "op", "step"],
+                    "required": ["lane", "op"],
                 },
             },
         },
@@ -210,13 +246,16 @@ def lane_meta(state, i: int) -> list[str]:
         mode, octs, pat = a.arp_mode, a.arp_octaves, a.arp_pattern
         strum, voice = a.strum, state.patch.voice_mode
     else:
-        seq = lay.get("seq") if isinstance(lay.get("seq"), dict) else {}
-        mode, octs = seq.get("arp_mode", "off"), seq.get("arp_octaves", 1)
-        pat, strum = seq.get("arp_pattern") or {}, seq.get("strum") or 0
+        seq = lay.get("seq") if isinstance(lay.get("seq"), dict) else None
+        if seq is None:  # never stashed: it plays the edited lane's sequencing
+            mode, octs, pat, strum = a.arp_mode, a.arp_octaves, a.arp_pattern, a.strum
+        else:
+            mode, octs = seq.get("arp_mode", "off"), seq.get("arp_octaves", 1)
+            pat, strum = seq.get("arp_pattern") or {}, seq.get("strum") or 0
         voice = (lay.get("patch") or {}).get("voice_mode", "poly")
     out = [x for x in (arp_text(mode, octs, pat),) if x]
     if strum:
-        out.append(f"strummed ({strum:g} of a step between a chord's notes)")
+        out.append(f"strummed ({strum:g} ms between a chord's notes)")
     if voice and voice != "poly":
         out.append(f"one voice ({voice})")
     if lay.get("role"):
@@ -332,7 +371,11 @@ def info(state) -> dict:
             }
         )
     finds = lc.assess(doc, f)
+    offered = [
+        f"{o.id}: {o.label} — {o.why}" for o in lc.options(state, doc, f) if o.after
+    ]
     return {
+        "options": offered,
         "bpm": f.bpm,
         "meter": f.meter,
         "key": f.key,
@@ -396,6 +439,9 @@ def brief(info: dict, message: str, spoken: bool = False) -> str:
         lines += [f"- {x}" for x in info["findings"]]
     if info["said"]:
         lines += [f"- (no fix) {x}" for x in info["said"]]
+    if info.get("options"):
+        lines += ["", "The coach's options (id: what), for `option`:"]
+        lines += [f"- {x}" for x in info["options"]]
     if info["history"]:
         lines += ["", "The conversation so far:", *info["history"]]
     lines += [
@@ -470,6 +516,7 @@ def ask(
         ][:4],
         "heard": scrub(str(data.get("heard") or ""), secrets)[:240],
         "fixes": [str(x)[:40] for x in data.get("fixes") or []][:8],
+        "option": str(data.get("option") or "")[:40],
         "edits": edits[: MAX_EDITS * 2],
         "tokens": usage["tokens_in"] + usage["tokens_out"],
         "cost": cost,
@@ -524,35 +571,124 @@ def _ok_pitch(f: lc.Facts, m: int, step: int) -> bool:
     return m % 12 in f.keys or m % 12 in pcs
 
 
+def _num(raw) -> float | None:
+    try:
+        v = None if raw is None else float(raw)
+    except (TypeError, ValueError):
+        return None
+    return v if v is not None and math.isfinite(v) else None
+
+
+def _vel(raw) -> float | None:
+    v = _num(raw)
+    return None if v is None else round(min(1.0, max(0.05, v)), 3)
+
+
+def _span(step, to_step, total: int) -> tuple[int, int] | None:
+    """A range of steps, both ends included, inside the lane (None if
+    neither end is)."""
+    if step is None:
+        return None
+    lo, hi = sorted((step, step if to_step is None else to_step))
+    lo, hi = max(0, lo), min(total - 1, hi)
+    return (lo, hi) if lo <= hi else None
+
+
 def _one(doc: dict, f: lc.Facts, e) -> str | None:
     if not isinstance(e, dict):
         return None
     op, lane = e.get("op"), str(e.get("lane") or "").strip().lower()
     why = str(e.get("why") or "").strip()[:120]
     tail = f" — {why}" if why else ""
-    step = _int(e.get("step"))
-    vel = e.get("velocity")
-    try:
-        vel = None if vel is None else float(vel)
-    except (TypeError, ValueError):
-        vel = None
-    if vel is not None and not math.isfinite(vel):
-        vel = None
-    if vel is not None:
-        vel = round(min(1.0, max(0.05, vel)), 3)
-    if step is None:
-        return None
+    step, to_step = _int(e.get("step")), _int(e.get("to_step"))
+    vel = _vel(e.get("velocity"))
+    if op == "swing":  # the loop's, whichever lane names it
+        v = _num(e.get("value"))
+        if v is None or "swing" not in doc:
+            return None
+        doc["swing"] = round(min(0.6, max(0.0, v)), 3)
+        return f"the loop's swing at {doc['swing']:g}{tail}"
     if lane == "drums":
-        return _drum(doc, f, op, e.get("voice"), step, vel, tail)
+        return _drum(doc, f, op, e, step, to_step, vel, tail)
     slot = _int(lane)
     key = None if slot is None else str(slot - 1)
-    if key not in doc["lanes"] or not 0 <= step < f.total:
+    if key not in doc["lanes"]:
         return None
     ln = doc["lanes"][key]
-    ns = lc.notes(ln)
     name = lc.lane_name(int(key))
-    m = _pitch(e.get("pitch"))
+    if op in ("arp", "strum"):
+        return _play(ln, op, e, name, tail)
+    ns = lc.notes(ln)
     where = lambda s: lc._where(s, f.spb, f.beat)  # noqa: E731
+    if op == "copy":
+        b, tb = _int(e.get("bar")), _int(e.get("to_bar"))
+        if (
+            b is None
+            or tb is None
+            or b == tb
+            or not (1 <= b <= f.bars and 1 <= tb <= f.bars)
+        ):
+            return None
+        out = lc.with_notes(ln, lc._bar_copy(ns, b - 1, tb - 1, f.spb, f.total))
+        if out["velocities"] is not None:
+            vs = {
+                k: v
+                for k, v in out["velocities"].items()
+                if not (tb - 1) * f.spb <= int(k) < tb * f.spb
+            }
+            for k, v in ln["velocities"].items():
+                if (b - 1) * f.spb <= int(k) < b * f.spb:
+                    vs[str(int(k) + (tb - b) * f.spb)] = v
+            out["velocities"] = vs
+        doc["lanes"][key] = out
+        return f"{name}: bar {b} copied onto bar {tb}{tail}"
+    if op in ("clear", "transpose", "ramp"):
+        span = _span(step, to_step, f.total)
+        if span is None:
+            return None
+        lo, hi = span
+        inside = [n for n in ns if lo <= n.start <= hi]
+        if not inside:
+            return None
+        rng = f"{where(lo)} to {where(hi)}"
+        if op == "clear":
+            doc["lanes"][key] = lc.with_notes(ln, [n for n in ns if n not in inside])
+            return f"{name}: cleared {lc._plural(len(inside), 'note')}, {rng}{tail}"
+        if op == "transpose":
+            by = _int(e.get("by"))
+            if not by:
+                return None
+            rest = [n for n in ns if n not in inside]
+            moved = [lc.Note(lc._step_in_key(n.m, by, f), n.start, n.n) for n in inside]
+            pool = rest + moved
+            for a in moved:  # never onto a note of the same pitch
+                if any(
+                    x is not a and x.m == a.m and x.start < a.end and x.end > a.start
+                    for x in pool
+                ):
+                    return None
+            carry = {
+                (o.pitch, o.start): (m.pitch, m.start)
+                for o, m in zip(inside, moved, strict=True)
+            }
+            doc["lanes"][key] = lc.with_notes(ln, pool, carry=carry)
+            way = f"{'up' if by > 0 else 'down'} {abs(by)}"
+            count = lc._plural(len(inside), "note")
+            return f"{name}: {count} {way} in the key, {rng}{tail}"
+        to_vel = _vel(e.get("to_velocity"))
+        if vel is None or to_vel is None or ln["velocities"] is None:
+            return None
+        starts = sorted({n.start for n in inside})
+        vs = dict(ln["velocities"])
+        for s in starts:
+            k = 0.0 if hi == lo else (s - lo) / (hi - lo)
+            vs[str(s)] = round(vel + (to_vel - vel) * k, 3)
+        ln["velocities"] = vs
+        ramp = f"{round(vel * 100)}% to {round(to_vel * 100)}%"
+        return f"{name}: velocities {ramp}, {rng}{tail}"
+    if step is None or not 0 <= step < f.total:
+        return None
+    m = _pitch(e.get("pitch"))
     if op == "add":
         if m is None or not _ok_pitch(f, m, step):
             return None
@@ -573,9 +709,22 @@ def _one(doc: dict, f: lc.Facts, e) -> str | None:
     if op == "remove":
         doc["lanes"][key] = lc.with_notes(ln, [x for x in ns if x != hit])
         return f"{name}: removed {hit.pitch} at {where(hit.start)}{tail}"
+    if op == "length":
+        n = _int(e.get("length"))
+        if n is None or n < 1:
+            return None
+        n = min(n, f.total - hit.start)
+        longer = lc.Note(hit.m, hit.start, n)
+        rest = [x for x in ns if x != hit]
+        if n == hit.n or any(
+            x.m == hit.m and x.start < longer.end and x.end > hit.start for x in rest
+        ):
+            return None
+        doc["lanes"][key] = lc.with_notes(ln, rest + [longer])
+        long = lc._plural(n, "step")
+        return f"{name}: {hit.pitch} at {where(hit.start)} now {long}{tail}"
     if op == "move":
-        to_s = _int(e.get("to_step"))
-        to_s = hit.start if to_s is None else to_s
+        to_s = hit.start if to_step is None else to_step
         to_m = _pitch(e.get("to_pitch")) if e.get("to_pitch") else hit.m
         if to_m is None or not 0 <= to_s < f.total or not _ok_pitch(f, to_m, to_s):
             return None
@@ -604,24 +753,127 @@ def _one(doc: dict, f: lc.Facts, e) -> str | None:
     return None
 
 
-def _drum(doc, f: lc.Facts, op, voice, step: int, vel, tail: str) -> str | None:
+def _play(ln: dict, op: str, e: dict, name: str, tail: str) -> str | None:
+    """A lane's arp or strum: on the lane's `play` (a lane read without one
+    — none here — takes no setting)."""
+    play = ln.get("play")
+    if play is None:
+        return None
+    if op == "strum":
+        v = _num(e.get("value"))
+        if v is None:
+            return None
+        play["strum"] = round(min(60.0, max(-60.0, v)), 1)
+        return (
+            f"{name}: strum {play['strum']:g} ms{tail}"
+            if play["strum"]
+            else f"{name}: no strum{tail}"
+        )
+    mode = e.get("mode")
+    if mode not in ARP_MODES or (mode == "pattern" and play["arp_mode"] != "pattern"):
+        return None  # (a pattern is drawn on the lane's arp panel, not made here)
+    octs = _int(e.get("value"))
+    play["arp_mode"] = mode
+    if octs is not None:
+        play["arp_octaves"] = max(1, min(3, octs))
+    if mode == "off":
+        return f"{name}: arp off{tail}"
+    return f"{name}: arp {mode} over {play['arp_octaves']} octave(s){tail}"
+
+
+def _drum(doc, f: lc.Facts, op, e: dict, step, to_step, vel, tail: str) -> str | None:
     d = doc["drums"]
-    if voice not in DRUM_VOICES or not 0 <= step < f.drum_total:
+    voice = e.get("voice")
+    if voice is not None and voice not in DRUM_VOICES:
+        return None
+    beat = max(1, f.drum_spb // 4)
+    where = lambda s: lc._where(s, f.drum_spb, beat)  # noqa: E731
+    if op == "copy":
+        bars = f.drum_total // f.drum_spb
+        b, tb = _int(e.get("bar")), _int(e.get("to_bar"))
+        if (
+            b is None
+            or tb is None
+            or b == tb
+            or not (1 <= b <= bars and 1 <= tb <= bars)
+        ):
+            return None
+        lo, src = (tb - 1) * f.drum_spb, (b - 1) * f.drum_spb
+        inside = lambda s, at: at <= int(s) < at + f.drum_spb  # noqa: E731
+        cells = [c for c in d["drums"] if not inside(c[1], lo)]
+        hits = {
+            k: v
+            for k, v in d["drum_hits"].items()
+            if "." not in k or not inside(k.rsplit(".", 1)[1], lo)
+        }
+        for v, s in d["drums"]:
+            if inside(s, src):
+                cells.append([v, int(s) - src + lo])
+                if (h := d["drum_hits"].get(f"{v}.{s}")) is not None:
+                    hits[f"{v}.{int(s) - src + lo}"] = dict(h)
+        d["drums"], d["drum_hits"] = sorted(cells, key=lambda c: (c[1], c[0])), hits
+        return f"beat: bar {b} copied onto bar {tb}{tail}"
+    if op in ("clear", "ramp"):
+        span = _span(step, to_step, f.drum_total)
+        if span is None:
+            return None
+        lo, hi = span
+        picked = [
+            c for c in d["drums"] if lo <= int(c[1]) <= hi and voice in (None, c[0])
+        ]
+        if not picked:
+            return None
+        rng = f"{where(lo)} to {where(hi)}"
+        if op == "clear":
+            d["drums"] = [c for c in d["drums"] if c not in picked]
+            for v, s in picked:
+                d["drum_hits"].pop(f"{v}.{s}", None)
+            of = f" of the {voice}" if voice else ""
+            count = lc._plural(len(picked), "hit")
+            return f"beat: cleared {count}{of}, {rng}{tail}"
+        to_vel = _vel(e.get("to_velocity"))
+        if vel is None or to_vel is None:
+            return None
+        for v, s in picked:
+            k = 0.0 if hi == lo else (int(s) - lo) / (hi - lo)
+            lc._set_hit_vel(d, v, int(s), vel + (to_vel - vel) * k)
+        ramp = f"{round(vel * 100)}% to {round(to_vel * 100)}%"
+        return f"beat: velocities {ramp}, {rng}{tail}"
+    if voice is None or step is None or not 0 <= step < f.drum_total:
         return None
     on = any(v == voice and int(s) == step for v, s in d["drums"])
-    where = lc._where(step, f.drum_spb, max(1, f.drum_spb // 4))
+    key = f"{voice}.{step}"
     if op == "add" and not on:
         d["drums"] = sorted(d["drums"] + [[voice, step]], key=lambda c: (c[1], c[0]))
         if vel is not None:
             lc._set_hit_vel(d, voice, step, vel)
-        return f"beat: added a {voice} at {where}{tail}"
+        return f"beat: added a {voice} at {where(step)}{tail}"
     if op == "remove" and on:
         d["drums"] = [
             c for c in d["drums"] if not (c[0] == voice and int(c[1]) == step)
         ]
-        d["drum_hits"].pop(f"{voice}.{step}", None)
-        return f"beat: removed the {voice} at {where}{tail}"
+        d["drum_hits"].pop(key, None)
+        return f"beat: removed the {voice} at {where(step)}{tail}"
     if op == "velocity" and on and vel is not None:
         lc._set_hit_vel(d, voice, step, vel)
-        return f"beat: the {voice} at {where} at {round(vel * 100)}%{tail}"
+        return f"beat: the {voice} at {where(step)} at {round(vel * 100)}%{tail}"
+    if op in ("chance", "ratchet") and on:
+        v = _num(e.get("value"))
+        if v is None:
+            return None
+        h = dict(d["drum_hits"].get(key) or {})
+        if op == "chance":
+            v = round(min(1.0, max(0.0, v)), 3)
+            h.pop("p", None) if v >= 1 else h.update(p=v)
+            odds = f"{round(v * 100)}% of the time"
+            said = f"beat: the {voice} at {where(step)} plays {odds}{tail}"
+        else:
+            v = int(max(1, min(4, round(v))))
+            h.pop("r", None) if v == 1 else h.update(r=v)
+            said = f"beat: the {voice} at {where(step)} as {lc._plural(v, 'hit')}{tail}"
+        if h:
+            d["drum_hits"][key] = h
+        else:
+            d["drum_hits"].pop(key, None)
+        return said
     return None

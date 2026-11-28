@@ -47,7 +47,7 @@ from . import notefeel, takeclean
 from .arrange import bar_beats
 from .gen import chordtrack
 from .gen import loop as gl
-from .state.model import grid_rows
+from .state.model import grid_rows, seq_of
 
 NOTE_VEL = 0.9  # a note step's velocity when its lane holds none (patternops)
 DRUM_VEL = 1.0  # a hit's, when neither its hit nor its step holds one
@@ -117,9 +117,27 @@ def feel_after(feel: dict, cells, cuts, carry: dict | None = None) -> dict:
     return out
 
 
-def _lane_doc(cells, cuts, velocities, slides, feel: dict | None = None) -> dict:
+PLAY_KEYS = ("arp_mode", "arp_octaves", "strum")
+
+
+def _play_of(src) -> dict:
+    """How a lane plays its notes, as the doc keeps it: its arp's mode and
+    octaves and its strum (ms). `src` is an Arrangement or a slot's `seq`."""
+    if isinstance(src, dict):
+        return {
+            "arp_mode": str(src.get("arp_mode") or "off"),
+            "arp_octaves": int(src.get("arp_octaves") or 1),
+            "strum": float(src.get("strum") or 0.0),
+        }
+    return {k: getattr(src, k) for k in PLAY_KEYS}
+
+
+def _lane_doc(
+    cells, cuts, velocities, slides, feel: dict | None = None, play: dict | None = None
+) -> dict:
     return {
         **({"feel": feel} if feel is not None else {}),
+        **({"play": play} if play is not None else {}),
         "cells": sorted(
             ([str(p), int(s)] for p, s in cells), key=lambda c: (c[1], c[0])
         ),
@@ -152,7 +170,7 @@ def read(state) -> dict:
     for i in own_lanes(state):
         if i == state.active_layer:
             lanes[str(i)] = _lane_doc(
-                a.cells, a.cuts, a.velocities, a.slides, _feel_of(a)
+                a.cells, a.cuts, a.velocities, a.slides, _feel_of(a), _play_of(a)
             )
             continue
         lay = state.layers[i]
@@ -163,6 +181,8 @@ def read(state) -> dict:
             None if seq is None else (seq.get("velocities") or {}),
             (seq or {}).get("slides") or [],
             _feel_of(seq or {}),
+            # (a slot never stashed plays the edited lane's sequencing)
+            _play_of(seq if seq is not None else a),
         )
     drums = {
         "drums": sorted(
@@ -171,7 +191,7 @@ def read(state) -> dict:
         "drum_vel": {str(k): float(v) for k, v in a.drum_vel.items()},
         "drum_hits": copy.deepcopy(dict(a.drum_hits)),
     }
-    return {"lanes": lanes, "drums": drums}
+    return {"lanes": lanes, "drums": drums, "swing": float(a.swing or 0.0)}
 
 
 def write(state, doc: dict) -> None:
@@ -179,6 +199,9 @@ def write(state, doc: dict) -> None:
     arrangement, the other lanes into their slots, the beat."""
     a = state.arrangement
     changes = {}
+    # how the edited lane will play: a slot never stashed played its old way
+    edited = doc["lanes"].get(str(state.active_layer)) or {}
+    after = edited.get("play") or _play_of(a)
     for key, lane in doc["lanes"].items():
         i = int(key)
         if i == state.active_layer:
@@ -193,12 +216,19 @@ def write(state, doc: dict) -> None:
                 "velocities": dict(lane["velocities"] or {}),
                 "slides": list(lane["slides"]),
             } | {f: feel[k] for k, f in FEEL_KEYS.items()}
+            if lane.get("play"):  # (a generator's lane has none: kept as it is)
+                changes |= {k: lane["play"][k] for k in PLAY_KEYS}
             continue
         if not 0 <= i < len(state.layers):
             continue
         lay = state.layers[i]
         lay["cells"] = [list(c) for c in lane["cells"]]
         seq = lay.get("seq")
+        if not isinstance(seq, dict) and lane.get("play") not in (None, after):
+            # a slot never stashed plays the edited lane's sequencing: a
+            # setting of its own — or the edited lane's changing — starts
+            # it from exactly what it played
+            seq = lay["seq"] = seq_of(a)
         if isinstance(seq, dict):
             seq["cuts"] = [list(c) for c in lane["cuts"]]
             seq["slides"] = list(lane["slides"])
@@ -212,12 +242,23 @@ def write(state, doc: dict) -> None:
                     seq[f] = feel[k]
                 else:
                     seq.pop(f, None)
+            if play := lane.get("play"):
+                seq["arp_mode"], seq["arp_octaves"] = (
+                    play["arp_mode"],
+                    play["arp_octaves"],
+                )
+                if play["strum"]:
+                    seq["strum"] = play["strum"]
+                else:
+                    seq.pop("strum", None)
     d = doc["drums"]
     changes |= {
         "drums": [list(c) for c in d["drums"]],
         "drum_vel": dict(d["drum_vel"]),
         "drum_hits": copy.deepcopy(d["drum_hits"]),
     }
+    if "swing" in doc:
+        changes["swing"] = float(doc["swing"])
     state.arrangement = replace(a, **changes)
 
 
