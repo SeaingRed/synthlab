@@ -73,17 +73,16 @@
     if (seen.has(big)) draw(big, bigId, f);
     if (!costAt || f.now - costAt > 500) { costAt = f.now; costs(); }
   });
-  // what a frame costs, counted to its new value
+  // what a frame costs, written twice a second when it moves — not counted
+  // up by a tween: its text rewritten every frame (240 a second here) laid
+  // the page out every frame, 8 % of the main thread while it played
   function costs() {
-    const g = G();
     for (const k of [...cards, { c: big, out: $("vis-big-cost") }]) {
       const ms = V.cost(k.c), out = k.out;
       if (ms == null || !out) continue;
       out.toggleAttribute("data-over", ms > 1);
-      const from = parseFloat(out.textContent);
-      if (!g || !Number.isFinite(from) || Math.abs(from - ms) < 0.01) { out.textContent = `${ms.toFixed(2)} ms`; continue; }
-      const o = { v: from };
-      g.to(o, { v: ms, duration: 0.4, ease: "power1.out", overwrite: true, onUpdate: () => { out.textContent = `${o.v.toFixed(2)} ms`; } });
+      const text = `${ms.toFixed(2)} ms`;
+      if (out.textContent !== text) out.textContent = text;
     }
   }
   V.costs = () => Object.fromEntries(cards.map((k) => [k.id, V.cost(k.c)]));

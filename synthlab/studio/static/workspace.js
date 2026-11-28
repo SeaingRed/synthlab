@@ -339,7 +339,7 @@
         if (made++) sp.insertBefore(sash(n.d), el);
         el.dataset.wsAt = [...path, i].join(".");
         if (n.d === "row") el.style.setProperty("--g", String(n.s[i] || 1));
-        else if (n.s[i]) el.style.setProperty("--h", `${n.s[i]}px`);
+        else if (n.s[i]) { el.style.setProperty("--h", `${n.s[i]}px`); el.dataset.h = ""; } // (data-h: what style.css 44 reads — never [style*="--h"])
       });
       return made ? sp : (sp.remove(), null);
     };
@@ -723,7 +723,7 @@
     if (!t) return;
     const pa = a.dataset.wsAt.split("."), i = +pa.pop(), split = nodeAt(t, pa.join("."));
     if (row) { const j = +b.dataset.wsAt.split(".").pop(); split.s[i] = wa; split.s[j] = wb; a.style.setProperty("--g", String(wa)); b.style.setProperty("--g", String(wb)); }
-    else { split.s[i] = wa; if (wa) a.style.setProperty("--h", `${wa}px`); else a.style.removeProperty("--h"); }
+    else { split.s[i] = wa; if (wa) { a.style.setProperty("--h", `${wa}px`); a.dataset.h = ""; } else { a.style.removeProperty("--h"); delete a.dataset.h; } }
   }
   document.addEventListener("pointermove", (e) => {
     if (!sashing) return;

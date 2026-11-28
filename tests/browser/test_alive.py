@@ -2,9 +2,10 @@
 "The energy").
 
 Proves, in a real Chromium under the shipped CSP: the energy is published
-once — `--energy` on <body> moves while the loop plays, `html[data-alive]`
+once — `--live` on the stage light (#stage-light: what motion.js writes;
+no longer `--energy` on <body>) moves while the loop plays, `html[data-alive]`
 is set, and a running step grid's module lights its edge (a ::after whose
-opacity follows the level) — and settles to rest after ■: `--energy` back
+opacity follows the level) — and settles to rest after ■: `--live` back
 to exactly 0, `data-alive` gone, the edge dark; a moved knob leaves an
 afterglow that clears itself; under calm motion (the Motion setting,
 colours.js) none of it is written (the energy stays 0, no afterglow) while
@@ -23,12 +24,17 @@ import pytest
 
 from synthlab.studio.views import VIEW_NAMES
 
-_READ = "getComputedStyle(document.body).getPropertyValue('--energy')"
+# the level as written (motion.js's `light`: the stage light is one of
+# its consumers, and nothing is written under calm motion)
+_READ = (
+    "getComputedStyle(document.getElementById('stage-light'))"
+    ".getPropertyValue('--live')"
+)
 _ENERGY = f"() => {_READ}.trim()"
 _ALIVE = "document.documentElement.hasAttribute('data-alive')"
 _EDGE = (
     "() => Number(getComputedStyle("
-    "document.getElementById('perform-drums'), '::after').opacity)"
+    "document.querySelector('#perform-drums > .module-glow')).opacity)"
 )
 _KNOB = "#patch input[type=range].knob"
 _TWEAK = (

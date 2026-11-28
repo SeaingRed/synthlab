@@ -11,6 +11,9 @@
    (hx-target="#drum-bank"). #}
 <section id="drum-bank" class="drum-bank module" data-module="drums.bank" aria-label="The beat"
          {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  {#- the module's lit edge (style.css 39): its own element, so motion.js's
+      level writes land on it and never restyle the module -#}
+  <i class="module-glow" aria-hidden="true"></i>
   <div class="pattern-tools" role="toolbar" aria-label="Drum pattern tools">
     {{ drum_tools(can_double_drums, beat_style) }}
     {{ beat_bar(beat_variants, beat_style) }}

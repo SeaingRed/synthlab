@@ -409,7 +409,7 @@ body { line-height: 1.35; }
 /* a dragged height for the open editor: the playlist keeps 45 % of the
    view (not about 260 px, which would let the editor take ~70 %) */
 @media (min-width: 901px) and (max-width: 2199.98px) {
-  .song-view[style*="--drawer-h"]:not(:has(> .song-drawer[hidden])) {
+  .song-view[data-drawer-h]:not(:has(> .song-drawer[hidden])) {
     grid-template-rows: auto auto minmax(0, 1fr) min(var(--drawer-h), 55%); }
 }
 /* the sound dock: a bar across the bottom, half the view until its handle
@@ -423,7 +423,7 @@ body { line-height: 1.35; }
    the two give way to it: the playlist down to 140 px, the editor a quarter */
 @media (min-width: 901px) and (max-width: 2199.98px) {
   .song-view:has(> .song-dock:not([hidden])),
-  .song-view[style*="--drawer-h"]:has(> .song-dock:not([hidden])) {
+  .song-view[data-drawer-h]:has(> .song-dock:not([hidden])) {
     grid-template-rows: auto auto minmax(140px, 1fr) fit-content(26%); }
 }
 @media (min-width: 2200px) {
@@ -435,9 +435,9 @@ body { line-height: 1.35; }
     grid-template-areas: "head head head" "top top top" "pool arr drawer"; }
   /* idle, the pane is one line of text: a narrow column, and the
      playlist the rest (not 880 px at 2560) */
-  .song-view:has(> .song-drawer[hidden]):not([style*="--drawer-w"]) {
+  .song-view:has(> .song-drawer[hidden]):not([data-drawer-w]) {
     grid-template-columns: var(--pool-w, var(--rack-w)) minmax(0, 1fr) clamp(220px, 12vw, 320px); }
-  .song-view[style*="--drawer-w"], .song-view[style*="--drawer-w"]:has(> .song-drawer[hidden]) {
+  .song-view[data-drawer-w], .song-view[data-drawer-w]:has(> .song-drawer[hidden]) {
     grid-template-columns: var(--pool-w, var(--rack-w)) minmax(0, 1fr)
       min(var(--drawer-w), calc(100% - var(--pool-w, var(--rack-w)) - 480px)); }
   .drawer-splitter-x { display: block; justify-self: start; align-self: stretch; width: 8px; margin-left: -4px; z-index: 5; }
@@ -451,7 +451,7 @@ body { line-height: 1.35; }
     grid-template-columns: var(--pool-w, var(--rack-w)) minmax(0, 1fr);
     grid-template-rows: auto auto minmax(min(396px, 45%), 1fr) fit-content(55%);
     grid-template-areas: "head head" "top top" "pool arr" "pool drawer"; }
-  .song-view[style*="--drawer-h"]:not([data-tab="beside"]):has(> .song-drawer:not([hidden])) {
+  .song-view[data-drawer-h]:not([data-tab="beside"]):has(> .song-drawer:not([hidden])) {
     grid-template-rows: auto auto minmax(0, 1fr) min(var(--drawer-h), 55%); }
   .song-view:not([data-tab="beside"]):has(> .song-drawer:not([hidden])):has(> .song-dock:not([hidden])) {
     grid-template-rows: auto auto minmax(140px, 1fr) fit-content(26%); }

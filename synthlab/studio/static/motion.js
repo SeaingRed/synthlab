@@ -39,8 +39,8 @@
 // drawing is visuals.js's, its "Classic" entries; the frame is built
 // here once and drawn there.
 // 240 -> 255 (frontend.md, "The energy"): the
-// energy published once — `--energy` / `--kick` on <body>, `html[data-alive]`
-// while the output carries signal, `synthlab.energy()` — settling to exactly
+// energy published once — `synthlab.energy()` / `synthlab.kick()`, `html[data-alive]`
+// while the output carries signal (no longer a style on <body>) — settling to exactly
 // 0 at rest and never written under calm motion; the keys dock and the
 // drum bank lit too; a value that moved leaves an afterglow.
 // 255 -> 260: the entrance on Web Animations and the canvases sized from the observer, so neither forces a layout.
@@ -180,16 +180,18 @@
   let liveUntil = 0, smooth = 0, written = -1, writtenAt = 0, meterPeak = 0, wasLive = false, last = 0;
   let kick = 0, lowAvg = 0, kickWritten = -1; // the low end's onsets: the beat's pump (--kick)
   (window.synthlab ??= {}).kick = () => kick; // deckart.js's keys and strip pump on the same kick
-  window.synthlab.energy = () => smooth; // the level, 0..1: the same number as --energy / --live
+  window.synthlab.energy = () => smooth; // the level, 0..1: the same number as --live
   // --live is registered non-inherited (style.css @property) and written only
-  // on its few consumers, ~15x a second: on :root, 60x a second, every write
-  // restyled the whole document. THE ENERGY is the same two numbers published
-  // once on <body> (`--energy`, `--kick`: non-inherited too, so <body> alone
-  // restyles) for a script, a test or a deck to read — not on <html>, whose
-  // style deckart.js and visuals.js watch for the hues (they re-read the
-  // palette 20x a second when it was there); at rest both settle to exactly 0
-  // and nothing more is written; under calm motion nothing is
-  const LIT = "#audio-led, .panel, .viz, .transport, #scope, #spectrum, #xyghost, .play, .cable.live, .btn-play, .song-playhead, #view, .keys-dock, .drum-bank";
+  // on its few consumers, ~20x a second: on :root, 60x a second, every write
+  // restyled the whole document. THE ENERGY is `synthlab.energy()` /
+  // `synthlab.kick()` for a script, a test or a deck — never a write on
+  // <body> or #view: a style change there repainted the full-screen grain
+  // (body::after) and restyled the page's container, ~14 points of the main
+  // thread each while a loop played (measured on a 240 Hz display). The
+  // view's wash is its own element (#stage-light), and so is a module's lit
+  // edge (.module-glow: on the note grid's container ~12 points). At rest both settle to
+  // exactly 0 and nothing more is written; under calm motion nothing is
+  const LIT = "#audio-led, .panel, .viz, #scope, #spectrum, #xyghost, .play, .cable.live, .btn-play, .song-playhead, #stage-light, .module-glow";
   const root = document.documentElement;
   let lit = null;
   function light(now, isLive) {
@@ -199,8 +201,8 @@
     if (now - writtenAt < 50 || !moved || calm()) return;
     written = smooth; kickWritten = kick; writtenAt = now;
     const l = smooth.toFixed(2), k = kick.toFixed(2);
-    for (const el of (lit ??= [...document.querySelectorAll(LIT), document.body])) {
-      el.style.setProperty(el === document.body ? "--energy" : "--live", l);
+    for (const el of (lit ??= [...document.querySelectorAll(LIT)])) {
+      el.style.setProperty("--live", l);
       el.style.setProperty("--kick", k);
     }
   }
@@ -208,7 +210,7 @@
   // (what was written stays put otherwise), full picks it up on the next frame
   document.addEventListener("synthlab-motion", () => {
     wasLive = null; written = kickWritten = -1; // data-alive and the light, again
-    if (calm()) for (const el of [...document.querySelectorAll(LIT), document.body]) for (const p of ["--live", "--energy", "--kick"]) el.style.removeProperty(p);
+    if (calm()) for (const el of document.querySelectorAll(LIT)) for (const p of ["--live", "--kick"]) el.style.removeProperty(p);
   });
   function frame(now) {
     requestAnimationFrame(frame);
