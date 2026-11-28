@@ -33,7 +33,7 @@
 // the roll, a drag names its grid by its box (a region redrawn under the
 // pointer is a new node), and three commands act at the cursor (paste,
 // move, stamp) so that nothing needs a pointer.
-// Budget: <= 290 code lines (tests/studio/test_island.py).
+// Budget: <= 292 code lines (tests/studio/test_island.py).
 (() => {
   "use strict";
   const root = document.documentElement;
@@ -190,6 +190,10 @@
     opts[o.dataset.rollOpt] = o.value;
     e.stopPropagation();
   }, true);
+  // the note grid's delayed post names the lane its first input was on: one outliving a lane switch is refused (routes/patch.py `fragment_arrangement`)
+  let drawnOn = null;
+  document.addEventListener("input", (e) => { const f = e.target.closest?.("#transport"); if (f && drawnOn == null) drawnOn = f.querySelector("[data-lane]")?.dataset.lane ?? null; });
+  document.addEventListener("htmx:config:request", (e) => { if (e.detail.ctx.sourceElement?.id !== "transport") return; if (drawnOn != null) e.detail.ctx.request.body.set("lane", drawnOn); drawnOn = null; });
   // hover (a mouse, a pen above the glass): the step says its pitch and number. Not a finger: it has no hover, and a tip under it eats its next tap
   document.addEventListener("pointerover", (e) => { const c = e.pointerType !== "touch" && e.target.closest?.(CELL); if (c && !c.title) c.title = c.getAttribute("aria-label"); });
 

@@ -141,7 +141,8 @@ def test_the_lane_route_serves_that_render_under_patch_jsons_key(client):
     assert n <= len(ref) and np.max(np.abs(ref[n:]), initial=0) < 1e-4
     assert np.max(np.abs(got - ref[:n] / max(1.0, np.max(np.abs(ref))))) < 1e-4
     # never a lane the key's pre-rendered stack doesn't hold
-    assert client.get("/note/C4.wav?view=editor&layer=1").status_code == 404  # edited
+    # (the edited slot plays live: nothing to fetch, not an error)
+    assert client.get("/note/C4.wav?view=editor&layer=1").status_code == 204
     assert client.get("/note/C4.wav?view=editor&layer=3").status_code == 404  # plain
 
 

@@ -319,3 +319,26 @@ def test_phone_monitor_rule_comes_after_the_desktop_one():
     desktop = css.index(".monitor label { display: grid;")
     phone = css.index("@media (max-width: 640px) { .monitor label")
     assert phone > desktop
+
+
+def test_a_late_grid_post_lands_on_its_own_lane(tmp_path):
+    """The note grid posts 150 ms after its last input, naming the lane it
+    was drawn on (roll.js): a post outliving a lane switch goes into that
+    lane's slot, never into the lane edited now."""
+    client = _client(tmp_path)
+    s = _st(client)
+    first = s.active_layer
+    s.add_layer(s.patch)  # a second lane, now the edited one
+    s.set_follow(s.active_layer, None)
+    now = s.active_layer
+    assert now != first
+    late = {"root": "A1", "cell.A1.1": "on", "lane": str(first)}
+    client.post("/fragment/arrangement", data=late, headers=_hx("perform"))
+    s = _st(client)
+    assert s.active_layer == now
+    assert ["A1", 1] not in s.arrangement.cells
+    assert ["A1", 1] in s.layers[first]["cells"]
+    client.post(
+        "/fragment/arrangement", data={**late, "lane": str(now)}, headers=_hx("perform")
+    )
+    assert ["A1", 1] in _st(client).arrangement.cells

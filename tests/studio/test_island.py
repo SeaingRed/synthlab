@@ -83,8 +83,9 @@ def test_every_island_states_a_budget_and_keeps_it():
     # bench.js is the bench views': the patch bay's
     # leads and the shared audio player;
     # song creation is five more:
-    # roll.js (the piano roll's tools, <= 260; 290 since it was filled: its
-    # header says what the browser journeys added), zoom.js (any `[data-zoom]`
+    # roll.js (the piano roll's tools, <= 260; 290 since it was filled,
+    # 292 for the lane its delayed post names: its header says what the
+    # browser journeys added), zoom.js (any `[data-zoom]`
     # scroller, <= 70), steps.js (the step sequencer: <= 270 since the beat
     # workflow filled it; 295 for Kit's stacked hit lanes),
     # songsel.js (the playlist's range, <= 120) and jam.js (the launcher,
@@ -232,7 +233,7 @@ def test_every_island_states_a_budget_and_keeps_it():
     # were at their budgets — 84
     assert len(islands) == 84, [p.name for p in islands]
     stubs = {
-        "roll.js": 290,
+        "roll.js": 292,
         "zoom.js": 70,
         "steps.js": 325,  # 270 + Kit's stacked hit lanes + the articulation lane
         "songsel.js": 120,

@@ -361,15 +361,17 @@ def test_rec_takes_what_plays_into_clips_and_offers_the_sampler(studio, server):
     assert 60 in [n[2] for n in notes]  # A: C4, held while it recorded
     # the Loops strip under the keys has it, as a loop; Edit puts it on
     # Perform's grid as that loop
-    row = page.locator(f'#key-takes [data-ctx="loop {clips[-1].stem}"]')
+    # (named as a loop — "init riff" — not by its clip: one Rec is both)
+    row = page.locator("#key-takes .lp-row[data-loop-name]").first
     row.wait_for()
+    name = row.get_attribute("data-loop-name")
     with page.expect_response("**/loop/edit") as answer:
         row.dblclick()  # a row's double-click: Edit
     assert answer.value.ok
     page.wait_for_selector('#view[data-view="perform"]')
     studio.settle()
     assert any(c[0] == "C4" for c in server.state.arrangement.cells)
-    assert server.state.loop_edit_of()["name"] == clips[-1].stem
+    assert server.state.loop_edit_of()["name"] == name
 
 
 def test_a_page_change_ends_the_take_as_stop_does(studio, server):
@@ -504,7 +506,8 @@ def test_play_tools_open_above_their_button_which_stays_put(studio):
     box = page.locator(btn).bounding_box()
     page.click(btn)
     page.wait_for_selector("#play-tools:popover-open")
-    assert page.locator(btn).bounding_box() == box
+    after = page.locator(btn).bounding_box()  # (within a pixel: a sub-pixel settle)
+    assert all(abs(after[k] - box[k]) <= 1 for k in box), (after, box)
     assert page.evaluate("() => document.getElementById('pads-chords').open")
     pop = page.locator("#play-tools").bounding_box()
     assert pop["y"] + pop["height"] <= box["y"] + 1  # above it

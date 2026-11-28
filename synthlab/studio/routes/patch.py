@@ -29,7 +29,7 @@ from ..schema import valid_pitch
 from ..service import StudioService, group_specs
 from ..sounds import SOURCES, find
 from ..state import Arrangement, StudioState, lane_fields, pitch_rows
-from ..state.model import grid_rows
+from ..state.model import grid_rows, seq_changes, seq_of
 from .macros import param_rows_oob
 
 router = studio_router()
@@ -250,10 +250,44 @@ def _structure_of(arr) -> tuple:
     return (arr.bars, arr.steps_per_bar, arr.root, arr.scale_name)
 
 
+def _late_grid_post(request: Request, form: StrForm, svc: Svc) -> Response:
+    """The note grid's post names the lane it was drawn on (roll.js). One
+    that lands after a lane switch (its 150 ms delay outlived the page)
+    holds that lane's notes: they go into that lane's slot — its cells and
+    sequencing only, never the loop's shared length or key — and never
+    into the lane now edited."""
+    s: StudioState = svc.state
+    raw = form.get("lane", "")
+    i = int(raw) if raw.isdigit() else -1
+    if not 0 <= i < len(s.layers) or not s.layers[i].get("patch"):
+        return HTMLResponse("")
+    lay, held = s.layers[i], s.arrangement
+    seq = lay.get("seq")
+    s.arrangement = replace(
+        held,
+        cells=[list(c) for c in lay.get("cells", [])],
+        **(seq_changes(seq) if isinstance(seq, dict) else {}),
+    )
+    try:
+        asked = _grow(
+            s.arrangement, _merge_arrangement(svc, form), _span(s, form), _oct(s, form)
+        )
+        asked = replace(
+            asked, bars=held.bars, steps_per_bar=held.steps_per_bar, root=held.root
+        )
+    finally:
+        s.arrangement = held
+    lay["cells"], lay["seq"] = [list(c) for c in asked.cells], seq_of(asked)
+    s.save()
+    return svc.do_render(request)
+
+
 @router.post("/fragment/arrangement")
 @pattern_edit
 def fragment_arrangement(request: Request, form: StrForm, svc: Svc) -> Response:
     s: StudioState = svc.state
+    if form.get("lane", str(s.active_layer)) != str(s.active_layer):
+        return _late_grid_post(request, form, svc)
     before = _structure_of(s.arrangement)
     try:
         submitted_bpm = float(form.get("bpm", s.arrangement.bpm))

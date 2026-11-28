@@ -807,8 +807,10 @@ three heavy layers held 16 deep took 62% of the audio thread, so **only
 the edited slot runs in the worklet**. Every other lane a key sounds on
 (same `audible_layers(for_keys=True)` set — nothing about *which* lanes
 changed) is `mode: "buffer"` in /patch.json's `layers` and plays
-`/note/{pitch}.wav?view=&layer=N` (1-based slot; 404 for the edited slot
-or a lane the keys don't pre-render): that lane's note at its octave
+`/note/{pitch}.wav?view=&layer=N` (1-based slot; 204 for the edited
+slot — a lane switch can land while the keys' warm-up of that lane is in
+flight, and "it plays live now" is no error — 404 for a lane the keys
+don't pre-render): that lane's note at its octave
 and gain **with its own FX baked in** — `render.lane_note`, which is the
 loop's layer stem for a lone note (`stem_fx` is the one FX path for
 both; pinned `array_equal`) — silent tail cut, hold renders looping at

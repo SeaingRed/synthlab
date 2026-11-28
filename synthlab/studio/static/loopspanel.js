@@ -162,7 +162,8 @@
   // On the Loops page a loop a launcher cell holds is edited by SELECTING that cell (the one
   // selection: the cell selected, else the one playing, else the first) — its menu's Edit, a
   // drop on a grid and the palette's "Edit the newest loop" too; a loop no cell holds: /loop/edit
-  const edit = (row) => row?.querySelector(":scope > .lp-acts .lp-edit")?.click();
+  // Edit; a row open already (no Edit: "✎ editing") selects its slot, which brings its lane to the editor
+  const edit = (row) => (row?.querySelector(":scope > .lp-acts .lp-edit") || cellOf(row)?.querySelector(".sl-slot"))?.click();
   function cellOf(row) {
     const name = row?.dataset.loopName, cells = name ? [...document.querySelectorAll(`#slots .sl-cell[data-loop="${CSS.escape(name)}"]`)] : [];
     return cells.find((c) => c.getAttribute("aria-selected") === "true") || cells.find((c) => c.dataset.state === "playing") || cells[0];

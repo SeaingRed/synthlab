@@ -175,8 +175,8 @@ def test_the_granular_pill_keeps_the_sample_and_draws_the_cloud(studio):
     """The granular shape plays the same sample: its pill shows the
     Granular rows and keeps the sample's own (root, span, loop) while the
     sampler's alone (pitch mode, stretch) hide; the panel stays, draws the
-    cloud over the waveform and drops the chops. Its keys take the server
-    WAV (`/patch.json` refuses the worklet, naming osc1) and still sound.
+    cloud over the waveform and drops the chops. Its keys play in the
+    worklet (grain-worklet.js `cloud`, over the sample as stored) and sound.
     Does not prove the cloud sounds right: nobody has listened."""
     page, views = studio.page, []
     page.on("response", lambda r: "/view/editor" in r.url and views.append(r.url))
@@ -192,7 +192,7 @@ def test_the_granular_pill_keeps_the_sample_and_draws_the_cloud(studio):
     pill.check(force=True)
     page.wait_for_function(
         "() => { const p = window.synthlab.piano.patch();"
-        " return p.osc1 === 'granular' && p.worklet_ok === false; }"
+        " return p.osc1 === 'granular' && p.worklet_ok === true; }"
     )
     assert page.locator("#row-grain_pos").is_visible()
     assert page.locator("#row-grain_density").is_visible()
@@ -206,7 +206,7 @@ def test_the_granular_pill_keeps_the_sample_and_draws_the_cloud(studio):
     assert page.locator("#sampler-panel .sampler-svg .sw-grain").count() == 1
     assert page.locator('#sampler-panel button[hx-vals*=\'"mode": "8"\']').count() == 0
     patch = page.evaluate("window.synthlab.piano.patch()")
-    assert patch["worklet_blockers"][0] == "osc1" and not patch["sampler_live"]
+    assert not patch["worklet_blockers"] and patch["sampler_live"]
     studio.settle()
     studio.pointer_down('.pkey[data-note="0"][data-rel="0"]')
     studio.wait_sound(floor=0.005)
