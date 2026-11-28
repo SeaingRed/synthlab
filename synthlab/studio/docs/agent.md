@@ -261,26 +261,56 @@ covers it; a test patches `takecoach.load_config` / `client_for` /
 
 ```
 {reply: [string] (<= 4), heard: string (a spoken message: what it heard),
+ option: option id (one of the coach's own options, made first),
  fixes: [finding id] (<= 8: the coach's own fixes, made as they stand),
- edits: [{lane: "1".."4" | "drums", op: add|remove|move|velocity,
-          pitch, voice, step, length, to_step, to_pitch, velocity, why}]
-        (<= 16)}                                 # required: reply, edits
+ edits: [{lane: "1".."4" | "drums",
+          op: add|remove|move|velocity|length          (a note)
+            | clear|transpose|ramp (step..to_step)     (a range)
+            | copy (bar -> to_bar)
+            | arp (mode, value = octaves)|strum (value ms)|swing (value)
+            | chance|ratchet (value: a hit's)          (the beat),
+          pitch, voice, step, length, to_step, to_pitch, velocity,
+          to_velocity, by (scale steps), bar, to_bar, mode, value, why}]
+        (<= 64)}                                 # required: reply, edits
 ```
 
+The option is made first, then the fixes, then the edits, each on what
+the one before left. The coach's options are listed in the brief by id
+(`lc.options`, the ones on offer for this loop).
+
 **What is sent** (`loopchat.info` + `brief`, text only): the tempo, the
-meter, the key, the chord lane's chords with their steps, each lane that
-plays notes of its own with its sound's name and its notes as a grid (a
-row a pitch: a velocity digit where a note starts, `=` while it is held),
-the beat as a grid, what the coach's rules found (id and title), the last
-six lines of the thread and the message. No audio, unless the message was
-spoken.
+meter, the key, the swing, the chord lane's chords with their steps; each
+lane that plays notes of its own with its sound's name, a line of how it
+plays (`lane_meta`: its arp — mode and octaves, or the pattern's steps,
+rate and what it ratchets, transposes or rolls — its strum, one voice,
+role, MUTED / soloed / level, the lanes that follow it and at what
+octave, the saved loop it holds) and its notes twice: as a grid (a row a
+pitch: a velocity digit where a note starts, `=` while it is held) and as
+a list a bar a line (`notes_text`: "step pitch xlength v", the step
+counted across the lane — a model miscounts columns of a 128-step row —
+with the note's nudge, chance and own feel); the beat as a grid with its
+kit, swing, humanize, the rows' mutes and levels and every hit's chance,
+ratchet, nudge, tune and articulation (`drums_meta`); the launcher's
+scenes, a saved loop a lane (`launcher_text`, at most 8); what the
+coach's rules found (id and title), the last six lines of the thread and
+the message. A 4-lane, 8-bar loop is about 2k tokens. No audio, unless
+the message was spoken.
 
 **Nothing in it is trusted**: `loopchat.apply` makes each edit on a copy
 of the loop only when it fits — a lane that plays its own notes, a pitch
 in the key (or a tone of the chord there), a step inside the lane, an add
-where its pitch is free, a remove / move / velocity on a note that is
-there, a drum voice the kit has — and counts the rest as skipped (the
-thread says how many). The reply and every `why` are scrubbed of the key.
+where its pitch is free, a remove / move / velocity / length on a note
+that is there and never onto another of its pitch, a range with notes in
+it, a transpose that lands nothing on a note of the same pitch (by steps
+of the key's scale: `_step_in_key`), a copy between two bars of the
+lane, an arp mode of the schema's ("pattern" only on a lane that has
+one: a pattern is drawn on the arp panel), a strum within ±60 ms, a
+swing within 0-0.6, a drum row of either kit (`ALL_DRUM_ROWS`), a hit's
+chance 0-1 or ratchet 1-4 — and counts the rest as skipped (the thread
+says how many). A setting on a lane never selected (no `seq` of its
+own: it plays the edited lane's sequencing) gives it a `seq` copied from
+what it played; so does the edited lane's setting changing, so that lane
+keeps its old arp and strum. The reply and every `why` are scrubbed of the key.
 What fits becomes a **proposal**, never the loop: the player hears it and
 accepts or discards it. A call that fails, or an answer that is not the
 JSON asked for, is a scrubbed line in the thread.

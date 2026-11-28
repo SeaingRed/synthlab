@@ -12,12 +12,15 @@
    The look (style.css 14d): flat, sections parted by hairlines, one accent
    — the small dot on a finding and on the proposal; a row's action shows
    on hover and focus. `data-k` names a row for coach.js, which brings in
-   only the rows a settle adds. #}
+   only the rows a settle adds. Each section has an id so a redraw's morph
+   matches it by id: without them the proposal Discard was folding was
+   reused as "Found", the fold ended on it (0 px tall) and its rows lay
+   over the Try chips. #}
 {% set c = coach %}
 <div id="coach-panel" class="coach-body"{% if c.proposal and c.proposal.grid %} data-diff='{{ c.proposal.grid | tojson }}'{% endif %} {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
   {% if c.proposal %}
   {% set p = c.proposal %}
-  <section class="coach-sec coach-prop{% if p.stale %} stale{% endif %}" data-k="p{{ p.id }}" aria-label="proposal" aria-live="polite">
+  <section id="coach-sec-prop" class="coach-sec coach-prop{% if p.stale %} stale{% endif %}" data-k="p{{ p.id }}" aria-label="proposal" aria-live="polite">
     <p class="coach-label"><i class="coach-dot" aria-hidden="true"></i>{{ p.label }}</p>
     <ul class="coach-lines">
       {% for line in p.lines %}<li>{{ line }}</li>{% endfor %}
@@ -42,7 +45,7 @@
   </section>
   {% endif %}
 
-  <section class="coach-sec coach-assess" aria-label="what the coach found">
+  <section id="coach-sec-found" class="coach-sec coach-assess" aria-label="what the coach found">
     <h3 class="coach-h">Found <small>{{ c.findings | length }}</small></h3>
     {% if c.follows %}
     <p class="coach-warn"><i class="coach-dot" aria-hidden="true"></i>{{ c.lane }} follows the main lane: its notes are the main lane's (“draw its own” on its head to give it some).</p>
@@ -78,7 +81,7 @@
     {% endif %}
   </section>
 
-  <section class="coach-sec coach-opts" aria-label="other versions">
+  <section id="coach-sec-try" class="coach-sec coach-opts" aria-label="other versions">
     <h3 class="coach-h">Try</h3>
     <div class="coach-opt-row">
       {% for o in c.options %}
@@ -90,7 +93,7 @@
   </section>
 
   {% if c.thread %}
-  <section class="coach-sec coach-thread" aria-label="the conversation and what was accepted">
+  <section id="coach-sec-thread" class="coach-sec coach-thread" aria-label="the conversation and what was accepted">
     <h3 class="coach-h">Conversation</h3>
     <ol class="coach-log">
       {% for e in c.thread %}

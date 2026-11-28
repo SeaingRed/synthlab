@@ -43,11 +43,11 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 
 from ..sequencer import midi, name_of
-from . import takeclean
+from . import notefeel, takeclean
 from .arrange import bar_beats
 from .gen import chordtrack
 from .gen import loop as gl
-from .state.model import grid_rows
+from .state.model import grid_rows, seq_of
 
 NOTE_VEL = 0.9  # a note step's velocity when its lane holds none (patternops)
 DRUM_VEL = 1.0  # a hit's, when neither its hit nor its step holds one
@@ -77,8 +77,67 @@ def _plural(n: int, one: str, many: str | None = None) -> str:
 # --- the loop as a doc --------------------------------------------------------------
 
 
-def _lane_doc(cells, cuts, velocities, slides) -> dict:
+FEEL_KEYS = {"nudge": "note_nudge", "chance": "note_chance", "notes": "note_feel"}
+
+
+def _feel_of(src) -> dict:
+    """A lane's timing and chance as the doc keeps them: `nudge` and
+    `chance` by start step (shared by every note starting there, as a
+    velocity is), `notes` a note's own feel by "<pitch>.<start>"
+    (notefeel.py). `src` is an Arrangement or a slot's `seq`."""
+    get = (
+        (lambda k: getattr(src, k, None))
+        if not isinstance(src, dict)
+        else (lambda k: src.get(k))
+    )
     return {
+        k: copy.deepcopy(dict(get(field_) or {})) for k, field_ in FEEL_KEYS.items()
+    }
+
+
+def feel_after(feel: dict, cells, cuts, carry: dict | None = None) -> dict:
+    """`feel` on the lane's new notes: each moved note's entries carried
+    from its old start to its new one (`carry`: (pitch, old start) ->
+    (pitch, new start)), then every entry on no note's start dropped — so
+    a note removed leaves nothing for one drawn on its step later (the
+    grid's own rule: notefeel.clean)."""
+    out = copy.deepcopy(feel)
+    for (op, os), (np_, ns) in (carry or {}).items():
+        for k in ("nudge", "chance"):
+            if str(os) in feel.get(k, {}):
+                out[k][str(ns)] = feel[k][str(os)]
+        if f"{op}.{os}" in feel.get("notes", {}):
+            out["notes"].pop(f"{op}.{os}", None)
+            out["notes"][f"{np_}.{ns}"] = copy.deepcopy(feel["notes"][f"{op}.{os}"])
+    on = notefeel.starts(cells, cuts)
+    steps = {str(s) for _p, s in on}
+    for k in ("nudge", "chance"):
+        out[k] = {s: v for s, v in out.get(k, {}).items() if s in steps}
+    out["notes"] = notefeel.clean(out.get("notes"), cells, cuts)
+    return out
+
+
+PLAY_KEYS = ("arp_mode", "arp_octaves", "strum")
+
+
+def _play_of(src) -> dict:
+    """How a lane plays its notes, as the doc keeps it: its arp's mode and
+    octaves and its strum (ms). `src` is an Arrangement or a slot's `seq`."""
+    if isinstance(src, dict):
+        return {
+            "arp_mode": str(src.get("arp_mode") or "off"),
+            "arp_octaves": int(src.get("arp_octaves") or 1),
+            "strum": float(src.get("strum") or 0.0),
+        }
+    return {k: getattr(src, k) for k in PLAY_KEYS}
+
+
+def _lane_doc(
+    cells, cuts, velocities, slides, feel: dict | None = None, play: dict | None = None
+) -> dict:
+    return {
+        **({"feel": feel} if feel is not None else {}),
+        **({"play": play} if play is not None else {}),
         "cells": sorted(
             ([str(p), int(s)] for p, s in cells), key=lambda c: (c[1], c[0])
         ),
@@ -110,7 +169,9 @@ def read(state) -> dict:
     lanes = {}
     for i in own_lanes(state):
         if i == state.active_layer:
-            lanes[str(i)] = _lane_doc(a.cells, a.cuts, a.velocities, a.slides)
+            lanes[str(i)] = _lane_doc(
+                a.cells, a.cuts, a.velocities, a.slides, _feel_of(a), _play_of(a)
+            )
             continue
         lay = state.layers[i]
         seq = lay.get("seq") if isinstance(lay.get("seq"), dict) else None
@@ -119,6 +180,9 @@ def read(state) -> dict:
             (seq or {}).get("cuts") or [],
             None if seq is None else (seq.get("velocities") or {}),
             (seq or {}).get("slides") or [],
+            _feel_of(seq or {}),
+            # (a slot never stashed plays the edited lane's sequencing)
+            _play_of(seq if seq is not None else a),
         )
     drums = {
         "drums": sorted(
@@ -127,7 +191,7 @@ def read(state) -> dict:
         "drum_vel": {str(k): float(v) for k, v in a.drum_vel.items()},
         "drum_hits": copy.deepcopy(dict(a.drum_hits)),
     }
-    return {"lanes": lanes, "drums": drums}
+    return {"lanes": lanes, "drums": drums, "swing": float(a.swing or 0.0)}
 
 
 def write(state, doc: dict) -> None:
@@ -135,32 +199,66 @@ def write(state, doc: dict) -> None:
     arrangement, the other lanes into their slots, the beat."""
     a = state.arrangement
     changes = {}
+    # how the edited lane will play: a slot never stashed played its old way
+    edited = doc["lanes"].get(str(state.active_layer)) or {}
+    after = edited.get("play") or _play_of(a)
     for key, lane in doc["lanes"].items():
         i = int(key)
         if i == state.active_layer:
+            # (a lane made without its feel — a generator's — keeps the
+            # lane's, on the notes still there)
+            feel = feel_after(
+                lane.get("feel") or _feel_of(a), lane["cells"], lane["cuts"]
+            )
             changes |= {
                 "cells": [list(c) for c in lane["cells"]],
                 "cuts": [list(c) for c in lane["cuts"]],
                 "velocities": dict(lane["velocities"] or {}),
                 "slides": list(lane["slides"]),
-            }
+            } | {f: feel[k] for k, f in FEEL_KEYS.items()}
+            if lane.get("play"):  # (a generator's lane has none: kept as it is)
+                changes |= {k: lane["play"][k] for k in PLAY_KEYS}
             continue
         if not 0 <= i < len(state.layers):
             continue
         lay = state.layers[i]
         lay["cells"] = [list(c) for c in lane["cells"]]
         seq = lay.get("seq")
+        if not isinstance(seq, dict) and lane.get("play") not in (None, after):
+            # a slot never stashed plays the edited lane's sequencing: a
+            # setting of its own — or the edited lane's changing — starts
+            # it from exactly what it played
+            seq = lay["seq"] = seq_of(a)
         if isinstance(seq, dict):
             seq["cuts"] = [list(c) for c in lane["cuts"]]
             seq["slides"] = list(lane["slides"])
             if lane["velocities"] is not None:
                 seq["velocities"] = dict(lane["velocities"])
+            feel = feel_after(
+                lane.get("feel") or _feel_of(seq), lane["cells"], lane["cuts"]
+            )
+            for k, f in FEEL_KEYS.items():  # absent when empty (LAYER_SEQ_OPTIONAL)
+                if feel[k]:
+                    seq[f] = feel[k]
+                else:
+                    seq.pop(f, None)
+            if play := lane.get("play"):
+                seq["arp_mode"], seq["arp_octaves"] = (
+                    play["arp_mode"],
+                    play["arp_octaves"],
+                )
+                if play["strum"]:
+                    seq["strum"] = play["strum"]
+                else:
+                    seq.pop("strum", None)
     d = doc["drums"]
     changes |= {
         "drums": [list(c) for c in d["drums"]],
         "drum_vel": dict(d["drum_vel"]),
         "drum_hits": copy.deepcopy(d["drum_hits"]),
     }
+    if "swing" in doc:
+        changes["swing"] = float(doc["swing"])
     state.arrangement = replace(a, **changes)
 
 
@@ -205,7 +303,9 @@ def notes(lane: dict) -> list[Note]:
     return sorted(out, key=lambda n: (n.start, n.m))
 
 
-def with_notes(lane: dict, ns, *, keep_vel: dict | None = None) -> dict:
+def with_notes(
+    lane: dict, ns, *, keep_vel: dict | None = None, carry: dict | None = None
+) -> dict:
     """`lane` holding exactly the notes `ns`: cells, and a cut wherever a
     note starts right after another of its pitch. Velocities and slides
     stay on their steps (the grid's rule: a step's, shared by every note
@@ -232,6 +332,8 @@ def with_notes(lane: dict, ns, *, keep_vel: dict | None = None) -> dict:
             **lane["velocities"],
             **{str(k): v for k, v in keep_vel.items()},
         }
+    if lane.get("feel") is not None:  # `carry`: a moved note's feel goes with it
+        out["feel"] = feel_after(lane["feel"], out["cells"], out["cuts"], carry)
     return out
 
 

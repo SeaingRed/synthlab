@@ -754,3 +754,192 @@ def test_the_brief_is_text_with_the_lanes_as_grids(client):
     assert "Lane 1 (the one being edited)" in text and "Beat (drums):" in text
     assert re.search(r"A3 +[1-9=.|]+", text)
     assert "The player says: hello" in text
+
+
+# --- a note's feel follows the note ---------------------------------------------------
+
+
+def test_a_coach_move_carries_the_notes_feel_and_a_removed_note_leaves_none(client):
+    """A note's nudge, chance and own feel are keyed by its start: a move
+    made by the coach takes them along, and a note added where one was
+    removed starts clean (it used to inherit the removed note's)."""
+    s = _st(client)
+    start = 2  # the riff's second note, C#4 on step 2 (seed's RIFF)
+    pitch = next(p for p, st in s.arrangement.cells if st == start)
+    s.arrangement = replace(
+        s.arrangement,
+        note_nudge={str(start): 0.2},
+        note_chance={str(start): 0.5},
+        note_feel={f"{pitch}.{start}": [0.1, -0.2, 0.8]},
+    )
+    f = lc.facts(s)
+    doc, done, skipped = loopchat.apply(
+        lc.read(s),
+        f,
+        [{"lane": "1", "op": "move", "pitch": pitch, "step": start, "to_step": 3}],
+    )
+    assert done and not skipped
+    lc.write(s, doc)
+    a = s.arrangement
+    assert a.note_nudge == {"3": 0.2} and a.note_chance == {"3": 0.5}
+    assert a.note_feel == {f"{pitch}.3": [0.1, -0.2, 0.8]}
+    # removed, then a new note drawn on its step: no feel left behind
+    doc, done, _ = loopchat.apply(
+        lc.read(s),
+        f,
+        [
+            {"lane": "1", "op": "remove", "pitch": pitch, "step": 3},
+            {"lane": "1", "op": "add", "pitch": pitch, "step": 3},
+        ],
+    )
+    assert len(done) == 2
+    lc.write(s, doc)
+    a = s.arrangement
+    assert not a.note_nudge and not a.note_chance and not a.note_feel
+
+
+def test_another_lanes_feel_follows_its_notes_too(client):
+    s = _st(client)
+    lay = s.layers[1]
+    m, st = lay["cells"][0]
+    lay.setdefault("seq", {})
+    lay["seq"] = {**(lay["seq"] or {}), "note_nudge": {str(st): -0.1}}
+    f = lc.facts(s)
+    doc, done, _ = loopchat.apply(
+        lc.read(s), f, [{"lane": "2", "op": "remove", "pitch": m, "step": st}]
+    )
+    assert done
+    lc.write(s, doc)
+    assert not s.layers[1]["seq"].get("note_nudge")
+
+
+def test_the_brief_says_how_each_lane_plays(client):
+    """What the chat is sent besides the notes: a lane's arp, strum, mute,
+    level, the lanes doubling it and the saved loop it holds; its notes as
+    a list by bar with their nudge and chance; the beat's kit and each
+    hit's extras; the launcher's scenes."""
+    s = _st(client)
+    s.arrangement = replace(
+        s.arrangement,
+        arp_mode="up",
+        arp_octaves=2,
+        strum=0.25,
+        swing=0.2,
+        note_nudge={"2": 0.15},
+        note_chance={"2": 0.5},
+        drum_kit="naked",
+        drum_hits={"snare.4": {"r": 2, "p": 0.5}},
+    )
+    s.layers[1]["muted"] = True
+    s.layers[1]["gain"] = 0.5
+    s.add_layer(Patch(name="Double"), [], select=False, slot=2, octave=1)
+    s.perform_slots = [
+        {"slots": [None, "sub line", None, None, "beat one"], "name": "A"}
+    ]
+    text = loopchat.brief(loopchat.info(s), "less busy")
+    assert "swing 0.2" in text
+    assert "arp: up over 2 octave(s)" in text and "strummed (0.25" in text
+    assert "followed by lane 3 1 octave(s) up" in text
+    assert "MUTED" in text and "level -6.0 dB" in text
+    assert "bar 1: 0 A3 x1" in text and "nudge +0.15 chance 50%" in text
+    assert "kit: acoustic" in text and "snare 4: chance 0.5, ratchet 2" in text
+    assert 'scene 1 "A": lane 2: sub line, drums: beat one' in text
+
+
+# --- the chat's wider edits -----------------------------------------------------------
+
+
+def test_the_chat_edits_lengths_ranges_bars_and_how_a_lane_plays(client):
+    s = _st(client)
+    f = lc.facts(s)
+    doc, done, skipped = loopchat.apply(
+        lc.read(s),
+        f,
+        [
+            {"lane": "1", "op": "length", "pitch": "A3", "step": 0, "length": 2},
+            {"lane": "1", "op": "clear", "step": 16, "to_step": 31},
+            {"lane": "2", "op": "transpose", "step": 0, "to_step": 15, "by": 2},
+            {
+                "lane": "1",
+                "op": "ramp",
+                "step": 32,
+                "to_step": 46,
+                "velocity": 0.2,
+                "to_velocity": 1.0,
+            },
+            {"lane": "1", "op": "copy", "bar": 1, "to_bar": 4},
+            {"lane": "1", "op": "arp", "mode": "up", "value": 2},
+            {"lane": "2", "op": "strum", "value": 20},
+            {"lane": "1", "op": "swing", "value": 0.25},
+            {"lane": "1", "op": "arp", "mode": "pattern"},  # no pattern here: skipped
+            {"lane": "1", "op": "transpose", "step": 200, "by": 1},  # past the end
+        ],
+    )
+    assert len(done) == 8 and skipped == 2, done
+    lc.write(s, doc)
+    a = s.arrangement
+    assert ["A3", 0] in a.cells and ["A3", 1] in a.cells  # two steps long now
+    assert not [c for c in a.cells if 16 <= c[1] < 32 and c[0] != "C#5"]
+    assert a.velocities["32"] == 0.2 and a.velocities["46"] == 1.0
+    assert ["D#4", 53] not in a.cells and ["A3", 48] in a.cells  # bar 1 onto bar 4
+    assert (a.arp_mode, a.arp_octaves, a.swing) == ("up", 2, 0.25)
+    bass = s.layers[1]
+    assert ["C#2", 0] in bass["cells"] and ["C#2", 8] in bass["cells"]
+    assert ["A1", 16] in bass["cells"] and bass["seq"]["strum"] == 20
+
+
+def test_the_chat_edits_the_beat_on_every_kit_row(client):
+    s = _st(client)
+    s.arrangement = replace(s.arrangement, drum_bars=2)
+    f = lc.facts(s)
+    doc, done, skipped = loopchat.apply(
+        lc.read(s),
+        f,
+        [
+            {
+                "lane": "drums",
+                "op": "chance",
+                "voice": "snare",
+                "step": 4,
+                "value": 0.5,
+            },
+            {"lane": "drums", "op": "ratchet", "voice": "kick", "step": 8, "value": 3},
+            {"lane": "drums", "op": "clear", "voice": "hat", "step": 0, "to_step": 15},
+            {"lane": "drums", "op": "add", "voice": "ride", "step": 0},
+            {"lane": "drums", "op": "copy", "bar": 1, "to_bar": 2},
+            {"lane": "drums", "op": "add", "voice": "cowbell", "step": 1},  # no row
+        ],
+    )
+    assert len(done) == 5 and skipped == 1, done
+    lc.write(s, doc)
+    a = s.arrangement
+    assert a.drum_hits["snare.4"] == {"p": 0.5} and a.drum_hits["snare.20"] == {
+        "p": 0.5
+    }
+    assert a.drum_hits["kick.8"] == {"r": 3}
+    assert not [c for c in a.drums if c[0] == "hat"]
+    assert ["ride", 0] in a.drums and ["ride", 16] in a.drums
+
+
+def test_a_reply_may_start_from_one_of_the_coachs_options(client, gemini):
+    s = _st(client)
+    o = next(o for o in lc.options(s, lc.read(s), lc.facts(s)) if o.after)
+    fake = gemini({"reply": ["Try this."], "option": o.id, "edits": []})
+    client.post("/fragment/coach/chat", data={"coach_say": "vary it"}, headers=HX)
+    assert f"{o.id}: {o.label}" in fake.asked["contents"]  # offered by id
+    p = _ctx(client)["proposal"]
+    assert p and f"option: {o.label}" in p["said"]
+
+
+def test_a_lane_never_selected_keeps_its_arp_when_the_edited_one_changes(client):
+    """A slot never stashed plays the edited lane's sequencing: an arp put
+    on the edited lane by the coach must not start it arpeggiating too."""
+    s = _st(client)
+    assert s.layers[1].get("seq") is None
+    doc, done, _ = loopchat.apply(
+        lc.read(s), lc.facts(s), [{"lane": "1", "op": "arp", "mode": "up"}]
+    )
+    assert done
+    lc.write(s, doc)
+    assert s.arrangement.arp_mode == "up"
+    assert s.layers[1]["seq"]["arp_mode"] == "off"
