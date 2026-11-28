@@ -1699,6 +1699,24 @@ reads: the loop, the key, the chord lane, the window, the lane names,
 the session's revision). Open / closed is per browser (localStorage
 `synthlab.coach`).
 
+**The look** (style.css 14d): flat, its sections — the proposal, "Found",
+"Try", "Conversation" — parted by hairlines, small sentence-case type in
+two greys. One colour: the small `--ai` dot on a finding and on the
+proposal (a warning's or a failed reply's dot in its own hue beside dim
+text). A finding is one row — dot, title, its why clamped to two lines
+(the whole in its `title`) — whose Fix / Show them shows on hover and on
+focus (always in the DOM, reachable by keyboard; always shown under a
+finger), as an accepted change's ↶ Reverse does. The proposal is a quiet
+card (dashed when stale), Accept its one primary; options are outlined
+chips; the player's words a subtle bubble, the coach's replies plain text
+with tokens and what it left out folded into a `<details>` meta line. The
+message box is one rounded field with Send and 🎙 inside it, and a dim
+"Working…" line shimmers above it while a request runs (`steps()`, not
+the display's rate). **Motion** (coach.js, GSAP, none when calm): a
+settle brings in only the rows it added (`data-k`) — a staggered fade
+and a 4 px rise — and unfolds a new proposal; Accept / Discard fold it
+while they post, and a refused post puts it back.
+
 **The loop as the coach reads it** (`loopcoach.read` / `write`): every
 lane that plays notes of its own (the edited one from the arrangement;
 another slot from its `cells` and its `seq`'s cuts, velocities and

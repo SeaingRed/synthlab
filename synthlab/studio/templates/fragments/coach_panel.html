@@ -1,26 +1,29 @@
 {# synthlab/studio/templates/fragments/coach_panel.html #}
 {# The loop coach's body (region `coach-panel`, Perform; `loopcoach.context`):
-   what the rules found, each with its Fix, and Clean up all; the options for
-   the edited lane and the beat; the proposal waiting — its changes, ▶ to
-   hear it, Accept, Discard — and the thread (messages, replies, accepted
-   changes with ↶ Reverse). The dock round it (its head, the message box,
-   🎙) is the page's (views/perform.html) and never redrawn, so a message
-   being typed survives every edit of the loop. `data-diff` is the proposal
-   as cells of Perform's two grids: coach.js outlines what it adds and
-   strikes what it takes away. Every post answers with nothing: this region
-   comes back by its watch. #}
+   the proposal waiting — its changes, ▶ to hear it, Accept, Discard — what
+   the rules found, each with its Fix, and Clean up all; the options for the
+   edited lane and the beat; and the conversation (messages, replies,
+   accepted changes with ↶ Reverse). The dock round it (its head, the
+   message box, 🎙) is the page's (views/perform.html) and never redrawn, so
+   a message being typed survives every edit of the loop. `data-diff` is the
+   proposal as cells of Perform's two grids: coach.js outlines what it adds
+   and strikes what it takes away. Every post answers with nothing: this
+   region comes back by its watch.
+   The look (style.css 14d): flat, sections parted by hairlines, one accent
+   — the small dot on a finding and on the proposal; a row's action shows
+   on hover and focus. `data-k` names a row for coach.js, which brings in
+   only the rows a settle adds. #}
 {% set c = coach %}
 <div id="coach-panel" class="coach-body"{% if c.proposal and c.proposal.grid %} data-diff='{{ c.proposal.grid | tojson }}'{% endif %} {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
   {% if c.proposal %}
   {% set p = c.proposal %}
-  <section class="coach-sec coach-prop{% if p.stale %} stale{% endif %}" aria-label="proposal" aria-live="polite">
-    <h3 class="caps is-ai">Proposal</h3>
-    <p class="coach-label">{{ p.label }}</p>
+  <section class="coach-sec coach-prop{% if p.stale %} stale{% endif %}" data-k="p{{ p.id }}" aria-label="proposal" aria-live="polite">
+    <p class="coach-label"><i class="coach-dot" aria-hidden="true"></i>{{ p.label }}</p>
     <ul class="coach-lines">
       {% for line in p.lines %}<li>{{ line }}</li>{% endfor %}
       {% for line in p.said %}<li class="dim">{{ line }}</li>{% endfor %}
     </ul>
-    {% if p.stale %}<p class="coach-warn">The loop changed since this was made: Discard it, or ask again.</p>{% endif %}
+    {% if p.stale %}<p class="coach-warn"><i class="coach-dot" aria-hidden="true"></i>The loop changed since this was made: Discard it, or ask again.</p>{% endif %}
     <div class="coach-acts">
       <button type="button" class="btn btn-s" hx-post="/fragment/coach/audition" hx-vals='{"which": "proposed"}' hx-swap="none" hx-sync="this:queue last"
               data-cmd="Coach: hear the proposal" data-cmd-group="Coach"{% if p.stale %} disabled{% endif %}
@@ -28,54 +31,58 @@
       <button type="button" class="btn btn-s btn-ghost" hx-post="/fragment/coach/audition" hx-vals='{"which": "current"}' hx-swap="none" hx-sync="this:queue last"
               data-cmd="Coach: hear the loop as it is" data-cmd-group="Coach"
               title="play the loop as it is now">▶ as is</button>
-      <button type="button" class="btn btn-s btn-primary" hx-post="/fragment/coach/accept" hx-swap="none" hx-sync="this:queue all"
-              data-cmd="Coach: accept the proposal" data-cmd-group="Coach"{% if p.stale %} disabled{% endif %}
-              title="put it in the loop — one undo step (Ctrl+Z, or ↶ Reverse in the thread)">Accept</button>
-      <button type="button" class="btn btn-s btn-ghost" hx-post="/fragment/coach/discard" hx-swap="none" hx-sync="this:queue all"
+      <span class="coach-gap"></span>
+      <button type="button" class="btn btn-s btn-ghost" hx-post="/fragment/coach/discard" hx-swap="none" hx-sync="this:queue all" data-coach-fold
               data-cmd="Coach: discard the proposal" data-cmd-group="Coach"
               title="drop it: the loop stays as it is">Discard</button>
+      <button type="button" class="btn btn-s btn-primary" hx-post="/fragment/coach/accept" hx-swap="none" hx-sync="this:queue all" data-coach-fold
+              data-cmd="Coach: accept the proposal" data-cmd-group="Coach"{% if p.stale %} disabled{% endif %}
+              title="put it in the loop — one undo step (Ctrl+Z, or ↶ Reverse in the conversation)">Accept</button>
     </div>
   </section>
   {% endif %}
 
   <section class="coach-sec coach-assess" aria-label="what the coach found">
-    <h3 class="caps">Assess <small>{{ c.findings | length }}</small></h3>
+    <h3 class="coach-h">Found <small>{{ c.findings | length }}</small></h3>
     {% if c.follows %}
-    <p class="coach-warn">{{ c.lane }} follows the main lane: its notes are the main lane's (“draw its own” on its head to give it some).</p>
+    <p class="coach-warn"><i class="coach-dot" aria-hidden="true"></i>{{ c.lane }} follows the main lane: its notes are the main lane's (“draw its own” on its head to give it some).</p>
     {% endif %}
     {% if c.findings %}
     <ol class="coach-finds">
       {% for x in c.findings %}
-      <li class="coach-find" data-rule="{{ x.id.split(':')[0] }}">
-        <p><b>{{ x.title }}</b> <span class="dim">{{ x.why }}</span></p>
+      <li class="coach-find" data-rule="{{ x.id.split(':')[0] }}" data-k="f{{ x.id }}">
+        <i class="coach-dot" aria-hidden="true"></i>
+        <p title="{{ x.title }}: {{ x.why }}"><b>{{ x.title }}</b> <span class="dim">{{ x.why }}</span></p>
+        <span class="coach-row-acts">
         {% if x.show %}
         <button type="button" class="btn btn-s btn-ghost" hx-post="/fragment/coach/show" hx-swap="none" hx-sync="this:queue all"
                 data-cmd="Coach: show the hidden notes" data-cmd-group="Coach"
                 title="move the roll's rows to where the notes are (the notes stay as they are)">Show them</button>
         {% endif %}
         {% if x.fix %}
-        <button type="button" class="btn btn-s" hx-post="/fragment/coach/propose" hx-vals='{{ {"what": "fix:" ~ x.id} | tojson }}' hx-swap="none" hx-sync="this:queue all"
+        <button type="button" class="btn btn-s btn-ghost" hx-post="/fragment/coach/propose" hx-vals='{{ {"what": "fix:" ~ x.id} | tojson }}' hx-swap="none" hx-sync="this:queue all"
                 {% if loop.first %}data-cmd="Coach: propose the first fix" data-cmd-group="Coach"{% endif %}
                 title="propose this fix: hear it, then Accept or Discard">Fix</button>
         {% endif %}
+        </span>
       </li>
       {% endfor %}
     </ol>
     {% if c.fixable %}
-    <button type="button" class="btn btn-s coach-all" hx-post="/fragment/coach/propose" hx-vals='{"what": "fix:all"}' hx-swap="none" hx-sync="this:queue all"
+    <button type="button" class="btn btn-s btn-ghost coach-all" hx-post="/fragment/coach/propose" hx-vals='{"what": "fix:all"}' hx-swap="none" hx-sync="this:queue all"
             data-cmd="Coach: clean up all" data-cmd-group="Coach"
-            title="every fix above as one proposal, each made on what the ones before left">✦ Clean up all ({{ c.fixable }})</button>
+            title="every fix above as one proposal, each made on what the ones before left">Clean up all ({{ c.fixable }})</button>
     {% endif %}
     {% else %}
-    <p class="dim">Nothing to fix: in {{ c.key }}, on its grid, every bar in its place.</p>
+    <p class="coach-quiet dim">Nothing to fix: in {{ c.key }}, on its grid, every bar in its place.</p>
     {% endif %}
   </section>
 
   <section class="coach-sec coach-opts" aria-label="other versions">
-    <h3 class="caps">Options</h3>
+    <h3 class="coach-h">Try</h3>
     <div class="coach-opt-row">
       {% for o in c.options %}
-      <button type="button" class="btn btn-s btn-ghost" hx-post="/fragment/coach/propose" hx-vals='{{ {"what": "option:" ~ o.id} | tojson }}' hx-swap="none" hx-sync="this:queue all"
+      <button type="button" class="btn btn-s coach-chip" hx-post="/fragment/coach/propose" hx-vals='{{ {"what": "option:" ~ o.id} | tojson }}' hx-swap="none" hx-sync="this:queue all"
               data-cmd="Coach option: {{ o.label }}" data-cmd-group="Coach"
               title="{{ o.why }}"{% if not o.on %} disabled{% endif %}>{{ o.label }}</button>
       {% endfor %}
@@ -84,35 +91,43 @@
 
   {% if c.thread %}
   <section class="coach-sec coach-thread" aria-label="the conversation and what was accepted">
-    <h3 class="caps">Thread</h3>
+    <h3 class="coach-h">Conversation</h3>
     <ol class="coach-log">
       {% for e in c.thread %}
       {% if e.kind == "you" %}
-      <li class="coach-you">{{ e.text }}</li>
+      <li class="coach-you" data-k="t{{ e.id }}">{{ e.text }}</li>
       {% elif e.kind == "coach" %}
-      <li class="coach-reply{% if e.error %} failed{% endif %}">
-        {% for line in e.lines %}<p>{{ line }}</p>{% endfor %}
+      <li class="coach-reply{% if e.error %} failed{% endif %}" data-k="t{{ e.id }}">
+        {% for line in e.lines %}<p>{% if loop.first and e.error %}<i class="coach-dot" aria-hidden="true"></i>{% endif %}{{ line }}</p>{% endfor %}
         {% if e.done %}<ul class="coach-lines">{% for line in e.done %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
-        {% if e.skipped %}<p class="dim">{{ e.skipped | plural("edit") }} it asked for did not fit the loop and {{ "was" if e.skipped == 1 else "were" }} left out.</p>{% endif %}
-        {% if e.tokens %}<small class="dim">{{ "{:,}".format(e.tokens) }} tokens{% if e.cost is not none %} · ≈ ${{ "%.4f" | format(e.cost) }}{% endif %}</small>{% endif %}
+        {% if e.tokens or e.skipped %}
+        <details class="coach-meta">
+          <summary>{% if e.tokens %}{{ "{:,}".format(e.tokens) }} tokens{% if e.cost is not none %} · ≈ ${{ "%.4f" | format(e.cost) }}{% endif %}{% else %}Details{% endif %}{% if e.skipped %} · {{ e.skipped }} left out{% endif %}</summary>
+          {% if e.skipped %}<p>{{ e.skipped | plural("edit") }} it asked for did not fit the loop and {{ "was" if e.skipped == 1 else "were" }} left out.</p>{% endif %}
+        </details>
+        {% endif %}
       </li>
       {% elif e.kind == "accepted" %}
-      <li class="coach-done{% if e.reversed %} reversed{% endif %}">
-        <p><b>✓ {{ e.label }}</b></p>
-        {% if e.lines %}<ul class="coach-lines">{% for line in e.lines %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
+      <li class="coach-done{% if e.reversed %} reversed{% endif %}" data-k="t{{ e.id }}">
+        <p class="coach-done-row">
+          <span class="coach-done-label"{% if e.lines %} title="{{ e.lines | join('\n') }}"{% endif %}>✓ {{ e.label }}</span>
+          {% if not e.reversed %}
+          <span class="coach-row-acts">
+            <small class="dim">{{ "undoes its step" if e.id == c.undo else "restores the loop before it, as a new step" }}</small>
+            <button type="button" class="btn btn-s btn-ghost" hx-post="/fragment/coach/reverse" hx-vals='{{ {"entry": e.id} | tojson }}' hx-swap="none" hx-sync="this:queue all"
+                    {% if e.id == c.undo %}data-cmd="Coach: reverse the last accepted change" data-cmd-group="Coach"{% endif %}
+                    title="{{ 'nothing has changed since: this undoes it, as Ctrl+Z would' if e.id == c.undo else 'puts the loop back as it was before it, as a new undo step: what was changed after it goes too' }}">↶ Reverse</button>
+          </span>
+          {% endif %}
+        </p>
         {% if e.reversed == "undone" %}
         <p class="dim">↶ Reversed: its undo step was the last, so it was undone.</p>
         {% elif e.reversed == "restored" %}
         <p class="dim">↶ Reversed: the loop as it was before it, put back as a new step (Ctrl+Z puts the change back).</p>
-        {% else %}
-        <button type="button" class="btn btn-s btn-ghost" hx-post="/fragment/coach/reverse" hx-vals='{{ {"entry": e.id} | tojson }}' hx-swap="none" hx-sync="this:queue all"
-                {% if e.id == c.undo %}data-cmd="Coach: reverse the last accepted change" data-cmd-group="Coach"{% endif %}
-                title="{{ 'nothing has changed since: this undoes it, as Ctrl+Z would' if e.id == c.undo else 'puts the loop back as it was before it, as a new undo step: what was changed after it goes too' }}">↶ Reverse</button>
-        <small class="dim">{{ "undoes its step" if e.id == c.undo else "restores the loop before it, as a new step" }}</small>
         {% endif %}
       </li>
       {% else %}
-      <li class="coach-note dim">{{ e.text }}</li>
+      <li class="coach-note dim" data-k="t{{ e.id }}">{{ e.text }}</li>
       {% endif %}
       {% endfor %}
     </ol>

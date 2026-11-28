@@ -3464,42 +3464,114 @@ html[data-lp-drag="beat"] .perform-view #perform-drums { outline: 2px dashed var
 .coach[hidden] { display: none; }
 /* (a popped-out coach is a panel of its own) */
 ws-float > .coach { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--r-m); }
+/* calm and flat: hairlines part the sections, the type small and in
+   sentence case, the text two greys; the one colour is the small dot
+   (.coach-dot, --ai) on a finding and on the proposal — a warning or a
+   failure is the same dot in its own hue beside dim text */
 .coach .dim { color: var(--text-dim); }
 .coach-head { display: flex; align-items: center; gap: var(--s1); padding: var(--s1) var(--s2);
   border-bottom: 1px solid var(--line); }
-.coach-head h2 { margin: 0 auto 0 0; }
+.coach-title { margin: 0 auto 0 0; font-size: var(--fs-xs); font-weight: var(--fw-b); }
 .coach-body { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin;
-  display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2); }
-.coach-sec { display: flex; flex-direction: column; gap: var(--s1); }
-.coach-sec h3 { margin: 0; }
-.coach-sec h3 small { color: var(--text-dim); font-weight: normal; letter-spacing: 0; }
+  display: flex; flex-direction: column; font-size: var(--fs-xs); line-height: 1.45; }
+.coach-sec { display: flex; flex-direction: column; gap: var(--s15); padding: var(--s2);
+  border-bottom: 1px solid var(--line); }
+.coach-sec:last-child { border-bottom: 0; }
+.coach-h { margin: 0; font-size: var(--fs-xs); font-weight: 500; color: var(--text-dim); letter-spacing: 0; }
+.coach-h small { margin-left: var(--s1); font-size: inherit; color: var(--text-faint); font-weight: normal; }
+.coach-dot { display: inline-block; flex: none; inline-size: 6px; block-size: 6px; border-radius: 50%;
+  background: var(--ai); translate: 0 -1px; }
 :is(.coach-finds, .coach-log, .coach-lines) { list-style: none; margin: 0; padding: 0;
-  display: flex; flex-direction: column; gap: var(--s1); }
-.coach-find { display: flex; align-items: start; gap: var(--s1); font-size: var(--fs-xs); line-height: 1.35; }
-.coach-find p { margin: 0; flex: 1 1 auto; min-width: 0; }
-.coach-find .dim { display: block; }
-.coach-all { align-self: flex-start; }
-.coach-opt-row, .coach-acts { display: flex; flex-wrap: wrap; gap: var(--s1); }
-.coach-prop { padding: var(--s15); border: 1px solid var(--ai); border-radius: var(--radius);
-  background: color-mix(in oklch, var(--ai), transparent 92%); }
+  display: flex; flex-direction: column; }
+.coach p { margin: 0; }
+/* the flat buttons: the design system's .btn without its bevel, sheen
+   and lift — a hairline on the panel's surface */
+.coach .btn { background-image: none; box-shadow: none; translate: none; font-weight: 500; }
+.coach .btn:not(.btn-ghost, .btn-primary) { background-color: transparent; border-color: var(--line-ctl); }
+.coach .btn:not(.btn-primary):hover { background-color: color-mix(in oklab, var(--text), transparent 93%);
+  border-color: var(--line-ctl); color: var(--text); box-shadow: none; translate: none; }
+.coach .btn:active { box-shadow: none; }
+.coach .btn-s { padding: 0 var(--s15); border-radius: var(--r-s); }
+/* a finding: dot, title and why (clamped, the whole in its title), its
+   Fix / Show them on hover and focus — always in the DOM, reachable */
+.coach-find { display: flex; align-items: baseline; gap: var(--s15);
+  margin: 0 calc(-1 * var(--s15)); padding: var(--s1) var(--s15); border-radius: var(--r-s); }
+.coach-find:hover { background: color-mix(in oklab, var(--text), transparent 96%); }
+.coach-find p { flex: 1 1 auto; min-width: 0; }
+.coach-find b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 500; color: var(--text); }
+.coach-find p .dim { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; }
+.coach-row-acts { display: inline-flex; align-items: center; gap: var(--s1); flex: none; opacity: 0;
+  transition: opacity var(--t-med) var(--ease); }
+:is(.coach-find, .coach-done):is(:hover, :focus-within) .coach-row-acts { opacity: 1; }
+.coach-find .coach-row-acts { align-self: center; }
+/* (no hover under a finger: the actions stay shown) */
+@media (pointer: coarse) { html:not([data-pen]) { .coach-row-acts { opacity: 1; } } }
+.coach .coach-all { align-self: flex-start; margin-left: calc(-1 * var(--s15)); color: var(--text-dim); }
+.coach-quiet { color: var(--text-dim); }
+/* the options: compact outlined chips */
+.coach-opt-row { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.coach .coach-chip { padding: 0 var(--s2); border-radius: 999px; border-color: var(--line);
+  color: var(--text-dim); font-weight: normal; }
+.coach .coach-chip:hover { color: var(--text); }
+/* the proposal: a quiet card, its label by the dot, one row of actions */
+.coach-prop { margin: var(--s2) var(--s2) 0; padding: var(--s2); gap: var(--s1); border: 1px solid var(--line-ctl);
+  border-radius: var(--r-s); background: var(--bg-raised); overflow: hidden; }
 .coach-prop.stale { border-style: dashed; }
-.coach-label { margin: 0; font-weight: 600; font-size: var(--fs-s); }
-.coach-lines { gap: 0; font-size: var(--fs-xs); }
-.coach-warn { margin: 0; font-size: var(--fs-xs); color: var(--pause-text); }
-.coach-log > li { font-size: var(--fs-xs); line-height: 1.35; padding: var(--s1); border-radius: var(--radius); }
-.coach-log p { margin: 0; }
-.coach-you { align-self: flex-end; max-width: 90%; background: var(--bg-inset); }
-.coach-reply { border-left: 2px solid var(--ai); }
-.coach-reply.failed { border-left-color: var(--danger); }
-.coach-done { border: 1px solid var(--line); }
-.coach-done.reversed { opacity: 0.6; }
-.coach-say { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1);
-  padding: var(--s1) var(--s2); border-top: 1px solid var(--line); }
-.coach-say .field { flex: 1 1 140px; min-width: 0; }
-.coach-busy { display: none; flex: 1 1 100%; font-size: var(--fs-xs); }
-.coach.htmx-request .coach-busy { display: block; }
-.coach.htmx-request .coach-say :is(.field, .btn) { opacity: 0.5; pointer-events: none; }
-.coach-mic[aria-pressed="true"] { color: var(--danger-text); border-color: var(--danger); }
+.coach-label { display: flex; align-items: baseline; gap: var(--s15); font-weight: 500; color: var(--text); }
+.coach-lines { color: var(--text-dim); }
+.coach-prop .coach-lines { padding-left: calc(6px + var(--s15)); }
+.coach-warn { display: flex; align-items: baseline; gap: var(--s15); color: var(--text-dim); }
+.coach-warn > .coach-dot { background: var(--pause); }
+.coach-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1); padding-top: var(--s1); }
+.coach-gap { flex: 1 1 auto; }
+/* the conversation: the player's words a subtle bubble at the right, the
+   coach's plain text, its tokens and what it left out folded in a meta
+   line; an accepted change one line, ↶ Reverse on hover and focus */
+.coach-log { gap: var(--s2); }
+.coach-you { align-self: flex-end; max-width: 85%; padding: var(--s1) var(--s2);
+  background: var(--bg-inset); border: 1px solid var(--line); border-radius: var(--r-m); color: var(--text); }
+.coach-reply { display: flex; flex-direction: column; gap: var(--s1); color: var(--text); }
+.coach-reply .coach-lines { color: var(--text-dim); }
+.coach-reply.failed p:first-child { display: flex; align-items: baseline; gap: var(--s15); color: var(--text-dim); }
+.coach-reply.failed .coach-dot { background: var(--danger); }
+.coach-meta summary { display: inline-flex; align-items: center; gap: var(--s1); cursor: pointer;
+  list-style: none; font-size: var(--fs-2xs); color: var(--text-faint); }
+.coach-meta summary::-webkit-details-marker { display: none; }
+.coach-meta summary::after { content: "▸"; transition: rotate var(--t-med) var(--ease); }
+.coach-meta[open] summary::after { rotate: 90deg; }
+.coach-meta summary:hover { color: var(--text-dim); }
+.coach-meta p { padding-top: var(--s0); font-size: var(--fs-2xs); color: var(--text-dim); }
+.coach-done { display: flex; flex-direction: column; gap: var(--s0); }
+.coach-done-row { display: flex; align-items: center; gap: var(--s1); }
+.coach-done-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-dim); }
+.coach-done.reversed .coach-done-label { text-decoration: line-through; color: var(--text-faint); }
+.coach-done small { font-size: var(--fs-2xs); }
+.coach-note { color: var(--text-dim); }
+/* the message box: one rounded field, Send and 🎙 inside its right edge */
+.coach-say { display: flex; flex-direction: column; gap: var(--s1); padding: var(--s2);
+  border-top: 1px solid var(--line); }
+.coach-field { display: flex; align-items: center; gap: var(--s0); padding: var(--s0) var(--s0) var(--s0) var(--s2);
+  background: var(--bg-inset); border: 1px solid var(--line-ctl); border-radius: var(--r-m);
+  transition: border-color var(--t-med) var(--ease); }
+.coach-field:focus-within { border-color: var(--line-strong); }
+.coach-field .field { flex: 1 1 auto; min-width: 0; padding: 0; border: 0; background: transparent;
+  box-shadow: none; outline: none; font-size: var(--fs-xs); }
+.coach-field .field:is(:focus, :focus-visible) { outline: none; box-shadow: none; border: 0; }
+.coach-field .btn-icon { min-width: 24px; padding: 0; }
+.coach .coach-send { color: var(--text-dim); }
+.coach .coach-send:hover { color: var(--text); }
+/* busy: one dim line, a light passing over it (steps: 18 repaints a
+   second, not the display's rate) */
+.coach-busy { display: none; font-size: var(--fs-2xs); color: transparent;
+  background: linear-gradient(90deg, var(--text-faint) 40%, var(--text) 50%, var(--text-faint) 60%) 0 0 / 300% 100%;
+  background-clip: text; -webkit-background-clip: text; }
+.coach.htmx-request .coach-busy { display: block; animation: coach-shimmer 1.4s steps(25) infinite; }
+@keyframes coach-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+.coach.htmx-request .coach-field { opacity: 0.5; pointer-events: none; }
+.coach-mic[aria-pressed="true"] { color: var(--danger-text); }
 .coach-open[aria-expanded="true"] { border-color: var(--ai); }
 .grid .cell.coach-add { outline: 2px solid var(--ai); outline-offset: -2px;
   box-shadow: inset 0 0 0 99px color-mix(in oklch, var(--ai), transparent 65%); }
