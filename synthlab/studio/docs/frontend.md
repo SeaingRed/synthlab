@@ -1637,22 +1637,25 @@ the master analyser each frame for the scope (`smooth`, the level; `kick`,
 the low end's onsets). The same two numbers are written, in one tick, at
 most ~20 times a second and only while they move:
 
-- on **`<body>`** as `--energy` and `--kick` (registered `<number>`,
-  non-inherited: a write restyles `<body>` alone — not on `<html>`, whose
-  `style` deckart.js and visuals.js watch for the hues: there, every write
-  would make them read the palette again, 20 times a second), with `html[data-alive]`
-  while the output carries signal, and `synthlab.energy()` beside
-  `synthlab.kick()` — the published reading, for a script, a test, a deck;
+- as **`synthlab.energy()`** and **`synthlab.kick()`** — the published
+  reading, for a script, a test, a deck — with `html[data-alive]` while
+  the output carries signal. **Never as a style on `<body>`, `#view` or
+  `<html>`**: a style change on `<body>` repainted the full-screen grain
+  (`body::after`, an overlay blend over the whole window) and one on
+  `#view` restyled the page's container — each ~14 points of the main
+  thread while a loop played (a 240 Hz display: `--energy` on `<body>`
+  went 2026-11-28); on `<html>` deckart.js and visuals.js would read the
+  palette again, 20 times a second;
 - on **the consumers** that draw with them as `--live` and `--kick`
   (`LIT` in motion.js: the panels, the transports, the keys dock, the drum
-  bank, the play keys, the playheads, `#view`…), each reading
-  the calm-safe `--live-eff` / `--kick-eff` (0 under calm motion,
-  section 10: "Motion: full or calm").
+  bank, the play keys, the playheads, the stage light `#stage-light`…),
+  each reading the calm-safe `--live-eff` / `--kick-eff` (0 under calm
+  motion, section 10: "Motion: full or calm").
 
 **At rest it settles**: when the output goes quiet the level and the kick
 snap to exactly 0, one last write is made and nothing more —
-`tests/browser/test_alive.py` plays the loop, sees `--energy` move and
-`data-alive` set, stops, and sees both back to 0. **Under calm motion
+`tests/browser/test_alive.py` plays the loop, sees `synthlab.energy()`
+move and `data-alive` set, stops, and sees both back to 0. **Under calm motion
 nothing is written** (motion.js checks before it writes), no afterglow is
 added and the rail's sweep is gone; the static depth stays.
 
@@ -1688,13 +1691,22 @@ What draws with it (style.css 39):
   moves the lead's opacity alone;
 - the transport's lit pilot lamps pump on the kick and breathe with the
   level; the playheads carry a static bloom (they move by `translate`
-  only); the stage light (`#view::after`) and the scope's halo.
+  only); the stage light (`#stage-light`, its own fixed element in
+  base.html — it was `#view::after`, lit by a write on `#view`) and the
+  scope's halo.
 
 **Rules for a new consumer**: read `--live-eff` / `--kick-eff` (add the
 element to motion.js's `LIT` and to both lists in style.css — section 1's
 and section 10's); animate `opacity` or `transform` on a layer of its own,
-never a `box-shadow` or a `filter` on a large or repeated element; nothing
-may run at rest.
+never a `box-shadow` or a `filter` on a large or repeated element; **the
+element written to is small or the glow's own** — never a page-sized
+container (`<body>`, `#view`, a view's grid): give the glow an element of
+its own, as `#stage-light`; nothing may run at rest. **No selector reads
+the `style` attribute together with `:has()`** (`:not([style*="--h"])`
+beside `:has(.grid)`): every inline write — the glow's, a meter's, a
+playhead's — re-ran the `:has()` over the module's whole subtree (the
+note grid: ~2,400 elements). Mark such state with a data attribute
+(`data-h`, `data-drawer-h`).
 
 **What it costs**: the page's frame cost while playing is measured
 (headless Chromium, 1920 × 1080, CDP `Performance.getMetrics` per frame

@@ -322,6 +322,9 @@
   </div>
   </div>
   <div id="toasts" role="status" aria-live="polite"></div>
+  {#- the stage light (style.css 20): the wash that breathes with the output,
+      its own fixed layer so motion.js's writes never restyle #view -#}
+  <i id="stage-light" aria-hidden="true"></i>
   {% block main %}{% endblock %}
   {#- the keyboard dock: every page's, after #view and outside it, so a view
       swap never redraws it — the keys, their layout and settings, a held

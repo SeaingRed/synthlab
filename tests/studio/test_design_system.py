@@ -1141,21 +1141,26 @@ def test_no_selector_reads_an_ancestors_inline_style():
 
 
 def test_the_energy_is_published_once_and_drawn_by_its_consumers():
-    """motion.js writes the level and the kick on its consumers AND, the
-    same numbers, `--energy` / `--kick` on <body> (non-inherited: <body>
-    alone restyles; never <html>, whose style the decks and the visualisers
-    watch for the hues), `data-alive` while it sounds, nothing under calm
+    """motion.js writes the level and the kick on its consumers only — never
+    a style on <body> or #view (a write there repainted the full-screen
+    grain / restyled the page's container: ~14 points of the main thread
+    each while a loop played); the same numbers are `synthlab.energy()` /
+    `synthlab.kick()`; `data-alive` while it sounds, nothing under calm
     motion; grid.js marks a running grid once (no per-frame attribute)."""
     js = (STATIC / "motion.js").read_text(encoding="utf-8")
-    assert '"--energy"' in js and '"data-alive"' in js and "synthlab.energy" in js
+    assert '"data-alive"' in js and "synthlab.energy" in js
+    assert "synthlab ??= {}).kick" in js
     assert "calm()) return" in js
-    assert 'el === document.body ? "--energy"' in js
-    assert '@property --energy { syntax: "<number>"; inherits: false;' in CSS
+    lit = re.search(r'const LIT = "([^"]+)"', js).group(1)
+    assert "#stage-light" in lit and "#view" not in lit and "body" not in lit
+    light = js[js.index("function light(") : js.index("let lastStages")]
+    assert "document.body" not in light
+    assert "#stage-light {" in CSS and not re.search(r"#view::after\s*\{", CSS)
     grid = (STATIC / "grid.js").read_text(encoding="utf-8")
     assert "if (!x.running) x.running" in grid and '"data-running", false' in grid
     # the played module's edge is a layer whose opacity alone moves
     alive = CSS[CSS.index("/* ---------- 39. Alive") :]
-    lit = alive[alive.index(":has(.grid[data-running])::after {") :]
+    lit = alive[alive.index(":has(.grid[data-running]) > .module-glow {") :]
     lit = lit[: lit.index("}")]
     # never on a key press: `:has(.pkey.down)` restyled and repainted the
     # whole dock's layer on every key (a press blocked 40 ms, not 17)
@@ -1167,8 +1172,11 @@ def test_the_energy_is_published_once_and_drawn_by_its_consumers():
     reduced = CSS[
         CSS.index("/* ---------- 10. Motion") : CSS.index("/* ---------- 11.")
     ]
-    for consumer in (".keys-dock", ".drum-bank", ".btn-play"):
-        assert consumer in reduced, consumer
+    for consumer in (".module-glow", "#stage-light", ".btn-play"):
+        assert consumer in reduced or f'calm"] {consumer}' in CSS, consumer
+    # the module's edge is its own element, never the module's ::after (a
+    # level write on the module restyled the note grid's container)
+    assert not re.search(r"\.transport\.module[^{,]*::after", CSS)
 
 
 # the hints a page dims (a contrast read of every page): each

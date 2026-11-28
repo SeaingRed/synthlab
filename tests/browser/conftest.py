@@ -169,6 +169,9 @@ def chromium():
         browser = pw.chromium.launch(
             args=[
                 "--autoplay-policy=no-user-gesture-required",
+                # silent at the speakers: the journeys read levels from the
+                # page's own graph (analysers, the worklet), never the device
+                "--mute-audio",
                 # a fake microphone (a tone), allowed without asking: the
                 # live talkbox's and the sampler's record journeys open it
                 "--use-fake-device-for-media-stream",

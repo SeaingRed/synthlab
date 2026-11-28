@@ -61,6 +61,7 @@
     if (!scope) return;
     const w = clampTo(sp, px);
     scope.style.setProperty(sp.dataset.var, `${w}px`);
+    scope.toggleAttribute(`data-${sp.dataset.var.slice(2)}`, true); // (dense.css reads data-drawer-h, never [style*=])
     sp.setAttribute("aria-valuenow", String(w));
     if (save) store.set(key(sp.dataset.var), String(w));
   }
@@ -99,6 +100,7 @@
     const sp = e.target.closest?.(".splitter[data-var]");
     if (!sp) return;
     scopeOf(sp)?.style.removeProperty(sp.dataset.var);
+    scopeOf(sp)?.removeAttribute(`data-${sp.dataset.var.slice(2)}`);
     store.set(key(sp.dataset.var), null);
   });
   document.addEventListener("keydown", (e) => {

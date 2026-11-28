@@ -516,11 +516,11 @@
   // onto its own length (a 1-bar synth grid in a 2-bar mixed loop)
   const playheads = () => (heads ??= [...document.querySelectorAll(".loopbar .playhead")]);
   document.addEventListener("htmx:after:settle", () => { heads = null; lastPhase = -1; });
-  function tickPlayhead() {
+  function tickPlayhead(now) {
     phRAF = 0;
     if (!current || !playing) return stopPlayhead();
     phRAF = requestAnimationFrame(tickPlayhead);
-    if (document.hidden) return;
+    if (document.hidden || !window.synthlab?.paced?.("playhead", now)) return; // ~60 a second on any display (colours.js)
     const phase = ((ctx.currentTime - current.startedAt) / current.cycle) % 1; // one pass of the grid
     if (phase >= 0 && Math.abs(phase - lastPhase) > 0.003) {
       lastPhase = phase;

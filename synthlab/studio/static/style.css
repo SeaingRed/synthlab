@@ -429,10 +429,10 @@ html[data-look="phosphor"], .look-sw[data-look="phosphor"] {
    (pagemotion.js; section 48). Non-inherited: a panel's glow layer takes it
    (`inherit` there), its controls never restyle */
 @property --ignite { syntax: "<number>"; inherits: false; initial-value: 0; }
-#audio-led, .panel, .viz, .transport, #scope, #spectrum, #xyghost, .play,
-.btn-play, .keys-dock, .drum-bank {
+#audio-led, .panel, .viz, #scope, #spectrum, #xyghost, .play,
+.btn-play, .module-glow {
   --live-eff: var(--live); }
-.play, .btn-play, .song-playhead, .keys-dock, .transport, .drum-bank { --kick-eff: var(--kick); }
+.play, .btn-play, .song-playhead, .module-glow { --kick-eff: var(--kick); }
 
 /* ---------- 2. Base ---------- */
 * { box-sizing: border-box; }
@@ -3038,9 +3038,9 @@ html[data-motion="calm"] .song-playhead { display: none; }
    never a prefers-reduced-motion media block. */
 html[data-motion="calm"] {
   * { animation: none !important; transition: none !important; }
-  #audio-led, .panel, .viz, .transport, #scope, #spectrum, #xyghost, .play,
-  .btn-play, .keys-dock, .drum-bank { --live-eff: 0; }
-  .play, .btn-play, .song-playhead, .keys-dock, .transport, .drum-bank { --kick-eff: 0; }
+  #audio-led, .panel, .viz, #scope, #spectrum, #xyghost, .play,
+  .btn-play, .module-glow { --live-eff: 0; }
+  .play, .btn-play, .song-playhead, .module-glow { --kick-eff: 0; }
   /* no blink: a queued pattern reads as a hollow ring instead */
   .launch[data-state="queued"] .launch-state { background: transparent;
     border: 2px solid var(--signal); }
@@ -6337,9 +6337,12 @@ input[type="range"]:is(:hover, :focus-visible, :active) {
    takes --ah-solid (the same face, no rim) so it never shows what scrolls
    under it; the bench is a shade lighter than the page (--ah-bench). The
    tiles themselves are placed in the dense tier (dense.css D32). A view's
-   stage light (#view::after) breathes with the output (--live) and pumps
-   on the kick: one fixed layer whose opacity moves, never a repaint of a
-   tile. Day sets every --ah-* to the
+   stage light (#stage-light, base.html) breathes with the output (--live)
+   and pumps on the kick: one fixed layer whose opacity moves, never a
+   repaint of a tile. It is its own element, written to directly: as
+   #view::after it took the values from #view, and a write on #view (the
+   whole page's container) cost 13 points of the main thread while a loop
+   played (measured, a 240 Hz display). Day sets every --ah-* to the
    plain surface or 0, so Porcelain Day is what it was. */
 .panel { background: linear-gradient(180deg, color-mix(in oklab, var(--text) calc(var(--ah-glow) * 2.5%), transparent), transparent 38%),
   var(--bg-raised); }
@@ -6347,14 +6350,13 @@ input[type="range"]:is(:hover, :focus-visible, :active) {
    section 20's lit rim, so no panel on a page had one) */
 .cockpit .panel { box-shadow: 0 0 0 calc(var(--flash, 0) * 3px) color-mix(in oklch, var(--accent), transparent 35%),
   var(--bevel); } /* (the live wash in from the edges: the glow layer, section 11) */
-#view { --live-eff: var(--live); --kick-eff: var(--kick); }
-#view::after { content: ""; position: fixed; inset: var(--top-h) 0 0 0; z-index: calc(var(--z-sticky) - 1);
+#stage-light { position: fixed; inset: var(--top-h) 0 0 0; z-index: calc(var(--z-sticky) - 1);
   pointer-events: none; will-change: opacity;
-  --live-eff: inherit; --kick-eff: inherit;
+  --live-eff: var(--live); --kick-eff: var(--kick);
   background: radial-gradient(70% 46% at 50% 0%, color-mix(in oklch, var(--signal), transparent 84%), transparent 72%),
     radial-gradient(40% 30% at 100% 0%, color-mix(in oklch, var(--glow), transparent 86%), transparent 70%);
   opacity: calc(var(--ah-stage) * (var(--live-eff) * 0.75 + var(--kick-eff) * 0.35)); }
-html[data-motion="calm"] #view { --live-eff: 0; --kick-eff: 0; }
+html[data-motion="calm"] #stage-light { --live-eff: 0; --kick-eff: 0; }
 /* sticky parts: opaque glass */
 :is(.arr-corner, .track-head, .arr-rowhead, .jam-corner, .jam-head, .drum-grid-8 .rowhead, .arr-new-audio > *) {
   background: var(--ah-solid); }
@@ -6727,8 +6729,8 @@ ws-split[data-d="row"] > :not(.ws-sash) { flex: var(--g, 1) 1 0; }
 /* a column's rows keep their own height; one holding something that takes
    the height it is given (a step grid, a pad, a plot) shares what is left */
 ws-split[data-d="col"] > :not(.ws-sash) { flex: 0 0 auto; }
-ws-split[data-d="col"] > :has(.grid, #drumxy, canvas.ws-vis):not([style*="--h"]) { flex: 1 1 0; min-height: min-content; }
-ws-split[data-d="col"] > [style*="--h"] { flex-basis: var(--h); overflow: auto; }
+ws-split[data-d="col"] > :has(.grid, #drumxy, canvas.ws-vis):not([data-h]) { flex: 1 1 0; min-height: min-content; }
+ws-split[data-d="col"] > [data-h] { flex-basis: var(--h); overflow: auto; }
 /* (the hairline a tile drew beside its wrapper's neighbour: in a group the
    sash is the seam) */
 #view[data-view="editor"] ws-group > :is(#xypad-panel, .fx-scope, .sub-module) { border-left: 0; border-top: 0; }
@@ -6861,21 +6863,27 @@ ws-float .ws-added canvas.ws-vis, [data-ws-max] canvas.ws-vis { height: calc(100
   0 0 16px 2px oklch(from var(--signal) l c h / calc(0.35 * var(--a-halo))); }
 
 /* the module being played: a lit edge in the theme's glow (--halo-edge)
-   that breathes with the level and pumps on the kick. Desktop only: there
-   the hosts are positioned (the keys dock is sticky) */
+   that breathes with the level and pumps on the kick. Its own element
+   (`.module-glow`, the module's first child), written to by motion.js:
+   as the module's ::after it took the level from the module, and every
+   write restyled the note grid's container — 12 points of the main thread
+   while a loop played (measured, a 240 Hz display), though only an opacity
+   moved. Desktop only: there the hosts are positioned. (The keys dock had
+   one too that nothing ever lit: gone.) */
+.module-glow { display: none; }
 @media (min-width: 901px) {
   :is(.transport.module, .drum-bank) { position: relative; }
-  :is(.keys-dock, .transport.module, .drum-bank)::after { content: ""; position: absolute; inset: 0; z-index: 5;
-    border-radius: inherit; pointer-events: none; --live-eff: inherit; --kick-eff: inherit;
+  .module-glow { display: block; position: absolute; inset: 0; z-index: 5;
+    border-radius: inherit; pointer-events: none;
     box-shadow: var(--halo-edge); opacity: 0; transition: opacity var(--t-slow) var(--ease); }
   /* a transport whose grid is not the one running still
      breathes with the output, as its edge did (a border-color: section 11) */
-  .transport.module::after { opacity: calc(var(--live-eff) * 0.4); transition: none; }
-  html[data-alive] .transport.module::after { will-change: opacity; }
-  /* not the keys dock on a pressed key (a `:has` on the key's down class):
-     each press restyled and repainted the whole dock's glow layer — the
-     keys' own light says they are played */
-  :is(.transport.module, .drum-bank):has(.grid[data-running])::after {
+  .transport.module > .module-glow { opacity: calc(var(--live-eff) * 0.4); transition: none; }
+  html[data-alive] .transport.module > .module-glow { will-change: opacity; }
+  /* not on a pressed key (a `:has` on the key's down class): each press
+     restyled and repainted a whole glow layer — the keys' own light says
+     they are played */
+  :is(.transport.module, .drum-bank):has(.grid[data-running]) > .module-glow {
     opacity: calc(0.35 + var(--live-eff) * 0.5 + var(--kick-eff) * 0.3); transition: none; will-change: opacity; }
 }
 

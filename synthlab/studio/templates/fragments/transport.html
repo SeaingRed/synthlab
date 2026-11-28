@@ -9,6 +9,9 @@
       hx-post="/fragment/arrangement" hx-trigger="input delay:150ms, submit" hx-sync="this:queue last"
       hx-include="#patch, #transport" hx-swap="none"
       {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  {#- the module's lit edge (style.css 39): its own element, so motion.js's
+      level writes land on it and never restyle the module -#}
+  <i class="module-glow" aria-hidden="true"></i>
   {%- if lane_follow %}
   {# the edited layer follows (StudioService.lane_follow): what plays is the
      main lane's notes, not this grid — say so rather than let edits vanish #}

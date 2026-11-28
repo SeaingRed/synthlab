@@ -8,6 +8,9 @@
 {% from "drumgrid.html" import beat_vars, drum_grid, drum_menu, swap_to %}
 <section id="perform-drums" class="transport perform-drums module" data-module="perform.drums" aria-label="Drum pattern"
          {% if oob %}hx-swap-oob="outerMorph"{% endif %}>
+  {#- the module's lit edge (style.css 39): its own element, so motion.js's
+      level writes land on it and never restyle the module -#}
+  <i class="module-glow" aria-hidden="true"></i>
   <div class="pattern-tools" role="toolbar" aria-label="Drum pattern tools">
     <button type="button" class="caps pt-title fold" data-fold="perform-drums" aria-expanded="true" title="fold the drum grid">drums</button>
     {#- the drum grid's head (loop-and-perform.md, "One selection"): the
