@@ -81,3 +81,22 @@ def _testclient_host():
 def production_hosts():
     """The Host allowlist a real launch gets: `create_app(allowed_hosts=...)`."""
     return PRODUCTION_HOSTS
+
+
+PREMERGE_STUDIO = (
+    "test_render.py",
+    "test_render_cache_keys.py",
+    "test_song_routes.py",
+    "test_drum_hits.py",
+)
+
+
+def pytest_collection_modifyitems(items):
+    """Tag the pre-merge tier: every engine test (tests/test_*.py) and the
+    studio's render / cache-key guards. `pytest -n auto -m premerge`."""
+    for item in items:
+        p = item.path
+        if p.parent.name == "tests" or (
+            p.parent.name == "studio" and p.name in PREMERGE_STUDIO
+        ):
+            item.add_marker(pytest.mark.premerge)

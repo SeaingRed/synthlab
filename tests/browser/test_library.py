@@ -130,11 +130,17 @@ def test_no_key_is_clipped_and_the_dock_shows_the_selection(library, size, densi
     )
     # (on a card the same keys read "▶ mix", "+", "Use": the <i> is the rest)
     short = page.locator(".lib-card:not(.active) .lib-acts").first.inner_text()
-    assert short.split() == ["▶", "mix", "+", "Use"]
+    assert short.split() == ["★", "▶", "mix", "+", "Use"]
     # ... and the selected card keeps its own (were they only in the dock
     # with its detail, the card just clicked would lose its Use)
     assert card.locator(".lib-acts .lib-use").is_visible()
-    assert card.locator(".lib-acts").inner_text().split() == ["▶", "mix", "+", "Use"]
+    assert card.locator(".lib-acts").inner_text().split() == [
+        "★",
+        "▶",
+        "mix",
+        "+",
+        "Use",
+    ]
     assert page.evaluate(CLIPPED) == []
     # the page never scrolls: the browser scrolls inside itself
     assert page.evaluate(

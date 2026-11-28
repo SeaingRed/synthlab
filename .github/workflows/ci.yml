@@ -38,7 +38,7 @@ jobs:
           node-version: 24 # the parity tests and the bench run on node 24 LTS
       - run: uv sync --all-extras
       - name: suite (native kernels)
-        run: uv run pytest -q
+        run: uv run pytest -q -n auto -m premerge
       - name: engine on the NumPy fallback
         run: uv run pytest -q tests --ignore=tests/studio
         env:
@@ -64,7 +64,7 @@ jobs:
       - name: native kernels vs their NumPy twins
         run: uv run pytest -q tests/test_native.py tests/test_native_voice.py
       - name: quick tier
-        run: uv run pytest -q -m "not slow"
+        run: uv run pytest -q -n auto -m premerge
 
   rust:
     runs-on: windows-latest

@@ -101,7 +101,7 @@ def test_piano_sends_the_envelope_curve_to_the_worklet(tmp_path):
     piano = PIANO.read_text(encoding="utf-8")
     livefx = Path("synthlab/studio/static/livefx.js").read_text(encoding="utf-8")
     assert (
-        '{ type: "params", p: lp }' in livefx and "p: patch, hold: holdMode };" in piano
+        '{ type: "params", p: lp }' in livefx and "p: patch, hold: holdMode," in piano
     )
     assert "T.env_curve" in WORKLET.read_text(encoding="utf-8")
 

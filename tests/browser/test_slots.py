@@ -134,6 +134,10 @@ def test_fill_launch_a_slot_and_a_scene_edit_undo_and_stop(studio, server):
     for _ in range(2):
         with page.expect_response("**/fragment/pattern/undo"):
             page.keyboard.press("Control+z")
+        # the next press is dropped while this one is still in flight
+        page.locator('[hx-post="/fragment/pattern/undo"].htmx-request').first.wait_for(
+            state="detached"
+        )
     page.locator(f'{_slot(0, 0)}[data-state="playing"]').wait_for()
     assert s.loop_edit_of(4) is None
     # ■ lane 1 (its head's): it stops at its point, its ■ pressed

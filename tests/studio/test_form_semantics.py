@@ -155,7 +155,15 @@ _DRUM_AND_CLIP_FIELDS = (
     "drum_kit",
     "drum_mics",
 )
-_CELL_FIELDS = ("cells", "velocities", "slides", "cuts", "note_chance")
+_CELL_FIELDS = (
+    "cells",
+    "velocities",
+    "slides",
+    "cuts",
+    "note_chance",
+    "note_nudge",
+    "note_feel",
+)
 _GRID_FIELDS = (
     "bars",
     "steps_per_bar",
